@@ -99,7 +99,7 @@ async function loadProjectData(projectId) {
   };
 }
 
-// ── Render: 最近代办 ──────────────────────────────────
+// ── Render: Recent Tasks ──────────────────────────────
 function renderTodo(data) {
   const tasks = (data.backlog || []).filter(t => t.status !== 'done').sort((a, b) => {
     const pa = a.bucket || '';
@@ -109,10 +109,10 @@ function renderTodo(data) {
     return (order[a.status] || 99) - (order[b.status] || 99);
   });
 
-  document.getElementById('todoCount').textContent = `${tasks.length} 项`;
+  document.getElementById('todoCount').textContent = `${tasks.length} items`;
 
   if (!tasks.length) {
-    document.getElementById('todoBody').innerHTML = '<div class="empty-state">所有任务已完成</div>';
+    document.getElementById('todoBody').innerHTML = '<div class="empty-state">All tasks completed</div>';
     return;
   }
 
@@ -149,13 +149,13 @@ function renderTodo(data) {
   });
 }
 
-// ── Render: 科研路线 ──────────────────────────────────
+// ── Render: Research ──────────────────────────────────
 function renderResearch(data) {
   const items = data.research || [];
-  document.getElementById('researchCount').textContent = `${items.length} 项`;
+  document.getElementById('researchCount').textContent = `${items.length} items`;
 
   if (!items.length) {
-    document.getElementById('researchBody').innerHTML = '<div class="empty-state">暂无科研方向</div>';
+    document.getElementById('researchBody').innerHTML = '<div class="empty-state">No research directions yet</div>';
     return;
   }
 
@@ -193,7 +193,7 @@ function renderResearch(data) {
   });
 }
 
-// ── Render: 工程模块 ──────────────────────────────────
+// ── Render: Engineering ───────────────────────────────
 function renderEngineering(data) {
   const tasks = data.backlog || [];
 
@@ -204,14 +204,14 @@ function renderEngineering(data) {
     groups[mod].push(t);
   }
 
-  const labels = { smt: 'SMT Core', llm: 'LLM Loop', infra: '基础设施' };
+  const labels = { smt: 'SMT Core', llm: 'LLM Loop', infra: 'Infrastructure' };
   const icons = { smt: '⚙️', llm: '🔄', infra: '🏗️' };
 
   const total = tasks.length;
-  document.getElementById('engineeringCount').textContent = `${total} 项`;
+  document.getElementById('engineeringCount').textContent = `${total} items`;
 
   if (!total) {
-    document.getElementById('engineeringBody').innerHTML = '<div class="empty-state">暂无工程任务</div>';
+    document.getElementById('engineeringBody').innerHTML = '<div class="empty-state">No engineering tasks yet</div>';
     return;
   }
 
@@ -249,13 +249,13 @@ function renderEngineering(data) {
   });
 }
 
-// ── Render: 笔记备忘 ──────────────────────────────────
+// ── Render: Notes ─────────────────────────────────────
 function renderNotes(data) {
   const notes = (data.notes || []).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  document.getElementById('notesCount').textContent = `${notes.length} 项`;
+  document.getElementById('notesCount').textContent = `${notes.length} notes`;
 
   if (!notes.length) {
-    document.getElementById('notesBody').innerHTML = '<div class="empty-state">暂无笔记</div>';
+    document.getElementById('notesBody').innerHTML = '<div class="empty-state">No notes yet</div>';
     return;
   }
 
@@ -322,7 +322,7 @@ function openTodoModal(task) {
         ${statusBadge} ${bucketBadge}
       </div>
       <div class="modal-meta-row" style="font-size:0.82rem;color:var(--text-tertiary);">
-        <span>模块: <strong style="color:var(--text-secondary);">${esc(task.module)}</strong></span>
+        <span>Module: <strong style="color:var(--text-secondary);">${esc(task.module)}</strong></span>
         ${task.size ? `<span>· size: <strong style="color:var(--text-secondary);">${esc(task.size)}</strong></span>` : ''}
         ${task.effort ? `<span>· effort: <strong style="color:var(--text-secondary);">${esc(task.effort)}</strong></span>` : ''}
       </div>
@@ -347,7 +347,7 @@ function openTodoModal(task) {
     const accept = Array.isArray(task.accept) ? task.accept : [task.accept];
     bodyHtml += `
       <div class="modal-section">
-        <h4>验收标准</h4>
+        <h4>Acceptance Criteria</h4>
         <ul>
           ${accept.map(a => `<li>${inline(a)}</li>`).join('')}
         </ul>
@@ -358,7 +358,7 @@ function openTodoModal(task) {
   if (task.body && task.body.length) {
     bodyHtml += `
       <div class="modal-section">
-        <h4>描述</h4>
+        <h4>Description</h4>
         ${task.body.map(p => `<p>${inline(p)}</p>`).join('')}
       </div>
     `;
@@ -445,7 +445,7 @@ async function openNoteModal(path) {
   showModal(`
     <div class="loading-state" style="padding:3rem 0;">
       <div class="spinner"></div>
-      <p>加载笔记...</p>
+      <p>Loading note...</p>
     </div>
   `);
 
@@ -453,7 +453,7 @@ async function openNoteModal(path) {
     const res = await fetch(API_BASE + '/api/projects/' + encodeURIComponent(currentProject) + '/data/' + encodeURIComponent(path));
     if (res.ok) {
       const json = await res.json();
-      const html = json.content || '<div class="empty-state">笔记内容为空</div>';
+      const html = json.content || '<div class="empty-state">Note is empty</div>';
       // Try to extract title from HTML
       const titleMatch = html.match(/<title>([^<]*)<\/title>/i) || html.match(/<h1[^>]*>([^<]*)<\/h1>/i);
       const title = titleMatch ? titleMatch[1].trim() : esc(path);
@@ -467,12 +467,12 @@ async function openNoteModal(path) {
       `;
     } else {
       document.getElementById('modalBody').innerHTML = `
-        <div class="empty-state" style="padding:3rem 0;">无法加载笔记 (HTTP ${res.status})</div>
+        <div class="empty-state" style="padding:3rem 0;">Failed to load note (HTTP ${res.status})</div>
       `;
     }
   } catch (e) {
     document.getElementById('modalBody').innerHTML = `
-      <div class="empty-state" style="padding:3rem 0;">加载失败: ${esc(e.message)}</div>
+      <div class="empty-state" style="padding:3rem 0;">Failed to load: ${esc(e.message)}</div>
     `;
   }
 }
@@ -494,11 +494,11 @@ async function boot() {
 
   // Load project list
   const projects = await loadProjects();
-  select.innerHTML = '<option value="" disabled>选择项目...</option>' +
+  select.innerHTML = '<option value="" disabled>Select project...</option>' +
     projects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
 
   if (!projects.length) {
-    document.getElementById('todoBody').innerHTML = '<div class="empty-state">没有可用项目</div>';
+    document.getElementById('todoBody').innerHTML = '<div class="empty-state">No projects available</div>';
     return;
   }
 
@@ -519,7 +519,7 @@ async function loadAndRender(projectId) {
   const loadingHtml = `
     <div class="loading-state">
       <div class="spinner"></div>
-      <p>加载中...</p>
+      <p>Loading...</p>
     </div>
   `;
   document.getElementById('todoBody').innerHTML = loadingHtml;
@@ -531,7 +531,7 @@ async function loadAndRender(projectId) {
     const data = await loadProjectData(projectId);
     renderAll(data);
   } catch (e) {
-    const errHtml = `<div class="empty-state" style="color:var(--error);">加载失败: ${esc(e.message)}</div>`;
+    const errHtml = `<div class="empty-state" style="color:var(--error);">Failed to load: ${esc(e.message)}</div>`;
     document.getElementById('todoBody').innerHTML = errHtml;
     document.getElementById('researchBody').innerHTML = errHtml;
     document.getElementById('engineeringBody').innerHTML = errHtml;
@@ -542,5 +542,5 @@ async function loadAndRender(projectId) {
 
 boot().catch(e => {
   console.error('Boot error:', e);
-  document.getElementById('todoBody').innerHTML = `<div class="empty-state" style="color:var(--error);">启动失败: ${esc(e.message)}</div>`;
+  document.getElementById('todoBody').innerHTML = `<div class="empty-state" style="color:var(--error);">Startup failed: ${esc(e.message)}</div>`;
 });
