@@ -6,7 +6,7 @@ import json
 import mimetypes
 import os
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +21,7 @@ def _json_response(handler: BaseHTTPRequestHandler, data: Any, status: int = 200
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Access-Control-Allow-Origin", "*")
     handler.send_header("Content-Length", str(len(body)))
+    handler.send_header("Connection", "close")
     handler.end_headers()
     handler.wfile.write(body)
 
@@ -41,14 +42,23 @@ def _read_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     return json.loads(body)
 
 
-def _serve_static(handler: BaseHTTPRequestHandler, path: str) -> bool:
+def _serve_static(handler: BaseHTTPRequestHandler, path: str, project_id: str | None = None) -> bool:
     """Serve a static file from the templates or project directory. Return True if served."""
     # Security: prevent directory traversal
     safe_path = path.lstrip("/")
     if ".." in safe_path:
         return False
 
-    # Try templates first (SPA assets)
+    # Try project directory first if project_id given
+    if project_id:
+        project_path = projects_dir() / project_id / safe_path
+        if project_path.exists() and project_path.is_file():
+            content = project_path.read_bytes()
+            ctype = mimetypes.guess_type(str(project_path))[0] or "application/octet-stream"
+            _file_response(handler, content, ctype)
+            return True
+
+    # Try templates (SPA assets)
     template_path = DOCSBOT_DIR / "templates" / safe_path
     if template_path.exists() and template_path.is_file():
         content = template_path.read_bytes()
@@ -81,21 +91,26 @@ def make_handler():
                     _json_response(self, {"projects": list_projects()})
                     return
 
-                # API: read project data file
+                # API: read project data file (or any project file)
                 if path.startswith("/api/projects/"):
                     parts = path[len("/api/projects/"):].split("/")
                     if len(parts) >= 3 and parts[1] == "data":
                         project_id = urllib.parse.unquote(parts[0])
-                        filename = parts[2]
-                        project_path = projects_dir() / project_id / "data" / filename
-                        if project_path.exists():
-                            text = project_path.read_text(encoding="utf-8")
-                            _json_response(self, {"content": text})
-                        else:
-                            _json_response(self, {"error": "File not found"}, 404)
+                        filename = urllib.parse.unquote("/".join(parts[2:]))
+                        # Try data/ dir first, then project root (for notes/ etc.)
+                        candidates = [
+                            projects_dir() / project_id / "data" / filename,
+                            projects_dir() / project_id / filename,
+                        ]
+                        for project_path in candidates:
+                            if project_path.exists() and project_path.is_file():
+                                text = project_path.read_text(encoding="utf-8")
+                                _json_response(self, {"content": text})
+                                return
+                        _json_response(self, {"error": "File not found"}, 404)
                         return
 
-                # SPA entry point
+                # Root: serve SPA
                 if path == "/" or path == "/index.html":
                     index_path = DOCSBOT_DIR / "templates" / "index.html"
                     if index_path.exists():
@@ -105,7 +120,10 @@ def make_handler():
                         _json_response(self, {"error": "Frontend not built"}, 500)
                     return
 
-                # Static assets
+                # Static assets (check project first, then templates)
+                projects = list_projects()
+                if projects and _serve_static(self, path, projects[0]["id"]):
+                    return
                 if _serve_static(self, path):
                     return
 
@@ -148,7 +166,7 @@ def _pid_file() -> Path:
 def run_server(host: str = "127.0.0.1", port: int = 18765) -> None:
     """Start the DocsBot HTTP server."""
     handler = make_handler()
-    server = HTTPServer((host, port), handler)
+    server = ThreadingHTTPServer((host, port), handler)
 
     pid_path = _pid_file()
     pid_path.parent.mkdir(parents=True, exist_ok=True)
