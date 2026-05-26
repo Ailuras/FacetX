@@ -1,68 +1,92 @@
-// ============================================================
-// DocsBot Frontend — Interactive SPA
-// ============================================================
-// Modules:
-//   1. Data Layer      — API wrappers, project loading, serialization
-//   2. UI Utilities    — Toast, markdown inline, escape, spinner
-//   3. Renderers       — Page render functions (index, research, backlog, notes)
-//   4. Drag & Drop     — Full HTML5 DnD with cross-bucket support
-//   5. Modal System    — Task/Research editing with draft auto-save
-//   6. Keyboard        — ESC, Ctrl+Enter, Ctrl+N shortcuts
-//   7. Navigation      — Page switching with fade transitions
-//   8. Boot            — Initialization and event wiring
-// ============================================================
+const API_BASE = (() => {
+  const path = location.pathname;
+  if (path.endsWith('/')) return '.';
+  const lastSlash = path.lastIndexOf('/');
+  return lastSlash >= 0 ? path.slice(0, lastSlash) : '';
+})();
 
-const API_BASE = '';
-let currentProject = null;
-let currentPage = 'index';
-let projectData = {};
-
-// ============================================================
-// 1. Data Layer
-// ============================================================
-
-async function api(path) {
-  const res = await fetch(API_BASE + path);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+// ── Utilities ─────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function inline(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
 }
 
-async function apiPost(path, body) {
-  const res = await fetch(API_BASE + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+function badgeClass(status) {
+  const map = {
+    'open': 'badge-open',
+    'in-progress': 'badge-in-progress',
+    'blocked': 'badge-blocked',
+    'done': 'badge-done',
+    'abandoned': 'badge-abandoned',
+  };
+  return map[status] || 'badge-open';
+}
+
+function bucketLineVar(bucket) {
+  const p = (bucket || '').toLowerCase().replace(/^p/, '');
+  const n = parseInt(p, 10);
+  if (n >= 0 && n <= 5) return `var(--p${n}-line)`;
+  return 'var(--border-default)';
+}
+
+function bucketBgVar(bucket) {
+  const p = (bucket || '').toLowerCase().replace(/^p/, '');
+  const n = parseInt(p, 10);
+  if (n >= 0 && n <= 5) return `var(--p${n}-bg)`;
+  return 'transparent';
+}
+
+function bucketColorVar(bucket) {
+  const p = (bucket || '').toLowerCase().replace(/^p/, '');
+  const n = parseInt(p, 10);
+  if (n >= 0 && n <= 5) return `var(--p${n})`;
+  return 'var(--text-muted)';
+}
+
+// ── API ───────────────────────────────────────────────
+function apiXhr(path) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', API_BASE + path, true);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch (e) { reject(new Error('JSON parse error')); }
+      } else {
+        reject(new Error(`HTTP ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.ontimeout = () => reject(new Error('Timeout'));
+    xhr.send();
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 async function loadProjects() {
-  const data = await api('/api/projects');
+  const data = await apiXhr('/api/projects');
   return data.projects || [];
 }
 
 async function loadProjectData(projectId) {
   const files = ['meta.js', 'research.js', 'backlog.js', 'roadmap.js', 'changelog.js', 'notes.js'];
-  const data = {};
+  const raw = {};
   for (const f of files) {
     try {
-      const res = await api(`/api/projects/${encodeURIComponent(projectId)}/data/${f}`);
-      data[f] = res.content || '';
-    } catch (e) {
-      data[f] = '';
-    }
+      const res = await apiXhr(`/api/projects/${encodeURIComponent(projectId)}/data/${f}`);
+      raw[f] = res.content || '';
+    } catch (e) { raw[f] = ''; }
   }
-  // Parse JS window.AUGUR_* globals
   const sandbox = { window: {} };
-  for (const [fname, content] of Object.entries(data)) {
+  for (const [fname, content] of Object.entries(raw)) {
     if (!content) continue;
-    try {
-      const fn = new Function('window', content);
-      fn(sandbox.window);
-    } catch (e) {
-      console.warn('Parse error in', fname, e);
-    }
+    try { new Function('window', content)(sandbox.window); }
+    catch (e) { console.warn('Parse error in', fname, e); }
   }
   return {
     meta: sandbox.window.AUGUR_META || {},
@@ -72,1120 +96,451 @@ async function loadProjectData(projectId) {
     roadmap: sandbox.window.AUGUR_ROADMAP || null,
     changelog: sandbox.window.AUGUR_CHANGELOG || [],
     notes: sandbox.window.AUGUR_NOTES || [],
-    raw: data,
   };
 }
 
-async function saveDataFile(projectId, filename, content) {
-  return apiPost(`/api/projects/${encodeURIComponent(projectId)}/data/${filename}`, { content });
-}
+// ── Render: 最近代办 ──────────────────────────────────
+function renderTodo(data) {
+  const tasks = (data.backlog || []).filter(t => t.status !== 'done').sort((a, b) => {
+    const pa = a.bucket || '';
+    const pb = b.bucket || '';
+    if (pa !== pb) return pa.localeCompare(pb);
+    const order = { 'in-progress': 0, 'blocked': 1, 'open': 2 };
+    return (order[a.status] || 99) - (order[b.status] || 99);
+  });
 
-// ============================================================
-// 2. UI Utilities
-// ============================================================
+  document.getElementById('todoCount').textContent = `${tasks.length} 项`;
 
-function esc(s) {
-  if (s == null) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+  if (!tasks.length) {
+    document.getElementById('todoBody').innerHTML = '<div class="empty-state">所有任务已完成</div>';
+    return;
+  }
 
-function inline(s) {
-  if (!s) return '';
-  let t = String(s);
-  t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  t = t.replace(/(^|[^*])\*([^*\n]+)\*(?=[^*]|$)/g, '$1<em>$2</em>');
-  t = t.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  return t;
-}
+  document.getElementById('todoBody').innerHTML = `
+    <div class="card-list">
+      ${tasks.map(t => `
+        <div class="row-card" data-todo-id="${esc(t.id)}" style="--bucket-line: ${bucketLineVar(t.bucket)};">
+          <div class="row-card-main">
+            <div class="row-card-title">${esc(t.title)}</div>
+            <div class="row-card-meta">
+              <span style="font-family:var(--font-mono);color:var(--text-muted);">${esc(t.id)}</span>
+              <span class="sep">·</span>
+              <span>${esc(t.module || '-')}</span>
+              ${t.size ? `<span class="sep">·</span><span>size: ${esc(t.size)}</span>` : ''}
+              ${t.effort ? `<span class="sep">·</span><span>effort: ${esc(t.effort)}</span>` : ''}
+            </div>
+          </div>
+          <div class="row-card-actions">
+            <span class="badge ${badgeClass(t.status)}">${esc(t.status)}</span>
+            <span class="badge badge-bucket">${esc(t.bucket || '-')}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 
-// ---- Toast System ----
-function toast(message, type = 'info') {
-  const container = document.getElementById('toastContainer');
-  const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.textContent = message;
-  container.appendChild(el);
-
-  // Animate in
-  requestAnimationFrame(() => {
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(12px) scale(0.96)';
-    el.style.transition = 'opacity 250ms ease, transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1)';
-    requestAnimationFrame(() => {
-      el.style.opacity = '1';
-      el.style.transform = 'translateY(0) scale(1)';
+  // Bind click handlers
+  document.querySelectorAll('#todoBody .row-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.todoId;
+      const task = tasks.find(t => t.id === id);
+      if (task) openTodoModal(task);
     });
   });
-
-  // Animate out and remove
-  setTimeout(() => {
-    el.style.transition = 'opacity 200ms ease, transform 200ms ease';
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(-8px) scale(0.98)';
-    setTimeout(() => el.remove(), 220);
-  }, 2800);
 }
 
-// ---- Loading Spinner ----
-function showSpinner(parent) {
-  const spinner = document.createElement('div');
-  spinner.className = 'docsbot-spinner';
-  spinner.innerHTML = `
-    <svg width="32" height="32" viewBox="0 0 32 32">
-      <circle cx="16" cy="16" r="12" fill="none" stroke="var(--rule-soft)" stroke-width="2"/>
-      <circle cx="16" cy="16" r="12" fill="none" stroke="var(--accent)" stroke-width="2"
-        stroke-dasharray="56" stroke-dashoffset="56" stroke-linecap="round"
-        style="transform-origin:center;animation:spin 1s linear infinite;"/>
-    </svg>
-    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-  `;
-  spinner.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:80px 20px;flex-direction:column;gap:12px;color:var(--ink-3);font-family:var(--font-mono);font-size:12px;';
-  if (parent) parent.appendChild(spinner);
-  return spinner;
-}
-
-function hideSpinner(spinner) {
-  if (spinner) spinner.remove();
-}
-
-// ---- Inline Confirm Widget ----
-// Replaces a button with a small inline confirm/cancel pair
-function showInlineConfirm(button, onConfirm, message) {
-  const parent = button.parentNode;
-
-  const wrapper = document.createElement('span');
-  wrapper.className = 'inline-confirm';
-  wrapper.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;';
-  wrapper.innerHTML = `
-    <span style="color:var(--p0);">${esc(message)}</span>
-    <button class="btn danger sm" style="padding:2px 8px;">确认</button>
-    <button class="btn sm" style="padding:2px 8px;">取消</button>
-  `;
-
-  const confirmBtn = wrapper.querySelector('.btn.danger');
-  const cancelBtn = wrapper.querySelector('.btn:not(.danger)');
-
-  const restoreButton = () => {
-    if (wrapper.parentNode) {
-      wrapper.replaceWith(button);
-    }
-  };
-
-  confirmBtn.addEventListener('click', () => {
-    onConfirm();
-    wrapper.remove();
-  });
-  cancelBtn.addEventListener('click', restoreButton);
-
-  button.replaceWith(wrapper);
-
-  // Auto-cancel after 5 seconds
-  const timeout = setTimeout(() => {
-    restoreButton();
-  }, 5000);
-
-  // Clean up timeout if wrapper is removed by other means
-  const observer = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      for (const node of m.removedNodes) {
-        if (node === wrapper) {
-          clearTimeout(timeout);
-          observer.disconnect();
-          return;
-        }
-      }
-    }
-  });
-  if (parent) {
-    observer.observe(parent, { childList: true });
-  }
-}
-
-// ============================================================
-// 3. Renderers
-// ============================================================
-
-function renderIndex(data) {
-  const meta = data.meta;
-  const RM = data.roadmap;
-  const B = data.backlog;
-  const CL = data.changelog;
-  const R = data.research;
-
-  // Dashboard stats
-  let dashboardHTML = '';
-  if (data.buckets.length) {
-    const cells = data.buckets.map(b => {
-      const n = B.filter(t => t.bucket === b.p).length;
-      return `<div class="stat ${b.p.toLowerCase()}"><div class="ribbon"></div><div class="stat-label">${esc(b.p)}</div><div class="stat-num">${n}</div><div class="stat-desc">${esc(b.label)}</div></div>`;
-    }).join('');
-    dashboardHTML = `<div class="dashboard">${cells}</div>`;
-  }
-
-  // Plan weeks
-  let planHTML = '';
-  if (RM && RM.weeks) {
-    const weeks = RM.weeks.map((w, idx) => {
-      const cls = idx === 0 ? 'this' : (idx === 1 ? 'next' : 'later');
-      const items = (w.items || []).map(it => `<li class="pw-item">${inline(it.text || '')}</li>`).join('');
-      return `<div class="pw-card ${cls}"><div class="pw-head"><span class="pw-label">${esc(w.label)}</span><span class="pw-window">${esc(w.window)}</span></div><ul class="pw-items">${items}</ul></div>`;
-    }).join('');
-    planHTML = `<div class="plan-weeks">${weeks}</div>`;
-  }
-
-  // Changelog
-  let changelogHTML = '';
-  if (CL.length) {
-    const rows = CL.slice(0, 10).map(e => {
-      const refs = (e.refs || []).map(r => `<span>${esc(r)}</span>`).join('');
-      return `<li class="cl-item"><span class="cl-date">${esc(e.date)}</span><span class="cl-sha">${esc(e.short || '')}</span><span class="cl-summary">${inline(e.summary)}</span><span class="cl-refs">${refs}</span></li>`;
-    }).join('');
-    changelogHTML = `<h3 style="margin-top:24px;">最近变更</h3><ul class="changelog">${rows}</ul>`;
-  }
-
-  // Engineering preview
-  let engHTML = '';
-  if (B.length) {
-    const byModule = {};
-    for (const t of B) {
-      (byModule[t.module] = byModule[t.module] || []).push(t);
-    }
-    const modules = [
-      { id: 'smt', label: 'SMT Core' },
-      { id: 'llm', label: 'LLM Loop' },
-      { id: 'infra', label: 'Infra' },
-    ];
-    const cols = modules.map(m => {
-      const tasks = (byModule[m.id] || []).slice(0, 5);
-      const items = tasks.map(t => {
-        const st = t.status && t.status !== 'open' ? ` <span style="font-size:9px;color:var(--ink-3);">[${esc(t.status)}]</span>` : '';
-        return `<div style="font-size:12px;padding:3px 0;border-bottom:1px dotted var(--rule-faint);">${esc(t.id)}${st} — ${inline(t.title)}</div>`;
-      }).join('');
-      return `<div style="flex:1;min-width:200px;"><h4 style="margin:0 0 8px;font-size:13px;">${esc(m.label)}</h4>${items}</div>`;
-    }).join('');
-    engHTML = `<h3 style="margin-top:24px;">工程队列预览</h3><div style="display:flex;gap:16px;flex-wrap:wrap;">${cols}</div>`;
-  }
-
-  return `
-    <div class="page-header">
-      <h1>${esc(meta.project || 'Project')}</h1>
-      <p class="subtitle">${inline(meta.tagline || '')}</p>
-    </div>
-    ${dashboardHTML}
-    ${planHTML}
-    ${engHTML}
-    ${changelogHTML}
-  `;
-}
-
+// ── Render: 科研路线 ──────────────────────────────────
 function renderResearch(data) {
-  const R = data.research;
-  if (!R.length) return '<div class="loading">暂无研究方向</div>';
+  const items = data.research || [];
+  document.getElementById('researchCount').textContent = `${items.length} 项`;
 
-  const cards = R.map(r => {
-    const statusBadge = r.status && r.status !== 'open'
-      ? `<span style="font-family:var(--font-mono);font-size:9px;padding:1px 5px;border-radius:2px;background:var(--p${r.status === 'in-progress' ? '1' : r.status === 'done' ? '3' : r.status === 'blocked' ? '0' : '5'}-bg);color:var(--p${r.status === 'in-progress' ? '1' : r.status === 'done' ? '3' : r.status === 'blocked' ? '0' : '5'});">${esc(r.status)}</span>` : '';
-    const body = (r.body || []).map(p => `<p style="font-size:13px;line-height:1.55;margin:0 0 8px;">${inline(p)}</p>`).join('');
-    return `
-      <div class="r-card" data-id="${esc(r.id)}" onclick="editResearch('${esc(r.id)}')">
-        <div class="r-card-header">
-          <span class="r-id">${esc(r.id)}</span>
-          <span class="r-codename">${esc(r.codename || '')}</span>
-          ${statusBadge}
-        </div>
-        <h3>${inline(r.title)} <span class="r-kind">${esc(r.kind)}</span></h3>
-        <p class="r-hypothesis">${inline(r.hypothesis || '')}</p>
-        ${body}
-      </div>`;
-  }).join('');
-
-  return `
-    <div class="page-header">
-      <h1>研究路线</h1>
-      <p class="subtitle">研究方向与实现边界</p>
-    </div>
-    <div class="btn-row">
-      <button class="btn primary" onclick="addResearch()">+ 添加研究方向</button>
-    </div>
-    <div class="r-grid">${cards}</div>
-  `;
-}
-
-function renderBacklog(data) {
-  const B = data.backlog;
-  const BB = data.buckets;
-  if (!BB.length) return '<div class="loading">暂无工程任务</div>';
-
-  const byBucket = {};
-  for (const t of B) {
-    (byBucket[t.bucket] = byBucket[t.bucket] || []).push(t);
+  if (!items.length) {
+    document.getElementById('researchBody').innerHTML = '<div class="empty-state">暂无科研方向</div>';
+    return;
   }
 
-  const sections = BB.map(b => {
-    const tasks = byBucket[b.p] || [];
-    const taskHTML = tasks.map((t, idx) => renderTaskCard(t, b.p, idx)).join('');
+  // Sort: in-progress first, then by status
+  const sorted = [...items].sort((a, b) => {
+    const order = { 'in-progress': 0, 'blocked': 1, 'open': 2, 'done': 3, 'abandoned': 4 };
+    return (order[a.status] || 99) - (order[b.status] || 99);
+  });
+
+  document.getElementById('researchBody').innerHTML = `
+    <div class="card-grid">
+      ${sorted.map(r => `
+        <div class="grid-card" data-research-id="${esc(r.id)}" style="--card-accent: ${r.status === 'in-progress' ? 'var(--accent)' : 'var(--border-default)'};">
+          <div class="grid-card-header">
+            <span class="grid-card-id">${esc(r.id)}</span>
+            <div class="grid-card-badges">
+              <span class="badge ${badgeClass(r.status)}">${esc(r.status)}</span>
+              ${r.kind ? `<span class="badge badge-kind">${esc(r.kind)}</span>` : ''}
+            </div>
+          </div>
+          ${r.codename ? `<div class="grid-card-subtitle">${esc(r.codename)}</div>` : ''}
+          <div class="grid-card-title">${esc(r.title)}</div>
+          ${r.hypothesis ? `<div class="grid-card-summary">${inline(r.hypothesis)}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  document.querySelectorAll('#researchBody .grid-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.researchId;
+      const item = sorted.find(r => r.id === id);
+      if (item) openResearchModal(item);
+    });
+  });
+}
+
+// ── Render: 工程模块 ──────────────────────────────────
+function renderEngineering(data) {
+  const tasks = data.backlog || [];
+
+  const groups = { smt: [], llm: [], infra: [] };
+  for (const t of tasks) {
+    const mod = t.module || 'infra';
+    if (!groups[mod]) groups[mod] = [];
+    groups[mod].push(t);
+  }
+
+  const labels = { smt: 'SMT Core', llm: 'LLM Loop', infra: '基础设施' };
+  const icons = { smt: '⚙️', llm: '🔄', infra: '🏗️' };
+
+  const total = tasks.length;
+  document.getElementById('engineeringCount').textContent = `${total} 项`;
+
+  if (!total) {
+    document.getElementById('engineeringBody').innerHTML = '<div class="empty-state">暂无工程任务</div>';
+    return;
+  }
+
+  document.getElementById('engineeringBody').innerHTML = Object.entries(groups).map(([mod, items]) => {
+    if (!items.length) return '';
     return `
-      <div class="bucket-section">
-        <h2><span class="bucket-badge" style="background:var(--${b.p.toLowerCase()});color:#fff;">${esc(b.p)}</span> ${esc(b.label)}</h2>
-        <p class="bucket-lede">${esc(b.desc)}</p>
-        <div class="btn-row">
-          <button class="btn primary sm" onclick="addTask('${esc(b.p)}')">+ 添加任务</button>
+      <div class="module-group">
+        <div class="module-group-header">
+          <div class="module-group-icon">${icons[mod] || '🔧'}</div>
+          <span class="module-group-title">${esc(labels[mod] || mod)}</span>
+          <span class="module-group-count">${items.length}</span>
         </div>
-        <div class="task-list" data-bucket="${esc(b.p)}">
-          ${taskHTML}
+        <div class="module-group-grid">
+          ${items.map(t => `
+            <div class="compact-card" data-eng-id="${esc(t.id)}" style="--bucket-line: ${bucketLineVar(t.bucket)};">
+              <div class="compact-card-title">${esc(t.title)}</div>
+              <div class="compact-card-meta">
+                <span class="badge ${badgeClass(t.status)}">${esc(t.status)}</span>
+                <span class="badge badge-bucket">${esc(t.bucket || '-')}</span>
+                ${t.size ? `<span style="font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);">${esc(t.size)}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
         </div>
-      </div>`;
+      </div>
+    `;
   }).join('');
 
-  return `
-    <div class="page-header">
-      <h1>工程队列</h1>
-      <p class="subtitle">从代码缺口反推出来的任务列表</p>
-    </div>
-    ${sections}
-  `;
+  document.querySelectorAll('#engineeringBody .compact-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.engId;
+      const task = tasks.find(t => t.id === id);
+      if (task) openTodoModal(task);
+    });
+  });
 }
 
-function renderTaskCard(t, bucket, idx) {
-  const statusPill = t.status
-    ? `<span class="status-pill ${esc(t.status)}">${esc(t.status)}</span>` : '';
-  const sizeTag = t.size ? `<span class="tag size-${esc(t.size)}">SIZE · ${esc(t.size)}</span>` : '';
-  const serves = (t.serves || []).map(s => {
-    if (/^R\d+$/.test(s)) return `<a href="#" onclick="navTo('research');return false;">${esc(s)}</a>`;
-    return esc(s);
-  }).join(' ');
-  const fields = t.fields || {};
-
-  return `
-    <div class="task-card ${esc((t.bucket || bucket).toLowerCase())}" draggable="true" data-id="${esc(t.id)}" data-idx="${idx}">
-      <div class="task-drag-handle" title="拖拽排序" draggable="false">
-        <svg width="12" height="20" viewBox="0 0 12 20" fill="var(--ink-4)">
-          <circle cx="3" cy="4" r="1.5"/><circle cx="9" cy="4" r="1.5"/>
-          <circle cx="3" cy="10" r="1.5"/><circle cx="9" cy="10" r="1.5"/>
-          <circle cx="3" cy="16" r="1.5"/><circle cx="9" cy="16" r="1.5"/>
-        </svg>
-      </div>
-      <div class="task-sidebar">
-        <div class="task-id">${esc(t.id)}</div>
-        <div class="task-tags">
-          <span class="tag">${esc(t.bucket || bucket)}</span>
-          ${sizeTag}
-        </div>
-        ${statusPill}
-        <div class="effort">${esc(t.effort || '')}</div>
-        <div style="margin-top:auto;display:flex;gap:4px;">
-          <button class="btn sm" onclick="event.stopPropagation();editTask('${esc(t.id)}')">编辑</button>
-          <button class="btn danger sm" onclick="event.stopPropagation();confirmDeleteTask(this,'${esc(t.id)}')">删除</button>
-        </div>
-      </div>
-      <div class="task-body" onclick="editTask('${esc(t.id)}')">
-        <h3>${inline(t.title)}</h3>
-        <p class="task-meta"><strong>服务于</strong> ${serves}</p>
-        <dl class="task-fields">
-          <dt>输入</dt><dd>${inline(fields.input || '')}</dd>
-          <dt>产出</dt><dd>${inline(fields.output || '')}</dd>
-          <dt>验收</dt><dd>${inline(fields.accept || '')}</dd>
-          <dt>备注</dt><dd>${inline(fields.note || '')}</dd>
-        </dl>
-      </div>
-    </div>`;
-}
-
+// ── Render: 笔记备忘 ──────────────────────────────────
 function renderNotes(data) {
-  const notes = [...data.notes].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  const rows = notes.map(n => `
-    <a class="note-row" href="${esc(n.path || '#')}" target="_blank">
-      <span class="note-date">${esc(n.date || '')}</span>
-      <span class="note-title">${esc(n.title)}${n.excerpt ? `<span class="note-excerpt">${esc(n.excerpt)}</span>` : ''}</span>
-      <span class="note-tags">${(n.tags || []).map(t => `<span class="note-tag">${esc(t)}</span>`).join('')}</span>
-    </a>
-  `).join('');
+  const notes = (data.notes || []).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  document.getElementById('notesCount').textContent = `${notes.length} 项`;
 
-  return `
-    <div class="page-header">
-      <h1>研究与工程笔记</h1>
-      <p class="subtitle">按日期倒序排列</p>
-    </div>
-    <div class="notes-list">${rows}</div>
-  `;
-}
-
-// ============================================================
-// 4. Drag & Drop System
-// ============================================================
-// Features:
-//   - Drag handle only: only the ⋮⋮ handle initiates drag
-//   - Cross-bucket: drag between different bucket sections
-//   - Drop indicator: visual placeholder bar shows insert position
-//   - Data sync: updates projectData and saves after drop
-
-let dragState = {
-  srcEl: null,
-  srcId: null,
-  srcBucket: null,
-  placeholder: null,
-};
-
-function createDropPlaceholder() {
-  const el = document.createElement('div');
-  el.className = 'drop-placeholder';
-  el.style.cssText = `
-    height: 3px; background: var(--accent); border-radius: 2px;
-    margin: 4px 0; opacity: 0; transition: opacity 120ms ease;
-    pointer-events: none;
-  `;
-  return el;
-}
-
-function getDragAfterElement(container, y) {
-  const cards = [...container.querySelectorAll('.task-card:not(.dragging)')];
-  return cards.reduce((closest, child) => {
-    const box = child.getBoundingClientRect();
-    const offset = y - box.top - box.height / 2;
-    if (offset < 0 && offset > closest.offset) {
-      return { offset, element: child };
-    }
-    return closest;
-  }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
-
-function setupDragAndDrop() {
-  const lists = document.querySelectorAll('.task-list');
-
-  lists.forEach(list => {
-    list.addEventListener('dragstart', onDragStart);
-    list.addEventListener('dragend', onDragEnd);
-    list.addEventListener('dragover', onDragOver);
-    list.addEventListener('dragleave', onDragLeave);
-    list.addEventListener('drop', onDrop);
-  });
-
-  // Setup drag handles: only handle initiates drag
-  document.querySelectorAll('.task-drag-handle').forEach(handle => {
-    const card = handle.closest('.task-card');
-    if (!card) return;
-
-    handle.addEventListener('mousedown', () => {
-      card.setAttribute('draggable', 'true');
-    });
-    handle.addEventListener('mouseup', () => {
-      // Keep draggable until dragend fires
-    });
-    handle.addEventListener('mouseleave', () => {
-      if (!card.classList.contains('dragging')) {
-        card.setAttribute('draggable', 'false');
-      }
-    });
-  });
-
-  // Prevent drag from body click
-  document.querySelectorAll('.task-card').forEach(card => {
-    card.addEventListener('dragstart', (e) => {
-      if (!card.classList.contains('dragging')) {
-        e.preventDefault();
-      }
-    });
-  });
-}
-
-function onDragStart(e) {
-  const card = e.target.closest('.task-card');
-  if (!card) return;
-
-  // Only allow drag if started from handle or card already has dragging class
-  const handle = card.querySelector('.task-drag-handle');
-  if (!handle) return;
-
-  dragState.srcEl = card;
-  dragState.srcId = card.dataset.id;
-  dragState.srcBucket = card.closest('.task-list')?.dataset.bucket;
-
-  card.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', card.dataset.id);
-
-  // Create placeholder
-  dragState.placeholder = createDropPlaceholder();
-}
-
-function onDragEnd(e) {
-  const card = e.target.closest('.task-card');
-  if (card) {
-    card.classList.remove('dragging');
-    card.setAttribute('draggable', 'false');
+  if (!notes.length) {
+    document.getElementById('notesBody').innerHTML = '<div class="empty-state">暂无笔记</div>';
+    return;
   }
 
-  // Remove all placeholders
-  document.querySelectorAll('.drop-placeholder').forEach(el => el.remove());
-  document.querySelectorAll('.drop-target-above, .drop-target-below').forEach(el => {
-    el.classList.remove('drop-target-above', 'drop-target-below');
-  });
-
-  dragState = { srcEl: null, srcId: null, srcBucket: null, placeholder: null };
-}
-
-function onDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-
-  const list = e.currentTarget;
-  const afterElement = getDragAfterElement(list, e.clientY);
-
-  // Show placeholder at insert position
-  if (dragState.placeholder) {
-    if (afterElement) {
-      list.insertBefore(dragState.placeholder, afterElement);
-    } else {
-      list.appendChild(dragState.placeholder);
-    }
-    dragState.placeholder.style.opacity = '1';
-  }
-}
-
-function onDragLeave(e) {
-  // Only hide if leaving the list entirely, not entering a child
-  const list = e.currentTarget;
-  const related = e.relatedTarget;
-  if (!list.contains(related)) {
-    if (dragState.placeholder) {
-      dragState.placeholder.style.opacity = '0';
-    }
-  }
-}
-
-function onDrop(e) {
-  e.preventDefault();
-
-  const list = e.currentTarget;
-  const targetBucket = list.dataset.bucket;
-  if (!dragState.srcId || !targetBucket) return;
-
-  // Remove placeholder
-  if (dragState.placeholder) {
-    dragState.placeholder.remove();
-  }
-
-  // Find the card that was dropped on (or near)
-  const afterElement = getDragAfterElement(list, e.clientY);
-
-  // Get all cards in target list after drop
-  const allCards = [...list.querySelectorAll('.task-card')];
-  let insertIndex = allCards.length;
-  if (afterElement) {
-    insertIndex = allCards.indexOf(afterElement);
-  }
-
-  // Update data model
-  const srcTask = projectData.backlog.find(t => t.id === dragState.srcId);
-  if (!srcTask) return;
-
-  const oldBucket = srcTask.bucket;
-  const wasSameBucket = oldBucket === targetBucket;
-
-  // Remove from old position
-  const oldIndex = projectData.backlog.findIndex(t => t.id === dragState.srcId);
-  projectData.backlog.splice(oldIndex, 1);
-
-  // Update bucket
-  srcTask.bucket = targetBucket;
-
-  // Find insert position in global backlog
-  // Get tasks in target bucket, find where to insert
-  const targetBucketTasks = projectData.backlog.filter(t => t.bucket === targetBucket);
-
-  // Calculate global insert index
-  let globalInsertIndex;
-  if (insertIndex >= targetBucketTasks.length) {
-    // Append after all target bucket tasks
-    const lastTargetIdx = projectData.backlog.map(t => t.bucket).lastIndexOf(targetBucket);
-    globalInsertIndex = lastTargetIdx + 1;
-  } else if (insertIndex <= 0) {
-    // Insert before first target bucket task
-    const firstTargetIdx = projectData.backlog.findIndex(t => t.bucket === targetBucket);
-    globalInsertIndex = firstTargetIdx >= 0 ? firstTargetIdx : projectData.backlog.length;
-  } else {
-    // Insert at specific position within target bucket
-    const targetIndices = [];
-    projectData.backlog.forEach((t, i) => { if (t.bucket === targetBucket) targetIndices.push(i); });
-    globalInsertIndex = targetIndices[insertIndex] ?? projectData.backlog.length;
-  }
-
-  projectData.backlog.splice(globalInsertIndex, 0, srcTask);
-
-  // Save and re-render
-  saveBacklogData();
-  renderPage();
-
-  const msg = wasSameBucket ? '任务已重新排序' : `任务已移动到 ${targetBucket}`;
-  toast(msg, 'success');
-}
-
-// ============================================================
-// 5. Modal System with Draft Auto-Save
-// ============================================================
-
-const DRAFT_PREFIX = 'docsbot_draft_';
-
-function getDraftKey(page, id) {
-  return `${DRAFT_PREFIX}${page}_${id}`;
-}
-
-function saveDraft(page, id, data) {
-  try {
-    localStorage.setItem(getDraftKey(page, id), JSON.stringify({
-      data,
-      savedAt: Date.now(),
-    }));
-  } catch (e) {
-    console.warn('Failed to save draft:', e);
-  }
-}
-
-function loadDraft(page, id) {
-  try {
-    const raw = localStorage.getItem(getDraftKey(page, id));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    // Drafts expire after 7 days
-    if (Date.now() - parsed.savedAt > 7 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(getDraftKey(page, id));
-      return null;
-    }
-    return parsed.data;
-  } catch (e) {
-    return null;
-  }
-}
-
-function clearDraft(page, id) {
-  localStorage.removeItem(getDraftKey(page, id));
-}
-
-function setupModalKeyboard(modalOverlay, onSave) {
-  const handler = (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      closeModal();
-    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      onSave();
-    }
-  };
-  modalOverlay._keyHandler = handler;
-  document.addEventListener('keydown', handler);
-
-  // Focus trap
-  modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) {
-      closeModal();
-    }
-  });
-}
-
-function closeModal() {
-  const modal = document.querySelector('.modal-overlay');
-  if (modal) {
-    if (modal._keyHandler) {
-      document.removeEventListener('keydown', modal._keyHandler);
-    }
-    // Fade out
-    modal.style.transition = 'opacity 150ms ease';
-    modal.style.opacity = '0';
-    setTimeout(() => modal.remove(), 160);
-  }
-}
-
-// ---- Task Modal ----
-function editTask(id) {
-  const t = projectData.backlog.find(x => x.id === id);
-  if (!t) return;
-  const f = t.fields || {};
-
-  // Check for draft
-  const draft = loadDraft('task', id);
-  const values = draft || {
-    title: t.title,
-    bucket: t.bucket,
-    size: t.size,
-    effort: t.effort || '',
-    status: t.status,
-    serves: (t.serves || []).join(', '),
-    input: f.input || '',
-    output: f.output || '',
-    accept: f.accept || '',
-    note: f.note || '',
-  };
-
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.style.opacity = '0';
-  modal.style.transition = 'opacity 150ms ease';
-  modal.innerHTML = `
-    <div class="modal">
-      <div class="modal-header">
-        <h2>编辑任务 · ${esc(t.id)}${draft ? ' <span style="font-size:12px;color:var(--accent);font-weight:400;">(已恢复草稿)</span>' : ''}</h2>
-        <button class="modal-close" onclick="closeModal()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="edit-grid">
-          <label>ID</label><input class="edit-field" id="edit-id" value="${esc(t.id)}" readonly>
-          <label>标题</label><input class="edit-field" id="edit-title" value="${esc(values.title)}">
-          <label>桶</label>
-          <select class="edit-field" id="edit-bucket">
-            ${projectData.buckets.map(b => `<option value="${esc(b.p)}" ${b.p === values.bucket ? 'selected' : ''}>${esc(b.p)} · ${esc(b.label)}</option>`).join('')}
-          </select>
-          <label>大小</label>
-          <select class="edit-field" id="edit-size">
-            ${['XS','S','M','L','XL'].map(s => `<option value="${s}" ${s === values.size ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-          <label>工作量</label><input class="edit-field" id="edit-effort" value="${esc(values.effort)}">
-          <label>状态</label>
-          <select class="edit-field" id="edit-status">
-            ${['open','in-progress','blocked','done','abandoned'].map(s => `<option value="${s}" ${s === values.status ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-          <label>服务</label><input class="edit-field" id="edit-serves" value="${esc(values.serves)}" placeholder="R1, R2, infra">
-          <label>输入</label><textarea class="edit-field" id="edit-input">${esc(values.input)}</textarea>
-          <label>产出</label><textarea class="edit-field" id="edit-output">${esc(values.output)}</textarea>
-          <label>验收</label><textarea class="edit-field" id="edit-accept">${esc(values.accept)}</textarea>
-          <label>备注</label><textarea class="edit-field" id="edit-note">${esc(values.note)}</textarea>
+  document.getElementById('notesBody').innerHTML = `
+    <div class="card-grid">
+      ${notes.map(n => `
+        <div class="note-card" data-note-path="${esc(n.path)}">
+          <div class="note-card-date">${esc(n.date)}</div>
+          <div class="note-card-title">${esc(n.title)}</div>
+          ${n.excerpt ? `<div class="note-card-excerpt">${esc(n.excerpt)}</div>` : ''}
+          ${(n.tags && n.tags.length) ? `<div class="note-tags">${n.tags.map(t => `<span class="note-tag">${esc(t)}</span>`).join('')}</div>` : ''}
         </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" onclick="closeModal()">取消</button>
-        <button class="btn primary" onclick="saveTask('${esc(t.id)}')">保存</button>
-        <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--ink-4);align-self:center;">Ctrl+Enter 保存 · ESC 关闭</span>
-      </div>
+      `).join('')}
     </div>
   `;
-  document.body.appendChild(modal);
-  requestAnimationFrame(() => { modal.style.opacity = '1'; });
 
-  // Auto-save draft on input
-  const fields = ['edit-title', 'edit-bucket', 'edit-size', 'edit-effort', 'edit-status', 'edit-serves', 'edit-input', 'edit-output', 'edit-accept', 'edit-note'];
-  fields.forEach(fid => {
-    const el = document.getElementById(fid);
-    if (el) {
-      el.addEventListener('input', () => {
-        saveDraft('task', id, {
-          title: document.getElementById('edit-title').value,
-          bucket: document.getElementById('edit-bucket').value,
-          size: document.getElementById('edit-size').value,
-          effort: document.getElementById('edit-effort').value,
-          status: document.getElementById('edit-status').value,
-          serves: document.getElementById('edit-serves').value,
-          input: document.getElementById('edit-input').value,
-          output: document.getElementById('edit-output').value,
-          accept: document.getElementById('edit-accept').value,
-          note: document.getElementById('edit-note').value,
-        });
-      });
-    }
+  document.querySelectorAll('#notesBody .note-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const path = card.dataset.notePath;
+      if (path) openNoteModal(path);
+    });
   });
-
-  setupModalKeyboard(modal, () => saveTask(t.id));
-
-  // Focus first editable field
-  setTimeout(() => document.getElementById('edit-title')?.focus(), 50);
 }
 
-function saveTask(oldId) {
-  const t = projectData.backlog.find(x => x.id === oldId);
-  if (!t) return;
-
-  t.title = document.getElementById('edit-title').value;
-  t.bucket = document.getElementById('edit-bucket').value;
-  t.size = document.getElementById('edit-size').value;
-  t.effort = document.getElementById('edit-effort').value;
-  t.status = document.getElementById('edit-status').value;
-  t.serves = document.getElementById('edit-serves').value.split(',').map(s => s.trim()).filter(Boolean);
-  t.fields = {
-    input: document.getElementById('edit-input').value,
-    output: document.getElementById('edit-output').value,
-    accept: document.getElementById('edit-accept').value,
-    note: document.getElementById('edit-note').value,
-  };
-  t.updated_at = new Date().toISOString().slice(0, 10);
-
-  clearDraft('task', oldId);
-  closeModal();
-  saveBacklogData();
-  renderPage();
-  toast('任务已保存', 'success');
+// ── Render all ────────────────────────────────────────
+function renderAll(data) {
+  renderTodo(data);
+  renderResearch(data);
+  renderEngineering(data);
+  renderNotes(data);
 }
 
-function confirmDeleteTask(button, id) {
-  showInlineConfirm(button, () => {
-    deleteTask(id);
-  }, '确定删除?');
+// ═══════════════════════════════════════════════════════
+//  MODALS — each module has its own content template
+// ═══════════════════════════════════════════════════════
+
+function showModal(htmlContent) {
+  const overlay = document.getElementById('modalOverlay');
+  const body = document.getElementById('modalBody');
+  body.innerHTML = htmlContent;
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
 }
 
-function deleteTask(id) {
-  projectData.backlog = projectData.backlog.filter(t => t.id !== id);
-  saveBacklogData();
-  renderPage();
-  toast('任务已删除', 'info');
-}
-
-function addTask(bucket) {
-  const existing = projectData.backlog.filter(t => t.bucket === bucket);
-  const nums = existing.map(t => {
-    const m = t.id.match(new RegExp(`^${bucket}-(\\d+)$`));
-    return m ? parseInt(m[1]) : 0;
-  });
-  const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
-  const newId = `${bucket}-${String(nextNum).padStart(2, '0')}`;
-
-  const newTask = {
-    id: newId,
-    bucket: bucket,
-    module: 'infra',
-    title: '新任务',
-    size: 'S',
-    effort: '1 d',
-    serves: ['longterm'],
-    fields: { input: '', output: '', accept: '', note: '' },
-    status: 'open',
-    date_added: new Date().toISOString().slice(0, 10),
-  };
-  projectData.backlog.push(newTask);
-  saveBacklogData();
-  renderPage();
-  editTask(newId);
-}
-
-// ---- Research Modal ----
-function editResearch(id) {
-  const r = projectData.research.find(x => x.id === id);
-  if (!r) return;
-
-  const draft = loadDraft('research', id);
-  const values = draft || {
-    codename: r.codename || '',
-    title: r.title,
-    kind: r.kind,
-    module: r.module,
-    status: r.status,
-    hypothesis: r.hypothesis || '',
-    body: (r.body || []).join('\n'),
-    deps: (r.depends_on || []).join(', '),
-  };
-
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.style.opacity = '0';
-  modal.style.transition = 'opacity 150ms ease';
-  modal.innerHTML = `
-    <div class="modal">
-      <div class="modal-header">
-        <h2>编辑研究方向 · ${esc(r.id)}${draft ? ' <span style="font-size:12px;color:var(--accent);font-weight:400;">(已恢复草稿)</span>' : ''}</h2>
-        <button class="modal-close" onclick="closeModal()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="edit-grid">
-          <label>代号</label><input class="edit-field" id="edit-r-codename" value="${esc(values.codename)}">
-          <label>标题</label><input class="edit-field" id="edit-r-title" value="${esc(values.title)}">
-          <label>类型</label>
-          <select class="edit-field" id="edit-r-kind">
-            ${['SAFETY','STATIC','NORMALIZATION','MEASUREMENT','A/B','EXPLORATORY'].map(k => `<option value="${k}" ${k === values.kind ? 'selected' : ''}>${k}</option>`).join('')}
-          </select>
-          <label>模块</label>
-          <select class="edit-field" id="edit-r-module">
-            ${['smt','llm','infra'].map(m => `<option value="${m}" ${m === values.module ? 'selected' : ''}>${m}</option>`).join('')}
-          </select>
-          <label>状态</label>
-          <select class="edit-field" id="edit-r-status">
-            ${['open','in-progress','blocked','done','abandoned'].map(s => `<option value="${s}" ${s === values.status ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-          <label>假设</label><textarea class="edit-field" id="edit-r-hypothesis">${esc(values.hypothesis)}</textarea>
-          <label>正文 (每段一行)</label><textarea class="edit-field" id="edit-r-body">${esc(values.body)}</textarea>
-          <label>依赖 (逗号分隔)</label><input class="edit-field" id="edit-r-deps" value="${esc(values.deps)}">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" onclick="closeModal()">取消</button>
-        <button class="btn primary" onclick="saveResearch('${esc(r.id)}')">保存</button>
-        <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--ink-4);align-self:center;">Ctrl+Enter 保存 · ESC 关闭</span>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  requestAnimationFrame(() => { modal.style.opacity = '1'; });
-
-  // Auto-save draft
-  const fields = ['edit-r-codename', 'edit-r-title', 'edit-r-kind', 'edit-r-module', 'edit-r-status', 'edit-r-hypothesis', 'edit-r-body', 'edit-r-deps'];
-  fields.forEach(fid => {
-    const el = document.getElementById(fid);
-    if (el) {
-      el.addEventListener('input', () => {
-        saveDraft('research', id, {
-          codename: document.getElementById('edit-r-codename').value,
-          title: document.getElementById('edit-r-title').value,
-          kind: document.getElementById('edit-r-kind').value,
-          module: document.getElementById('edit-r-module').value,
-          status: document.getElementById('edit-r-status').value,
-          hypothesis: document.getElementById('edit-r-hypothesis').value,
-          body: document.getElementById('edit-r-body').value,
-          deps: document.getElementById('edit-r-deps').value,
-        });
-      });
-    }
-  });
-
-  setupModalKeyboard(modal, () => saveResearch(r.id));
-  setTimeout(() => document.getElementById('edit-r-title')?.focus(), 50);
-}
-
-function saveResearch(id) {
-  const r = projectData.research.find(x => x.id === id);
-  if (!r) return;
-
-  r.codename = document.getElementById('edit-r-codename').value;
-  r.title = document.getElementById('edit-r-title').value;
-  r.kind = document.getElementById('edit-r-kind').value;
-  r.module = document.getElementById('edit-r-module').value;
-  r.status = document.getElementById('edit-r-status').value;
-  r.hypothesis = document.getElementById('edit-r-hypothesis').value;
-  r.body = document.getElementById('edit-r-body').value.split('\n').filter(Boolean);
-  r.depends_on = document.getElementById('edit-r-deps').value.split(',').map(s => s.trim()).filter(Boolean);
-  r.updated_at = new Date().toISOString().slice(0, 10);
-
-  clearDraft('research', id);
-  closeModal();
-  saveResearchData();
-  renderPage();
-  toast('研究方向已保存', 'success');
-}
-
-function addResearch() {
-  const nums = projectData.research.map(r => {
-    const m = r.id.match(/^R(\d+)$/);
-    return m ? parseInt(m[1]) : 0;
-  });
-  const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
-  const newR = {
-    id: `R${nextNum}`,
-    codename: '',
-    title: '新研究方向',
-    kind: 'EXPLORATORY',
-    module: 'infra',
-    hypothesis: '',
-    body: [],
-    depends_on: [],
-    status: 'open',
-    date_added: new Date().toISOString().slice(0, 10),
-  };
-  projectData.research.push(newR);
-  saveResearchData();
-  renderPage();
-  editResearch(newR.id);
-}
-
-// ============================================================
-// 6. Data Serialization
-// ============================================================
-
-function serializeBacklog() {
-  const BB = projectData.buckets;
-  const B = projectData.backlog;
-  const lines = [
-    '// docs/data/backlog.js',
-    '// 工程任务 backlog。新增 task = 在 AUGUR_BACKLOG 数组追加一条对象。',
-    '// schema(task):',
-    '//   id          — 永久 anchor 契约(如 "P0-01")',
-    '//   bucket      — 必须命中 AUGUR_BACKLOG_BUCKETS 中的某个 p',
-    '//   module      — smt / llm / infra',
-    '//   title       — 卡片 h3',
-    '//   size        — XS / S / M / L / XL',
-    '//   effort      — 字符串(如 "2-3 d","1-2 wk")',
-    '//   serves      — R-id 字符串数组,或 ["R-all"] / ["infra"] / ["longterm"]',
-    '//   fields      — { input, output, accept, note }',
-    '//   status      — open / in-progress / blocked / done / abandoned',
-    '//   date_added  — YYYY-MM-DD',
-    '//   updated_at  — YYYY-MM-DD,可选',
-    '',
-    'window.AUGUR_BACKLOG_BUCKETS = ' + JSON.stringify(BB, null, 2) + ';',
-    '',
-    'window.AUGUR_BACKLOG = [',
-  ];
-  for (const t of B) {
-    lines.push('  {')
-    lines.push(`    id: "${t.id}",`);
-    lines.push(`    bucket: "${t.bucket}",`);
-    lines.push(`    module: "${t.module}",`);
-    lines.push(`    title: "${t.title}",`);
-    if (t.size) lines.push(`    size: "${t.size}",`);
-    if (t.effort) lines.push(`    effort: "${t.effort}",`);
-    lines.push(`    serves: ${JSON.stringify(t.serves)},`);
-    lines.push(`    fields: {`);
-    lines.push(`      input:  ${JSON.stringify(t.fields?.input || '')},`);
-    lines.push(`      output: ${JSON.stringify(t.fields?.output || '')},`);
-    lines.push(`      accept: ${JSON.stringify(t.fields?.accept || '')},`);
-    lines.push(`      note:   ${JSON.stringify(t.fields?.note || '')},`);
-    lines.push('    },');
-    lines.push(`    status: "${t.status}",`);
-    lines.push(`    date_added: "${t.date_added}",`);
-    if (t.updated_at) lines.push(`    updated_at: "${t.updated_at}",`);
-    lines.push('  },');
-  }
-  lines.push('];');
-  return lines.join('\n');
-}
-
-function serializeResearch() {
-  const R = projectData.research;
-  const lines = [
-    '// docs/data/research.js',
-    '// 研究方向 R1-Rn 数据。',
-    '',
-    'window.AUGUR_RESEARCH = [',
-  ];
-  for (const r of R) {
-    lines.push('  {');
-    lines.push(`    id: "${r.id}",`);
-    if (r.codename) lines.push(`    codename: "${r.codename}",`);
-    lines.push(`    title: "${r.title}",`);
-    lines.push(`    kind: "${r.kind}",`);
-    lines.push(`    module: "${r.module}",`);
-    lines.push(`    hypothesis: ${JSON.stringify(r.hypothesis || '')},`);
-    lines.push('    body: [');
-    for (const p of (r.body || [])) {
-      lines.push(`      ${JSON.stringify(p)},`);
-    }
-    lines.push('    ],');
-    lines.push(`    depends_on: ${JSON.stringify(r.depends_on || [])},`);
-    lines.push(`    status: "${r.status}",`);
-    lines.push(`    date_added: "${r.date_added}",`);
-    if (r.updated_at) lines.push(`    updated_at: "${r.updated_at}",`);
-    lines.push('  },');
-  }
-  lines.push('];');
-  return lines.join('\n');
-}
-
-async function saveBacklogData() {
-  try {
-    await saveDataFile(currentProject, 'backlog.js', serializeBacklog());
-    toast('已保存到 backlog.js', 'success');
-  } catch (e) {
-    toast('保存失败: ' + e.message, 'error');
-  }
-}
-
-async function saveResearchData() {
-  try {
-    await saveDataFile(currentProject, 'research.js', serializeResearch());
-    toast('已保存到 research.js', 'success');
-  } catch (e) {
-    toast('保存失败: ' + e.message, 'error');
-  }
-}
-
-// ============================================================
-// 7. Navigation with Page Transitions
-// ============================================================
-
-function navTo(page) {
-  currentPage = page;
-  document.querySelectorAll('.nav-tab').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.page === page);
-  });
-  renderPage();
-}
-
-function renderPage() {
-  const main = document.getElementById('main');
-
-  // Fade out current content
-  if (main.firstChild) {
-    main.style.transition = 'opacity 120ms ease';
-    main.style.opacity = '0';
-  }
-
+function hideModal() {
+  const overlay = document.getElementById('modalOverlay');
+  overlay.classList.remove('active');
+  document.body.style.overflow = '';
   setTimeout(() => {
-    switch (currentPage) {
-      case 'index': main.innerHTML = renderIndex(projectData); break;
-      case 'research': main.innerHTML = renderResearch(projectData); break;
-      case 'backlog':
-        main.innerHTML = renderBacklog(projectData);
-        setupDragAndDrop();
-        break;
-      case 'notes': main.innerHTML = renderNotes(projectData); break;
-    }
-
-    // Fade in new content
-    main.style.opacity = '0';
-    requestAnimationFrame(() => {
-      main.style.transition = 'opacity 200ms ease';
-      main.style.opacity = '1';
-    });
-  }, main.style.opacity === '0' ? 0 : 120);
+    document.getElementById('modalBody').innerHTML = '';
+  }, 250);
 }
 
-// ============================================================
-// 8. Keyboard Shortcuts
-// ============================================================
+// ── Todo / Engineering Detail Modal ───────────────────
+function openTodoModal(task) {
+  const statusBadge = `<span class="badge ${badgeClass(task.status)}">${esc(task.status)}</span>`;
+  const bucketBadge = `<span class="badge badge-bucket">${esc(task.bucket || '-')}</span>`;
 
-function setupKeyboardShortcuts() {
-  document.addEventListener('keydown', (e) => {
-    // ESC closes modal (handled in modal setup, but also global fallback)
-    if (e.key === 'Escape') {
-      const modal = document.querySelector('.modal-overlay');
-      if (modal && document.activeElement?.tagName !== 'SELECT') {
-        closeModal();
-      }
-    }
+  let bodyHtml = '';
 
-    // Ctrl+N: Add new task in backlog page
-    if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      if (currentPage === 'backlog' && projectData.buckets?.length) {
-        const firstBucket = projectData.buckets[0].p;
-        addTask(firstBucket);
-      }
-    }
-  });
+  if (task.module) {
+    bodyHtml += `
+      <div class="modal-meta-row">
+        ${statusBadge} ${bucketBadge}
+      </div>
+      <div class="modal-meta-row" style="font-size:0.82rem;color:var(--text-tertiary);">
+        <span>模块: <strong style="color:var(--text-secondary);">${esc(task.module)}</strong></span>
+        ${task.size ? `<span>· size: <strong style="color:var(--text-secondary);">${esc(task.size)}</strong></span>` : ''}
+        ${task.effort ? `<span>· effort: <strong style="color:var(--text-secondary);">${esc(task.effort)}</strong></span>` : ''}
+      </div>
+    `;
+  } else {
+    bodyHtml += `<div class="modal-meta-row">${statusBadge} ${bucketBadge}</div>`;
+  }
+
+  if (task.serves) {
+    const serves = Array.isArray(task.serves) ? task.serves : [task.serves];
+    bodyHtml += `
+      <div class="modal-section">
+        <h4>Serves</h4>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+          ${serves.map(s => `<span class="badge badge-kind">${esc(s)}</span>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  if (task.accept) {
+    const accept = Array.isArray(task.accept) ? task.accept : [task.accept];
+    bodyHtml += `
+      <div class="modal-section">
+        <h4>验收标准</h4>
+        <ul>
+          ${accept.map(a => `<li>${inline(a)}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  if (task.body && task.body.length) {
+    bodyHtml += `
+      <div class="modal-section">
+        <h4>描述</h4>
+        ${task.body.map(p => `<p>${inline(p)}</p>`).join('')}
+      </div>
+    `;
+  }
+
+  showModal(`
+    <div class="modal-header">
+      <div class="modal-title">${esc(task.title)}</div>
+      <div class="modal-subtitle">${esc(task.id)}</div>
+    </div>
+    ${bodyHtml}
+  `);
 }
 
-// ============================================================
-// 9. Boot
-// ============================================================
+// ── Research Detail Modal ─────────────────────────────
+function openResearchModal(r) {
+  let bodyHtml = `
+    <div class="modal-meta-row">
+      <span class="badge ${badgeClass(r.status)}">${esc(r.status)}</span>
+      ${r.kind ? `<span class="badge badge-kind">${esc(r.kind)}</span>` : ''}
+      ${r.module ? `<span class="badge badge-bucket">${esc(r.module)}</span>` : ''}
+    </div>
+  `;
+
+  if (r.hypothesis) {
+    bodyHtml += `
+      <div class="modal-section">
+        <h4>Hypothesis</h4>
+        <p style="font-style:italic;color:var(--text-primary);">${inline(r.hypothesis)}</p>
+      </div>
+    `;
+  }
+
+  if (r.body && r.body.length) {
+    bodyHtml += `
+      <div class="modal-section">
+        <h4>Details</h4>
+        ${r.body.map(p => `<p>${inline(p)}</p>`).join('')}
+      </div>
+    `;
+  }
+
+  if (r.depends_on && r.depends_on.length) {
+    const deps = Array.isArray(r.depends_on) ? r.depends_on : [r.depends_on];
+    bodyHtml += `
+      <div class="modal-section">
+        <h4>Dependencies</h4>
+        <ul>
+          ${deps.map(d => `<li>${esc(d)}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  if (r.fields) {
+    const f = r.fields;
+    const fieldItems = [];
+    if (f.input) fieldItems.push(`<li><strong>Input:</strong> ${esc(f.input)}</li>`);
+    if (f.output) fieldItems.push(`<li><strong>Output:</strong> ${esc(f.output)}</li>`);
+    if (f.accept) fieldItems.push(`<li><strong>Accept:</strong> ${esc(f.accept)}</li>`);
+    if (f.note) fieldItems.push(`<li><strong>Note:</strong> ${esc(f.note)}</li>`);
+    if (fieldItems.length) {
+      bodyHtml += `
+        <div class="modal-section">
+          <h4>Fields</h4>
+          <ul>${fieldItems.join('')}</ul>
+        </div>
+      `;
+    }
+  }
+
+  showModal(`
+    <div class="modal-header">
+      <div class="modal-title">${esc(r.title)}</div>
+      ${r.codename ? `<div class="modal-subtitle">${esc(r.codename)}</div>` : ''}
+      <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;font-family:var(--font-mono);">${esc(r.id)}</div>
+    </div>
+    ${bodyHtml}
+  `);
+}
+
+// ── Note HTML Modal ───────────────────────────────────
+async function openNoteModal(path) {
+  showModal(`
+    <div class="loading-state" style="padding:3rem 0;">
+      <div class="spinner"></div>
+      <p>加载笔记...</p>
+    </div>
+  `);
+
+  try {
+    const res = await fetch(API_BASE + '/api/projects/' + encodeURIComponent(currentProject) + '/data/' + encodeURIComponent(path));
+    if (res.ok) {
+      const json = await res.json();
+      const html = json.content || '<div class="empty-state">笔记内容为空</div>';
+      // Try to extract title from HTML
+      const titleMatch = html.match(/<title>([^<]*)<\/title>/i) || html.match(/<h1[^>]*>([^<]*)<\/h1>/i);
+      const title = titleMatch ? titleMatch[1].trim() : esc(path);
+
+      document.getElementById('modalBody').innerHTML = `
+        <div class="modal-header">
+          <div class="modal-title">${esc(title)}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);font-family:var(--font-mono);">${esc(path)}</div>
+        </div>
+        <div class="modal-html-content">${html}</div>
+      `;
+    } else {
+      document.getElementById('modalBody').innerHTML = `
+        <div class="empty-state" style="padding:3rem 0;">无法加载笔记 (HTTP ${res.status})</div>
+      `;
+    }
+  } catch (e) {
+    document.getElementById('modalBody').innerHTML = `
+      <div class="empty-state" style="padding:3rem 0;">加载失败: ${esc(e.message)}</div>
+    `;
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────
+let currentProject = null;
 
 async function boot() {
-  const main = document.getElementById('main');
-  const spinner = showSpinner(main);
-
-  // Load projects
-  const projects = await loadProjects();
   const select = document.getElementById('projectSelect');
-  select.innerHTML = projects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
 
-  if (projects.length) {
-    currentProject = projects[0].id;
-    projectData = await loadProjectData(currentProject);
-    hideSpinner(spinner);
-    renderPage();
-  } else {
-    hideSpinner(spinner);
-    main.innerHTML = '<div class="loading">暂无项目。使用 <code>docsbot init &lt;name&gt;</code> 创建一个。</div>';
+  // Modal close handlers
+  document.getElementById('modalClose').addEventListener('click', hideModal);
+  document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) hideModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideModal();
+  });
+
+  // Load project list
+  const projects = await loadProjects();
+  select.innerHTML = '<option value="" disabled>选择项目...</option>' +
+    projects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+
+  if (!projects.length) {
+    document.getElementById('todoBody').innerHTML = '<div class="empty-state">没有可用项目</div>';
+    return;
   }
 
-  // Event handlers
+  // Default to first project
+  currentProject = projects[0].id;
+  select.value = currentProject;
+  await loadAndRender(currentProject);
+
+  // Project switch handler
   select.addEventListener('change', async () => {
     currentProject = select.value;
-    main.style.opacity = '0';
-    const s = showSpinner(main);
-    projectData = await loadProjectData(currentProject);
-    hideSpinner(s);
-    renderPage();
+    await loadAndRender(currentProject);
   });
+}
 
-  document.querySelectorAll('.nav-tab').forEach(btn => {
-    btn.addEventListener('click', () => navTo(btn.dataset.page));
-  });
+async function loadAndRender(projectId) {
+  // Show loading in all sections
+  const loadingHtml = `
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>加载中...</p>
+    </div>
+  `;
+  document.getElementById('todoBody').innerHTML = loadingHtml;
+  document.getElementById('researchBody').innerHTML = loadingHtml;
+  document.getElementById('engineeringBody').innerHTML = loadingHtml;
+  document.getElementById('notesBody').innerHTML = loadingHtml;
 
-  setupKeyboardShortcuts();
+  try {
+    const data = await loadProjectData(projectId);
+    renderAll(data);
+  } catch (e) {
+    const errHtml = `<div class="empty-state" style="color:var(--error);">加载失败: ${esc(e.message)}</div>`;
+    document.getElementById('todoBody').innerHTML = errHtml;
+    document.getElementById('researchBody').innerHTML = errHtml;
+    document.getElementById('engineeringBody').innerHTML = errHtml;
+    document.getElementById('notesBody').innerHTML = errHtml;
+    console.error(e);
+  }
 }
 
 boot().catch(e => {
-  document.getElementById('main').innerHTML = `<div class="loading" style="color:var(--p0);">加载失败: ${esc(e.message)}</div>`;
+  console.error('Boot error:', e);
+  document.getElementById('todoBody').innerHTML = `<div class="empty-state" style="color:var(--error);">启动失败: ${esc(e.message)}</div>`;
 });
