@@ -9,5 +9,9 @@ __pycache__/
 server.pid
 gateway.pid
 
-# User projects — real data lives here, not in the repo
+# uv
+.venv/
+
+# User data — not tracked in repo
 projects/
+external_projects.json

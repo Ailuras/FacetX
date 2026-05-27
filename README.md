@@ -7,28 +7,48 @@ A lightweight, dark-themed project dashboard for research and engineering teams.
 - **Four-section dashboard**: Recent Tasks, Research, Engineering, Notes
 - **Dark theme**: Gold-accented UI inspired by academic paper aesthetics
 - **Zero build**: Data is plain `.js` files; frontend is vanilla JS + CSS
-- **Project switcher**: Manage multiple projects from one server
+- **Open folder**: Point DocsBot at any project folder — it auto-detects the `docs/` subdirectory
 - **Note modal**: Click any note card to read full HTML content inline
 - **Cross-references**: Research directions link to engineering tasks via `serves` / `depends_on`
 
 ## Quick Start
 
-```bash
-# Install
-pip install -e .
+Requires [uv](https://docs.astral.sh/uv/).
 
-# Create a project
-docsbot init my-project
+```bash
+# Clone and install
+git clone https://github.com/Ailuras/DocsBot
+cd DocsBot
+uv sync
 
 # Start the server
-docsbot serve
+uv run docsbot serve
 
-# Open http://127.0.0.1:18765
+# Open http://127.0.0.1:8766
+# Then enter a project folder path in the browser to load it
 ```
 
-## Project Structure
+## Opening a Project
 
-Each project lives in a directory with this layout:
+DocsBot can load any project folder that contains a `data/meta.js` file. If the folder has a `docs/` subdirectory, DocsBot auto-detects it.
+
+When no project is configured, the browser shows a prompt — paste in the absolute path to your project folder and click **打开**.
+
+Registered paths are persisted in `external_projects.json` so they survive server restarts.
+
+## Managed Projects
+
+You can also keep projects inside the repo under `projects/`:
+
+```bash
+# Create a new managed project
+uv run docsbot init my-project
+
+# Check server status and project list
+uv run docsbot status
+```
+
+Each project uses this layout:
 
 ```
 projects/my-project/
@@ -43,22 +63,30 @@ projects/my-project/
     *.html        -- individual notes
 ```
 
-All `.js` files in `data/` are plain JavaScript that assign to `window.AUGUR_*` globals. The frontend parses them in a sandbox and renders cards.
+All `.js` files in `data/` assign to `window.AUGUR_*` globals. The frontend evaluates them in a sandbox and renders the dashboard.
 
 ## Example Project
 
-An example project is included in `examples/demo/`. If `projects/` is empty, the server automatically falls back to the example.
+An example project is included in `examples/demo/`. If no projects are configured, the server falls back to the example automatically.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `docsbot serve` | Start the web server (default port 18765) |
-| `docsbot serve --stop` | Stop the running server |
-| `docsbot serve --daemon` | Run in background |
-| `docsbot status` | Show server status and project list |
-| `docsbot init NAME` | Create a new project |
-| `docsbot lint` | Run syntax check on data files |
+| `uv run docsbot serve` | Start the web server (default port 8766) |
+| `uv run docsbot serve --stop` | Stop the running server |
+| `uv run docsbot serve --daemon` | Run in background |
+| `uv run docsbot status` | Show server status and project list |
+| `uv run docsbot init NAME` | Create a new managed project |
+| `uv run docsbot lint` | Run syntax check on data files |
+
+## Development
+
+```bash
+uv sync --dev        # install with dev dependencies (pytest, ruff)
+uv run pytest
+uv run ruff check src/
+```
 
 ## Data Format
 
