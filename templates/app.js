@@ -5,6 +5,24 @@ const API_BASE = (() => {
   return lastSlash >= 0 ? path.slice(0, lastSlash) : '';
 })();
 
+// ── Recent folder paths ───────────────────────────────
+const RECENT_KEY = 'docsbot:recentPaths';
+
+function getRecentPaths() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+}
+
+function addRecentPath(path) {
+  const list = [path, ...getRecentPaths().filter(p => p !== path)].slice(0, 10);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+}
+
+function populateRecentDatalist() {
+  const dl = document.getElementById('recentPathsList');
+  if (!dl) return;
+  dl.innerHTML = getRecentPaths().map(p => `<option value="${esc(p)}">`).join('');
+}
+
 // ── Theme ─────────────────────────────────────────────
 function initTheme() {
   const saved = localStorage.getItem('docsbot:theme') || 'dark';
@@ -530,12 +548,11 @@ async function openFolder(pathOverride) {
     });
     const json = await res.json();
     if (json.error) throw new Error(json.error);
-    // Reload so boot() picks up the new project
+    addRecentPath(path);
     location.reload();
   } catch (e) {
     if (errEl) errEl.textContent = 'Error: ' + e.message;
     if (btn) { btn.disabled = false; btn.textContent = 'Open'; }
-    // Also surface in a prompt-based flow
     if (!inputEl) alert('Error: ' + e.message);
   }
 }
@@ -562,10 +579,9 @@ async function boot() {
   const projects = await loadProjects();
 
   if (!projects.length) {
-    // Show landing, hide sections
     document.getElementById('landing').style.display = '';
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
-    // Wire up open button
+    populateRecentDatalist();
     document.getElementById('folderBtn').addEventListener('click', () => openFolder());
     document.getElementById('folderInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') openFolder();
@@ -599,7 +615,12 @@ async function boot() {
     addBtn.addEventListener('click', () => {
       const visible = folderBar.style.display !== 'none';
       folderBar.style.display = visible ? 'none' : '';
-      if (!visible) { folderBarInput.value = ''; folderBarErr.textContent = ''; folderBarInput.focus(); }
+      if (!visible) {
+        folderBarInput.value = '';
+        folderBarErr.textContent = '';
+        populateRecentDatalist();
+        folderBarInput.focus();
+      }
     });
 
     folderBarClose.addEventListener('click', () => { folderBar.style.display = 'none'; });
@@ -616,6 +637,7 @@ async function boot() {
         });
         const json = await res.json();
         if (json.error) throw new Error(json.error);
+        addRecentPath(path);
         location.reload();
       } catch (e) {
         folderBarErr.textContent = e.message;
