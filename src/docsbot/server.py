@@ -178,8 +178,15 @@ def make_handler():
                     if len(parts) >= 3 and parts[1] == "data":
                         project_id = urllib.parse.unquote(parts[0])
                         filename = urllib.parse.unquote("/".join(parts[2:]))
-                        # Save only to projects/ (never to examples/)
-                        project_path = projects_dir() / project_id / "data" / filename
+                        base = _project_base(project_id)
+                        if base is None:
+                            _json_response(self, {"error": "Project not found"}, 404)
+                            return
+                        # Refuse writes to the bundled examples
+                        if str(base).startswith(str(default_data_dir() / "examples")):
+                            _json_response(self, {"error": "Cannot write to example projects"}, 403)
+                            return
+                        project_path = base / "data" / filename
                         body = _read_body(self)
                         content = body.get("content", "")
                         project_path.parent.mkdir(parents=True, exist_ok=True)

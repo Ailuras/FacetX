@@ -65,6 +65,7 @@
       <div class="section-header">
         <h2 class="section-title">Recent Tasks</h2>
         <span class="section-count" id="todoCount"></span>
+        <button class="section-add-btn" id="newTaskBtn" title="新建任务">+</button>
       </div>
       <div id="todoBody">
         <div class="loading-state">
@@ -79,6 +80,7 @@
       <div class="section-header">
         <h2 class="section-title">Research</h2>
         <span class="section-count" id="researchCount"></span>
+        <button class="section-add-btn" id="newResearchBtn" title="新建研究方向">+</button>
       </div>
       <div id="researchBody">
         <div class="loading-state">
@@ -93,6 +95,7 @@
       <div class="section-header">
         <h2 class="section-title">Engineering</h2>
         <span class="section-count" id="engineeringCount"></span>
+        <button class="section-add-btn" id="newEngineeringBtn" title="新建任务">+</button>
       </div>
       <div id="engineeringBody">
         <div class="loading-state">
@@ -122,6 +125,14 @@
     <div class="modal">
       <button class="modal-close" id="modalClose">&times;</button>
       <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Form Modal (create / edit) -->
+  <div class="modal-overlay" id="formOverlay">
+    <div class="modal modal-form">
+      <button class="modal-close" id="formClose">&times;</button>
+      <div class="modal-body" id="formBody"></div>
     </div>
   </div>
 

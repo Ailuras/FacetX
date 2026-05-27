@@ -1108,6 +1108,85 @@ body {
 }
 
 /* ================================================================
+   SECTION ADD BUTTON (+)
+   ================================================================ */
+.section-header { display: flex; align-items: center; gap: 0.6rem; }
+.section-add-btn {
+  margin-left: auto;
+  width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+.section-add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+/* ================================================================
+   FORM MODAL
+   ================================================================ */
+.modal-form { max-width: 640px; max-height: 90vh; overflow-y: auto; }
+
+.form-header { margin-bottom: 1.2rem; }
+.form-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--text-primary); }
+
+.form-group { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.9rem; }
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem; margin-bottom: 0.9rem; }
+.form-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
+.form-input, .form-select, .form-textarea {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 0.45rem 0.7rem;
+  outline: none;
+  transition: border-color var(--transition-fast);
+  width: 100%;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+.form-textarea { resize: vertical; font-family: var(--font-body); line-height: 1.5; }
+.form-select option { background: var(--bg-secondary); }
+
+.form-actions { display: flex; align-items: center; gap: 0.6rem; margin-top: 1.2rem; flex-wrap: wrap; }
+.form-save-btn {
+  background: var(--accent); border: none; border-radius: var(--radius-sm);
+  color: var(--bg-primary); font-weight: 600; font-size: 0.85rem;
+  padding: 0.45rem 1.1rem; cursor: pointer; transition: opacity var(--transition-fast);
+}
+.form-save-btn:hover { opacity: 0.85; }
+.form-delete-btn {
+  background: transparent; border: 1px solid var(--error); border-radius: var(--radius-sm);
+  color: var(--error); font-size: 0.85rem;
+  padding: 0.45rem 0.9rem; cursor: pointer; transition: all var(--transition-fast);
+  margin-left: auto;
+}
+.form-delete-btn:hover { background: var(--error-bg); }
+.form-cancel-btn {
+  background: transparent; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+  color: var(--text-secondary); font-size: 0.85rem;
+  padding: 0.45rem 0.9rem; cursor: pointer; transition: all var(--transition-fast);
+}
+.form-cancel-btn:hover { border-color: var(--text-muted); }
+.form-err { font-size: 0.8rem; color: var(--error); }
+
+/* ================================================================
+   MODAL EDIT ROW
+   ================================================================ */
+.modal-edit-row { margin-top: 1.2rem; padding-top: 0.8rem; border-top: 1px solid var(--border-subtle); }
+.modal-edit-btn {
+  background: transparent; border: 1px solid var(--border-default); border-radius: var(--radius-sm);
+  color: var(--text-secondary); font-size: 0.82rem;
+  padding: 0.35rem 0.85rem; cursor: pointer; transition: all var(--transition-fast);
+}
+.modal-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ================================================================
    UTILITIES
    ================================================================ */
 .hidden { display: none !important; }

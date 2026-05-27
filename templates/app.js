@@ -419,7 +419,12 @@ function openTodoModal(task) {
       <div class="modal-subtitle">${esc(task.id)}</div>
     </div>
     ${bodyHtml}
+    <div class="modal-edit-row">
+      <button class="modal-edit-btn" data-edit-task="${esc(task.id)}">编辑</button>
+    </div>
   `);
+  document.querySelector(`[data-edit-task="${CSS.escape(task.id)}"]`)
+    ?.addEventListener('click', () => { hideModal(); openBacklogForm(task); });
 }
 
 // ── Research Detail Modal ─────────────────────────────
@@ -486,7 +491,12 @@ function openResearchModal(r) {
       <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;font-family:var(--font-mono);">${esc(r.id)}</div>
     </div>
     ${bodyHtml}
+    <div class="modal-edit-row">
+      <button class="modal-edit-btn" data-edit-research="${esc(r.id)}">编辑</button>
+    </div>
   `);
+  document.querySelector(`[data-edit-research="${CSS.escape(r.id)}"]`)
+    ?.addEventListener('click', () => { hideModal(); openResearchForm(r); });
 }
 
 // ── Note HTML Modal ───────────────────────────────────
@@ -559,10 +569,22 @@ async function openFolder(pathOverride) {
 
 // ── Boot ──────────────────────────────────────────────
 let currentProject = null;
+let currentData = null;
 
 async function boot() {
   initTheme();
   document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
+
+  // Form modal close
+  document.getElementById('formClose').addEventListener('click', hideFormModal);
+  document.getElementById('formOverlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) hideFormModal();
+  });
+
+  // New item buttons (wired after project loads, but bind early — handler checks currentData)
+  document.getElementById('newTaskBtn')?.addEventListener('click', () => { if (currentData) openBacklogForm(null); });
+  document.getElementById('newResearchBtn')?.addEventListener('click', () => { if (currentData) openResearchForm(null); });
+  document.getElementById('newEngineeringBtn')?.addEventListener('click', () => { if (currentData) openBacklogForm(null); });
 
   const select = document.getElementById('projectSelect');
 
@@ -668,6 +690,7 @@ async function loadAndRender(projectId) {
 
   try {
     const data = await loadProjectData(projectId);
+    currentData = data;
     renderAll(data);
   } catch (e) {
     const errHtml = `<div class="empty-state" style="color:var(--error);">Failed to load: ${esc(e.message)}</div>`;
@@ -683,3 +706,287 @@ boot().catch(e => {
   console.error('Boot error:', e);
   document.getElementById('todoBody').innerHTML = `<div class="empty-state" style="color:var(--error);">Startup failed: ${esc(e.message)}</div>`;
 });
+
+// ═══════════════════════════════════════════════════════
+//  CRUD — data serialization & persistence
+// ═══════════════════════════════════════════════════════
+
+function toJSAssignment(varName, value) {
+  return `window.${varName} = ${JSON.stringify(value, null, 2)};\n`;
+}
+
+async function saveProjectFile(filename, content) {
+  const res = await fetch(
+    `${API_BASE}/api/projects/${encodeURIComponent(currentProject)}/data/${encodeURIComponent(filename)}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) }
+  );
+  const json = await res.json();
+  if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+}
+
+async function persistBacklog() {
+  await saveProjectFile('backlog.js',
+    toJSAssignment('AUGUR_BACKLOG_BUCKETS', currentData.buckets) +
+    '\n' + toJSAssignment('AUGUR_BACKLOG', currentData.backlog));
+}
+
+async function persistResearch() {
+  await saveProjectFile('research.js', toJSAssignment('AUGUR_RESEARCH', currentData.research));
+}
+
+// ── Form modal helpers ────────────────────────────────
+function showFormModal(html) {
+  const overlay = document.getElementById('formOverlay');
+  document.getElementById('formBody').innerHTML = html;
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function hideFormModal() {
+  document.getElementById('formOverlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// ── Backlog form ──────────────────────────────────────
+const STATUSES = ['open', 'in-progress', 'blocked', 'done', 'abandoned'];
+const SIZES    = ['XS', 'S', 'M', 'L', 'XL'];
+
+function backlogFormHTML(task) {
+  const t = task || {};
+  const buckets = currentData.buckets || [];
+  const modules = [...new Set((currentData.backlog || []).map(b => b.module).filter(Boolean)),
+                   'modeling', 'instantiation', 'infra'];
+  return `
+    <div class="form-header">
+      <div class="form-title">${task ? '编辑任务' : '新建任务'}</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">标题 *</label>
+      <input id="f-title" class="form-input" value="${esc(t.title||'')}" placeholder="任务标题">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Bucket</label>
+        <select id="f-bucket" class="form-select">
+          ${buckets.map(b => `<option value="${esc(b.p)}" ${t.bucket===b.p?'selected':''}>${esc(b.p)} — ${esc(b.label)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Module</label>
+        <input id="f-module" class="form-input" value="${esc(t.module||'infra')}" list="fModuleList">
+        <datalist id="fModuleList">${[...new Set(modules)].map(m=>`<option value="${esc(m)}">`).join('')}</datalist>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Size</label>
+        <select id="f-size" class="form-select">
+          ${SIZES.map(s=>`<option ${t.size===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Effort</label>
+        <input id="f-effort" class="form-input" value="${esc(t.effort||'')}" placeholder="如 1-2 d">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="f-status" class="form-select">
+          ${STATUSES.map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Serves（逗号分隔 R-id）</label>
+      <input id="f-serves" class="form-input" value="${esc((t.serves||[]).join(', '))}" placeholder="R1, R-all">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Input</label>
+      <textarea id="f-input" class="form-textarea" rows="2">${esc(t.fields?.input||'')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Output</label>
+      <textarea id="f-output" class="form-textarea" rows="2">${esc(t.fields?.output||'')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Acceptance</label>
+      <textarea id="f-accept" class="form-textarea" rows="2">${esc(t.fields?.accept||'')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Note</label>
+      <textarea id="f-note" class="form-textarea" rows="2">${esc(t.fields?.note||'')}</textarea>
+    </div>
+    <div class="form-actions">
+      <button id="fSave" class="form-save-btn">保存</button>
+      ${task ? `<button id="fDelete" class="form-delete-btn">删除</button>` : ''}
+      <button id="fCancel" class="form-cancel-btn">取消</button>
+      <span id="fErr" class="form-err"></span>
+    </div>`;
+}
+
+function collectBacklogForm(existing) {
+  const title = document.getElementById('f-title').value.trim();
+  if (!title) throw new Error('标题不能为空');
+  const bucket = document.getElementById('f-bucket').value;
+  let id = existing?.id;
+  if (!id) {
+    const used = (currentData.backlog||[]).filter(t=>t.bucket===bucket)
+      .map(t=>parseInt((t.id.match(/\d+$/)||['0'])[0])).filter(n=>!isNaN(n));
+    const next = used.length ? Math.max(...used)+1 : 1;
+    id = `${bucket}-${String(next).padStart(2,'0')}`;
+  }
+  return {
+    ...(existing||{}), id, bucket,
+    module: document.getElementById('f-module').value.trim()||'infra',
+    title,
+    size: document.getElementById('f-size').value,
+    effort: document.getElementById('f-effort').value.trim(),
+    status: document.getElementById('f-status').value,
+    serves: document.getElementById('f-serves').value.split(',').map(s=>s.trim()).filter(Boolean),
+    fields: {
+      input:  document.getElementById('f-input').value.trim(),
+      output: document.getElementById('f-output').value.trim(),
+      accept: document.getElementById('f-accept').value.trim(),
+      note:   document.getElementById('f-note').value.trim(),
+    },
+    date_added: existing?.date_added || new Date().toISOString().slice(0,10),
+    updated_at: new Date().toISOString().slice(0,10),
+  };
+}
+
+function openBacklogForm(task) {
+  showFormModal(backlogFormHTML(task));
+  document.getElementById('fCancel').addEventListener('click', hideFormModal);
+  document.getElementById('fSave').addEventListener('click', async () => {
+    const errEl = document.getElementById('fErr');
+    try {
+      const item = collectBacklogForm(task);
+      if (task) {
+        const idx = currentData.backlog.findIndex(t=>t.id===task.id);
+        if (idx>=0) currentData.backlog[idx]=item; else currentData.backlog.push(item);
+      } else {
+        currentData.backlog.push(item);
+      }
+      await persistBacklog();
+      hideFormModal();
+      renderAll(currentData);
+    } catch(e) { errEl.textContent = e.message; }
+  });
+  document.getElementById('fDelete')?.addEventListener('click', async () => {
+    if (!confirm(`删除任务"${task.title}"？`)) return;
+    currentData.backlog = currentData.backlog.filter(t=>t.id!==task.id);
+    await persistBacklog();
+    hideFormModal();
+    renderAll(currentData);
+  });
+}
+
+// ── Research form ─────────────────────────────────────
+const KINDS = ['DESCRIPTIVE','ENGINEERING','A/B','NOVEL','RIGOR','SPECULATIVE','SAFETY','STATIC'];
+
+function researchFormHTML(r) {
+  const item = r || {};
+  const modules = [...new Set((currentData.research||[]).map(x=>x.module).filter(Boolean),
+                   'modeling','instantiation','infra')];
+  return `
+    <div class="form-header">
+      <div class="form-title">${r ? '编辑研究方向' : '新建研究方向'}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Codename</label>
+        <input id="f-codename" class="form-input" value="${esc(item.codename||'')}" placeholder="MYDIR">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kind</label>
+        <select id="f-kind" class="form-select">
+          ${KINDS.map(k=>`<option ${item.kind===k?'selected':''}>${k}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Module</label>
+        <input id="f-module" class="form-input" value="${esc(item.module||'')}" list="fModuleList2">
+        <datalist id="fModuleList2">${[...new Set(modules)].map(m=>`<option value="${esc(m)}">`).join('')}</datalist>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">标题 *</label>
+      <input id="f-title" class="form-input" value="${esc(item.title||'')}" placeholder="研究方向标题">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Hypothesis</label>
+      <textarea id="f-hypothesis" class="form-textarea" rows="2">${esc(item.hypothesis||'')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Body（每段一行）</label>
+      <textarea id="f-body" class="form-textarea" rows="4">${esc((item.body||[]).join('\n'))}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Depends on（逗号分隔 P-id）</label>
+        <input id="f-depends" class="form-input" value="${esc((item.depends_on||[]).join(', '))}" placeholder="P0-01, P1-02">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="f-status" class="form-select">
+          ${STATUSES.map(s=>`<option ${item.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button id="fSave" class="form-save-btn">保存</button>
+      ${r ? `<button id="fDelete" class="form-delete-btn">删除</button>` : ''}
+      <button id="fCancel" class="form-cancel-btn">取消</button>
+      <span id="fErr" class="form-err"></span>
+    </div>`;
+}
+
+function collectResearchForm(existing) {
+  const title = document.getElementById('f-title').value.trim();
+  if (!title) throw new Error('标题不能为空');
+  let id = existing?.id;
+  if (!id) {
+    const nums = (currentData.research||[]).map(r=>parseInt(r.id.replace(/\D/g,''))).filter(n=>!isNaN(n));
+    const next = nums.length ? Math.max(...nums)+1 : 1;
+    id = `R${next}`;
+  }
+  return {
+    ...(existing||{}), id,
+    codename: document.getElementById('f-codename').value.trim().toUpperCase(),
+    title,
+    kind: document.getElementById('f-kind').value,
+    module: document.getElementById('f-module').value.trim(),
+    hypothesis: document.getElementById('f-hypothesis').value.trim(),
+    body: document.getElementById('f-body').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    depends_on: document.getElementById('f-depends').value.split(',').map(s=>s.trim()).filter(Boolean),
+    status: document.getElementById('f-status').value,
+    date_added: existing?.date_added || new Date().toISOString().slice(0,10),
+    updated_at: new Date().toISOString().slice(0,10),
+  };
+}
+
+function openResearchForm(r) {
+  showFormModal(researchFormHTML(r));
+  document.getElementById('fCancel').addEventListener('click', hideFormModal);
+  document.getElementById('fSave').addEventListener('click', async () => {
+    const errEl = document.getElementById('fErr');
+    try {
+      const item = collectResearchForm(r);
+      if (r) {
+        const idx = currentData.research.findIndex(x=>x.id===r.id);
+        if (idx>=0) currentData.research[idx]=item; else currentData.research.push(item);
+      } else {
+        currentData.research.push(item);
+      }
+      await persistResearch();
+      hideFormModal();
+      renderAll(currentData);
+    } catch(e) { errEl.textContent = e.message; }
+  });
+  document.getElementById('fDelete')?.addEventListener('click', async () => {
+    if (!confirm(`删除研究方向"${r.title}"？`)) return;
+    currentData.research = currentData.research.filter(x=>x.id!==r.id);
+    await persistResearch();
+    hideFormModal();
+    renderAll(currentData);
+  });
+}
