@@ -19,13 +19,13 @@ console = Console()
 @app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", help="Bind address"),
-    port: int = typer.Option(18765, help="Port"),
+    port: int = typer.Option(8766, help="Port"),
     daemon: bool = typer.Option(False, help="Run in background"),
     stop: bool = typer.Option(False, help="Stop the running server"),
 ) -> None:
     """Start or stop the DocsBot web server."""
     if stop:
-        stopped = stop_server()
+        stopped = stop_server(port=port)
         if stopped:
             console.print("[green]DocsBot stopped.[/green]")
         else:

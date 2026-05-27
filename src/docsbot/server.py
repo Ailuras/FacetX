@@ -179,8 +179,10 @@ def _pid_file() -> Path:
     return default_data_dir() / "server.pid"
 
 
-def run_server(host: str = "127.0.0.1", port: int = 18765) -> None:
+def run_server(host: str = "127.0.0.1", port: int = 8766) -> None:
     """Start the DocsBot HTTP server."""
+    import signal
+
     handler = make_handler()
     server = ThreadingHTTPServer((host, port), handler)
 
@@ -188,26 +190,60 @@ def run_server(host: str = "127.0.0.1", port: int = 18765) -> None:
     pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text(str(os.getpid()))
 
+    def _handle_sigterm(signum, frame):
+        pid_path.unlink(missing_ok=True)
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+    signal.signal(signal.SIGINT, _handle_sigterm)
+
     print(f"DocsBot running at http://{host}:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nShutting down.")
+        pass
     finally:
         server.shutdown()
         pid_path.unlink(missing_ok=True)
 
 
-def stop_server() -> bool:
-    """Stop the running DocsBot server."""
-    pid_path = _pid_file()
-    if not pid_path.exists():
-        return False
+def _kill_by_port(port: int) -> bool:
+    """Try to find and kill a process listening on *port* via lsof."""
+    import subprocess
+
     try:
-        pid = int(pid_path.read_text().strip())
-        os.kill(pid, 15)  # SIGTERM
-        pid_path.unlink(missing_ok=True)
-        return True
-    except (ValueError, ProcessLookupError, PermissionError):
-        pid_path.unlink(missing_ok=True)
-        return False
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            killed = False
+            for pid_str in result.stdout.strip().split():
+                try:
+                    os.kill(int(pid_str.strip()), 15)
+                    killed = True
+                except (ValueError, ProcessLookupError, PermissionError):
+                    continue
+            return killed
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return False
+
+
+def stop_server(port: int = 8766) -> bool:
+    """Stop the running DocsBot server.
+
+    First tries the PID file; if that is missing or stale falls back to
+    port-based process discovery (lsof).
+    """
+    pid_path = _pid_file()
+    if pid_path.exists():
+        try:
+            pid = int(pid_path.read_text().strip())
+            os.kill(pid, 15)  # SIGTERM
+            pid_path.unlink(missing_ok=True)
+            return True
+        except (ValueError, ProcessLookupError, PermissionError):
+            pid_path.unlink(missing_ok=True)
+
+    return _kill_by_port(port)
