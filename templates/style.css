@@ -826,6 +826,15 @@ body {
 }
 
 /* ================================================================
+   HEADER ACTIONS
+   ================================================================ */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ================================================================
    ADD-FOLDER BUTTON (header)
    ================================================================ */
 .add-folder-btn {
@@ -848,6 +857,73 @@ body {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-dim);
+}
+
+/* ================================================================
+   FOLDER BAR (inline, toggled by + button)
+   ================================================================ */
+.folder-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.8rem;
+  margin-top: -2rem;
+  margin-bottom: 2rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  animation: fadeSlideDown 0.15s ease both;
+}
+.folder-bar-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.folder-bar-input {
+  flex: 1;
+  min-width: 200px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 0.35rem 0.65rem;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+.folder-bar-input:focus { border-color: var(--accent); }
+.folder-bar-open-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--bg-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity var(--transition-fast);
+}
+.folder-bar-open-btn:hover { opacity: 0.85; }
+.folder-bar-open-btn:disabled { opacity: 0.5; cursor: default; }
+.folder-bar-close-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.folder-bar-close-btn:hover { border-color: var(--text-muted); color: var(--text-secondary); }
+.folder-bar-err {
+  font-size: 0.78rem;
+  color: var(--error, #e06c75);
+  width: 100%;
 }
 
 /* ================================================================

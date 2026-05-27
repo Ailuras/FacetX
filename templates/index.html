@@ -24,9 +24,19 @@
         <select id="projectSelect" class="project-select">
           <option value="" disabled selected>Select project...</option>
         </select>
-        <button id="addFolder" class="add-folder-btn" title="Open folder">+</button>
+        <button id="addFolder" class="add-folder-btn" title="打开文件夹">+</button>
       </div>
     </header>
+
+    <!-- Folder bar (toggled by + button when projects are loaded) -->
+    <div id="folderBar" class="folder-bar" style="display:none;">
+      <span class="folder-bar-label">打开文件夹</span>
+      <input id="folderBarInput" class="folder-bar-input" type="text"
+             placeholder="/Users/you/MyProject" spellcheck="false" autocomplete="off">
+      <button id="folderBarBtn" class="folder-bar-open-btn">打开</button>
+      <button id="folderBarClose" class="folder-bar-close-btn">✕</button>
+      <span id="folderBarErr" class="folder-bar-err"></span>
+    </div>
 
     <!-- Landing (shown when no projects are registered) -->
     <div class="landing" id="landing" style="display:none;">

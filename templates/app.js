@@ -565,12 +565,46 @@ async function boot() {
     await loadAndRender(currentProject);
   });
 
-  // "+" add-folder button: prompt for a path and register it
+  // "+" add-folder button: toggle the inline folder bar
   const addBtn = document.getElementById('addFolder');
-  if (addBtn) {
-    addBtn.addEventListener('click', async () => {
-      const p = prompt('Enter the project folder path to open:');
-      if (p && p.trim()) await openFolder(p.trim());
+  const folderBar = document.getElementById('folderBar');
+  const folderBarInput = document.getElementById('folderBarInput');
+  const folderBarBtn = document.getElementById('folderBarBtn');
+  const folderBarClose = document.getElementById('folderBarClose');
+  const folderBarErr = document.getElementById('folderBarErr');
+
+  if (addBtn && folderBar) {
+    addBtn.addEventListener('click', () => {
+      const visible = folderBar.style.display !== 'none';
+      folderBar.style.display = visible ? 'none' : '';
+      if (!visible) { folderBarInput.value = ''; folderBarErr.textContent = ''; folderBarInput.focus(); }
+    });
+
+    folderBarClose.addEventListener('click', () => { folderBar.style.display = 'none'; });
+
+    async function submitFolderBar() {
+      const path = folderBarInput.value.trim();
+      if (!path) return;
+      folderBarBtn.disabled = true; folderBarBtn.textContent = '加载中…';
+      folderBarErr.textContent = '';
+      try {
+        const res = await fetch(API_BASE + '/api/open', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path }),
+        });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error);
+        location.reload();
+      } catch (e) {
+        folderBarErr.textContent = e.message;
+        folderBarBtn.disabled = false; folderBarBtn.textContent = '打开';
+      }
+    }
+
+    folderBarBtn.addEventListener('click', submitFolderBar);
+    folderBarInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitFolderBar();
+      if (e.key === 'Escape') { folderBar.style.display = 'none'; }
     });
   }
 }
