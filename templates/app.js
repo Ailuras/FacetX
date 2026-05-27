@@ -197,15 +197,28 @@ function renderResearch(data) {
 function renderEngineering(data) {
   const tasks = data.backlog || [];
 
-  const groups = { smt: [], llm: [], infra: [] };
+  // Discover all modules present in data
+  const moduleOrder = ['modeling', 'instantiation', 'smt', 'llm', 'infra'];
+  const seenModules = [...new Set(tasks.map(t => t.module || 'infra'))];
+  // Sort: known order first, then alphabetical for unknown
+  const orderedModules = [
+    ...moduleOrder.filter(m => seenModules.includes(m)),
+    ...seenModules.filter(m => !moduleOrder.includes(m)).sort(),
+  ];
+  const groups = {};
+  for (const mod of orderedModules) groups[mod] = [];
   for (const t of tasks) {
     const mod = t.module || 'infra';
     if (!groups[mod]) groups[mod] = [];
     groups[mod].push(t);
   }
 
-  const labels = { smt: 'SMT Core', llm: 'LLM Loop', infra: 'Infrastructure' };
-  const icons = { smt: '⚙️', llm: '🔄', infra: '🏗️' };
+  // Labels: fallback to capitalized module name
+  const labelMap = {
+    smt: 'SMT Core', llm: 'LLM Loop', infra: 'Infrastructure',
+    modeling: 'Modeling', instantiation: 'Instantiation',
+  };
+  const icons = { smt: '⚙️', llm: '🔄', infra: '🏗️', modeling: '📐', instantiation: '🔩' };
 
   const total = tasks.length;
   document.getElementById('engineeringCount').textContent = `${total} items`;
@@ -217,11 +230,12 @@ function renderEngineering(data) {
 
   document.getElementById('engineeringBody').innerHTML = Object.entries(groups).map(([mod, items]) => {
     if (!items.length) return '';
+    const label = labelMap[mod] || (mod.charAt(0).toUpperCase() + mod.slice(1));
     return `
       <div class="module-group">
         <div class="module-group-header">
           <div class="module-group-icon">${icons[mod] || '🔧'}</div>
-          <span class="module-group-title">${esc(labels[mod] || mod)}</span>
+          <span class="module-group-title">${esc(label)}</span>
           <span class="module-group-count">${items.length}</span>
         </div>
         <div class="module-group-grid">
@@ -477,6 +491,36 @@ async function openNoteModal(path) {
   }
 }
 
+// ── Open Folder ───────────────────────────────────────
+async function openFolder(pathOverride) {
+  const inputEl = document.getElementById('folderInput');
+  const path = pathOverride || (inputEl ? inputEl.value.trim() : '');
+  if (!path) return;
+
+  const btn = document.getElementById('folderBtn');
+  const errEl = document.getElementById('landingError');
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+  if (errEl) errEl.textContent = '';
+
+  try {
+    const res = await fetch(API_BASE + '/api/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    // Reload so boot() picks up the new project
+    location.reload();
+  } catch (e) {
+    if (errEl) errEl.textContent = 'Error: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = 'Open'; }
+    // Also surface in a prompt-based flow
+    if (!inputEl) alert('Error: ' + e.message);
+  }
+}
+
 // ── Boot ──────────────────────────────────────────────
 let currentProject = null;
 
@@ -494,13 +538,21 @@ async function boot() {
 
   // Load project list
   const projects = await loadProjects();
-  select.innerHTML = '<option value="" disabled>Select project...</option>' +
-    projects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
 
   if (!projects.length) {
-    document.getElementById('todoBody').innerHTML = '<div class="empty-state">No projects available</div>';
+    // Show landing, hide sections
+    document.getElementById('landing').style.display = '';
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    // Wire up open button
+    document.getElementById('folderBtn').addEventListener('click', () => openFolder());
+    document.getElementById('folderInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') openFolder();
+    });
     return;
   }
+
+  select.innerHTML = '<option value="" disabled>Select project...</option>' +
+    projects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
 
   // Default to first project
   currentProject = projects[0].id;
@@ -512,6 +564,15 @@ async function boot() {
     currentProject = select.value;
     await loadAndRender(currentProject);
   });
+
+  // "+" add-folder button: prompt for a path and register it
+  const addBtn = document.getElementById('addFolder');
+  if (addBtn) {
+    addBtn.addEventListener('click', async () => {
+      const p = prompt('Enter the project folder path to open:');
+      if (p && p.trim()) await openFolder(p.trim());
+    });
+  }
 }
 
 async function loadAndRender(projectId) {

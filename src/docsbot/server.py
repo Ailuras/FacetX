@@ -10,17 +10,23 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from docsbot.config import default_data_dir, list_projects, projects_dir
+from docsbot.config import default_data_dir, list_projects, load_external_projects, projects_dir, register_external_path
 
 DOCSBOT_DIR = Path(__file__).resolve().parents[2]
 
 
 def _project_base(project_id: str) -> Path | None:
-    """Find a project directory in projects/ or examples/. Return None if not found."""
+    """Find a project directory in projects/, examples/, or external registry."""
     for root in (projects_dir(), default_data_dir() / "examples"):
         candidate = root / project_id
         if candidate.exists() and candidate.is_dir():
             return candidate
+    # Check externally registered projects
+    for entry in load_external_projects():
+        if entry.get("id") == project_id:
+            p = Path(entry["path"])
+            if p.exists() and p.is_dir():
+                return p
     return None
 
 
@@ -152,6 +158,20 @@ def make_handler():
             path = parsed.path
 
             try:
+                # API: register an external project folder
+                if path == "/api/open":
+                    body = _read_body(self)
+                    folder_str = body.get("path", "").strip()
+                    if not folder_str:
+                        _json_response(self, {"error": "No path provided"}, 400)
+                        return
+                    try:
+                        project = register_external_path(Path(folder_str))
+                        _json_response(self, {"project": project})
+                    except ValueError as exc:
+                        _json_response(self, {"error": str(exc)}, 400)
+                    return
+
                 # API: save project data file
                 if path.startswith("/api/projects/"):
                     parts = path[len("/api/projects/"):].split("/")

@@ -24,8 +24,23 @@
         <select id="projectSelect" class="project-select">
           <option value="" disabled selected>Select project...</option>
         </select>
+        <button id="addFolder" class="add-folder-btn" title="Open folder">+</button>
       </div>
     </header>
+
+    <!-- Landing (shown when no projects are registered) -->
+    <div class="landing" id="landing" style="display:none;">
+      <div class="landing-inner">
+        <div class="landing-icon">◆</div>
+        <h2 class="landing-title">Open a Folder to Continue</h2>
+        <p class="landing-subtitle">Enter a project folder path — DocsBot will auto-detect the docs/ subdirectory.</p>
+        <div class="landing-form">
+          <input type="text" id="folderInput" class="folder-input" placeholder="/Users/you/MyProject" spellcheck="false">
+          <button class="folder-btn" id="folderBtn">Open</button>
+        </div>
+        <div class="landing-error" id="landingError"></div>
+      </div>
+    </div>
 
     <!-- Recent Tasks -->
     <section class="section" id="sectionTodo">
