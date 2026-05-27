@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 
@@ -136,26 +137,22 @@ def list_projects() -> list[dict]:
 
 
 def _load_meta(path: Path) -> dict:
-    """Parse the window.AUGUR_META object from a meta.js file."""
+    """Extract scalar fields from a meta.js file using regex.
+
+    Works with both JSON-style (quoted keys) and JS-style (unquoted keys)
+    object literals, avoiding the fragility of json.loads on JS source.
+    """
     try:
         text = path.read_text(encoding="utf-8")
-        # Find the JSON-like object after window.AUGUR_META =
-        start = text.find("window.AUGUR_META = {")
-        if start == -1:
-            return {}
-        # Extract the object by bracket matching
-        brace_start = text.find("{", start)
-        brace_count = 0
-        end = brace_start
-        for i, ch in enumerate(text[brace_start:], start=brace_start):
-            if ch == "{":
-                brace_count += 1
-            elif ch == "}":
-                brace_count -= 1
-                if brace_count == 0:
-                    end = i
-                    break
-        obj_text = text[brace_start:end + 1]
-        return json.loads(obj_text)
+        result: dict = {}
+        for field in ("project", "short", "tagline", "description",
+                       "last_updated", "doc_number", "repo_url"):
+            m = re.search(
+                field + r"""\s*:\s*["']([^"'\n]+)["']""",
+                text,
+            )
+            if m:
+                result[field] = m.group(1)
+        return result
     except Exception:
         return {}
