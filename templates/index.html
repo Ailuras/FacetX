@@ -41,11 +41,31 @@
       </div>
     </div>
 
+    <section class="section" id="sectionWeekly">
+      <div class="section-header">
+        <h2 class="section-title">Weekly</h2>
+        <div class="week-nav" id="weekNav">
+          <button class="week-nav-btn" id="weekPrev" title="Previous week">‹</button>
+          <span class="week-nav-label" id="weekLabel"></span>
+          <button class="week-nav-btn" id="weekNext" title="Next week">›</button>
+        </div>
+      </div>
+      <div id="weeklyBody">
+        <div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>
+      </div>
+    </section>
+
     <section class="section" id="sectionTasks">
       <div class="section-header">
         <h2 class="section-title">Tasks</h2>
         <span class="section-count" id="tasksCount"></span>
         <button class="section-add-btn" id="newTaskBtn" title="New task">+</button>
+      </div>
+      <div class="task-filter-bar">
+        <button class="task-filter-tab active" data-filter="todo">Todo</button>
+        <button class="task-filter-tab" data-filter="done">Done</button>
+        <button class="task-filter-tab" data-filter="skipped">Skipped</button>
+        <button class="task-filter-tab" data-filter="">All</button>
       </div>
       <div id="tasksBody">
         <div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>

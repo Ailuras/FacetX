@@ -33,9 +33,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     acceptance  TEXT NOT NULL DEFAULT '',
     note        TEXT NOT NULL DEFAULT '',
     serves      TEXT NOT NULL DEFAULT '[]',
-    status      TEXT NOT NULL DEFAULT 'open',
+    status      TEXT NOT NULL DEFAULT 'todo',
     date_added  TEXT NOT NULL,
-    updated_at  TEXT
+    updated_at  TEXT,
+    tags        TEXT NOT NULL DEFAULT '[]',
+    priority    TEXT NOT NULL DEFAULT 'medium'
 );
 CREATE TABLE IF NOT EXISTS research (
     id         TEXT PRIMARY KEY,
@@ -58,6 +60,21 @@ CREATE TABLE IF NOT EXISTS notes (
     tags      TEXT NOT NULL DEFAULT '[]',
     excerpt   TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS weeks (
+    week_id    TEXT PRIMARY KEY,
+    date_start TEXT NOT NULL DEFAULT '',
+    goal_title TEXT NOT NULL DEFAULT '',
+    goal_body  TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS features (
+    id          TEXT PRIMARY KEY,
+    week_id     TEXT NOT NULL DEFAULT '',
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT 'todo',
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    date_added  TEXT NOT NULL DEFAULT ''
+);
 """
 
 _DEFAULT_BUCKETS = [
@@ -68,6 +85,37 @@ _DEFAULT_BUCKETS = [
     ("P4", "FEATURES",    "Research prototypes and recognizers."),
     ("P5", "NOTES",       "Documentation and maintenance."),
 ]
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply incremental schema changes to existing databases."""
+    existing_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(tasks)").fetchall()
+    }
+    for col, typedef in [("tags", "TEXT NOT NULL DEFAULT '[]'"),
+                         ("priority", "TEXT NOT NULL DEFAULT 'medium'")]:
+        if col not in existing_cols:
+            conn.execute(f"ALTER TABLE tasks ADD COLUMN {col} {typedef}")
+    conn.commit()
+    # Create new tables idempotently
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS weeks (
+        week_id    TEXT PRIMARY KEY,
+        date_start TEXT NOT NULL DEFAULT '',
+        goal_title TEXT NOT NULL DEFAULT '',
+        goal_body  TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS features (
+        id          TEXT PRIMARY KEY,
+        week_id     TEXT NOT NULL DEFAULT '',
+        title       TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status      TEXT NOT NULL DEFAULT 'todo',
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        date_added  TEXT NOT NULL DEFAULT ''
+    );
+    """)
 
 
 def _deserialize(row: sqlite3.Row) -> dict:
@@ -94,6 +142,7 @@ class ProjectDB:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        _migrate(self._conn)
 
     def close(self) -> None:
         self._conn.close()
@@ -134,13 +183,13 @@ class ProjectDB:
 
     # ── Tasks ─────────────────────────────────────────────────────────────────
 
-    def next_task_id(self, bucket: str) -> str:
-        rows = self._conn.execute(
-            "SELECT id FROM tasks WHERE bucket = ?", (bucket,)
-        ).fetchall()
+    def next_task_id(self, bucket: str = "T") -> str:
+        rows = self._conn.execute("SELECT id FROM tasks").fetchall()
         prefix = bucket + "-"
-        nums = [int(r["id"][len(prefix):]) for r in rows
-                if r["id"].startswith(prefix) and r["id"][len(prefix):].isdigit()]
+        nums = [
+            int(r["id"][len(prefix):]) for r in rows
+            if r["id"].startswith(prefix) and r["id"][len(prefix):].isdigit()
+        ]
         return f"{bucket}-{(max(nums) + 1) if nums else 1:02d}"
 
     def list_tasks(
@@ -157,7 +206,7 @@ class ProjectDB:
             params.append(status)
         if conds:
             sql += " WHERE " + " AND ".join(conds)
-        sql += " ORDER BY bucket, id"
+        sql += " ORDER BY date_added DESC, id"
         return [_deserialize(r) for r in self._conn.execute(sql, params).fetchall()]
 
     def get_task(self, task_id: str) -> dict | None:
@@ -169,7 +218,7 @@ class ProjectDB:
     def create_task(
         self,
         title: str,
-        bucket: str = "P0",
+        bucket: str = "T",
         module: str = "",
         size: str = "M",
         effort: str = "",
@@ -178,9 +227,11 @@ class ProjectDB:
         acceptance: str = "",
         note: str = "",
         serves: list | None = None,
-        status: str = "open",
+        status: str = "todo",
         date_added: str = "",
         task_id: str | None = None,
+        tags: list | None = None,
+        priority: str = "medium",
         **_: Any,
     ) -> dict:
         tid = task_id or self.next_task_id(bucket)
@@ -189,11 +240,12 @@ class ProjectDB:
             """INSERT INTO tasks
                (id,bucket,module,title,size,effort,
                 description,output,acceptance,note,
-                serves,status,date_added)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                serves,status,date_added,tags,priority)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (tid, bucket, module, title, size, effort,
              description, output, acceptance, note,
-             json.dumps(serves or []), status, today),
+             json.dumps(serves or []), status, today,
+             json.dumps(tags or []), priority),
         )
         self._conn.commit()
         return self.get_task(tid)  # type: ignore[return-value]
@@ -201,7 +253,7 @@ class ProjectDB:
     def update_task(self, task_id: str, **kwargs: Any) -> dict | None:
         if not self.get_task(task_id):
             return None
-        _json_fields = {"serves"}
+        _json_fields = {"serves", "tags"}
         sets, params = [], []
         for k, v in kwargs.items():
             if k in _json_fields and not isinstance(v, str):
@@ -324,7 +376,6 @@ class ProjectDB:
         slug: str | None = None,
         **_: Any,
     ) -> dict:
-        # Accept either body_html (raw HTML) or body (plain text → converted)
         if not body_html and body:
             body_html = _text_to_html(body)
         today = date or _today()
@@ -344,7 +395,6 @@ class ProjectDB:
     def update_note(self, slug: str, **kwargs: Any) -> dict | None:
         if not self.get_note(slug):
             return None
-        # Convert body → body_html if provided
         if "body" in kwargs and "body_html" not in kwargs:
             kwargs["body_html"] = _text_to_html(kwargs.pop("body"))
         elif "body" in kwargs:
@@ -370,11 +420,114 @@ class ProjectDB:
         self._conn.commit()
         return cur.rowcount > 0
 
+    # ── Weeks ─────────────────────────────────────────────────────────────────
+
+    def get_week(self, week_id: str) -> dict:
+        r = self._conn.execute(
+            "SELECT * FROM weeks WHERE week_id = ?", (week_id,)
+        ).fetchone()
+        return dict(r) if r else {
+            "week_id": week_id, "date_start": "",
+            "goal_title": "", "goal_body": "",
+        }
+
+    def upsert_week(self, week_id: str, **kwargs: Any) -> dict:
+        existing = self._conn.execute(
+            "SELECT week_id FROM weeks WHERE week_id = ?", (week_id,)
+        ).fetchone()
+        if existing:
+            sets, params = [], []
+            for k, v in kwargs.items():
+                sets.append(f"{k} = ?")
+                params.append(v)
+            if sets:
+                params.append(week_id)
+                self._conn.execute(
+                    f"UPDATE weeks SET {', '.join(sets)} WHERE week_id = ?", params
+                )
+        else:
+            cols = ["week_id"] + list(kwargs.keys())
+            vals = [week_id] + list(kwargs.values())
+            ph = ", ".join("?" * len(vals))
+            self._conn.execute(
+                f"INSERT INTO weeks ({', '.join(cols)}) VALUES ({ph})", vals
+            )
+        self._conn.commit()
+        return self.get_week(week_id)
+
+    def list_weeks(self) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM weeks ORDER BY week_id DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── Features ──────────────────────────────────────────────────────────────
+
+    def next_feature_id(self) -> str:
+        rows = self._conn.execute("SELECT id FROM features").fetchall()
+        nums = [int(r["id"][1:]) for r in rows
+                if r["id"].startswith("F") and r["id"][1:].isdigit()]
+        return f"F{(max(nums) + 1) if nums else 1:02d}"
+
+    def list_features(self, week_id: str | None = None) -> list[dict]:
+        sql = "SELECT * FROM features"
+        params: list[Any] = []
+        if week_id:
+            sql += " WHERE week_id = ?"
+            params.append(week_id)
+        sql += " ORDER BY sort_order, id"
+        return [dict(r) for r in self._conn.execute(sql, params).fetchall()]
+
+    def get_feature(self, fid: str) -> dict | None:
+        r = self._conn.execute(
+            "SELECT * FROM features WHERE id = ?", (fid,)
+        ).fetchone()
+        return dict(r) if r else None
+
+    def create_feature(
+        self,
+        title: str,
+        week_id: str = "",
+        description: str = "",
+        status: str = "todo",
+        sort_order: int = 0,
+        feature_id: str | None = None,
+        **_: Any,
+    ) -> dict:
+        fid = feature_id or self.next_feature_id()
+        self._conn.execute(
+            """INSERT INTO features (id,week_id,title,description,status,sort_order,date_added)
+               VALUES (?,?,?,?,?,?,?)""",
+            (fid, week_id, title, description, status, sort_order, _today()),
+        )
+        self._conn.commit()
+        return self.get_feature(fid)  # type: ignore[return-value]
+
+    def update_feature(self, fid: str, **kwargs: Any) -> dict | None:
+        if not self.get_feature(fid):
+            return None
+        sets, params = [], []
+        for k, v in kwargs.items():
+            sets.append(f"{k} = ?")
+            params.append(v)
+        if not sets:
+            return self.get_feature(fid)
+        params.append(fid)
+        self._conn.execute(
+            f"UPDATE features SET {', '.join(sets)} WHERE id = ?", params
+        )
+        self._conn.commit()
+        return self.get_feature(fid)
+
+    def delete_feature(self, fid: str) -> bool:
+        cur = self._conn.execute("DELETE FROM features WHERE id = ?", (fid,))
+        self._conn.commit()
+        return cur.rowcount > 0
+
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @classmethod
     def create(cls, path: Path, meta: dict | None = None) -> "ProjectDB":
-        """Create a new database, initialize schema, seed default buckets."""
         path.parent.mkdir(parents=True, exist_ok=True)
         db = cls(path)
         db._conn.executescript(_SCHEMA)
@@ -385,23 +538,20 @@ class ProjectDB:
 
     @classmethod
     def open(cls, path: Path) -> "ProjectDB | None":
-        """Open an existing database. Returns None if not found."""
         if not path.exists():
             return None
         return cls(path)
 
     @classmethod
     def open_or_create(cls, path: Path, meta: dict | None = None) -> "ProjectDB":
-        """Open if it exists, otherwise create."""
         if path.exists():
             return cls(path)
         return cls.create(path, meta)
 
 
 def _text_to_html(text: str) -> str:
-    """Convert plain text (markdown-lite) to HTML paragraphs."""
     if re.search(r"<[a-zA-Z]", text):
-        return text  # already HTML
+        return text
     paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
     parts = []
     for p in paragraphs:
@@ -413,7 +563,6 @@ def _text_to_html(text: str) -> str:
 
 
 def seed_demo(db: "ProjectDB") -> None:
-    """Seed *db* with representative demo data."""
     db.update_meta({
         "project": "Demo",
         "short": "Demo",
@@ -426,42 +575,41 @@ def seed_demo(db: "ProjectDB") -> None:
     })
 
     tasks_data = [
-        ("P0", "infra",  "Set up minimal regression test suite",     "M", "2-3 d",  "open",        "Project has no automated test directory.", "CMake test target + fixture files.", "`ctest` runs cleanly.", "Prevents future soundness regressions.", [], "2026-01-10"),
-        ("P0", "loop",   "Wire validation gate into main solver loop","M", "2-3 d",  "in-progress", "Validation module exists but is not called.", "Candidates pass through entailment check.", "Unsound candidate does not corrupt result.", "Largest semantic gap.", ["R1", "R5"], "2026-01-15"),
-        ("P1", "core",   "Add parser round-trip property tests",      "S", "1 d",    "open",        "No round-trip guarantee is tested.", "Property-based tests.", "100+ inputs pass.", "", [], "2026-01-20"),
-        ("P1", "infra",  "Sanitize shell command construction",       "S", "1 d",    "open",        "Paths concatenated into shell strings.", "Uniform command builder with escaping.", "Paths with spaces work.", "", ["R1"], "2026-01-25"),
-        ("P2", "infra",  "Design run manifest schema",               "S", "1-2 d",  "open",        "Ad-hoc logs exist but no structured manifest.", "Documented JSONL schema.", "One run produces a summary.", "", ["R4"], "2026-02-01"),
-        ("P3", "infra",  "Batch runner CLI skeleton",                "L", "3-5 d",  "blocked",     "No automated batch execution.", "CLI accepting config + collecting outputs.", "10 cases run without intervention.", "", ["R5"], "2026-02-15"),
-        ("P4", "core",   "Implement alphabet analyzer prototype",    "L", "1-2 wk", "open",        "String expressions with replace_all chains.", "Static classification: idempotent/commutative.", "12 samples classified correctly.", "", ["R2"], "2026-03-01"),
-        ("P5", "infra",  "Write architecture overview note",         "S", "1 d",    "done",        "No single document describes architecture.", "Living architecture note with component map.", "New contributor orients in 30 min.", "", [], "2026-01-05"),
+        ("T", "", "Set up minimal regression test suite",       "M", "",  "todo",    "Project has no automated test directory.",  "", "", "high",     ["testing"],           "2026-01-10"),
+        ("T", "", "Wire validation gate into main solver loop", "M", "",  "todo",    "Validation module exists but is not called.","","", "critical", ["core", "soundness"], "2026-01-15"),
+        ("T", "", "Add parser round-trip property tests",       "S", "",  "todo",    "No round-trip guarantee tested.",           "", "", "medium",   ["testing", "parser"], "2026-01-20"),
+        ("T", "", "Sanitize shell command construction",        "S", "",  "todo",    "Paths concatenated into shell strings.",    "", "", "high",     ["security", "infra"], "2026-01-25"),
+        ("T", "", "Design run manifest schema",                 "S", "",  "todo",    "Ad-hoc logs, no structured manifest.",      "", "", "medium",   ["infra"],             "2026-02-01"),
+        ("T", "", "Batch runner CLI skeleton",                  "L", "",  "todo",    "No automated batch execution.",             "", "", "medium",   ["infra", "cli"],      "2026-02-15"),
+        ("T", "", "Implement alphabet analyzer prototype",      "L", "",  "todo",    "Static classification for string exprs.",   "", "", "low",      ["research"],          "2026-03-01"),
+        ("T", "", "Write architecture overview note",           "S", "",  "done",    "No single document describes architecture.","","", "low",      ["docs"],              "2026-01-05"),
     ]
-    for bucket, module, title, size, effort, status, desc, out, accept, note, serves, date in tasks_data:
+    for bucket, module, title, size, effort, status, desc, out, accept, priority, tags, date in tasks_data:
         db.create_task(title=title, bucket=bucket, module=module, size=size,
                        effort=effort, description=desc, output=out,
-                       acceptance=accept, note=note, serves=serves,
-                       status=status, date_added=date)
+                       acceptance=accept, status=status, priority=priority,
+                       tags=tags, date_added=date)
 
     research_data = [
         ("SOUND",   "Integrate candidate validation into the main loop", "SAFETY",      "loop",
-         "Hypothesis: Candidate lemmas should be validated for entailment before influencing the main solver conclusion.",
-         ["The current pipeline generates candidate lemmas but does not gate them through a soundness check.",
-          "The goal is to insert a validation step: generate, check entailment, then only pass sound candidates.",
-          "**Milestone:** Construct a deliberately unsound candidate and confirm it does not corrupt the result."],
-         ["P0-01", "P1-01"], "in-progress", "2026-01-10"),
+         "Candidate lemmas should be validated for entailment before influencing the main solver.",
+         ["The current pipeline generates candidate lemmas but does not gate them through soundness.",
+          "Insert a validation step: generate, check entailment, then only pass sound candidates."],
+         [], "in-progress", "2026-01-10"),
         ("STATIC",  "Static analysis for input-output alphabet properties", "STATIC", "core",
-         "Hypothesis: Many rewrite patterns can be resolved by static analysis of input/output alphabets before invoking the solver.",
-         ["Manual analysis shows idempotence and commutativity often depend only on the input/output alphabet relationship.",
-          "If we can classify these statically, we can short-circuit solver calls for easy cases."],
-         ["P4-01"], "open", "2026-01-15"),
+         "Many rewrite patterns can be resolved by static analysis of input/output alphabets.",
+         ["Manual analysis shows idempotence and commutativity often depend only on alphabet.",
+          "If we can classify statically, we short-circuit solver calls for easy cases."],
+         [], "open", "2026-01-15"),
         ("MEASURE", "Structured run manifests for experiment reproducibility", "MEASUREMENT", "infra",
-         "Hypothesis: Without structured run manifests, experimental results cannot be compared across iterations.",
-         ["Current logging captures raw traces but lacks structured fields: candidate count, pass/fail reasons, tokens.",
-          "**Milestone:** Run one experiment and produce a manifest.json summarizable in one command."],
-         ["P2-01"], "in-progress", "2026-02-10"),
+         "Without structured run manifests, results cannot be compared across iterations.",
+         ["Current logging captures raw traces but lacks structured fields.",
+          "Run one experiment and produce a manifest.json summarizable in one command."],
+         [], "in-progress", "2026-02-10"),
         ("BATCH",   "Batch orchestration and regression testing", "INFRA", "infra",
-         "Hypothesis: A stable batch runner is required before scaling to larger benchmark suites.",
-         ["Running experiments by hand does not scale. A batch runner should accept config, run all cases, collect manifests."],
-         ["P3-01"], "blocked", "2026-03-01"),
+         "A stable batch runner is required before scaling to larger benchmark suites.",
+         ["Running experiments by hand does not scale."],
+         [], "open", "2026-03-01"),
     ]
     for codename, title, kind, module, hyp, body, deps, status, date in research_data:
         db.create_research(title=title, codename=codename, kind=kind,
@@ -472,13 +620,16 @@ def seed_demo(db: "ProjectDB") -> None:
         title="Getting Started with DocsBot",
         body_html=(
             "<h2>Welcome</h2>"
-            "<p>This is a demo project. Open a real project folder via the <strong>+</strong> button in the header.</p>"
+            "<p>This is a demo project. Create a real project via the <strong>+</strong> button.</p>"
             "<h2>Data model</h2>"
-            "<p>Each project has <strong>Tasks</strong> (grouped by priority bucket), "
-            "<strong>Research directions</strong>, and <strong>Notes</strong>. "
-            "All data is stored in a local SQLite database.</p>"
+            "<p>Each project has <strong>Tasks</strong>, <strong>Research directions</strong>, "
+            "and <strong>Notes</strong>. All stored in a local SQLite database under "
+            "<code>~/.docsbot/projects/</code>.</p>"
+            "<h2>Weekly Workbench</h2>"
+            "<p>Use the weekly section to plan each week: set a goal and list the focus areas "
+            "you want to tackle.</p>"
             "<h2>MCP integration</h2>"
-            "<p>Run <code>docsbot mcp</code> to expose your projects as tools that Claude Code sessions "
+            "<p>Run <code>docsbot mcp</code> to expose your projects as tools that Claude Code "
             "can read and write automatically.</p>"
         ),
         tags=["docs", "intro"],

@@ -117,6 +117,13 @@ def make_handler():
                     if len(rest) == 2 and rest[0] == "notes":
                         n = db.get_note(rest[1])
                         _json(self, n) if n else _json(self, {"error": "Not found"}, 404); return
+                    if rest == ["weeks"]:
+                        _json(self, db.list_weeks()); return
+                    if len(rest) == 2 and rest[0] == "weeks":
+                        _json(self, db.get_week(rest[1])); return
+                    if rest == ["features"]:
+                        wid = qs.get("week_id", [None])[0]
+                        _json(self, db.list_features(week_id=wid)); return
 
                 if _static(self, p):
                     return
@@ -162,6 +169,8 @@ def make_handler():
                         _json(self, db.create_research(**body), 201); return
                     if rest == ["notes"]:
                         _json(self, db.create_note(**body), 201); return
+                    if rest == ["features"]:
+                        _json(self, db.create_feature(**body), 201); return
                     if rest == ["meta"]:
                         db.update_meta(body); _json(self, db.get_meta()); return
 
@@ -187,6 +196,11 @@ def make_handler():
                     if len(rest) == 2 and rest[0] == "notes":
                         n = db.update_note(rest[1], **body)
                         _json(self, n) if n else _json(self, {"error": "Not found"}, 404); return
+                    if len(rest) == 2 and rest[0] == "weeks":
+                        _json(self, db.upsert_week(rest[1], **body)); return
+                    if len(rest) == 2 and rest[0] == "features":
+                        f = db.update_feature(rest[1], **body)
+                        _json(self, f) if f else _json(self, {"error": "Not found"}, 404); return
                 self.send_error(404, "Not Found")
             except Exception as e:
                 _json(self, {"error": str(e)}, 500)
@@ -207,6 +221,9 @@ def make_handler():
                         _json(self, {"ok": ok}) if ok else _json(self, {"error": "Not found"}, 404); return
                     if len(rest) == 2 and rest[0] == "notes":
                         ok = db.delete_note(rest[1])
+                        _json(self, {"ok": ok}) if ok else _json(self, {"error": "Not found"}, 404); return
+                    if len(rest) == 2 and rest[0] == "features":
+                        ok = db.delete_feature(rest[1])
                         _json(self, {"ok": ok}) if ok else _json(self, {"error": "Not found"}, 404); return
                 self.send_error(404, "Not Found")
             except Exception as e:

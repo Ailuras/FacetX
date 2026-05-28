@@ -11,16 +11,6 @@ function inline(s) {
     .replace(/`([^`\n]+)`/g, '<code>$1</code>');
 }
 
-function badgeClass(status) {
-  return { 'open':'badge-open','in-progress':'badge-in-progress',
-           'blocked':'badge-blocked','done':'badge-done' }[status] || 'badge-open';
-}
-
-function bucketLineVar(bucket) {
-  const n = parseInt((bucket||'').replace(/^P/,''),10);
-  return (n>=0&&n<=5) ? `var(--p${n}-line)` : 'var(--border-default)';
-}
-
 function textToHtml(text) {
   if (/<[a-zA-Z]/.test(text)) return text;
   return text.split(/\n{2,}/).filter(p=>p.trim()).map(p=>`<p>${
@@ -135,110 +125,344 @@ function hideFormModal() {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let pid = null; // current project id
+let pid = null;
+let _allTasks = [];
+let _taskFilter = 'todo';
+let _currentWeekMonday = mondayOf(new Date());
 
-// ── Tasks section ─────────────────────────────────────────────────────────────
+// ── Week helpers ──────────────────────────────────────────────────────────────
 
-async function loadTasks() {
-  const body = document.getElementById('tasksBody');
+function mondayOf(date) {
+  const d = new Date(date);
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() - day + 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getISOWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return {
+    year: d.getUTCFullYear(),
+    week: Math.ceil(((d - yearStart) / 86400000 + 1) / 7),
+  };
+}
+
+function weekId(monday) {
+  const iso = getISOWeek(monday);
+  return `${iso.year}-W${String(iso.week).padStart(2, '0')}`;
+}
+
+function weekLabel(monday) {
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (d, opts) => new Intl.DateTimeFormat('en-US', opts).format(d);
+  const mo = fmt(monday, { month: 'short', day: 'numeric' });
+  const su = fmt(sunday, { month: 'short', day: 'numeric', year: 'numeric' });
+  const { week } = getISOWeek(monday);
+  return `Week ${week} · ${mo} – ${su}`;
+}
+
+function shiftWeek(monday, delta) {
+  const d = new Date(monday);
+  d.setDate(d.getDate() + delta * 7);
+  return d;
+}
+
+// ── Weekly Workbench ──────────────────────────────────────────────────────────
+
+async function loadWeekly() {
+  document.getElementById('weekLabel').textContent = weekLabel(_currentWeekMonday);
+  const body = document.getElementById('weeklyBody');
   body.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>';
+  const wid = weekId(_currentWeekMonday);
   try {
-    const [tasks, buckets] = await Promise.all([
-      api('GET', `/api/projects/${encodeURIComponent(pid)}/tasks`),
-      api('GET', `/api/projects/${encodeURIComponent(pid)}/buckets`),
+    const [weekData, features] = await Promise.all([
+      api('GET', `/api/projects/${encodeURIComponent(pid)}/weeks/${encodeURIComponent(wid)}`),
+      api('GET', `/api/projects/${encodeURIComponent(pid)}/features?week_id=${encodeURIComponent(wid)}`),
     ]);
-    renderTasks(tasks, buckets);
+    renderWeekly(weekData, features);
   } catch(e) {
     body.innerHTML = `<div class="empty-state" style="color:var(--error)">${esc(e.message)}</div>`;
   }
 }
 
-function renderTasks(tasks, buckets) {
+function renderWeekly(weekData, features) {
+  const wid = weekData.week_id;
+  const hasGoal = weekData.goal_title || weekData.goal_body;
+
+  const goalHtml = hasGoal ? `
+    <div class="weekly-goal-card">
+      <div class="weekly-goal-meta">
+        <span class="weekly-goal-eyebrow">Weekly goal</span>
+        <button class="weekly-goal-edit-btn" data-wid="${esc(wid)}">Edit</button>
+      </div>
+      <div class="weekly-goal-title">${esc(weekData.goal_title)}</div>
+      ${weekData.goal_body ? `<div class="weekly-goal-body">${esc(weekData.goal_body)}</div>` : ''}
+    </div>
+  ` : `
+    <div class="weekly-goal-empty" data-wid="${esc(wid)}">
+      <span class="weekly-goal-empty-icon">+</span>
+      <span>Set weekly goal</span>
+    </div>
+  `;
+
+  const featureCards = features.map(f => `
+    <div class="feature-card feature-status-${esc(f.status)}" data-fid="${esc(f.id)}">
+      <div class="feature-card-title">${esc(f.title)}</div>
+      <div class="feature-card-status">
+        <span class="feature-status-dot"></span>
+        <span class="feature-status-label">${esc(f.status)}</span>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('weeklyBody').innerHTML = `
+    <div class="weekly-content">
+      ${goalHtml}
+      <div class="weekly-features">
+        <div class="weekly-features-header">
+          <span class="weekly-features-label">Focus areas</span>
+          <button class="weekly-add-feature-btn" data-wid="${esc(wid)}">+</button>
+        </div>
+        <div class="weekly-features-grid">
+          ${featureCards}
+          ${features.length === 0 ? '<span class="weekly-features-hint">No focus areas yet — add one with +</span>' : ''}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Goal card click
+  document.querySelector('.weekly-goal-edit-btn, .weekly-goal-empty')
+    ?.addEventListener('click', () => openGoalForm(weekData));
+
+  // Feature card clicks
+  document.querySelectorAll('.feature-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const f = features.find(x => x.id === card.dataset.fid);
+      if (f) openFeatureForm(f, wid);
+    });
+  });
+
+  // Add feature button
+  document.querySelector('.weekly-add-feature-btn')
+    ?.addEventListener('click', () => openFeatureForm(null, wid));
+}
+
+function openGoalForm(weekData) {
+  const wid = weekData.week_id;
+  showFormModal(`
+    <div class="form-header"><div class="form-title">Weekly goal</div></div>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input id="f-gtitle" class="form-input" value="${esc(weekData.goal_title)}" placeholder="This week I'm focused on…">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Details (optional)</label>
+      <textarea id="f-gbody" class="form-textarea" rows="4" placeholder="What specifically, why it matters, blockers…">${esc(weekData.goal_body)}</textarea>
+    </div>
+    <div class="form-actions">
+      <button id="fSave" class="form-save-btn">Save</button>
+      <button id="fCancel" class="form-cancel-btn">Cancel</button>
+      <span id="fErr" class="form-err"></span>
+    </div>
+  `);
+  document.getElementById('fCancel').addEventListener('click', hideFormModal);
+  document.getElementById('fSave').addEventListener('click', async () => {
+    try {
+      await api('PUT', `/api/projects/${encodeURIComponent(pid)}/weeks/${encodeURIComponent(wid)}`, {
+        goal_title: document.getElementById('f-gtitle').value.trim(),
+        goal_body: document.getElementById('f-gbody').value.trim(),
+        date_start: weekData.date_start || _currentWeekMonday.toISOString().split('T')[0],
+      });
+      hideFormModal();
+      loadWeekly();
+    } catch(e) { document.getElementById('fErr').textContent = e.message; }
+  });
+}
+
+const FEATURE_STATUSES = ['todo', 'done', 'skipped'];
+
+function openFeatureForm(feature, wid) {
+  const f = feature || {};
+  const isNew = !feature;
+  showFormModal(`
+    <div class="form-header"><div class="form-title">${isNew ? 'Add focus area' : 'Edit focus area'}</div></div>
+    <div class="form-group">
+      <label class="form-label">Title *</label>
+      <input id="f-ftitle" class="form-input" value="${esc(f.title||'')}" placeholder="What are you building or fixing?">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description (optional)</label>
+      <textarea id="f-fdesc" class="form-textarea" rows="3" placeholder="More details…">${esc(f.description||'')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select id="f-fstatus" class="form-select">
+        ${FEATURE_STATUSES.map(s=>`<option value="${s}" ${(f.status||'todo')===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-actions">
+      <button id="fSave" class="form-save-btn">Save</button>
+      ${!isNew ? '<button id="fDelete" class="form-delete-btn">Delete</button>' : ''}
+      <button id="fCancel" class="form-cancel-btn">Cancel</button>
+      <span id="fErr" class="form-err"></span>
+    </div>
+  `);
+  document.getElementById('fCancel').addEventListener('click', hideFormModal);
+  document.getElementById('fSave').addEventListener('click', async () => {
+    const title = document.getElementById('f-ftitle').value.trim();
+    if (!title) { document.getElementById('fErr').textContent = 'Title is required'; return; }
+    const payload = {
+      title,
+      description: document.getElementById('f-fdesc').value.trim(),
+      status: document.getElementById('f-fstatus').value,
+      week_id: wid,
+    };
+    try {
+      if (isNew) {
+        await api('POST', `/api/projects/${encodeURIComponent(pid)}/features`, payload);
+      } else {
+        await api('PUT', `/api/projects/${encodeURIComponent(pid)}/features/${encodeURIComponent(feature.id)}`, payload);
+      }
+      hideFormModal();
+      loadWeekly();
+    } catch(e) { document.getElementById('fErr').textContent = e.message; }
+  });
+  document.getElementById('fDelete')?.addEventListener('click', async () => {
+    if (!confirm(`Delete "${feature.title}"?`)) return;
+    try {
+      await api('DELETE', `/api/projects/${encodeURIComponent(pid)}/features/${encodeURIComponent(feature.id)}`);
+      hideFormModal();
+      loadWeekly();
+    } catch(e) { document.getElementById('fErr').textContent = e.message; }
+  });
+}
+
+// ── Tasks section ─────────────────────────────────────────────────────────────
+
+function taskStatusGroup(status) {
+  if (['open', 'in-progress', 'blocked', 'todo'].includes(status)) return 'todo';
+  if (status === 'done') return 'done';
+  if (status === 'skipped') return 'skipped';
+  return 'todo';
+}
+
+const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+
+function applyTaskFilter() {
+  let visible = _allTasks;
+  if (_taskFilter === 'todo') visible = _allTasks.filter(t => taskStatusGroup(t.status) === 'todo');
+  else if (_taskFilter === 'done') visible = _allTasks.filter(t => taskStatusGroup(t.status) === 'done');
+  else if (_taskFilter === 'skipped') visible = _allTasks.filter(t => taskStatusGroup(t.status) === 'skipped');
+
+  // Sort by priority then date_added
+  visible = [...visible].sort((a, b) =>
+    (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2)
+  );
+
+  const total = _taskFilter === '' ? _allTasks.length : visible.length;
+  document.getElementById('tasksCount').textContent =
+    _taskFilter === '' ? `${total} total` : `${visible.length} / ${_allTasks.length}`;
+
+  renderTasks(visible);
+}
+
+async function loadTasks() {
   const body = document.getElementById('tasksBody');
-  document.getElementById('tasksCount').textContent = `${tasks.length} items`;
+  body.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>';
+  try {
+    _allTasks = await api('GET', `/api/projects/${encodeURIComponent(pid)}/tasks`);
+    applyTaskFilter();
+  } catch(e) {
+    body.innerHTML = `<div class="empty-state" style="color:var(--error)">${esc(e.message)}</div>`;
+  }
+}
+
+function renderTasks(tasks) {
+  const body = document.getElementById('tasksBody');
 
   if (!tasks.length) {
-    body.innerHTML = '<div class="empty-state">No tasks yet</div>';
+    const hint = _taskFilter === 'todo' ? 'No open tasks' :
+                 _taskFilter === 'done' ? 'No completed tasks' :
+                 _taskFilter === 'skipped' ? 'No skipped tasks' : 'No tasks yet';
+    body.innerHTML = `<div class="empty-state">${hint}</div>`;
     return;
   }
 
-  const byBucket = {};
-  for (const b of buckets) byBucket[b.p] = [];
-  for (const t of tasks) {
-    if (!byBucket[t.bucket]) byBucket[t.bucket] = [];
-    byBucket[t.bucket].push(t);
-  }
-
-  const bucketMeta = {};
-  for (const b of buckets) bucketMeta[b.p] = b;
-
-  body.innerHTML = Object.entries(byBucket)
-    .filter(([,items]) => items.length > 0)
-    .map(([p, items]) => {
-      const b = bucketMeta[p] || { label: p };
-      return `
-        <div class="module-group">
-          <div class="module-group-header">
-            <span class="module-group-title" style="color:${`var(--p${p.replace('P','')||0})`}">${esc(p)}</span>
-            <span style="font-size:0.78rem;color:var(--text-muted);margin-left:0.4rem;">${esc(b.label||'')}</span>
-            <span class="module-group-count">${items.length}</span>
+  body.innerHTML = `<div class="task-grid">${tasks.map(t => {
+    const tags = (t.tags || []).slice(0, 4);
+    const extraTags = (t.tags || []).length - 4;
+    const prio = t.priority || 'medium';
+    const sg = taskStatusGroup(t.status);
+    const descRaw = (t.description || '').replace(/<[^>]+>/g, '').trim();
+    return `
+      <div class="task-card priority-${esc(prio)} task-status-${esc(sg)}" data-task-id="${esc(t.id)}">
+        <div class="task-card-body">
+          <div class="task-card-title">${esc(t.title)}</div>
+          ${descRaw ? `<div class="task-card-desc">${esc(descRaw)}</div>` : ''}
+        </div>
+        <div class="task-card-footer">
+          <div class="task-card-tags">
+            ${tags.map(tag=>`<span class="task-tag">#${esc(tag)}</span>`).join('')}
+            ${extraTags > 0 ? `<span class="task-tag task-tag-more">+${extraTags}</span>` : ''}
           </div>
-          <div class="module-group-grid">
-            ${items.map(t => `
-              <div class="compact-card task-card" data-task-id="${esc(t.id)}" style="--bucket-line:${bucketLineVar(t.bucket)};">
-                <div class="compact-card-title">${esc(t.title)}</div>
-                <div class="compact-card-meta">
-                  <span class="badge ${badgeClass(t.status)}">${esc(t.status)}</span>
-                  ${t.module ? `<span style="font-size:0.72rem;color:var(--text-muted);">${esc(t.module)}</span>` : ''}
-                  ${t.size ? `<span style="font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);">${esc(t.size)}</span>` : ''}
-                </div>
-              </div>
-            `).join('')}
+          <div class="task-card-meta">
+            ${prio === 'critical' || prio === 'high' ? `<span class="task-priority-pip priority-${esc(prio)}"></span>` : ''}
+            <span class="task-status-pip status-${esc(sg)}"></span>
           </div>
-        </div>`;
-    }).join('');
+        </div>
+      </div>
+    `;
+  }).join('')}</div>`;
 
   body.querySelectorAll('.task-card').forEach(card => {
-    card.addEventListener('click', async () => {
-      const task = tasks.find(t => t.id === card.dataset.taskId);
-      if (task) openTaskModal(task, buckets);
+    card.addEventListener('click', () => {
+      const task = _allTasks.find(t => t.id === card.dataset.taskId);
+      if (task) openTaskModal(task);
     });
   });
 }
 
-function openTaskModal(task, buckets) {
+function openTaskModal(task) {
+  const prio = task.priority || 'medium';
+  const statusGroup = taskStatusGroup(task.status);
+  const badgeCls = statusGroup === 'done' ? 'badge-done' :
+                   statusGroup === 'skipped' ? 'badge-skipped' : 'badge-open';
+  const PRIO_LABEL = { critical: '!! critical', high: '! high', medium: 'medium', low: 'low' };
   showModal(`
     <div class="modal-header">
       <div class="modal-title">${esc(task.title)}</div>
       <div class="modal-subtitle" style="font-family:var(--font-mono)">${esc(task.id)}</div>
     </div>
     <div class="modal-meta-row">
-      <span class="badge ${badgeClass(task.status)}">${esc(task.status)}</span>
-      <span class="badge badge-bucket">${esc(task.bucket)}</span>
-      ${task.module ? `<span class="badge badge-kind">${esc(task.module)}</span>` : ''}
-      ${task.size ? `<span style="font-size:0.8rem;color:var(--text-muted);font-family:var(--font-mono);">${esc(task.size)}${task.effort ? ' · '+esc(task.effort) : ''}</span>` : ''}
+      <span class="badge ${badgeCls}">${esc(task.status)}</span>
+      <span class="task-prio-label priority-${esc(prio)}">${esc(PRIO_LABEL[prio] || prio)}</span>
+      ${(task.tags||[]).map(tag=>`<span class="task-tag">#${esc(tag)}</span>`).join('')}
     </div>
     ${task.description ? `<div class="modal-section"><h4>Description</h4><p>${inline(task.description)}</p></div>` : ''}
+    ${task.note ? `<div class="modal-section"><h4>Note</h4><p>${inline(task.note)}</p></div>` : ''}
     ${task.output ? `<div class="modal-section"><h4>Expected output</h4><p>${inline(task.output)}</p></div>` : ''}
     ${task.acceptance ? `<div class="modal-section"><h4>Acceptance criteria</h4><p>${inline(task.acceptance)}</p></div>` : ''}
-    ${task.note ? `<div class="modal-section"><h4>Note</h4><p>${inline(task.note)}</p></div>` : ''}
-    ${(task.serves||[]).length ? `<div class="modal-section"><h4>Serves</h4><div style="display:flex;gap:.4rem;flex-wrap:wrap">${task.serves.map(s=>`<span class="badge badge-kind">${esc(s)}</span>`).join('')}</div></div>` : ''}
     <div class="modal-edit-row">
       <button class="modal-edit-btn" id="modalEditTask">Edit</button>
     </div>
   `);
   document.getElementById('modalEditTask').addEventListener('click', () => {
-    hideModal(); openTaskForm(task, buckets);
+    hideModal(); openTaskForm(task);
   });
 }
 
-const STATUSES = ['open','in-progress','blocked','done'];
-const SIZES = ['XS','S','M','L','XL'];
-const KINDS = ['ANALYSIS','SAFETY','STATIC','NORMALIZATION','MEASUREMENT','INFRA','FEATURE','ENGINEERING'];
+const PRIORITIES = ['low', 'medium', 'high', 'critical'];
+const TASK_STATUSES = ['todo', 'done', 'skipped'];
 
-function openTaskForm(task, buckets) {
+function openTaskForm(task) {
   const t = task || {};
   const isNew = !task;
+  const formStatus = ['done', 'skipped'].includes(t.status) ? t.status : 'todo';
   showFormModal(`
     <div class="form-header"><div class="form-title">${isNew ? 'New task' : 'Edit task'}</div></div>
     <div class="form-group">
@@ -247,50 +471,53 @@ function openTaskForm(task, buckets) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Bucket</label>
-        <select id="f-bucket" class="form-select">
-          ${(buckets||[]).map(b=>`<option value="${esc(b.p)}" ${t.bucket===b.p?'selected':''}>${esc(b.p)} — ${esc(b.label)}</option>`).join('')}
+        <label class="form-label">Priority</label>
+        <select id="f-priority" class="form-select">
+          ${PRIORITIES.map(p=>`<option value="${p}" ${(t.priority||'medium')===p?'selected':''}>${p}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Module</label>
-        <input id="f-module" class="form-input" value="${esc(t.module||'')}" placeholder="core">
+        <label class="form-label">Status</label>
+        <select id="f-status" class="form-select">
+          ${TASK_STATUSES.map(s=>`<option value="${s}" ${formStatus===s?'selected':''}>${s}</option>`).join('')}
+        </select>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Size</label>
-        <select id="f-size" class="form-select">${SIZES.map(s=>`<option ${t.size===s?'selected':''}>${s}</option>`).join('')}</select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Effort</label>
-        <input id="f-effort" class="form-input" value="${esc(t.effort||'')}" placeholder="1-2 d">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Status</label>
-        <select id="f-status" class="form-select">${STATUSES.map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}</select>
-      </div>
+    <div class="form-group">
+      <label class="form-label">Tags (comma-separated)</label>
+      <input id="f-tags" class="form-input" value="${esc((t.tags||[]).join(', '))}" placeholder="bug, ui, infra">
     </div>
     <div class="form-group">
       <label class="form-label">Description</label>
-      <textarea id="f-desc" class="form-textarea" rows="2">${esc(t.description||'')}</textarea>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Expected output</label>
-      <textarea id="f-output" class="form-textarea" rows="2">${esc(t.output||'')}</textarea>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Acceptance criteria</label>
-      <textarea id="f-accept" class="form-textarea" rows="2">${esc(t.acceptance||'')}</textarea>
+      <textarea id="f-desc" class="form-textarea" rows="3">${esc(t.description||'')}</textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Note</label>
       <textarea id="f-note" class="form-textarea" rows="2">${esc(t.note||'')}</textarea>
     </div>
-    <div class="form-group">
-      <label class="form-label">Serves (comma-separated R-ids)</label>
-      <input id="f-serves" class="form-input" value="${esc((t.serves||[]).join(', '))}" placeholder="R1, R2">
-    </div>
+    <details class="form-advanced">
+      <summary class="form-advanced-toggle">Advanced fields</summary>
+      <div style="margin-top:0.8rem">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Module</label>
+            <input id="f-module" class="form-input" value="${esc(t.module||'')}" placeholder="core">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Size</label>
+            <input id="f-size" class="form-input" value="${esc(t.size||'M')}" placeholder="M">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expected output</label>
+          <textarea id="f-output" class="form-textarea" rows="2">${esc(t.output||'')}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Acceptance criteria</label>
+          <textarea id="f-accept" class="form-textarea" rows="2">${esc(t.acceptance||'')}</textarea>
+        </div>
+      </div>
+    </details>
     <div class="form-actions">
       <button id="fSave" class="form-save-btn">Save</button>
       ${!isNew ? '<button id="fDelete" class="form-delete-btn">Delete</button>' : ''}
@@ -307,16 +534,15 @@ function openTaskForm(task, buckets) {
     if (!title) { errEl.textContent = 'Title is required'; return; }
     const payload = {
       title,
-      bucket: document.getElementById('f-bucket').value,
-      module: document.getElementById('f-module').value.trim(),
-      size: document.getElementById('f-size').value,
-      effort: document.getElementById('f-effort').value.trim(),
+      priority: document.getElementById('f-priority').value,
       status: document.getElementById('f-status').value,
+      tags: document.getElementById('f-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
       description: document.getElementById('f-desc').value.trim(),
-      output: document.getElementById('f-output').value.trim(),
-      acceptance: document.getElementById('f-accept').value.trim(),
       note: document.getElementById('f-note').value.trim(),
-      serves: document.getElementById('f-serves').value.split(',').map(s=>s.trim()).filter(Boolean),
+      module: document.getElementById('f-module')?.value.trim() || (t.module || ''),
+      size: document.getElementById('f-size')?.value.trim() || (t.size || 'M'),
+      output: document.getElementById('f-output')?.value.trim() || (t.output || ''),
+      acceptance: document.getElementById('f-accept')?.value.trim() || (t.acceptance || ''),
     };
     try {
       if (isNew) {
@@ -339,6 +565,11 @@ function openTaskForm(task, buckets) {
 }
 
 // ── Research section ──────────────────────────────────────────────────────────
+
+function badgeClass(status) {
+  return { 'open':'badge-open','in-progress':'badge-in-progress',
+           'blocked':'badge-blocked','done':'badge-done' }[status] || 'badge-open';
+}
 
 async function loadResearch() {
   const body = document.getElementById('researchBody');
@@ -409,6 +640,9 @@ function openResearchModal(r) {
   });
 }
 
+const STATUSES = ['open','in-progress','blocked','done'];
+const KINDS = ['ANALYSIS','SAFETY','STATIC','NORMALIZATION','MEASUREMENT','INFRA','FEATURE','ENGINEERING'];
+
 function openResearchForm(r) {
   const item = r || {};
   const isNew = !r;
@@ -442,8 +676,8 @@ function openResearchForm(r) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Depends on (comma-separated P-ids)</label>
-        <input id="f-depends" class="form-input" value="${esc((item.depends_on||[]).join(', '))}" placeholder="P0-01, P1-02">
+        <label class="form-label">Depends on (comma-separated)</label>
+        <input id="f-depends" class="form-input" value="${esc((item.depends_on||[]).join(', '))}" placeholder="T-01, T-02">
       </div>
       <div class="form-group">
         <label class="form-label">Status</label>
@@ -549,7 +783,6 @@ function openNoteModal(note) {
 function openNoteForm(note) {
   const n = note || {};
   const isNew = !note;
-  // For editing, convert body_html back to plain text for editing (best-effort)
   const bodyText = isNew ? '' : (n.body_html || '').replace(/<\/p>\s*<p>/gi,'\n\n').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'');
 
   showFormModal(`
@@ -582,11 +815,7 @@ function openNoteForm(note) {
     if (!title) { errEl.textContent = 'Title is required'; return; }
     const bodyRaw = document.getElementById('f-body').value;
     const tags = document.getElementById('f-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
-    const payload = {
-      title,
-      body_html: textToHtml(bodyRaw),
-      tags,
-    };
+    const payload = { title, body_html: textToHtml(bodyRaw), tags };
     try {
       if (isNew) {
         await api('POST', `/api/projects/${encodeURIComponent(pid)}/notes`, payload);
@@ -609,7 +838,7 @@ function openNoteForm(note) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 async function loadDashboard() {
-  await Promise.all([loadTasks(), loadResearch(), loadNotes()]);
+  await Promise.all([loadWeekly(), loadTasks(), loadResearch(), loadNotes()]);
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
@@ -648,11 +877,34 @@ async function boot() {
     history.replaceState({pid}, '', '/' + pid);
   }
 
+  // Week navigation
+  document.getElementById('weekLabel').textContent = weekLabel(_currentWeekMonday);
+  document.getElementById('weekPrev').addEventListener('click', () => {
+    _currentWeekMonday = shiftWeek(_currentWeekMonday, -1);
+    loadWeekly();
+  });
+  document.getElementById('weekNext').addEventListener('click', () => {
+    _currentWeekMonday = shiftWeek(_currentWeekMonday, 1);
+    loadWeekly();
+  });
+
+  // Task filter tabs
+  document.querySelectorAll('.task-filter-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.task-filter-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _taskFilter = btn.dataset.filter;
+      applyTaskFilter();
+    });
+  });
+
   await loadDashboard();
 
   select.addEventListener('change', async () => {
     pid = select.value;
     history.pushState({pid}, '', '/' + pid);
+    _currentWeekMonday = mondayOf(new Date());
+    document.getElementById('weekLabel').textContent = weekLabel(_currentWeekMonday);
     await loadDashboard();
   });
 
@@ -661,14 +913,12 @@ async function boot() {
     if (validIds.includes(newPid)) {
       pid = newPid;
       select.value = pid;
+      _currentWeekMonday = mondayOf(new Date());
       await loadDashboard();
     }
   });
 
-  document.getElementById('newTaskBtn')?.addEventListener('click', async () => {
-    const buckets = await api('GET', `/api/projects/${encodeURIComponent(pid)}/buckets`).catch(()=>[]);
-    openTaskForm(null, buckets);
-  });
+  document.getElementById('newTaskBtn')?.addEventListener('click', () => openTaskForm(null));
   document.getElementById('newResearchBtn')?.addEventListener('click', () => openResearchForm(null));
   document.getElementById('newNoteBtn')?.addEventListener('click', () => openNoteForm(null));
 }
