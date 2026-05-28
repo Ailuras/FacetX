@@ -1,5 +1,7 @@
 # DocsBot
 
+![DocsBot hero](assets/hero.png)
+
 A lightweight, dark-themed project dashboard for research and engineering teams. DocsBot serves a single-page web UI from plain JavaScript data files — no build step, no database, just structured project docs.
 
 ## Features
