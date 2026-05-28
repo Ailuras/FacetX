@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -31,6 +32,33 @@ def _start_daemon(host: str, port: int) -> None:
         )
     console.print(f"[green]DocsBot started → http://{host}:{port}[/green]")
     console.print(f"[dim]pid {proc.pid} · log: {log_path}[/dim]")
+
+
+def _get_running_info() -> tuple[bool, int | None, str | None, int | None]:
+    """Return (running, pid, host, port) for the current DocsBot instance."""
+    pid_path = default_data_dir() / "server.pid"
+    if not pid_path.exists():
+        return False, None, None, None
+    try:
+        pid = int(pid_path.read_text().strip())
+        os.kill(pid, 0)
+    except (ValueError, ProcessLookupError, PermissionError):
+        pid_path.unlink(missing_ok=True)
+        info_path = default_data_dir() / "server.info"
+        info_path.unlink(missing_ok=True)
+        return False, None, None, None
+
+    host: str | None = None
+    port: int | None = None
+    info_path = default_data_dir() / "server.info"
+    if info_path.exists():
+        try:
+            info = json.loads(info_path.read_text())
+            host = info.get("host")
+            port = info.get("port")
+        except Exception:
+            pass
+    return True, pid, host, port
 
 
 @app.command()
@@ -64,6 +92,20 @@ def serve(
             time.sleep(0.8)
         _start_daemon(host, port)
         raise typer.Exit(0)
+
+    running, pid, running_host, running_port = _get_running_info()
+    if running:
+        url = f"http://{running_host}:{running_port}" if running_host and running_port else ""
+        msg = f"[yellow]DocsBot is already running"
+        if running_port:
+            msg += f" on port {running_port}"
+        msg += f" (pid {pid}).[/yellow]"
+        console.print(msg)
+        if url:
+            console.print(f"[dim]{url}[/dim]")
+        console.print("[dim]Use --restart to restart or --stop to stop it first.[/dim]")
+        raise typer.Exit(1)
+
     if daemon:
         _start_daemon(host, port)
         raise typer.Exit(0)
@@ -73,17 +115,17 @@ def serve(
 @app.command()
 def status() -> None:
     """Show DocsBot status and registered projects."""
-    pid_path = default_data_dir() / "server.pid"
-    running = False
-    if pid_path.exists():
-        try:
-            pid = int(pid_path.read_text().strip())
-            os.kill(pid, 0)
-            running = True
-        except (ValueError, ProcessLookupError, PermissionError):
-            pass
-    console.print("[green]DocsBot: RUNNING[/green]" if running
-                  else "[yellow]DocsBot: STOPPED[/yellow]")
+    running, pid, host, port = _get_running_info()
+    if running:
+        console.print("[green]DocsBot: RUNNING[/green]")
+        if port:
+            console.print(f"[dim]Port: {port}[/dim]")
+            if host:
+                console.print(f"[dim]URL: http://{host}:{port}[/dim]")
+        if pid:
+            console.print(f"[dim]PID: {pid}[/dim]")
+    else:
+        console.print("[yellow]DocsBot: STOPPED[/yellow]")
     projects = list_projects()
     if projects:
         console.print(f"\n[bold]Projects ({len(projects)}):[/bold]")

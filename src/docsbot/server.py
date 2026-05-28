@@ -236,6 +236,10 @@ def _pid_file() -> Path:
     return default_data_dir() / "server.pid"
 
 
+def _server_info_file() -> Path:
+    return default_data_dir() / "server.info"
+
+
 def run_server(host: str = "127.0.0.1", port: int = 8766) -> None:
     import signal, sys
     handler = make_handler()
@@ -243,9 +247,12 @@ def run_server(host: str = "127.0.0.1", port: int = 8766) -> None:
     pid_path = _pid_file()
     pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text(str(os.getpid()))
+    info_path = _server_info_file()
+    info_path.write_text(json.dumps({"pid": os.getpid(), "host": host, "port": port}))
 
     def _stop(signum, frame):
         pid_path.unlink(missing_ok=True)
+        _server_info_file().unlink(missing_ok=True)
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, _stop)
@@ -258,6 +265,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8766) -> None:
     finally:
         server.shutdown()
         pid_path.unlink(missing_ok=True)
+        _server_info_file().unlink(missing_ok=True)
 
 
 def _kill_by_port(port: int) -> bool:
@@ -282,12 +290,16 @@ def _kill_by_port(port: int) -> bool:
 
 def stop_server(port: int = 8766) -> bool:
     pid_path = _pid_file()
+    stopped = False
     if pid_path.exists():
         try:
             pid = int(pid_path.read_text().strip())
             os.kill(pid, 15)
-            pid_path.unlink(missing_ok=True)
-            return True
+            stopped = True
         except (ValueError, ProcessLookupError, PermissionError):
-            pid_path.unlink(missing_ok=True)
+            pass
+        pid_path.unlink(missing_ok=True)
+    _server_info_file().unlink(missing_ok=True)
+    if stopped:
+        return True
     return _kill_by_port(port)
