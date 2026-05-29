@@ -212,7 +212,7 @@ private struct NewProjectView: View {
             Form {
                 Section("Identity") {
                     TextField("Name", text: $name)
-                    TextField("Prefix (matches “Prefix:” in titles)", text: $prefix)
+                    TextField("Prefix", text: $prefix)
                     Text("Items whose title starts with “\(effectivePrefix):” belong to this project.")
                         .font(.caption2).foregroundStyle(.secondary)
                     TextField("Tagline", text: $tagline)
@@ -267,7 +267,7 @@ private struct EditProjectView: View {
             Form {
                 Section("Identity") {
                     TextField("Name", text: $name)
-                    TextField("Prefix (matches “Prefix:” in titles)", text: $prefix)
+                    TextField("Prefix", text: $prefix)
                     Text("Items whose title starts with “\(effectivePrefix):” belong to this project.")
                         .font(.caption2).foregroundStyle(.secondary)
                     TextField("Tagline", text: $tagline)
