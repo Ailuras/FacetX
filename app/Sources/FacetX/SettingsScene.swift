@@ -68,18 +68,7 @@ struct ContainersSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Default save locations")
-                    .font(.headline)
-                Picker("Reminders", selection: $settings.defaultReminderListName) {
-                    if enabledReminderNames.isEmpty { Text("None").tag("") }
-                    ForEach(enabledReminderNames, id: \.self) { Text($0).tag($0) }
-                }
-                Picker("Calendar", selection: $settings.defaultCalendarName) {
-                    if enabledCalendarNames.isEmpty { Text("None").tag("") }
-                    ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
-                }
-            }
+            defaultSaveLocations
 
             List {
                 ForEach(groups, id: \.header) { group in
@@ -130,6 +119,39 @@ struct ContainersSettingsView: View {
                 Spacer()
                 Button("Create") { create() }
                     .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty || newSource.isEmpty)
+            }
+        }
+    }
+
+    private var defaultSaveLocations: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Default save locations")
+                .font(.headline)
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    Text("Reminders")
+                        .frame(width: 82, alignment: .leading)
+                    Picker("", selection: $settings.defaultReminderListName) {
+                        if enabledReminderNames.isEmpty { Text("None").tag("") }
+                        ForEach(enabledReminderNames, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 190, alignment: .leading)
+                }
+
+                GridRow {
+                    Text("Calendar")
+                        .frame(width: 82, alignment: .leading)
+                    Picker("", selection: $settings.defaultCalendarName) {
+                        if enabledCalendarNames.isEmpty { Text("None").tag("") }
+                        ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 190, alignment: .leading)
+                }
             }
         }
     }
