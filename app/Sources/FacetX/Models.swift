@@ -1,6 +1,6 @@
 import Foundation
 
-/// A declared project. Owns calendar/reminder items by title prefix; the items
+/// A saved project. Owns calendar/reminder items by title prefix; the items
 /// themselves live in EventKit, not here. This store holds only project-side
 /// metadata EventKit cannot represent.
 struct Project: Identifiable, Codable, Hashable {
@@ -29,7 +29,7 @@ struct WeekGoal: Identifiable, Codable, Hashable {
     var body: String = ""
 }
 
-/// Persists declared projects to a JSON file under Application Support.
+/// Persists saved projects to a JSON file under Application Support.
 /// Small dataset → a plain Codable store beats SwiftData here and keeps the
 /// pure-SwiftPM (Command Line Tools) build working.
 @MainActor
@@ -48,7 +48,7 @@ final class ProjectStore: ObservableObject {
     }
 
     @discardableResult
-    func declare(name: String, prefix: String? = nil, tagline: String = "") -> Project.ID {
+    func createProject(name: String, prefix: String? = nil, tagline: String = "") -> Project.ID {
         let project = Project(name: name, prefix: prefix, tagline: tagline)
         projects.append(project)
         save()

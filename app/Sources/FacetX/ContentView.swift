@@ -5,6 +5,8 @@ struct ContentView: View {
     @EnvironmentObject private var store: ProjectStore
 
     @State private var selectedID: Project.ID?
+    @State private var discovered: [String] = []
+    @State private var draftProject: ProjectDraft?
 
     private var selected: Project? {
         store.activeProjects.first { $0.id == selectedID }
@@ -12,28 +14,41 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedID) {
-                Section("Projects") {
-                    ForEach(store.activeProjects) { project in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(project.name).font(.headline)
-                            if !project.tagline.isEmpty {
-                                Text(project.tagline)
-                                    .font(.caption).foregroundStyle(.secondary)
+            VStack(spacing: 0) {
+                List(selection: $selectedID) {
+                    Section("Projects") {
+                        ForEach(store.activeProjects) { project in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(project.name).font(.headline)
+                                if !project.tagline.isEmpty {
+                                    Text(project.tagline)
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            .tag(project.id)
                         }
-                        .tag(project.id)
                     }
                 }
+                Divider()
+                Button { startNewProject() } label: {
+                    Label("New Project", systemImage: "plus")
+                }
+                .buttonStyle(.plain)
+                .padding(8)
             }
             .navigationTitle("FacetX")
         } detail: {
             if let project = selected {
                 ProjectDetailView(project: project)
             } else if store.activeProjects.isEmpty {
-                ContentUnavailableView("No projects yet",
-                    systemImage: "folder",
-                    description: Text("Declare a project in Settings (⌘,) to gather its calendar and reminder items."))
+                VStack(spacing: 12) {
+                    ContentUnavailableView("No projects yet",
+                        systemImage: "folder",
+                        description: Text("Create a project to gather its calendar and reminder items."))
+                    Button { startNewProject() } label: {
+                        Label("New Project", systemImage: "plus")
+                    }
+                }
             } else {
                 ContentUnavailableView("Select a project",
                     systemImage: "folder",
@@ -44,7 +59,31 @@ struct ContentView: View {
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
             }
+            discovered = await ek.discoverProjectNames()
         }
+        .sheet(item: $draftProject) { draft in
+            NewProjectView(draft: draft) { name, prefix, tagline in
+                let id = store.createProject(name: name, prefix: prefix, tagline: tagline)
+                selectedID = id
+                draftProject = nil
+            } onCancel: {
+                draftProject = nil
+            }
+        }
+    }
+
+    private func startNewProject() {
+        let existing = Set(store.projects.map(\.name))
+        let suggestion = discovered.first { !existing.contains($0) } ?? uniqueProjectName(in: existing)
+        draftProject = ProjectDraft(name: suggestion, prefix: suggestion)
+    }
+
+    private func uniqueProjectName(in existing: Set<String>) -> String {
+        let base = "New Project"
+        guard existing.contains(base) else { return base }
+        var index = 2
+        while existing.contains("\(base) \(index)") { index += 1 }
+        return "\(base) \(index)"
     }
 }
 
@@ -63,6 +102,7 @@ struct ProjectDetailView: View {
     @State private var items: [ProjectItem] = []
     @State private var loading = false
     @State private var showCreate = false
+    @State private var showEdit = false
 
     private var grouped: [(zone: String, items: [ProjectItem])] {
         Dictionary(grouping: items, by: \.containerName)
@@ -87,6 +127,8 @@ struct ProjectDetailView: View {
                 .frame(width: 160)
             }
             ToolbarItemGroup(placement: .primaryAction) {
+                Button { showEdit = true } label: { Image(systemName: "square.and.pencil") }
+                    .help("Edit project")
                 Button { showCreate = true } label: { Image(systemName: "plus") }
                     .help("Add an item to this project")
                 Button { Task { await reload() } } label: { Image(systemName: "arrow.clockwise") }
@@ -95,6 +137,9 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showCreate) {
             CreateItemView(project: project) { Task { await reload() } }
+        }
+        .sheet(isPresented: $showEdit) {
+            EditProjectView(project: project) { showEdit = false }
         }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
@@ -130,6 +175,167 @@ struct ProjectDetailView: View {
         items = await ek.items(forProject: project.prefix,
                                enabledContainers: settings.enabledContainerNames)
         loading = false
+    }
+}
+
+private struct ProjectDraft: Identifiable {
+    let id = UUID()
+    var name: String
+    var prefix: String
+    var tagline = ""
+}
+
+private struct NewProjectView: View {
+    let draft: ProjectDraft
+    let onCreate: (String, String?, String) -> Void
+    let onCancel: () -> Void
+
+    @State private var name: String
+    @State private var prefix: String
+    @State private var tagline: String
+
+    init(draft: ProjectDraft,
+         onCreate: @escaping (String, String?, String) -> Void,
+         onCancel: @escaping () -> Void) {
+        self.draft = draft
+        self.onCreate = onCreate
+        self.onCancel = onCancel
+        _name = State(initialValue: draft.name)
+        _prefix = State(initialValue: draft.prefix)
+        _tagline = State(initialValue: draft.tagline)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("New Project").font(.title2).bold()
+
+            Form {
+                Section("Identity") {
+                    TextField("Name", text: $name)
+                    TextField("Prefix (matches “Prefix:” in titles)", text: $prefix)
+                    Text("Items whose title starts with “\(effectivePrefix):” belong to this project.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    TextField("Tagline", text: $tagline)
+                }
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                Button("Create") { create() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmedName.isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 460)
+    }
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var trimmedPrefix: String {
+        prefix.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var effectivePrefix: String {
+        trimmedPrefix.isEmpty ? (trimmedName.isEmpty ? "..." : trimmedName) : trimmedPrefix
+    }
+
+    private func create() {
+        let prefix = trimmedPrefix.isEmpty ? nil : trimmedPrefix
+        onCreate(trimmedName, prefix, tagline.trimmingCharacters(in: .whitespaces))
+    }
+}
+
+private struct EditProjectView: View {
+    @EnvironmentObject private var store: ProjectStore
+
+    let project: Project
+    let onClose: () -> Void
+
+    @State private var name = ""
+    @State private var prefix = ""
+    @State private var tagline = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Edit Project").font(.title2).bold()
+
+            Form {
+                Section("Identity") {
+                    TextField("Name", text: $name)
+                    TextField("Prefix (matches “Prefix:” in titles)", text: $prefix)
+                    Text("Items whose title starts with “\(effectivePrefix):” belong to this project.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    TextField("Tagline", text: $tagline)
+                }
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                if project.archived {
+                    Button("Unarchive") { unarchive() }
+                } else {
+                    Button("Archive") { archive() }
+                }
+                Button("Delete", role: .destructive) { delete() }
+                Spacer()
+                Button("Cancel", action: onClose)
+                Button("Save") { save() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmedName.isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 460)
+        .onAppear(perform: loadFields)
+    }
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var trimmedPrefix: String {
+        prefix.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var effectivePrefix: String {
+        trimmedPrefix.isEmpty ? (trimmedName.isEmpty ? "..." : trimmedName) : trimmedPrefix
+    }
+
+    private func loadFields() {
+        name = project.name
+        prefix = project.prefix
+        tagline = project.tagline
+    }
+
+    private func save() {
+        var updated = project
+        updated.name = trimmedName
+        updated.prefix = trimmedPrefix.isEmpty ? trimmedName : trimmedPrefix
+        updated.tagline = tagline.trimmingCharacters(in: .whitespaces)
+        store.update(updated)
+        onClose()
+    }
+
+    private func archive() {
+        store.archive(project)
+        onClose()
+    }
+
+    private func unarchive() {
+        var updated = project
+        updated.archived = false
+        store.update(updated)
+        onClose()
+    }
+
+    private func delete() {
+        store.delete(project)
+        onClose()
     }
 }
 

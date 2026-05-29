@@ -25,9 +25,10 @@ struct FacetXApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        // Standard macOS Settings window (⌘,). All configuration lives here;
-        // the main window and menu bar are for use. Fully-qualified because our
-        // own `Settings` store would otherwise shadow SwiftUI's Settings scene.
+        // Standard macOS Settings window (⌘,). App-wide container configuration
+        // lives here; project management stays in the main window.
+        // Fully-qualified because our own `Settings` store would otherwise
+        // shadow SwiftUI's Settings scene.
         SwiftUI.Settings {
             SettingsRootView()
                 .environmentObject(eventKit)

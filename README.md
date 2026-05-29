@@ -6,7 +6,7 @@ Apple Calendar and Reminders.
 Your tasks and events already live in Reminders and Calendar (synced via iCloud,
 visible in Apple's own apps). Those apps organize them flatly — by list, by
 calendar — with no notion of a *project*. FacetX adds that missing dimension:
-declare a project, and FacetX gathers the subset of your calendar/reminder
+create a project, and FacetX gathers the subset of your calendar/reminder
 items that belong to it into one panel — each project is a *facet* of the same
 underlying data.
 
@@ -16,7 +16,7 @@ A project owns items by a **title prefix**:
 
 ```
 Regulus: 问题最小化&修复bugs      →  project "Regulus"
-调研: 机器学习+运筹优化            →  ignored (no declared project)
+调研: 机器学习+运筹优化            →  ignored (no matching project)
 ```
 
 Items without a recognized project prefix are never touched — your day-to-day

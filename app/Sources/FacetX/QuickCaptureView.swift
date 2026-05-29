@@ -30,7 +30,7 @@ struct QuickCaptureView: View {
             Text("Quick add").font(.headline)
 
             if store.activeProjects.isEmpty {
-                Text("No projects yet. Open FacetX and declare one.")
+                Text("No projects yet. Open FacetX and create one.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 TextField("What needs doing?", text: $text)

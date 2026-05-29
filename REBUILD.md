@@ -2,11 +2,10 @@
 
 **Status:** v0.1 — all seven build phases implemented; a working pre-release
 demo. Supersedes the Python+SQLite+web version (now frozen, archived in git
-history). Implemented: project declaration/editing, prefix-based aggregation,
+history). Implemented: project creation/editing in the main window, prefix-based aggregation,
 grouped item view, complete/create/delete, per-project week view + goal, menu
 bar quick-capture, live refresh on EventKit changes, container selection +
-creation, and a standard Settings window (config) separate from the use-only
-main window and menu bar.
+creation, and a standard Settings window for app-wide container configuration.
 
 ## 1. What FacetX is
 
@@ -40,11 +39,11 @@ EventKit (Calendar + Reminders)  ← single source of truth for item content
 Native Swift app (SwiftUI)
   ├─ EventKit service: auth, fetch, filter-by-prefix, write-back
   ├─ Project store (small, project-side metadata only)
-  ├─ Main window: project list → project detail (its calendar + reminder items)
+  ├─ Main window: project list + project management → project detail
   └─ Menu bar item: status, quick open, quick-add to a project
         │
 Project store (SwiftData or small SQLite)
-  - declared projects (name, the prefix it claims, display meta/tagline)
+  - saved projects (name, the prefix it claims, display meta/tagline)
   - week goals and other project-owned info EventKit can't hold
   - NO item content (that's EventKit's job) → no two-source sync conflict
 ```
@@ -94,7 +93,7 @@ matched by `title.hasPrefix("\(prefix):")` (colon-tolerant).
    + Info.plist usage strings, ad-hoc signing for local dev.
 2. **EventKit service**: auth flow, fetch reminders/events, prefix parser
    (colon-tolerant, newline-safe — real titles contain `\n`).
-3. **Project store**: declare/list/archive projects; persist week goals.
+3. **Project store**: create/list/archive projects; persist week goals.
 4. **Main window**: project list → detail showing that project's reminders
    (grouped by list) and calendar events (grouped by calendar = functional zone).
 5. **Write-back**: mark reminder complete, create a reminder/event already

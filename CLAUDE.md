@@ -65,7 +65,7 @@ quick-capture, and the standard `SwiftUI.Settings` window):
   `EKEventStore`: auth, fetch, prefix-filter, write-back, container CRUD. This is
   the only file that touches EventKit.
 - **`ProjectStore`** ([Models.swift](app/Sources/FacetX/Models.swift)) —
-  `@MainActor`; persists declared projects + week goals as JSON under Application
+  `@MainActor`; persists saved projects + week goals as JSON under Application
   Support (`FacetX/projects.json`). Holds *only* project-side metadata EventKit
   can't represent (name, claimed prefix, tagline, week goals). **No item content
   is stored here** — that's what avoids any two-source sync problem.
@@ -76,12 +76,12 @@ Both JSON stores resolve their directory through
 [AppSupport.swift](app/Sources/FacetX/AppSupport.swift) (`Application
 Support/FacetX/`) — change the folder name in that one place if ever needed.
 
-Scene/view split is deliberate: the main window and menu bar are for *use*;
-**all configuration lives in the Settings window**
-([SettingsScene.swift](app/Sources/FacetX/SettingsScene.swift): declare/edit
-projects, choose/create containers). Note the `SwiftUI.Settings` scene must be
-fully qualified because our own `ProjectStore`/config naming would otherwise
-shadow it.
+Scene/view split is deliberate: project creation/editing lives in the main
+window next to the project list, the menu bar is for quick capture, and
+**Settings only holds app-wide container configuration**
+([SettingsScene.swift](app/Sources/FacetX/SettingsScene.swift): choose/create
+containers). Note the `SwiftUI.Settings` scene must be fully qualified because
+our own `ProjectStore`/config naming would otherwise shadow it.
 
 ### Concurrency: EventKitService is NOT @MainActor
 
