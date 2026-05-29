@@ -86,7 +86,7 @@ final class MenuBarController: NSObject, ObservableObject {
         }
     }
 
-    private static func templateImage() -> NSImage {
+    static func templateImage() -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18))
         if let url = Bundle.main.url(forResource: "FacetXMenuBarTemplate", withExtension: "png"),
            let data = try? Data(contentsOf: url),

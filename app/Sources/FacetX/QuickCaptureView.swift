@@ -60,14 +60,30 @@ struct QuickCaptureView: View {
             }
 
             Divider()
-            Button {
-                NSApp.activate(ignoringOtherApps: true)
-                // Bring the main window forward.
-                for w in NSApp.windows where w.canBecomeMain { w.makeKeyAndOrderFront(nil) }
-            } label: {
-                Label("Open FacetX", systemImage: "diamond")
+            HStack {
+                Button {
+                    NSApp.activate(ignoringOtherApps: true)
+                    // Bring the main window forward.
+                    for w in NSApp.windows where w.canBecomeMain { w.makeKeyAndOrderFront(nil) }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(nsImage: MenuBarController.templateImage())
+                            .resizable()
+                            .frame(width: 14, height: 14)
+                        Text("Open FacetX")
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button {
+                    NSApp.terminate(nil)
+                } label: {
+                    Label("Quit", systemImage: "power")
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(14)
         .frame(width: 340)
