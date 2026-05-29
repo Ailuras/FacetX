@@ -13,3 +13,6 @@ experiments/eventkit-probe/probe
 
 # Editor
 .vscode/
+
+# Icon build working dir
+app/DocsBot.iconset/

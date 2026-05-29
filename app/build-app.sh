@@ -20,6 +20,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_PATH" "$APP/Contents/MacOS/$BIN_NAME"
 cp Info.plist "$APP/Contents/Info.plist"
+cp Resources/DocsBot.icns "$APP/Contents/Resources/DocsBot.icns"
 
 echo "[3/4] codesign (ad-hoc, with entitlements)"
 codesign --force --sign - \
