@@ -15,36 +15,47 @@ struct ProjectItem: Identifiable, Hashable {
 }
 
 /// Wraps EKEventStore: authorization, fetching, prefix-filtering, write-back.
-@MainActor
-final class EventKitService: ObservableObject {
-    let store = EKEventStore()
+///
+/// NOT `@MainActor`: EventKit's fetch callbacks fire on its own background
+/// queue, and EKEventStore is not Sendable, so a main-actor-isolated wrapper
+/// triggers Swift 6 isolation assertions (SIGTRAP) and data-race diagnostics.
+/// Instead the class is nonisolated; only the @Published auth flags are written
+/// back on the main actor.
+final class EventKitService: ObservableObject, @unchecked Sendable {
+    private let store = EKEventStore()
 
     @Published var remindersAuthorized = false
     @Published var calendarAuthorized = false
 
     func requestAccess() async {
-        remindersAuthorized = (try? await store.requestFullAccessToReminders()) ?? false
-        calendarAuthorized = (try? await store.requestFullAccessToEvents()) ?? false
+        let reminders = (try? await store.requestFullAccessToReminders()) ?? false
+        let calendar = (try? await store.requestFullAccessToEvents()) ?? false
+        await MainActor.run {
+            self.remindersAuthorized = reminders
+            self.calendarAuthorized = calendar
+        }
     }
 
     /// All items (reminders + events) whose title prefix matches `project`.
     func items(forProject project: String,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
+        let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
         var result: [ProjectItem] = []
-        if remindersAuthorized { result += await reminders(forProject: project) }
-        if calendarAuthorized { result += events(forProject: project, windowDays: eventWindowDays) }
+        if rem { result += await reminders(forProject: project) }
+        if cal { result += events(forProject: project, windowDays: eventWindowDays) }
         return result.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
     /// Distinct project names discovered across all reminders + recent events.
     func discoverProjectNames(eventWindowDays: Int = 120) async -> [String] {
+        let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
         var names = Set<String>()
-        if remindersAuthorized {
+        if rem {
             // Map to project names inside the callback; EKReminder is not Sendable.
             let discovered = await fetchReminderProjectNames()
             names.formUnion(discovered)
         }
-        if calendarAuthorized {
+        if cal {
             for e in recentEvents(windowDays: eventWindowDays) {
                 if let n = ProjectPrefix.projectName(of: e.title ?? "") { names.insert(n) }
             }
@@ -56,6 +67,10 @@ final class EventKitService: ObservableObject {
 
     /// Fetch reminders and flatten matching ones to Sendable ProjectItems inside
     /// the EventKit callback, so no non-Sendable EKReminder crosses an actor hop.
+    ///
+    /// The class is nonisolated, so fetchReminders' background-queue callback can
+    /// run freely without tripping the Swift 6 main-actor isolation assertion
+    /// (dispatch_assert_queue_fail → SIGTRAP) that crashed an earlier build.
     private func reminders(forProject project: String) async -> [ProjectItem] {
         let lists = store.calendars(for: .reminder)
         let pred = store.predicateForReminders(in: lists)
