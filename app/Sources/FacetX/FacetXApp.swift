@@ -17,7 +17,7 @@ struct FacetXApp: App {
 
         // Menu bar quick-capture: add a prefixed item to a project without
         // opening the main window. Shares the same stores/services.
-        MenuBarExtra("FacetX", systemImage: "diamond") {
+        MenuBarExtra("FacetX", image: "FacetXMenuBarTemplate") {
             QuickCaptureView()
                 .environmentObject(eventKit)
                 .environmentObject(store)

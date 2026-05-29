@@ -46,7 +46,7 @@ struct ContentView: View {
                 }
                 Divider()
                 Button { startNewProject() } label: {
-                    Label("New Project", systemImage: "plus")
+                    Label("New Project", systemImage: "plus.circle")
                 }
                 .buttonStyle(.plain)
                 .padding(8)
@@ -63,7 +63,7 @@ struct ContentView: View {
                         systemImage: "folder",
                         description: Text("Create a project to gather its calendar and reminder items."))
                     Button { startNewProject() } label: {
-                        Label("New Project", systemImage: "plus")
+                        Label("New Project", systemImage: "plus.circle")
                     }
                 }
             } else {

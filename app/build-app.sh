@@ -21,6 +21,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_PATH" "$APP/Contents/MacOS/$BIN_NAME"
 cp Info.plist "$APP/Contents/Info.plist"
 cp Resources/FacetX.icns "$APP/Contents/Resources/FacetX.icns"
+cp Resources/FacetXMenuBarTemplate.png "$APP/Contents/Resources/FacetXMenuBarTemplate.png"
+cp Resources/FacetXMenuBarTemplate@2x.png "$APP/Contents/Resources/FacetXMenuBarTemplate@2x.png"
 
 echo "[3/4] codesign (ad-hoc, with entitlements)"
 codesign --force --sign - \
