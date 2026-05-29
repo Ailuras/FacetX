@@ -19,3 +19,5 @@ external_projects.json
 # EventKit probe build artifacts
 experiments/eventkit-probe/EventKitProbe.app/
 experiments/eventkit-probe/probe
+app/.build/
+app/DocsBot.app/
