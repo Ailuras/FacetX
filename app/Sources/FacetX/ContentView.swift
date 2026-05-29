@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var selectedID: Project.ID?
     @State private var discovered: [String] = []
     @State private var draftProject: ProjectDraft?
+    @State private var editingProject: Project?
 
     private var selected: Project? {
         store.activeProjects.first { $0.id == selectedID }
@@ -26,6 +27,19 @@ struct ContentView: View {
                                 }
                             }
                             .tag(project.id)
+                            .contextMenu {
+                                Button("Edit Project") {
+                                    selectedID = project.id
+                                    editingProject = project
+                                }
+                                Divider()
+                                Button("Archive") {
+                                    store.archive(project)
+                                }
+                                Button("Delete", role: .destructive) {
+                                    store.delete(project)
+                                }
+                            }
                         }
                     }
                 }
@@ -39,7 +53,9 @@ struct ContentView: View {
             .navigationTitle("FacetX")
         } detail: {
             if let project = selected {
-                ProjectDetailView(project: project)
+                ProjectDetailView(project: project) {
+                    editingProject = project
+                }
             } else if store.activeProjects.isEmpty {
                 VStack(spacing: 12) {
                     ContentUnavailableView("No projects yet",
@@ -70,6 +86,9 @@ struct ContentView: View {
                 draftProject = nil
             }
         }
+        .sheet(item: $editingProject) { project in
+            EditProjectView(project: project) { editingProject = nil }
+        }
     }
 
     private func startNewProject() {
@@ -92,6 +111,7 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
     let project: Project
+    let onEditProject: () -> Void
 
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All", week = "Week"
@@ -102,7 +122,6 @@ struct ProjectDetailView: View {
     @State private var items: [ProjectItem] = []
     @State private var loading = false
     @State private var showCreate = false
-    @State private var showEdit = false
 
     private var grouped: [(zone: String, items: [ProjectItem])] {
         Dictionary(grouping: items, by: \.containerName)
@@ -127,7 +146,7 @@ struct ProjectDetailView: View {
                 .frame(width: 160)
             }
             ToolbarItemGroup(placement: .primaryAction) {
-                Button { showEdit = true } label: { Image(systemName: "square.and.pencil") }
+                Button(action: onEditProject) { Image(systemName: "square.and.pencil") }
                     .help("Edit project")
                 Button { showCreate = true } label: { Image(systemName: "plus") }
                     .help("Add an item to this project")
@@ -137,9 +156,6 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showCreate) {
             CreateItemView(project: project) { Task { await reload() } }
-        }
-        .sheet(isPresented: $showEdit) {
-            EditProjectView(project: project) { showEdit = false }
         }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
