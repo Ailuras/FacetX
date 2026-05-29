@@ -47,9 +47,12 @@ final class ProjectStore: ObservableObject {
         projects.filter { !$0.archived }.sorted { $0.createdAt < $1.createdAt }
     }
 
-    func declare(name: String, tagline: String = "") {
-        projects.append(Project(name: name, tagline: tagline))
+    @discardableResult
+    func declare(name: String, prefix: String? = nil, tagline: String = "") -> Project.ID {
+        let project = Project(name: name, prefix: prefix, tagline: tagline)
+        projects.append(project)
         save()
+        return project.id
     }
 
     func update(_ project: Project) {

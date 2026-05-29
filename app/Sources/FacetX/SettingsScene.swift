@@ -24,6 +24,7 @@ struct ProjectsSettingsView: View {
 
     @State private var selectedID: Project.ID?
     @State private var discovered: [String] = []
+    @State private var draftProject: ProjectDraft?
 
     private var selected: Project? {
         store.projects.first { $0.id == selectedID }
@@ -46,7 +47,7 @@ struct ProjectsSettingsView: View {
                     }
                 }
                 Divider()
-                Button { declare() } label: {
+                Button { startDeclare() } label: {
                     Label("Declare project", systemImage: "plus")
                 }
                 .buttonStyle(.plain)
@@ -70,14 +71,94 @@ struct ProjectsSettingsView: View {
         .task {
             discovered = await ek.discoverProjectNames()
         }
+        .sheet(item: $draftProject) { draft in
+            DeclareProjectView(draft: draft) { name, prefix, tagline in
+                let id = store.declare(name: name, prefix: prefix, tagline: tagline)
+                selectedID = id
+                draftProject = nil
+            } onCancel: {
+                draftProject = nil
+            }
+        }
     }
 
-    private func declare() {
+    private func startDeclare() {
         // Offer the first undeclared discovered prefix as a starting name.
         let existing = Set(store.projects.map(\.name))
         let suggestion = discovered.first { !existing.contains($0) } ?? "New Project"
-        store.declare(name: suggestion)
-        selectedID = store.projects.last?.id
+        draftProject = ProjectDraft(name: suggestion, prefix: suggestion)
+    }
+}
+
+private struct ProjectDraft: Identifiable {
+    let id = UUID()
+    var name: String
+    var prefix: String
+    var tagline = ""
+}
+
+private struct DeclareProjectView: View {
+    let draft: ProjectDraft
+    let onCreate: (String, String?, String) -> Void
+    let onCancel: () -> Void
+
+    @State private var name: String
+    @State private var prefix: String
+    @State private var tagline: String
+
+    init(draft: ProjectDraft,
+         onCreate: @escaping (String, String?, String) -> Void,
+         onCancel: @escaping () -> Void) {
+        self.draft = draft
+        self.onCreate = onCreate
+        self.onCancel = onCancel
+        _name = State(initialValue: draft.name)
+        _prefix = State(initialValue: draft.prefix)
+        _tagline = State(initialValue: draft.tagline)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Declare project").font(.title2).bold()
+
+            Form {
+                Section("Identity") {
+                    TextField("Name", text: $name)
+                    TextField("Prefix (matches “Prefix:” in titles)", text: $prefix)
+                    Text("Items whose title starts with “\(effectivePrefix):” belong to this project.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    TextField("Tagline", text: $tagline)
+                }
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                Button("Create") { create() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmedName.isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 460)
+    }
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var trimmedPrefix: String {
+        prefix.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var effectivePrefix: String {
+        trimmedPrefix.isEmpty ? (trimmedName.isEmpty ? "..." : trimmedName) : trimmedPrefix
+    }
+
+    private func create() {
+        let prefix = trimmedPrefix.isEmpty ? nil : trimmedPrefix
+        onCreate(trimmedName, prefix, tagline.trimmingCharacters(in: .whitespaces))
     }
 }
 
