@@ -10,3 +10,6 @@ experiments/eventkit-probe/probe
 
 # macOS
 .DS_Store
+
+# Editor
+.vscode/
