@@ -33,25 +33,27 @@ struct QuickCaptureView: View {
                         ForEach(store.activeProjects) { Text($0.name).tag(Optional($0.id)) }
                     }
                     .labelsHidden()
-                    .frame(width: 98, alignment: .leading)
+                    .frame(width: 106, alignment: .leading)
 
-                    Divider().frame(height: 20)
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.22))
+                        .frame(width: 1, height: 18)
 
                     TextField("What needs doing?", text: $text)
                         .textFieldStyle(.plain)
                         .focused($fieldFocused)
                         .onSubmit(add)
                 }
-                .padding(.leading, 2)
-                .padding(.trailing, 8)
+                .padding(.leading, 6)
+                .padding(.trailing, 9)
                 .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(nsColor: .textBackgroundColor))
+                        .fill(.regularMaterial.opacity(0.72))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.secondary.opacity(0.25))
+                        .stroke(Color.white.opacity(0.12))
                 )
 
                 if let error { Text(error).font(.caption).foregroundStyle(.red) }
@@ -70,8 +72,10 @@ struct QuickCaptureView: View {
                         Image(nsImage: MenuBarController.templateImage())
                             .resizable()
                             .frame(width: 14, height: 14)
+                            .opacity(0.62)
                         Text("Open FacetX")
                     }
+                    .foregroundStyle(.primary.opacity(0.82))
                 }
                 .buttonStyle(.plain)
 
@@ -81,6 +85,7 @@ struct QuickCaptureView: View {
                     NSApp.terminate(nil)
                 } label: {
                     Label("Quit", systemImage: "power")
+                        .foregroundStyle(.primary.opacity(0.68))
                 }
                 .buttonStyle(.plain)
             }
