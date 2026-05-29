@@ -54,9 +54,7 @@ struct ContentView: View {
             .navigationTitle("FacetX")
         } detail: {
             if let project = selected {
-                ProjectDetailView(project: project) {
-                    editingProject = project
-                }
+                ProjectDetailView(project: project)
             } else if store.activeProjects.isEmpty {
                 VStack(spacing: 12) {
                     ContentUnavailableView("No projects yet",
@@ -126,7 +124,6 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
     let project: Project
-    let onEditProject: () -> Void
 
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All", week = "Week"
@@ -137,6 +134,7 @@ struct ProjectDetailView: View {
     @State private var items: [ProjectItem] = []
     @State private var loading = false
     @State private var showCreate = false
+    @State private var editingItem: ProjectItem?
 
     private var grouped: [(zone: String, items: [ProjectItem])] {
         Dictionary(grouping: items, by: \.containerName)
@@ -161,8 +159,6 @@ struct ProjectDetailView: View {
                 .frame(width: 160)
             }
             ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: onEditProject) { Image(systemName: "square.and.pencil") }
-                    .help("Edit project")
                 Button { showCreate = true } label: { Image(systemName: "plus") }
                     .help("Add an item to this project")
                 Button { Task { await reload() } } label: { Image(systemName: "arrow.clockwise") }
@@ -171,6 +167,9 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showCreate) {
             CreateItemView(project: project) { Task { await reload() } }
+        }
+        .sheet(item: $editingItem) { item in
+            EditItemView(project: project, item: item) { Task { await reload() } }
         }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
@@ -193,6 +192,20 @@ struct ProjectDetailView: View {
                                     await ek.setReminderCompleted(id: item.id, completed: completed)
                                     await reload()
                                 }
+                            } onEdit: {
+                                editingItem = item
+                            }
+                            .contextMenu {
+                                Button("Edit...") {
+                                    editingItem = item
+                                }
+                                Button("Delete", role: .destructive) {
+                                    _ = ek.deleteItem(id: item.id)
+                                    Task { await reload() }
+                                }
+                            }
+                            .onTapGesture(count: 2) {
+                                editingItem = item
                             }
                         }
                     }
@@ -421,6 +434,9 @@ private struct EditProjectView: View {
 struct ItemRow: View {
     let item: ProjectItem
     let onToggle: (Bool) -> Void
+    let onEdit: () -> Void
+
+    @State private var hovered = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -442,6 +458,22 @@ struct ItemRow: View {
                 }
             }
             Spacer()
+            
+            Button {
+                onEdit()
+            } label: {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .opacity(hovered ? 1.0 : 0.0)
+            .help("Edit item")
+        }
+        .contentShape(Rectangle())
+        .onHover { isHovered in
+            withAnimation(.easeOut(duration: 0.15)) {
+                hovered = isHovered
+            }
         }
     }
 }

@@ -308,4 +308,48 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         e.endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate)
         do { try store.save(e, span: .thisEvent, commit: true); return true } catch { return false }
     }
+
+    /// Delete an existing calendar item (reminder or event) by its identifier.
+    func deleteItem(id: String) -> Bool {
+        guard let item = store.calendarItem(withIdentifier: id) else { return false }
+        if let reminder = item as? EKReminder {
+            do { try store.remove(reminder, commit: true); return true } catch { return false }
+        } else if let event = item as? EKEvent {
+            do { try store.remove(event, span: .thisEvent, commit: true); return true } catch { return false }
+        }
+        return false
+    }
+
+    /// Update an existing item (reminder or event)'s content, date, and container.
+    func updateItem(id: String, project: String, content: String,
+                    date: Date?, useDate: Bool, containerName: String) -> Bool {
+        guard let item = store.calendarItem(withIdentifier: id) else { return false }
+        
+        let newTitle = ProjectPrefix.makeTitle(project: project, content: content)
+        item.title = newTitle
+        
+        // Update container if it changed
+        if item.calendar?.title != containerName {
+            let entity: EKEntityType = (item is EKReminder) ? .reminder : .event
+            if let newCal = store.calendars(for: entity).first(where: { $0.title == containerName }) {
+                item.calendar = newCal
+            }
+        }
+        
+        if let reminder = item as? EKReminder {
+            if useDate, let due = date {
+                reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day], from: due)
+            } else {
+                reminder.dueDateComponents = nil
+            }
+            do { try store.save(reminder, commit: true); return true } catch { return false }
+        } else if let event = item as? EKEvent {
+            if useDate, let start = date {
+                event.startDate = start
+                event.endDate = Calendar.current.date(byAdding: .minute, value: 60, to: start)
+            }
+            do { try store.save(event, span: .thisEvent, commit: true); return true } catch { return false }
+        }
+        return false
+    }
 }

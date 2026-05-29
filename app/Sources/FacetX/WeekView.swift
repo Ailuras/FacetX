@@ -15,6 +15,7 @@ struct WeekView: View {
     @State private var editingGoal = false
     @State private var goalTitle = ""
     @State private var goalBody = ""
+    @State private var editingItem: ProjectItem?
 
     private var weekItems: [ProjectItem] {
         allItems.filter { item in
@@ -36,6 +37,9 @@ struct WeekView: View {
             Spacer()
         }
         .padding(16)
+        .sheet(item: $editingItem) { item in
+            EditItemView(project: project, item: item) { Task { await reload() } }
+        }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
     }
@@ -110,6 +114,20 @@ struct WeekView: View {
                         await ek.setReminderCompleted(id: item.id, completed: completed)
                         await reload()
                     }
+                } onEdit: {
+                    editingItem = item
+                }
+                .contextMenu {
+                    Button("Edit...") {
+                        editingItem = item
+                    }
+                    Button("Delete", role: .destructive) {
+                        _ = ek.deleteItem(id: item.id)
+                        Task { await reload() }
+                    }
+                }
+                .onTapGesture(count: 2) {
+                    editingItem = item
                 }
             }
         }
