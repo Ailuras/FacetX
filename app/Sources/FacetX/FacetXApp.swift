@@ -17,11 +17,13 @@ struct FacetXApp: App {
 
         // Menu bar quick-capture: add a prefixed item to a project without
         // opening the main window. Shares the same stores/services.
-        MenuBarExtra("FacetX", image: "FacetXMenuBarTemplate") {
+        MenuBarExtra {
             QuickCaptureView()
                 .environmentObject(eventKit)
                 .environmentObject(store)
                 .environmentObject(settings)
+        } label: {
+            Image(nsImage: MenuBarIcon.image)
         }
         .menuBarExtraStyle(.window)
 
@@ -35,5 +37,16 @@ struct FacetXApp: App {
                 .environmentObject(store)
                 .environmentObject(settings)
         }
+    }
+}
+
+private enum MenuBarIcon {
+    static var image: NSImage {
+        let image = NSImage(named: "FacetXMenuBarTemplate")
+            ?? NSImage(systemSymbolName: "diamond", accessibilityDescription: "FacetX")
+            ?? NSImage(size: NSSize(width: 18, height: 18))
+        image.isTemplate = true
+        image.size = NSSize(width: 18, height: 18)
+        return image
     }
 }
