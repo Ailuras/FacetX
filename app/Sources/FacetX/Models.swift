@@ -10,14 +10,20 @@ struct Project: Identifiable, Codable, Hashable {
     /// so it need not collide with historical action-type prefixes.
     var prefix: String
     var tagline: String = ""
+    /// Where new project reminders/events are saved by default.
+    var reminderListName: String?
+    var calendarName: String?
     var createdAt: Date = Date()
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
 
-    init(name: String, prefix: String? = nil, tagline: String = "") {
+    init(name: String, prefix: String? = nil, tagline: String = "",
+         reminderListName: String? = nil, calendarName: String? = nil) {
         self.name = name
         self.prefix = prefix ?? name
         self.tagline = tagline
+        self.reminderListName = reminderListName
+        self.calendarName = calendarName
     }
 }
 
@@ -48,8 +54,10 @@ final class ProjectStore: ObservableObject {
     }
 
     @discardableResult
-    func createProject(name: String, prefix: String? = nil, tagline: String = "") -> Project.ID {
-        let project = Project(name: name, prefix: prefix, tagline: tagline)
+    func createProject(name: String, prefix: String? = nil, tagline: String = "",
+                       reminderListName: String? = nil, calendarName: String? = nil) -> Project.ID {
+        let project = Project(name: name, prefix: prefix, tagline: tagline,
+                              reminderListName: reminderListName, calendarName: calendarName)
         projects.append(project)
         save()
         return project.id

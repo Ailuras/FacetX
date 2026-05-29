@@ -20,10 +20,8 @@ struct CreateItemView: View {
 
     @State private var kind: Kind = .reminder
     @State private var content = ""
-    @State private var container = ""
     @State private var useDate = false
     @State private var date = Date()
-    @State private var containers: [String] = []
     @State private var saving = false
     @State private var error: String?
 
@@ -35,7 +33,6 @@ struct CreateItemView: View {
                 ForEach(Kind.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
-            .onChange(of: kind) { _, _ in reloadContainers() }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Content").font(.caption).foregroundStyle(.secondary)
@@ -46,12 +43,11 @@ struct CreateItemView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(kind == .reminder ? "List" : "Calendar (functional zone)")
+                Text(kind == .reminder ? "Reminder list" : "Calendar")
                     .font(.caption).foregroundStyle(.secondary)
-                Picker("", selection: $container) {
-                    ForEach(containers, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
+                Label(targetContainer.isEmpty ? "No default selected" : targetContainer,
+                      systemImage: kind == .reminder ? "list.bullet" : "calendar")
+                    .foregroundStyle(targetContainer.isEmpty ? .red : .secondary)
             }
 
             Toggle(kind == .reminder ? "Due date" : "Start date", isOn: $useDate)
@@ -69,24 +65,30 @@ struct CreateItemView: View {
                 Button("Add") { save() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(content.trimmingCharacters(in: .whitespaces).isEmpty
-                              || container.isEmpty || saving)
+                              || targetContainer.isEmpty || saving)
             }
         }
         .padding(24)
         .frame(width: 460)
-        .onAppear(perform: reloadContainers)
     }
 
-    private func reloadContainers() {
-        let enabled = settings.enabledContainerNames
-        containers = kind == .reminder
-            ? ek.reminderListNames(enabled: enabled)
-            : ek.calendarNames(enabled: enabled)
-        if !containers.contains(container) { container = containers.first ?? "" }
+    private var targetContainer: String {
+        switch kind {
+        case .reminder:
+            return nonEmpty(project.reminderListName) ?? settings.defaultReminderListName
+        case .event:
+            return nonEmpty(project.calendarName) ?? settings.defaultCalendarName
+        }
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     private func save() {
         let text = content.trimmingCharacters(in: .whitespaces)
+        let container = targetContainer
         guard !text.isEmpty, !container.isEmpty else { return }
         saving = true
         error = nil

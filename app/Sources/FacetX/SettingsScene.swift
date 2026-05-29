@@ -33,6 +33,12 @@ struct ContainersSettingsView: View {
     }
 
     private var allNames: [String] { containers.map(\.title) }
+    private var enabledReminderNames: [String] {
+        names(kind: .reminder).filter { settings.isEnabled($0) }
+    }
+    private var enabledCalendarNames: [String] {
+        names(kind: .calendar).filter { settings.isEnabled($0) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -40,7 +46,10 @@ struct ContainersSettingsView: View {
                 Label("Containers", systemImage: "calendar")
                     .font(.title3).fontWeight(.semibold)
                 Spacer()
-                Button("Use All") { settings.enabledContainerNames = [] }
+                Button("Use All") {
+                    settings.enabledContainerNames = []
+                    ensureDefaults()
+                }
             }
 
             Text("Choose which calendars and reminder lists FacetX uses. "
@@ -53,13 +62,29 @@ struct ContainersSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Default save locations")
+                    .font(.headline)
+                Picker("Reminders", selection: $settings.defaultReminderListName) {
+                    if enabledReminderNames.isEmpty { Text("None").tag("") }
+                    ForEach(enabledReminderNames, id: \.self) { Text($0).tag($0) }
+                }
+                Picker("Calendar", selection: $settings.defaultCalendarName) {
+                    if enabledCalendarNames.isEmpty { Text("None").tag("") }
+                    ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
+                }
+            }
+
             List {
                 ForEach(groups, id: \.header) { group in
                     Section(group.header) {
                         ForEach(group.items) { c in
                             Toggle(isOn: Binding(
                                 get: { settings.isEnabled(c.title) },
-                                set: { _ in settings.toggle(c.title, allNames: allNames) }
+                                set: { _ in
+                                    settings.toggle(c.title, allNames: allNames)
+                                    ensureDefaults()
+                                }
                             )) { Text(c.title) }
                         }
                     }
@@ -73,7 +98,10 @@ struct ContainersSettingsView: View {
             }
         }
         .padding(16)
-        .onAppear { containers = ek.allContainers() }
+        .onAppear {
+            containers = ek.allContainers()
+            ensureDefaults()
+        }
     }
 
     private var createForm: some View {
@@ -117,10 +145,31 @@ struct ContainersSettingsView: View {
         if ek.createContainer(title: title, kind: newKind, sourceTitle: newSource) {
             containers = ek.allContainers()
             settings.enable(title)
+            if newKind == .reminder, settings.defaultReminderListName.isEmpty {
+                settings.defaultReminderListName = title
+            }
+            if newKind == .calendar, settings.defaultCalendarName.isEmpty {
+                settings.defaultCalendarName = title
+            }
             newTitle = ""
             showCreate = false
         } else {
             createError = "Couldn't create in \(newSource)."
+        }
+    }
+
+    private func names(kind: EventKitService.ContainerInfo.Kind) -> [String] {
+        Array(Set(containers.filter { $0.kind == kind }.map(\.title))).sorted()
+    }
+
+    private func ensureDefaults() {
+        if settings.defaultReminderListName.isEmpty
+            || !enabledReminderNames.contains(settings.defaultReminderListName) {
+            settings.defaultReminderListName = enabledReminderNames.first ?? ""
+        }
+        if settings.defaultCalendarName.isEmpty
+            || !enabledCalendarNames.contains(settings.defaultCalendarName) {
+            settings.defaultCalendarName = enabledCalendarNames.first ?? ""
         }
     }
 }

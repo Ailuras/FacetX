@@ -16,6 +16,12 @@ final class AppSettings: ObservableObject {
     @Published var enabledContainerNames: Set<String> {
         didSet { save() }
     }
+    @Published var defaultReminderListName: String {
+        didSet { save() }
+    }
+    @Published var defaultCalendarName: String {
+        didSet { save() }
+    }
 
     private let url: URL
 
@@ -24,8 +30,12 @@ final class AppSettings: ObservableObject {
         if let data = try? Data(contentsOf: url),
            let stored = try? JSONDecoder().decode(Stored.self, from: data) {
             self.enabledContainerNames = Set(stored.enabledContainerNames)
+            self.defaultReminderListName = stored.defaultReminderListName ?? ""
+            self.defaultCalendarName = stored.defaultCalendarName ?? ""
         } else {
             self.enabledContainerNames = []   // empty = all
+            self.defaultReminderListName = ""
+            self.defaultCalendarName = ""
         }
     }
 
@@ -46,12 +56,20 @@ final class AppSettings: ObservableObject {
         if enabledContainerNames.isEmpty { enabledContainerNames = Set(allNames) }
         if enabledContainerNames.contains(name) { enabledContainerNames.remove(name) }
         else { enabledContainerNames.insert(name) }
+        if !isEnabled(defaultReminderListName) { defaultReminderListName = "" }
+        if !isEnabled(defaultCalendarName) { defaultCalendarName = "" }
     }
 
-    private struct Stored: Codable { var enabledContainerNames: [String] }
+    private struct Stored: Codable {
+        var enabledContainerNames: [String]
+        var defaultReminderListName: String?
+        var defaultCalendarName: String?
+    }
 
     private func save() {
-        let stored = Stored(enabledContainerNames: enabledContainerNames.sorted())
+        let stored = Stored(enabledContainerNames: enabledContainerNames.sorted(),
+                            defaultReminderListName: defaultReminderListName,
+                            defaultCalendarName: defaultCalendarName)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         try? enc.encode(stored).write(to: url, options: .atomic)
     }

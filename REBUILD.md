@@ -43,7 +43,7 @@ Native Swift app (SwiftUI)
   └─ Menu bar item: status, quick open, quick-add to a project
         │
 Project store (SwiftData or small SQLite)
-  - saved projects (name, the prefix it claims, display meta/tagline)
+  - saved projects (name, prefix, display meta, default reminder/calendar containers)
   - week goals and other project-owned info EventKit can't hold
   - NO item content (that's EventKit's job) → no two-source sync conflict
 ```
@@ -62,6 +62,8 @@ Project
   name          String         // e.g. "Regulus"
   prefix        String         // the title prefix it claims, default = name
   tagline       String
+  reminderListName String?     // where new project reminders are saved
+  calendarName  String?        // where new project events are saved
   createdAt     Date
   archived      Bool
 
@@ -93,7 +95,8 @@ matched by `title.hasPrefix("\(prefix):")` (colon-tolerant).
    + Info.plist usage strings, ad-hoc signing for local dev.
 2. **EventKit service**: auth flow, fetch reminders/events, prefix parser
    (colon-tolerant, newline-safe — real titles contain `\n`).
-3. **Project store**: create/list/archive projects; persist week goals.
+3. **Project store**: create/list/archive projects, remember save containers,
+   and persist week goals.
 4. **Main window**: project list → detail showing that project's reminders
    (grouped by list) and calendar events (grouped by calendar = functional zone).
 5. **Write-back**: mark reminder complete, create a reminder/event already

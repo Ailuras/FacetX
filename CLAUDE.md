@@ -67,10 +67,12 @@ quick-capture, and the standard `SwiftUI.Settings` window):
 - **`ProjectStore`** ([Models.swift](app/Sources/FacetX/Models.swift)) —
   `@MainActor`; persists saved projects + week goals as JSON under Application
   Support (`FacetX/projects.json`). Holds *only* project-side metadata EventKit
-  can't represent (name, claimed prefix, tagline, week goals). **No item content
-  is stored here** — that's what avoids any two-source sync problem.
+  can't represent (name, claimed prefix, tagline, default reminder/calendar
+  save locations, week goals). **No item content is stored here** — that's what
+  avoids any two-source sync problem.
 - **[AppSettings.swift](app/Sources/FacetX/AppSettings.swift)** — `@MainActor`;
-  persists which containers are enabled (`FacetX/settings.json`).
+  persists which containers are enabled plus the default reminder/calendar save
+  locations for new projects (`FacetX/settings.json`).
 
 Both JSON stores resolve their directory through
 [AppSupport.swift](app/Sources/FacetX/AppSupport.swift) (`Application
@@ -120,6 +122,9 @@ first removal so unchecking one doesn't re-enable everything.
 - Reads/writes are scoped to enabled containers everywhere via the
   `enabled: Set<String>?` parameter (empty/nil = all). When adding fetch/create
   paths, thread `settings.enabledContainerNames` through.
+- New item creation writes to the project's saved reminder list / calendar.
+  Settings owns only the defaults used when a project is created or when older
+  project data has no saved container yet.
 - Week identity is ISO-8601, Monday-start, formatted `"2026-W22"` — use
   [ISOWeek.swift](app/Sources/FacetX/ISOWeek.swift), don't reimplement week math.
 - JSON stores write atomically with `[.prettyPrinted, .sortedKeys]`.

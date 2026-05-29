@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var settings: AppSettings
 
     @State private var selectedID: Project.ID?
     @State private var discovered: [String] = []
@@ -78,8 +79,9 @@ struct ContentView: View {
             discovered = await ek.discoverProjectNames()
         }
         .sheet(item: $draftProject) { draft in
-            NewProjectView(draft: draft) { name, prefix, tagline in
-                let id = store.createProject(name: name, prefix: prefix, tagline: tagline)
+            NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar in
+                let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
+                                             reminderListName: reminderList, calendarName: calendar)
                 selectedID = id
                 draftProject = nil
             } onCancel: {
@@ -94,7 +96,16 @@ struct ContentView: View {
     private func startNewProject() {
         let existing = Set(store.projects.map(\.name))
         let suggestion = discovered.first { !existing.contains($0) } ?? uniqueProjectName(in: existing)
-        draftProject = ProjectDraft(name: suggestion, prefix: suggestion)
+        let reminderLists = ek.reminderListNames(enabled: settings.enabledContainerNames)
+        let calendars = ek.calendarNames(enabled: settings.enabledContainerNames)
+        draftProject = ProjectDraft(
+            name: suggestion,
+            prefix: suggestion,
+            reminderListName: defaultName(settings.defaultReminderListName, in: reminderLists),
+            calendarName: defaultName(settings.defaultCalendarName, in: calendars),
+            reminderLists: reminderLists,
+            calendars: calendars
+        )
     }
 
     private func uniqueProjectName(in existing: Set<String>) -> String {
@@ -103,6 +114,10 @@ struct ContentView: View {
         var index = 2
         while existing.contains("\(base) \(index)") { index += 1 }
         return "\(base) \(index)"
+    }
+
+    private func defaultName(_ name: String, in options: [String]) -> String {
+        options.contains(name) ? name : (options.first ?? "")
     }
 }
 
@@ -199,19 +214,25 @@ private struct ProjectDraft: Identifiable {
     var name: String
     var prefix: String
     var tagline = ""
+    var reminderListName: String
+    var calendarName: String
+    var reminderLists: [String]
+    var calendars: [String]
 }
 
 private struct NewProjectView: View {
     let draft: ProjectDraft
-    let onCreate: (String, String?, String) -> Void
+    let onCreate: (String, String?, String, String?, String?) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
     @State private var prefix: String
     @State private var tagline: String
+    @State private var reminderListName: String
+    @State private var calendarName: String
 
     init(draft: ProjectDraft,
-         onCreate: @escaping (String, String?, String) -> Void,
+         onCreate: @escaping (String, String?, String, String?, String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.draft = draft
         self.onCreate = onCreate
@@ -219,6 +240,8 @@ private struct NewProjectView: View {
         _name = State(initialValue: draft.name)
         _prefix = State(initialValue: draft.prefix)
         _tagline = State(initialValue: draft.tagline)
+        _reminderListName = State(initialValue: draft.reminderListName)
+        _calendarName = State(initialValue: draft.calendarName)
     }
 
     var body: some View {
@@ -232,6 +255,14 @@ private struct NewProjectView: View {
                     Text("Items whose title starts with “\(effectivePrefix):” belong to this project.")
                         .font(.caption2).foregroundStyle(.secondary)
                     TextField("Tagline", text: $tagline)
+                    Picker("Reminders", selection: $reminderListName) {
+                        if draft.reminderLists.isEmpty { Text("None").tag("") }
+                        ForEach(draft.reminderLists, id: \.self) { Text($0).tag($0) }
+                    }
+                    Picker("Calendar", selection: $calendarName) {
+                        if draft.calendars.isEmpty { Text("None").tag("") }
+                        ForEach(draft.calendars, id: \.self) { Text($0).tag($0) }
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -241,7 +272,7 @@ private struct NewProjectView: View {
                 Button("Cancel", action: onCancel)
                 Button("Create") { create() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(trimmedName.isEmpty)
+                    .disabled(trimmedName.isEmpty || reminderListName.isEmpty || calendarName.isEmpty)
             }
         }
         .padding(24)
@@ -262,12 +293,16 @@ private struct NewProjectView: View {
 
     private func create() {
         let prefix = trimmedPrefix.isEmpty ? nil : trimmedPrefix
-        onCreate(trimmedName, prefix, tagline.trimmingCharacters(in: .whitespaces))
+        onCreate(trimmedName, prefix, tagline.trimmingCharacters(in: .whitespaces),
+                 reminderListName.isEmpty ? nil : reminderListName,
+                 calendarName.isEmpty ? nil : calendarName)
     }
 }
 
 private struct EditProjectView: View {
+    @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var settings: AppSettings
 
     let project: Project
     let onClose: () -> Void
@@ -275,6 +310,10 @@ private struct EditProjectView: View {
     @State private var name = ""
     @State private var prefix = ""
     @State private var tagline = ""
+    @State private var reminderListName = ""
+    @State private var calendarName = ""
+    @State private var reminderLists: [String] = []
+    @State private var calendars: [String] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -287,6 +326,14 @@ private struct EditProjectView: View {
                     Text("Items whose title starts with “\(effectivePrefix):” belong to this project.")
                         .font(.caption2).foregroundStyle(.secondary)
                     TextField("Tagline", text: $tagline)
+                    Picker("Reminders", selection: $reminderListName) {
+                        if reminderLists.isEmpty { Text("None").tag("") }
+                        ForEach(reminderLists, id: \.self) { Text($0).tag($0) }
+                    }
+                    Picker("Calendar", selection: $calendarName) {
+                        if calendars.isEmpty { Text("None").tag("") }
+                        ForEach(calendars, id: \.self) { Text($0).tag($0) }
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -323,9 +370,17 @@ private struct EditProjectView: View {
     }
 
     private func loadFields() {
+        reminderLists = ek.reminderListNames(enabled: settings.enabledContainerNames)
+        calendars = ek.calendarNames(enabled: settings.enabledContainerNames)
         name = project.name
         prefix = project.prefix
         tagline = project.tagline
+        reminderListName = firstAvailable(project.reminderListName,
+                                          settings.defaultReminderListName,
+                                          in: reminderLists)
+        calendarName = firstAvailable(project.calendarName,
+                                      settings.defaultCalendarName,
+                                      in: calendars)
     }
 
     private func save() {
@@ -333,8 +388,16 @@ private struct EditProjectView: View {
         updated.name = trimmedName
         updated.prefix = trimmedPrefix.isEmpty ? trimmedName : trimmedPrefix
         updated.tagline = tagline.trimmingCharacters(in: .whitespaces)
+        updated.reminderListName = reminderListName.isEmpty ? nil : reminderListName
+        updated.calendarName = calendarName.isEmpty ? nil : calendarName
         store.update(updated)
         onClose()
+    }
+
+    private func firstAvailable(_ preferred: String?, _ fallback: String, in options: [String]) -> String {
+        if let preferred, options.contains(preferred) { return preferred }
+        if options.contains(fallback) { return fallback }
+        return options.first ?? ""
     }
 
     private func archive() {
