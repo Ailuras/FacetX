@@ -56,6 +56,12 @@ struct ContainersSettingsView: View {
                  + "Matched by name, so it stays consistent across your Macs.")
                 .font(.caption).foregroundStyle(.secondary)
 
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Interface")
+                    .font(.headline)
+                Toggle("Show in Menu Bar", isOn: $settings.menuBarEnabled)
+            }
+
             if settings.enabledContainerNames.isEmpty {
                 Label("All containers are in use (nothing excluded yet).",
                       systemImage: "checkmark.circle")

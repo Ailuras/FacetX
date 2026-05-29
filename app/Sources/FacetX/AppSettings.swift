@@ -22,6 +22,9 @@ final class AppSettings: ObservableObject {
     @Published var defaultCalendarName: String {
         didSet { save() }
     }
+    @Published var menuBarEnabled: Bool {
+        didSet { save() }
+    }
 
     private let url: URL
 
@@ -32,10 +35,12 @@ final class AppSettings: ObservableObject {
             self.enabledContainerNames = Set(stored.enabledContainerNames)
             self.defaultReminderListName = stored.defaultReminderListName ?? ""
             self.defaultCalendarName = stored.defaultCalendarName ?? ""
+            self.menuBarEnabled = stored.menuBarEnabled ?? true
         } else {
             self.enabledContainerNames = []   // empty = all
             self.defaultReminderListName = ""
             self.defaultCalendarName = ""
+            self.menuBarEnabled = true
         }
     }
 
@@ -64,12 +69,14 @@ final class AppSettings: ObservableObject {
         var enabledContainerNames: [String]
         var defaultReminderListName: String?
         var defaultCalendarName: String?
+        var menuBarEnabled: Bool?
     }
 
     private func save() {
         let stored = Stored(enabledContainerNames: enabledContainerNames.sorted(),
                             defaultReminderListName: defaultReminderListName,
-                            defaultCalendarName: defaultCalendarName)
+                            defaultCalendarName: defaultCalendarName,
+                            menuBarEnabled: menuBarEnabled)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         try? enc.encode(stored).write(to: url, options: .atomic)
     }
