@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import datetime
 import re
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from docsbot.config import list_projects as _list_projects, project_base
-from docsbot.db import ProjectDB, _text_to_html
+from docsbot.db import ProjectDB
 
 mcp = FastMCP("docsbot")
 
@@ -17,10 +15,6 @@ mcp = FastMCP("docsbot")
 def _db(project_id: str) -> ProjectDB | None:
     base = project_base(project_id)
     return ProjectDB.open(base / "db.sqlite") if base else None
-
-
-def _today() -> str:
-    return datetime.date.today().isoformat()
 
 
 @mcp.tool()
