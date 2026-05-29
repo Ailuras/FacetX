@@ -66,7 +66,7 @@ final class MenuBarController: NSObject, ObservableObject {
 
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 340, height: 220)
+        popover.contentSize = NSSize(width: 340, height: 180)
         popover.contentViewController = NSHostingController(
             rootView: QuickCaptureView()
                 .environmentObject(eventKit)

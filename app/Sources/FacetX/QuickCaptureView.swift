@@ -33,7 +33,7 @@ struct QuickCaptureView: View {
                         ForEach(store.activeProjects) { Text($0.name).tag(Optional($0.id)) }
                     }
                     .labelsHidden()
-                    .frame(width: 108)
+                    .frame(width: 98, alignment: .leading)
 
                     Divider().frame(height: 20)
 
@@ -42,7 +42,8 @@ struct QuickCaptureView: View {
                         .focused($fieldFocused)
                         .onSubmit(add)
                 }
-                .padding(.horizontal, 8)
+                .padding(.leading, 2)
+                .padding(.trailing, 8)
                 .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
@@ -56,14 +57,6 @@ struct QuickCaptureView: View {
                 if let error { Text(error).font(.caption).foregroundStyle(.red) }
                 if justAdded { Label("Added", systemImage: "checkmark.circle.fill")
                     .font(.caption).foregroundStyle(.green) }
-
-                HStack {
-                    Button("Add") { add() }
-                        .keyboardShortcut(.return, modifiers: [])
-                        .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty
-                                  || targetReminderList.isEmpty)
-                    Spacer()
-                }
             }
 
             Divider()
