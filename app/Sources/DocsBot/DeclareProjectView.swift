@@ -6,6 +6,7 @@ struct DeclareProjectView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var settings: Settings
 
     @State private var name = ""
     @State private var tagline = ""
@@ -57,7 +58,8 @@ struct DeclareProjectView: View {
         .padding(24)
         .frame(width: 440)
         .task {
-            discovered = await ek.discoverProjectNames()
+            discovered = await ek.discoverProjectNames(
+                enabledContainers: settings.enabledContainerNames)
             loadingDiscovery = false
         }
     }

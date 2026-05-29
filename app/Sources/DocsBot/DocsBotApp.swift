@@ -4,6 +4,7 @@ import SwiftUI
 struct DocsBotApp: App {
     @StateObject private var eventKit = EventKitService()
     @StateObject private var store = ProjectStore()
+    @StateObject private var settings = Settings()
 
     init() {
         // Headless self-test: `DOCSBOT_SELFTEST=Regulus open DocsBot.app` (or run
@@ -23,6 +24,7 @@ struct DocsBotApp: App {
             ContentView()
                 .environmentObject(eventKit)
                 .environmentObject(store)
+                .environmentObject(settings)
                 .frame(minWidth: 760, minHeight: 480)
         }
     }
@@ -40,6 +42,23 @@ enum SelfTest {
         if ProcessInfo.processInfo.environment["DOCSBOT_SELFTEST_CLEANUP"] == "1" {
             let n = await ek.deleteRemindersContaining("selftest-")
             log += "cleanup: removed \(n) selftest reminders\n"
+            try? log.write(toFile: out, atomically: true, encoding: .utf8)
+            return
+        }
+
+        if ProcessInfo.processInfo.environment["DOCSBOT_SELFTEST_CONTAINER"] == "1" {
+            let srcs = ek.sourceTitles(forNew: .reminder)
+            log += "sources for new reminder list: \(srcs.joined(separator: ", "))\n"
+            let name = "selftest-list"
+            let res = ek.createContainerResult(title: name, kind: .reminder,
+                                               sourceTitle: srcs.first ?? "")
+            let exists = ek.reminderListNames().contains(name)
+            log += "createContainer: ok=\(res.ok), error=\(res.error ?? "nil"), exists-after=\(exists)\n"
+            // clean up the test list so it doesn't litter real data
+            if exists {
+                let removed = ek.deleteContainer(title: name, kind: .reminder)
+                log += "cleanup test list: removed=\(removed)\n"
+            }
             try? log.write(toFile: out, atomically: true, encoding: .utf8)
             return
         }

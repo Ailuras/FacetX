@@ -7,6 +7,7 @@ import SwiftUI
 struct CreateItemView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var ek: EventKitService
+    @EnvironmentObject private var settings: Settings
 
     let project: Project
     /// Called after a successful create so the detail view can refresh.
@@ -77,7 +78,10 @@ struct CreateItemView: View {
     }
 
     private func reloadContainers() {
-        containers = kind == .reminder ? ek.reminderListNames() : ek.calendarNames()
+        let enabled = settings.enabledContainerNames
+        containers = kind == .reminder
+            ? ek.reminderListNames(enabled: enabled)
+            : ek.calendarNames(enabled: enabled)
         if !containers.contains(container) { container = containers.first ?? "" }
     }
 

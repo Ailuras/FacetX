@@ -53,27 +53,36 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// All items (reminders + events) whose title prefix matches `project`.
+    /// Filter a container list by enabled titles. `enabled` empty/nil = all.
+    private func filtered(_ calendars: [EKCalendar], by enabled: Set<String>?) -> [EKCalendar] {
+        guard let enabled, !enabled.isEmpty else { return calendars }
+        return calendars.filter { enabled.contains($0.title) }
+    }
+
+    /// All items (reminders + events) whose title prefix matches `project`,
+    /// limited to the enabled containers (empty/nil = all).
     func items(forProject project: String,
+               enabledContainers: Set<String>? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
         let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
         var result: [ProjectItem] = []
-        if rem { result += await reminders(forProject: project) }
-        if cal { result += events(forProject: project, windowDays: eventWindowDays) }
+        if rem { result += await reminders(forProject: project, enabled: enabledContainers) }
+        if cal { result += events(forProject: project, enabled: enabledContainers, windowDays: eventWindowDays) }
         return result.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
-    /// Distinct project names discovered across all reminders + recent events.
-    func discoverProjectNames(eventWindowDays: Int = 120) async -> [String] {
+    /// Distinct project names discovered across enabled reminders + recent events.
+    func discoverProjectNames(enabledContainers: Set<String>? = nil,
+                              eventWindowDays: Int = 120) async -> [String] {
         let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
         var names = Set<String>()
         if rem {
             // Map to project names inside the callback; EKReminder is not Sendable.
-            let discovered = await fetchReminderProjectNames()
+            let discovered = await fetchReminderProjectNames(enabled: enabledContainers)
             names.formUnion(discovered)
         }
         if cal {
-            for e in recentEvents(windowDays: eventWindowDays) {
+            for e in recentEvents(enabled: enabledContainers, windowDays: eventWindowDays) {
                 if let n = ProjectPrefix.projectName(of: e.title ?? "") { names.insert(n) }
             }
         }
@@ -88,8 +97,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// The class is nonisolated, so fetchReminders' background-queue callback can
     /// run freely without tripping the Swift 6 main-actor isolation assertion
     /// (dispatch_assert_queue_fail → SIGTRAP) that crashed an earlier build.
-    private func reminders(forProject project: String) async -> [ProjectItem] {
-        let lists = store.calendars(for: .reminder)
+    private func reminders(forProject project: String, enabled: Set<String>?) async -> [ProjectItem] {
+        let lists = filtered(store.calendars(for: .reminder), by: enabled)
+        guard !lists.isEmpty else { return [] }
         let pred = store.predicateForReminders(in: lists)
         return await withCheckedContinuation { cont in
             store.fetchReminders(matching: pred) { reminders in
@@ -111,8 +121,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func fetchReminderProjectNames() async -> Set<String> {
-        let lists = store.calendars(for: .reminder)
+    private func fetchReminderProjectNames(enabled: Set<String>?) async -> Set<String> {
+        let lists = filtered(store.calendars(for: .reminder), by: enabled)
+        guard !lists.isEmpty else { return [] }
         let pred = store.predicateForReminders(in: lists)
         return await withCheckedContinuation { cont in
             store.fetchReminders(matching: pred) { reminders in
@@ -127,8 +138,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     // ── Events ─────────────────────────────────────────────────────────────
 
-    private func events(forProject project: String, windowDays: Int) -> [ProjectItem] {
-        recentEvents(windowDays: windowDays).compactMap { e in
+    private func events(forProject project: String, enabled: Set<String>?, windowDays: Int) -> [ProjectItem] {
+        recentEvents(enabled: enabled, windowDays: windowDays).compactMap { e in
             let title = e.title ?? ""
             guard ProjectPrefix.belongs(title: title, toProject: project) else { return nil }
             return ProjectItem(
@@ -143,8 +154,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func recentEvents(windowDays: Int) -> [EKEvent] {
-        let cals = store.calendars(for: .event)
+    private func recentEvents(enabled: Set<String>?, windowDays: Int) -> [EKEvent] {
+        let cals = filtered(store.calendars(for: .event), by: enabled)
+        guard !cals.isEmpty else { return [] }
         let now = Date()
         let start = Calendar.current.date(byAdding: .day, value: -windowDays, to: now)!
         let end = Calendar.current.date(byAdding: .day, value: windowDays, to: now)!
@@ -154,14 +166,85 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     // ── Containers (functional zones) ────────────────────────────────────────
 
-    /// Names of reminder lists available to write into (e.g. 科研待办).
-    func reminderListNames() -> [String] {
-        store.calendars(for: .reminder).map(\.title).sorted()
+    /// Names of reminder lists, optionally limited to enabled ones.
+    func reminderListNames(enabled: Set<String>? = nil) -> [String] {
+        filtered(store.calendars(for: .reminder), by: enabled).map(\.title).sorted()
     }
 
-    /// Names of calendars available to write into (= functional zones).
-    func calendarNames() -> [String] {
-        store.calendars(for: .event).map(\.title).sorted()
+    /// Names of calendars, optionally limited to enabled ones.
+    func calendarNames(enabled: Set<String>? = nil) -> [String] {
+        filtered(store.calendars(for: .event), by: enabled).map(\.title).sorted()
+    }
+
+    /// A container as shown in Settings: its title, kind, and owning account.
+    struct ContainerInfo: Identifiable, Hashable {
+        enum Kind: String { case calendar = "Calendar", reminder = "Reminders" }
+        var id: String { "\(kind.rawValue)/\(sourceTitle)/\(title)" }
+        let title: String
+        let kind: Kind
+        let sourceTitle: String
+    }
+
+    /// All containers (calendars + reminder lists) for the Settings list,
+    /// grouped-friendly with their owning account title.
+    func allContainers() -> [ContainerInfo] {
+        var result: [ContainerInfo] = []
+        for c in store.calendars(for: .event) {
+            result.append(.init(title: c.title, kind: .calendar, sourceTitle: c.source.title))
+        }
+        for c in store.calendars(for: .reminder) {
+            result.append(.init(title: c.title, kind: .reminder, sourceTitle: c.source.title))
+        }
+        return result
+    }
+
+    /// Delete a container (calendar or reminder list) by title. Returns true if
+    /// one was removed. Use with care — deletes the list and its contents.
+    @discardableResult
+    func deleteContainer(title: String, kind: ContainerInfo.Kind) -> Bool {
+        let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
+        guard let cal = store.calendars(for: entity).first(where: { $0.title == title })
+        else { return false }
+        do { try store.removeCalendar(cal, commit: true); return true } catch { return false }
+    }
+
+    /// Account (source) titles that can hold a NEW container of the given kind.
+    /// Not every source allows new lists (e.g. subscribed/birthday sources).
+    func sourceTitles(forNew kind: ContainerInfo.Kind) -> [String] {
+        let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
+        return store.sources
+            .filter { src in
+                // A source can host new containers of a kind if it already
+                // exposes calendars for that entity (filters out read-only ones).
+                !src.calendars(for: entity).isEmpty || src.sourceType == .local || src.sourceType == .calDAV
+            }
+            .map(\.title)
+            // De-dup: iCloud may appear as separate calendar/reminder sources.
+            .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            .sorted()
+    }
+
+    /// Create a new calendar or reminder list named `title` under the account
+    /// whose title is `sourceTitle`. Returns true on success.
+    @discardableResult
+    func createContainer(title: String, kind: ContainerInfo.Kind, sourceTitle: String) -> Bool {
+        createContainerResult(title: title, kind: kind, sourceTitle: sourceTitle).ok
+    }
+
+    /// Same as createContainer but surfaces the error message for diagnostics.
+    func createContainerResult(title: String, kind: ContainerInfo.Kind,
+                               sourceTitle: String) -> (ok: Bool, error: String?) {
+        let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
+        // Prefer a source that actually hosts containers of this entity.
+        let source = store.sources.first(where: {
+            $0.title == sourceTitle && !$0.calendars(for: entity).isEmpty
+        }) ?? store.sources.first(where: { $0.title == sourceTitle })
+        guard let source else { return (false, "no source titled \(sourceTitle)") }
+        let cal = EKCalendar(for: entity, eventStore: store)
+        cal.title = title
+        cal.source = source
+        do { try store.saveCalendar(cal, commit: true); return (true, nil) }
+        catch { return (false, "\(error)") }
     }
 
     // ── Write-back ───────────────────────────────────────────────────────────

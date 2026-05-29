@@ -3,9 +3,11 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var settings: Settings
 
     @State private var selectedID: Project.ID?
     @State private var showDeclareSheet = false
+    @State private var showSettings = false
 
     private var selected: Project? {
         store.activeProjects.first { $0.id == selectedID }
@@ -29,7 +31,9 @@ struct ContentView: View {
             }
             .navigationTitle("DocsBot")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                        .help("Choose calendars and reminder lists")
                     Button { showDeclareSheet = true } label: { Image(systemName: "plus") }
                         .help("Declare a project")
                 }
@@ -46,6 +50,9 @@ struct ContentView: View {
         .sheet(isPresented: $showDeclareSheet) {
             DeclareProjectView()
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
         .task {
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
@@ -57,6 +64,7 @@ struct ContentView: View {
 /// Detail pane: a project's items, grouped by container (functional zone).
 struct ProjectDetailView: View {
     @EnvironmentObject private var ek: EventKitService
+    @EnvironmentObject private var settings: Settings
     let project: Project
 
     @State private var items: [ProjectItem] = []
@@ -112,7 +120,8 @@ struct ProjectDetailView: View {
 
     private func reload() async {
         loading = items.isEmpty
-        items = await ek.items(forProject: project.prefix)
+        items = await ek.items(forProject: project.prefix,
+                               enabledContainers: settings.enabledContainerNames)
         loading = false
     }
 }
