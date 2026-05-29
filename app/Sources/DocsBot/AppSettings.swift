@@ -12,7 +12,7 @@ import Foundation
 /// An EMPTY set means "all containers" (the default — preserves the original
 /// no-filter behavior so a fresh install just works).
 @MainActor
-final class Settings: ObservableObject {
+final class AppSettings: ObservableObject {
     @Published var enabledContainerNames: Set<String> {
         didSet { save() }
     }

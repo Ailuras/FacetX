@@ -5,7 +5,7 @@ import SwiftUI
 struct QuickCaptureView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
-    @EnvironmentObject private var settings: Settings
+    @EnvironmentObject private var settings: AppSettings
 
     @State private var text = ""
     @State private var projectID: Project.ID?

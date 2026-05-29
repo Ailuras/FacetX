@@ -3,11 +3,8 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
-    @EnvironmentObject private var settings: Settings
 
     @State private var selectedID: Project.ID?
-    @State private var showDeclareSheet = false
-    @State private var showSettings = false
 
     private var selected: Project? {
         store.activeProjects.first { $0.id == selectedID }
@@ -30,28 +27,18 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("DocsBot")
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                        .help("Choose calendars and reminder lists")
-                    Button { showDeclareSheet = true } label: { Image(systemName: "plus") }
-                        .help("Declare a project")
-                }
-            }
         } detail: {
             if let project = selected {
                 ProjectDetailView(project: project)
+            } else if store.activeProjects.isEmpty {
+                ContentUnavailableView("No projects yet",
+                    systemImage: "folder",
+                    description: Text("Declare a project in Settings (⌘,) to gather its calendar and reminder items."))
             } else {
                 ContentUnavailableView("Select a project",
                     systemImage: "folder",
-                    description: Text("Declare a project to gather its calendar and reminder items."))
+                    description: Text("Pick a project from the sidebar."))
             }
-        }
-        .sheet(isPresented: $showDeclareSheet) {
-            DeclareProjectView()
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
         }
         .task {
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
@@ -64,7 +51,7 @@ struct ContentView: View {
 /// Detail pane: a project's items, grouped by container (functional zone).
 struct ProjectDetailView: View {
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var settings: Settings
+    @EnvironmentObject private var settings: AppSettings
     let project: Project
 
     enum Mode: String, CaseIterable, Identifiable {

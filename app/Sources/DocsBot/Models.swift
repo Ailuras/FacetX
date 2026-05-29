@@ -68,6 +68,11 @@ final class ProjectStore: ObservableObject {
         save()
     }
 
+    func delete(_ project: Project) {
+        projects.removeAll { $0.id == project.id }
+        save()
+    }
+
     // ── Week goals ────────────────────────────────────────────────────────────
 
     func weekGoal(projectID: Project.ID, weekId: String) -> WeekGoal? {

@@ -4,7 +4,7 @@ import SwiftUI
 struct DocsBotApp: App {
     @StateObject private var eventKit = EventKitService()
     @StateObject private var store = ProjectStore()
-    @StateObject private var settings = Settings()
+    @StateObject private var settings = AppSettings()
 
     init() {
         // Headless self-test: `DOCSBOT_SELFTEST=Regulus open DocsBot.app` (or run
@@ -37,6 +37,16 @@ struct DocsBotApp: App {
                 .environmentObject(settings)
         }
         .menuBarExtraStyle(.window)
+
+        // Standard macOS Settings window (⌘,). All configuration lives here;
+        // the main window and menu bar are for use. Fully-qualified because our
+        // own `Settings` store would otherwise shadow SwiftUI's Settings scene.
+        SwiftUI.Settings {
+            SettingsRootView()
+                .environmentObject(eventKit)
+                .environmentObject(store)
+                .environmentObject(settings)
+        }
     }
 }
 

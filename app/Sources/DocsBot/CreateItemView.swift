@@ -7,7 +7,7 @@ import SwiftUI
 struct CreateItemView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var settings: Settings
+    @EnvironmentObject private var settings: AppSettings
 
     let project: Project
     /// Called after a successful create so the detail view can refresh.

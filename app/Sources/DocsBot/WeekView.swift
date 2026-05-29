@@ -5,7 +5,7 @@ import SwiftUI
 struct WeekView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
-    @EnvironmentObject private var settings: Settings
+    @EnvironmentObject private var settings: AppSettings
 
     let project: Project
 
