@@ -258,81 +258,6 @@ body {
 }
 
 /* ================================================================
-   CARD LIST (for Todo / row-style cards)
-   ================================================================ */
-.card-list {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-/* Todo list: scrollable with max height */
-#sectionTodo .card-list {
-  max-height: 340px;
-  overflow-y: auto;
-}
-
-.row-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.85rem 1.1rem;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background var(--transition-fast);
-  cursor: pointer;
-  position: relative;
-}
-.row-card:last-child { border-bottom: none; }
-.row-card:hover {
-  background: var(--bg-tertiary);
-}
-
-.row-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--bucket-line, var(--border-default));
-  opacity: 0.7;
-}
-
-.row-card-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.row-card-title {
-  font-weight: 600;
-  font-size: 0.92rem;
-  line-height: 1.45;
-  color: var(--text-primary);
-  margin-bottom: 0.2rem;
-}
-
-.row-card-meta {
-  font-size: 0.78rem;
-  color: var(--text-tertiary);
-  line-height: 1.5;
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.row-card-meta .sep {
-  color: var(--text-muted);
-}
-
-.row-card-actions {
-  display: flex;
-  gap: 0.4rem;
-  flex-shrink: 0;
-  align-items: center;
-}
-
-/* ================================================================
    CARD GRID (for Research / Notes)
    ================================================================ */
 .card-grid {
@@ -424,97 +349,6 @@ body {
 }
 
 /* ================================================================
-   MODULE GROUPS (for Engineering)
-   ================================================================ */
-.module-group {
-  margin-bottom: 1.25rem;
-}
-.module-group:last-child {
-  margin-bottom: 0;
-}
-
-.module-group-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0;
-  margin-bottom: 0.6rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.module-group-icon {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-dim);
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  color: var(--accent);
-}
-
-.module-group-title {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.module-group-count {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-left: auto;
-}
-
-.module-group-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.6rem;
-}
-
-@media (max-width: 900px) {
-  .module-group-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 640px) {
-  .module-group-grid { grid-template-columns: 1fr; }
-}
-
-.compact-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.85rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-  border-left: 3px solid var(--bucket-line, var(--border-default));
-}
-.compact-card:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--border-default);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-}
-
-.compact-card-title {
-  font-weight: 600;
-  font-size: 0.88rem;
-  line-height: 1.4;
-  color: var(--text-primary);
-  margin-bottom: 0.3rem;
-}
-
-.compact-card-meta {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-/* ================================================================
    BADGES
    ================================================================ */
 .badge {
@@ -535,7 +369,6 @@ body {
 .badge-in-progress { background: var(--info-bg); color: var(--status-in-progress); border: 1px solid rgba(90, 142, 196, 0.2); }
 .badge-blocked     { background: var(--warning-bg); color: var(--status-blocked); border: 1px solid rgba(201, 160, 74, 0.2); }
 .badge-done        { background: var(--success-bg); color: var(--status-done); border: 1px solid rgba(90, 158, 110, 0.2); }
-.badge-abandoned   { background: var(--error-bg); color: var(--status-abandoned); border: 1px solid rgba(196, 90, 90, 0.2); }
 
 .badge-bucket {
   background: transparent;
@@ -787,12 +620,6 @@ body {
   margin-bottom: 0.3rem;
 }
 
-.modal-divider {
-  height: 1px;
-  background: var(--border-subtle);
-  margin: 1rem 0;
-}
-
 /* Note HTML content inside modal */
 .modal-html-content {
   line-height: 1.7;
@@ -936,73 +763,6 @@ body {
 }
 
 /* ================================================================
-   FOLDER BAR (inline, toggled by + button)
-   ================================================================ */
-.folder-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  padding: 0.6rem 0.8rem;
-  margin-top: -2rem;
-  margin-bottom: 2rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  animation: fadeSlideDown 0.15s ease both;
-}
-.folder-bar-label {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  font-family: var(--font-mono);
-}
-.folder-bar-input {
-  flex: 1;
-  min-width: 200px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  padding: 0.35rem 0.65rem;
-  outline: none;
-  transition: border-color var(--transition-fast);
-}
-.folder-bar-input:focus { border-color: var(--accent); }
-.folder-bar-open-btn {
-  background: var(--accent);
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--bg-primary);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.35rem 0.9rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity var(--transition-fast);
-}
-.folder-bar-open-btn:hover { opacity: 0.85; }
-.folder-bar-open-btn:disabled { opacity: 0.5; cursor: default; }
-.folder-bar-close-btn {
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  padding: 0.35rem 0.55rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.folder-bar-close-btn:hover { border-color: var(--text-muted); color: var(--text-secondary); }
-.folder-bar-err {
-  font-size: 0.78rem;
-  color: var(--error, #e06c75);
-  width: 100%;
-}
-
-/* ================================================================
    LANDING PAGE
    ================================================================ */
 .landing {
@@ -1049,34 +809,6 @@ body {
   margin-bottom: 2rem;
 }
 
-.landing-form {
-  display: flex;
-  gap: 0.5rem;
-  align-items: stretch;
-}
-
-.folder-input {
-  flex: 1;
-  min-width: 0;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  padding: 0.65rem 0.9rem;
-  outline: none;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-.folder-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
-}
-.folder-input::placeholder {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-}
-
 .folder-btn {
   background: #c9a84c;
   border: 1px solid transparent;
@@ -1097,14 +829,6 @@ body {
 .folder-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.landing-error {
-  margin-top: 0.85rem;
-  font-size: 0.85rem;
-  color: var(--error);
-  min-height: 1.2em;
-  line-height: 1.4;
 }
 
 /* ================================================================
