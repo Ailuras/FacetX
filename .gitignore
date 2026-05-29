@@ -1,12 +1,8 @@
 # Swift / SwiftPM
 app/.build/
-app/DocsBot.app/
+app/FacetX.app/
 .swiftpm/
 *.xcodeproj
-
-# EventKit probe build artifacts
-experiments/eventkit-probe/EventKitProbe.app/
-experiments/eventkit-probe/probe
 
 # macOS
 .DS_Store
@@ -15,7 +11,7 @@ experiments/eventkit-probe/probe
 .vscode/
 
 # Icon build working dir
-app/DocsBot.iconset/
+app/FacetX.iconset/
 
 # dmg packaging
 app/*.dmg

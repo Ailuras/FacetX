@@ -3,7 +3,7 @@ import Foundation
 /// User settings, persisted as JSON under Application Support.
 ///
 /// `enabledContainerNames` holds the *titles* of calendars / reminder lists
-/// DocsBot is allowed to read and write. Titles (not calendarIdentifiers) are
+/// FacetX is allowed to read and write. Titles (not calendarIdentifiers) are
 /// used deliberately: identifiers are device-local — the same iCloud calendar
 /// has a different id on each Mac — whereas the title is stable across devices,
 /// so this config survives syncing the app across multiple machines that may
@@ -20,11 +20,7 @@ final class AppSettings: ObservableObject {
     private let url: URL
 
     init(filename: String = "settings.json") {
-        let dir = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("DocsBot", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.url = dir.appendingPathComponent(filename)
+        self.url = AppSupport.directory().appendingPathComponent(filename)
         if let data = try? Data(contentsOf: url),
            let stored = try? JSONDecoder().decode(Stored.self, from: data) {
             self.enabledContainerNames = Set(stored.enabledContainerNames)

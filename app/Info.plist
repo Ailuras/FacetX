@@ -2,19 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>DocsBot</string>
-  <key>CFBundleDisplayName</key><string>DocsBot</string>
-  <key>CFBundleIdentifier</key><string>com.docsbot.app</string>
+  <key>CFBundleName</key><string>FacetX</string>
+  <key>CFBundleDisplayName</key><string>FacetX</string>
+  <key>CFBundleIdentifier</key><string>com.facetx.app</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
-  <key>CFBundleExecutable</key><string>DocsBot</string>
-  <key>CFBundleIconFile</key><string>DocsBot</string>
+  <key>CFBundleExecutable</key><string>FacetX</string>
+  <key>CFBundleIconFile</key><string>FacetX</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
-  <key>NSHumanReadableCopyright</key><string>DocsBot</string>
+  <key>NSHumanReadableCopyright</key><string>FacetX</string>
   <key>NSRemindersFullAccessUsageDescription</key>
-  <string>DocsBot reads your reminders to build a project-oriented view, gathering items whose title starts with a project name.</string>
+  <string>FacetX reads your reminders to build a project-oriented view, gathering items whose title starts with a project name.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>
-  <string>DocsBot reads your calendar to build a project-oriented view, gathering events whose title starts with a project name.</string>
+  <string>FacetX reads your calendar to build a project-oriented view, gathering events whose title starts with a project name.</string>
 </dict>
 </plist>

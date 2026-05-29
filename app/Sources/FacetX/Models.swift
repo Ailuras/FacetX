@@ -39,11 +39,7 @@ final class ProjectStore: ObservableObject {
     private let url: URL
 
     init(filename: String = "projects.json") {
-        let dir = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("DocsBot", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.url = dir.appendingPathComponent(filename)
+        self.url = AppSupport.directory().appendingPathComponent(filename)
         load()
     }
 

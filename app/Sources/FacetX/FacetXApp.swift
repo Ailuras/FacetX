@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct DocsBotApp: App {
+struct FacetXApp: App {
     @StateObject private var eventKit = EventKitService()
     @StateObject private var store = ProjectStore()
     @StateObject private var settings = AppSettings()
@@ -17,7 +17,7 @@ struct DocsBotApp: App {
 
         // Menu bar quick-capture: add a prefixed item to a project without
         // opening the main window. Shares the same stores/services.
-        MenuBarExtra("DocsBot", systemImage: "diamond") {
+        MenuBarExtra("FacetX", systemImage: "diamond") {
             QuickCaptureView()
                 .environmentObject(eventKit)
                 .environmentObject(store)

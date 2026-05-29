@@ -1,13 +1,14 @@
-# DocsBot
+# FacetX
 
 A **native macOS app** that gives a **project-oriented view** over your existing
 Apple Calendar and Reminders.
 
 Your tasks and events already live in Reminders and Calendar (synced via iCloud,
 visible in Apple's own apps). Those apps organize them flatly — by list, by
-calendar — with no notion of a *project*. DocsBot adds that missing dimension:
-declare a project, and DocsBot gathers the subset of your calendar/reminder
-items that belong to it into one panel.
+calendar — with no notion of a *project*. FacetX adds that missing dimension:
+declare a project, and FacetX gathers the subset of your calendar/reminder
+items that belong to it into one panel — each project is a *facet* of the same
+underlying data.
 
 ## How items map to projects
 
@@ -22,14 +23,24 @@ Items without a recognized project prefix are never touched — your day-to-day
 reminders stay exactly as they are. (EventKit exposes no tag API, so a title
 prefix is the only reliable association mechanism — see `REBUILD.md`.)
 
+## Build & run
+
+```bash
+cd app
+./build-app.sh            # compile + bundle + ad-hoc sign FacetX.app
+open ./FacetX.app
+```
+
+The app must run as a bundled, signed `.app` — a bare binary is denied EventKit
+access by macOS. See [CLAUDE.md](CLAUDE.md) for architecture notes.
+
 ## Status
 
-Being rebuilt from scratch as a native SwiftUI app. See **[REBUILD.md](REBUILD.md)**
-for the design. The previous Python/web version is archived under
-[`legacy/`](legacy/).
+Native SwiftUI app (v0.1, pre-release demo). See **[REBUILD.md](REBUILD.md)** for
+the design. Formerly named DocsBot; the retired Python/web v1 lives in git
+history.
 
 ## Layout
 
-- `REBUILD.md` — v2 design / blueprint
-- `experiments/` — EventKit probes used to validate the approach
-- `legacy/` — frozen v1 (Python + web + SQLite + MCP + CLI)
+- `REBUILD.md` — design / blueprint
+- `app/` — the SwiftUI app (sources, build scripts)

@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "DocsBot",
+    name: "FacetX",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "DocsBot",
-            path: "Sources/DocsBot"
+            name: "FacetX",
+            path: "Sources/FacetX"
         )
     ]
 )

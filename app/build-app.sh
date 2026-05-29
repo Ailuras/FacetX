@@ -1,15 +1,15 @@
 #!/bin/bash
-# Build DocsBot.app: compile via SwiftPM, wrap the binary into a code-signed
+# Build FacetX.app: compile via SwiftPM, wrap the binary into a code-signed
 # .app bundle with EventKit usage strings + entitlements so macOS will grant
 # Calendar/Reminders access (a bare binary is silently denied).
 #
-# Usage: ./build-app.sh [debug|release] && open ./DocsBot.app
+# Usage: ./build-app.sh [debug|release] && open ./FacetX.app
 set -euo pipefail
 cd "$(dirname "$0")"
 
 CONFIG="${1:-release}"
-APP="DocsBot.app"
-BIN_NAME="DocsBot"
+APP="FacetX.app"
+BIN_NAME="FacetX"
 
 echo "[1/4] swift build ($CONFIG)"
 swift build -c "$CONFIG"
@@ -20,11 +20,11 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_PATH" "$APP/Contents/MacOS/$BIN_NAME"
 cp Info.plist "$APP/Contents/Info.plist"
-cp Resources/DocsBot.icns "$APP/Contents/Resources/DocsBot.icns"
+cp Resources/FacetX.icns "$APP/Contents/Resources/FacetX.icns"
 
 echo "[3/4] codesign (ad-hoc, with entitlements)"
 codesign --force --sign - \
-  --entitlements DocsBot.entitlements \
+  --entitlements FacetX.entitlements \
   --options runtime \
   "$APP"
 

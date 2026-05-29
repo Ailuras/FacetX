@@ -26,7 +26,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("DocsBot")
+            .navigationTitle("FacetX")
         } detail: {
             if let project = selected {
                 ProjectDetailView(project: project)

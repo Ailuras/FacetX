@@ -1,4 +1,4 @@
-# DocsBot v2 — Rebuild Design
+# FacetX — Design (formerly DocsBot v2)
 
 **Status:** v0.1 — all seven build phases implemented; a working pre-release
 demo. Supersedes the Python+SQLite+web version (now frozen, archived in git
@@ -8,15 +8,16 @@ bar quick-capture, live refresh on EventKit changes, container selection +
 creation, and a standard Settings window (config) separate from the use-only
 main window and menu bar.
 
-## 1. What DocsBot v2 is
+## 1. What FacetX is
 
 A **native macOS app** that gives a **project-oriented view** over the user's
 existing Apple Calendar and Reminders. It is *not* a todo store of its own — the
-items live in EventKit (synced via iCloud, visible in Apple's own apps). DocsBot
-v2 is the lens that groups a *subset* of those items by project.
+items live in EventKit (synced via iCloud, visible in Apple's own apps). FacetX
+is the lens that groups a *subset* of those items by project — each project a
+*facet* of the same underlying data.
 
 Founding intent: existing calendar/reminder tools are flat (lists, calendars);
-there is no "project" aggregation dimension. DocsBot supplies it.
+there is no "project" aggregation dimension. FacetX supplies it.
 
 ## 2. The contract
 

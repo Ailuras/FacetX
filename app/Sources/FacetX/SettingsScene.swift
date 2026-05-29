@@ -144,7 +144,7 @@ struct ProjectEditor: View {
 
 // ── Containers tab ───────────────────────────────────────────────────────────
 
-/// Choose which calendars / reminder lists DocsBot reads and writes; create new
+/// Choose which calendars / reminder lists FacetX reads and writes; create new
 /// ones if the expected lists are missing. Stored by title (device-stable).
 struct ContainersSettingsView: View {
     @EnvironmentObject private var ek: EventKitService
@@ -169,7 +169,7 @@ struct ContainersSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Choose which calendars and reminder lists DocsBot uses. "
+            Text("Choose which calendars and reminder lists FacetX uses. "
                  + "Matched by name, so it stays consistent across your Macs.")
                 .font(.caption).foregroundStyle(.secondary)
 

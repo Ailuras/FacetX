@@ -30,7 +30,7 @@ struct QuickCaptureView: View {
             Text("Quick add").font(.headline)
 
             if store.activeProjects.isEmpty {
-                Text("No projects yet. Open DocsBot and declare one.")
+                Text("No projects yet. Open FacetX and declare one.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 TextField("What needs doing?", text: $text)
@@ -77,7 +77,7 @@ struct QuickCaptureView: View {
                 // Bring the main window forward.
                 for w in NSApp.windows where w.canBecomeMain { w.makeKeyAndOrderFront(nil) }
             } label: {
-                Label("Open DocsBot", systemImage: "diamond")
+                Label("Open FacetX", systemImage: "diamond")
             }
             .buttonStyle(.plain)
         }
