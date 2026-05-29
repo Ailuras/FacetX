@@ -158,6 +158,12 @@ def _now() -> str:
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
+def _like_prefix(prefix: str) -> str:
+    """Build a LIKE pattern matching *prefix* literally (used with ESCAPE '\\')."""
+    escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return escaped + "%"
+
+
 class ProjectDB:
     """Thin wrapper around a project's SQLite database."""
 
@@ -215,11 +221,14 @@ class ProjectDB:
     # ── Tasks ─────────────────────────────────────────────────────────────────
 
     def next_task_id(self, bucket: str = "T") -> str:
-        rows = self._conn.execute("SELECT id FROM tasks").fetchall()
         prefix = bucket + "-"
+        rows = self._conn.execute(
+            "SELECT id FROM tasks WHERE id LIKE ? ESCAPE '\\'",
+            (_like_prefix(prefix),),
+        ).fetchall()
         nums = [
             int(r["id"][len(prefix):]) for r in rows
-            if r["id"].startswith(prefix) and r["id"][len(prefix):].isdigit()
+            if r["id"][len(prefix):].isdigit()
         ]
         return f"{bucket}-{(max(nums) + 1) if nums else 1:02d}"
 
@@ -311,9 +320,11 @@ class ProjectDB:
     # ── Research ──────────────────────────────────────────────────────────────
 
     def next_research_id(self) -> str:
-        rows = self._conn.execute("SELECT id FROM research").fetchall()
-        nums = [int(r["id"][1:]) for r in rows
-                if r["id"].startswith("R") and r["id"][1:].isdigit()]
+        rows = self._conn.execute(
+            "SELECT id FROM research WHERE id LIKE ? ESCAPE '\\'",
+            (_like_prefix("R"),),
+        ).fetchall()
+        nums = [int(r["id"][1:]) for r in rows if r["id"][1:].isdigit()]
         return f"R{(max(nums) + 1) if nums else 1}"
 
     def list_research(self, status: str | None = None) -> list[dict]:
@@ -502,9 +513,11 @@ class ProjectDB:
     # ── Features ──────────────────────────────────────────────────────────────
 
     def next_feature_id(self) -> str:
-        rows = self._conn.execute("SELECT id FROM features").fetchall()
-        nums = [int(r["id"][1:]) for r in rows
-                if r["id"].startswith("F") and r["id"][1:].isdigit()]
+        rows = self._conn.execute(
+            "SELECT id FROM features WHERE id LIKE ? ESCAPE '\\'",
+            (_like_prefix("F"),),
+        ).fetchall()
+        nums = [int(r["id"][1:]) for r in rows if r["id"][1:].isdigit()]
         return f"F{(max(nums) + 1) if nums else 1:02d}"
 
     def list_features(self, week_id: str | None = None) -> list[dict]:
