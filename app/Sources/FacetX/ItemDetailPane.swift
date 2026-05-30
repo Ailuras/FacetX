@@ -19,140 +19,190 @@ struct ItemDetailPane: View {
     @State private var containerName = ""
     @State private var saving = false
     
+    private var hasChanges: Bool {
+        if content.trimmingCharacters(in: .whitespaces) != item.content { return true }
+        if notes.trimmingCharacters(in: .whitespacesAndNewlines) != (item.notes ?? "") { return true }
+        if priority != item.priority { return true }
+        let itemHasDate = item.date != nil
+        if useDate != itemHasDate { return true }
+        if useDate, let d = item.date, Calendar.current.compare(date, to: d, toGranularity: .minute) != .orderedSame { return true }
+        if containerName != item.containerName { return true }
+        if urlString.trimmingCharacters(in: .whitespaces) != (item.url?.absoluteString ?? "") { return true }
+        return false
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Label(item.kind == .reminder ? "Reminder" : "Event",
+                Label(item.kind == .reminder ? "Reminder Detail" : "Event Detail",
                       systemImage: item.kind == .reminder ? "list.bullet" : "calendar")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
                 
                 Spacer()
                 
                 Button(action: onClose) {
                     Image(systemName: "sidebar.right")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .help("Close sidebar")
             }
             .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
             
             Divider()
             
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Title field
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Title").font(.caption).foregroundStyle(.secondary)
-                        TextField("What needs doing?", text: $content, axis: .vertical)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 14, weight: .semibold))
-                            .padding(8)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(6)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                            )
-                    }
+                VStack(alignment: .leading, spacing: 14) {
+                    // Inline Title editor (borderless & prominent)
+                    TextField("What needs doing?", text: $content, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 15, weight: .bold))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 6)
                     
-                    // Container (List or Calendar)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(item.kind == .reminder ? "Reminder List" : "Calendar").font(.caption).foregroundStyle(.secondary)
-                        Picker("", selection: $containerName) {
-                            ForEach(containerOptions, id: \.self) { Text($0).tag($0) }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    
-                    // Priority (Reminder only)
-                    if item.kind == .reminder {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Priority").font(.caption).foregroundStyle(.secondary)
-                            Picker("", selection: $priority) {
-                                Text("None").tag(0)
-                                Text("Low").tag(9)
-                                Text("Medium").tag(5)
-                                Text("High").tag(1)
+                    // Properties Card (Figma/Xcode property inspector style)
+                    VStack(spacing: 10) {
+                        // Container (List or Calendar)
+                        inspectorRow(label: item.kind == .reminder ? "List" : "Calendar", icon: item.kind == .reminder ? "list.bullet" : "calendar") {
+                            Picker("", selection: $containerName) {
+                                ForEach(containerOptions, id: \.self) { Text($0).tag($0) }
                             }
-                            .pickerStyle(.segmented)
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .controlSize(.small)
+                            .frame(maxWidth: 160)
                         }
-                    }
-                    
-                    // Date picker
-                    VStack(alignment: .leading, spacing: 6) {
-                        Toggle(item.kind == .reminder ? "Due Date" : "Start Date", isOn: $useDate)
-                            .font(.caption).foregroundStyle(.secondary)
                         
-                        if useDate {
-                            DatePicker("", selection: $date,
-                                       displayedComponents: item.kind == .reminder ? [.date] : [.date, .hourAndMinute])
-                                .labelsHidden()
-                                .datePickerStyle(.field)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    
-                    // URL
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("URL").font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            if let parsedURL = URL(string: urlString.trimmingCharacters(in: .whitespaces)), !urlString.isEmpty {
-                                Link(destination: parsedURL) {
-                                    Image(systemName: "arrow.up.right.circle.fill")
-                                        .foregroundStyle(.blue)
+                        Divider().opacity(0.3)
+                        
+                        // Priority (Reminders only)
+                        if item.kind == .reminder {
+                            inspectorRow(label: "Priority", icon: "exclamationmark.circle") {
+                                Picker("", selection: $priority) {
+                                    Text("None").tag(0)
+                                    Text("Low").tag(9)
+                                    Text("Med").tag(5)
+                                    Text("High").tag(1)
                                 }
-                                .buttonStyle(.plain)
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
+                                .controlSize(.small)
+                                .frame(width: 150)
+                            }
+                            Divider().opacity(0.3)
+                        }
+                        
+                        // Date Picker
+                        inspectorRow(label: item.kind == .reminder ? "Due Date" : "Start Date", icon: "calendar") {
+                            HStack(spacing: 6) {
+                                Toggle("", isOn: $useDate)
+                                    .labelsHidden()
+                                    .toggleStyle(.checkbox)
+                                    .controlSize(.small)
+                                
+                                if useDate {
+                                    DatePicker("", selection: $date,
+                                               displayedComponents: item.kind == .reminder ? [.date] : [.date, .hourAndMinute])
+                                        .labelsHidden()
+                                        .datePickerStyle(.compact)
+                                        .controlSize(.small)
+                                }
                             }
                         }
-                        TextField("https://...", text: $urlString)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 12))
-                            .padding(8)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(6)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                            )
+                        
+                        Divider().opacity(0.3)
+                        
+                        // URL
+                        inspectorRow(label: "URL", icon: "link") {
+                            HStack(spacing: 6) {
+                                TextField("Link associated...", text: $urlString)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 11))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(Color(nsColor: .controlBackgroundColor))
+                                    .cornerRadius(4)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                    )
+                                
+                                if let parsedURL = URL(string: urlString.trimmingCharacters(in: .whitespaces)), !urlString.isEmpty {
+                                    Link(destination: parsedURL) {
+                                        Image(systemName: "arrow.up.right.circle.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.blue)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Open link")
+                                }
+                            }
+                        }
                     }
+                    .padding(12)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                    )
                     
                     // Notes / Description
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Notes").font(.caption).foregroundStyle(.secondary)
-                        TextEditor(text: $notes)
-                            .font(.system(size: 12))
-                            .padding(6)
-                            .frame(minHeight: 150)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(6)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                            )
+                        Label("Notes", systemImage: "doc.text")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 4)
+                        
+                        ZStack(alignment: .topLeading) {
+                            if notes.isEmpty {
+                                Text("Add notes and details here...")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .allowsHitTesting(false)
+                            }
+                            
+                            TextEditor(text: $notes)
+                                .font(.system(size: 12))
+                                .scrollContentBackground(.hidden)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .frame(minHeight: 160)
+                        }
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                        )
                     }
                 }
-                .padding(16)
+                .padding(14)
             }
             
             Divider()
             
-            // Actions
+            // Actions (Bottom Bar)
             HStack {
                 Button(role: .destructive) {
                     deleteItem()
                 } label: {
-                    Label("Delete", systemImage: "trash")
-                        .foregroundStyle(.red)
+                    Image(systemName: "trash")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.red.opacity(0.8))
+                        .padding(6)
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
+                .help("Delete item")
                 
                 Spacer()
                 
@@ -160,9 +210,11 @@ struct ItemDetailPane: View {
                     saveChanges()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(content.trimmingCharacters(in: .whitespaces).isEmpty || saving)
+                .controlSize(.small)
+                .disabled(!hasChanges || content.trimmingCharacters(in: .whitespaces).isEmpty || saving)
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .background(Color(nsColor: .windowBackgroundColor))
         }
         .frame(maxHeight: .infinity)
@@ -171,6 +223,21 @@ struct ItemDetailPane: View {
         .onChange(of: item) {
             loadFields()
         }
+    }
+    
+    // Row style helper for Figma-like property panel
+    private func inspectorRow<Content: View>(label: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Label(label, systemImage: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 80, alignment: .leading)
+            
+            Spacer()
+            
+            content()
+        }
+        .padding(.vertical, 2)
     }
     
     private var containerOptions: [String] {
