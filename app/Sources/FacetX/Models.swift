@@ -16,6 +16,7 @@ struct Project: Identifiable, Codable, Hashable {
     var createdAt: Date = Date()
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
+    var itemOrder: [String]? = []
 
     init(name: String, prefix: String? = nil, tagline: String = "",
          reminderListName: String? = nil, calendarName: String? = nil) {

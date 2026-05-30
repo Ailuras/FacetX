@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var ek: EventKitService
@@ -122,6 +123,7 @@ struct ContentView: View {
 /// Detail pane: a project's items, grouped by container (functional zone).
 struct ProjectDetailView: View {
     @EnvironmentObject private var ek: EventKitService
+    @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
     let project: Project
 
@@ -139,11 +141,19 @@ struct ProjectDetailView: View {
     @State private var inlineEditingText: String = ""
     @State private var inlineEditingNotesID: String?
     @State private var inlineEditingNotesText: String = ""
+    @State private var draggedItem: ProjectItem? = nil
 
     private var grouped: [(zone: String, items: [ProjectItem])] {
-        Dictionary(grouping: items, by: \.containerName)
-            .map { ($0.key, $0.value) }
-            .sorted { $0.zone < $1.zone }
+        let groupedDict = Dictionary(grouping: items, by: \.containerName)
+        return groupedDict.map { (key, value) in
+            let sortedSectionItems = value.sorted { a, b in
+                let indexA = items.firstIndex(where: { $0.id == a.id }) ?? 0
+                let indexB = items.firstIndex(where: { $0.id == b.id }) ?? 0
+                return indexA < indexB
+            }
+            return (key, sortedSectionItems)
+        }
+        .sorted { $0.zone < $1.zone }
     }
 
     var body: some View {
@@ -237,6 +247,13 @@ struct ProjectDetailView: View {
                                 .onTapGesture(count: 2) {
                                     startInlineEdit(for: item)
                                 }
+                                .onDrag {
+                                    self.draggedItem = item
+                                    return NSItemProvider(object: item.id as NSString)
+                                }
+                                .onDrop(of: [.text], delegate: ItemDropDelegate(item: item, draggedItem: $draggedItem) { dragged, target in
+                                    moveItem(from: dragged, to: target)
+                                })
                                 .listRowSeparator(.hidden)
                                 .listRowBackground(Color.clear)
                                 .padding(.vertical, 4)
@@ -332,9 +349,43 @@ struct ProjectDetailView: View {
 
     private func reload() async {
         loading = items.isEmpty
-        items = await ek.items(forProject: project.prefix,
-                               enabledContainers: settings.enabledContainerNames)
+        let fetched = await ek.items(forProject: project.prefix,
+                                     enabledContainers: settings.enabledContainerNames)
+        items = sortItems(fetched)
         loading = false
+    }
+
+    private func sortItems(_ fetched: [ProjectItem]) -> [ProjectItem] {
+        let order = project.itemOrder ?? []
+        return fetched.sorted { a, b in
+            let indexA = order.firstIndex(of: a.id) ?? Int.max
+            let indexB = order.firstIndex(of: b.id) ?? Int.max
+            if indexA == indexB {
+                if a.isCompleted != b.isCompleted {
+                    return !a.isCompleted
+                }
+                return (a.date ?? Date.distantFuture) < (b.date ?? Date.distantFuture)
+            }
+            return indexA < indexB
+        }
+    }
+
+    private func moveItem(from source: ProjectItem, to destination: ProjectItem) {
+        guard let fromIndex = items.firstIndex(where: { $0.id == source.id }),
+              let toIndex = items.firstIndex(where: { $0.id == destination.id }) else {
+            return
+        }
+        
+        if fromIndex != toIndex {
+            withAnimation(.default) {
+                let movedItem = items.remove(at: fromIndex)
+                items.insert(movedItem, at: toIndex)
+                
+                var updatedProject = project
+                updatedProject.itemOrder = items.map { $0.id }
+                store.update(updatedProject)
+            }
+        }
     }
 }
 
@@ -810,5 +861,27 @@ struct ItemRow: View {
             return .red
         }
         return .secondary
+    }
+}
+
+struct ItemDropDelegate: DropDelegate {
+    let item: ProjectItem
+    @Binding var draggedItem: ProjectItem?
+    var onMove: (ProjectItem, ProjectItem) -> Void
+
+    func performDrop(info: DropInfo) -> Bool {
+        self.draggedItem = nil
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedItem = draggedItem else { return }
+        if draggedItem.id != item.id {
+            onMove(draggedItem, item)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
     }
 }
