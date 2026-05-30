@@ -105,6 +105,23 @@ final class ProjectStore: ObservableObject {
         save()
     }
 
+    // ── Item ordering ────────────────────────────────────────────────────────
+
+    func setItemOrder(projectID: Project.ID, orderedIDs: [String]) {
+        guard let p = projects.firstIndex(where: { $0.id == projectID }) else { return }
+        projects[p].itemOrder = orderedIDs
+        save()
+    }
+
+    func pruneItemOrder(projectID: Project.ID, keeping validIDs: Set<String>) {
+        guard let p = projects.firstIndex(where: { $0.id == projectID }),
+              let order = projects[p].itemOrder else { return }
+        let pruned = order.filter { validIDs.contains($0) }
+        guard pruned != order else { return }
+        projects[p].itemOrder = pruned
+        save()
+    }
+
     // ── Persistence ──────────────────────────────────────────────────────────
 
     private func load() {

@@ -501,6 +501,7 @@ struct ProjectDetailView: View {
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.enabledReminderListNames,
                                      enabledCalendars: settings.enabledCalendarNames)
+        store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
         items = sortItems(fetched)
         if let selectedId = selectedDetailItem?.id {
             selectedDetailItem = items.first { $0.id == selectedId }
@@ -533,10 +534,7 @@ struct ProjectDetailView: View {
             withAnimation(.default) {
                 let movedItem = items.remove(at: fromIndex)
                 items.insert(movedItem, at: toIndex)
-                
-                var updatedProject = project
-                updatedProject.itemOrder = items.map { $0.id }
-                store.update(updatedProject)
+                store.setItemOrder(projectID: project.id, orderedIDs: items.map(\.id))
             }
         }
     }
