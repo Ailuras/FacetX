@@ -12,6 +12,7 @@ struct ProjectItem: Identifiable, Hashable {
     let containerName: String   // reminder list / calendar = functional zone
     let isCompleted: Bool
     let date: Date?         // due date (reminder) or start date (event)
+    let notes: String?      // notes / description
 }
 
 /// Wraps EKEventStore: authorization, fetching, prefix-filtering, write-back.
@@ -113,7 +114,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                         content: ProjectPrefix.contentBody(of: title),
                         containerName: r.calendar?.title ?? "?",
                         isCompleted: r.isCompleted,
-                        date: r.dueDateComponents?.date
+                        date: r.dueDateComponents?.date,
+                        notes: r.notes
                     )
                 }
                 cont.resume(returning: items)
@@ -149,7 +151,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                 content: ProjectPrefix.contentBody(of: title),
                 containerName: e.calendar.title,
                 isCompleted: false,
-                date: e.startDate
+                date: e.startDate,
+                notes: e.notes
             )
         }
     }
@@ -260,13 +263,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// `dueDate` is optional. Returns the reminder's identifier on success, or nil.
     @discardableResult
     func createReminder(project: String, content: String,
-                        listName: String, dueDate: Date?) -> String? {
+                        listName: String, dueDate: Date?, notes: String? = nil) -> String? {
         guard let list = store.calendars(for: .reminder)
             .first(where: { $0.title == listName }) ?? store.defaultCalendarForNewReminders()
         else { return nil }
         let r = EKReminder(eventStore: store)
         r.title = ProjectPrefix.makeTitle(project: project, content: content)
         r.calendar = list
+        r.notes = notes
         if let due = dueDate {
             r.dueDateComponents = Calendar.current.dateComponents(
                 [.year, .month, .day], from: due)
@@ -302,13 +306,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     @discardableResult
     func createEvent(project: String, content: String,
                      calendarName: String, startDate: Date,
-                     durationMinutes: Int = 60) -> Bool {
+                     durationMinutes: Int = 60, notes: String? = nil) -> Bool {
         guard let cal = store.calendars(for: .event)
             .first(where: { $0.title == calendarName })
         else { return false }
         let e = EKEvent(eventStore: store)
         e.title = ProjectPrefix.makeTitle(project: project, content: content)
         e.calendar = cal
+        e.notes = notes
         e.startDate = startDate
         e.endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate)
         do { try store.save(e, span: .thisEvent, commit: true); return true } catch { return false }
@@ -325,13 +330,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return false
     }
 
-    /// Update an existing item (reminder or event)'s content, date, and container.
+    /// Update an existing item (reminder or event)'s content, date, container, and notes.
     func updateItem(id: String, project: String, content: String,
-                    date: Date?, useDate: Bool, containerName: String) -> Bool {
+                    date: Date?, useDate: Bool, containerName: String, notes: String?) -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
         
         let newTitle = ProjectPrefix.makeTitle(project: project, content: content)
         item.title = newTitle
+        item.notes = notes
         
         // Update container if it changed
         if item.calendar?.title != containerName {

@@ -20,6 +20,7 @@ struct CreateItemView: View {
 
     @State private var kind: Kind = .reminder
     @State private var content = ""
+    @State private var notes = ""
     @State private var useDate = false
     @State private var date = Date()
     @State private var saving = false
@@ -40,6 +41,12 @@ struct CreateItemView: View {
                     .textFieldStyle(.roundedBorder)
                 Text("Will be saved as “\(ProjectPrefix.makeTitle(project: project.prefix, content: content.isEmpty ? "…" : content))”.")
                     .font(.caption2).foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Notes (optional)").font(.caption).foregroundStyle(.secondary)
+                TextField("Add details...", text: $notes)
+                    .textFieldStyle(.roundedBorder)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -96,10 +103,12 @@ struct CreateItemView: View {
         switch kind {
         case .reminder:
             ok = ek.createReminder(project: project.prefix, content: text,
-                                   listName: container, dueDate: useDate ? date : nil) != nil
+                                   listName: container, dueDate: useDate ? date : nil,
+                                   notes: notes.isEmpty ? nil : notes) != nil
         case .event:
             ok = ek.createEvent(project: project.prefix, content: text,
-                                calendarName: container, startDate: useDate ? date : Date())
+                                calendarName: container, startDate: useDate ? date : Date(),
+                                notes: notes.isEmpty ? nil : notes)
         }
         saving = false
         if ok { onCreated(); dismiss() }

@@ -12,6 +12,7 @@ struct EditItemView: View {
     let onUpdated: () -> Void
 
     @State private var content = ""
+    @State private var notes = ""
     @State private var useDate = false
     @State private var date = Date()
     @State private var containerName = ""
@@ -28,6 +29,12 @@ struct EditItemView: View {
                     .textFieldStyle(.roundedBorder)
                 Text("Will be saved as “\(ProjectPrefix.makeTitle(project: project.prefix, content: content.isEmpty ? "…" : content))”.")
                     .font(.caption2).foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Notes (optional)").font(.caption).foregroundStyle(.secondary)
+                TextField("Add details...", text: $notes)
+                    .textFieldStyle(.roundedBorder)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -78,6 +85,7 @@ struct EditItemView: View {
 
     private func loadFields() {
         content = item.content
+        notes = item.notes ?? ""
         containerName = item.containerName
         if let d = item.date {
             useDate = true
@@ -95,7 +103,7 @@ struct EditItemView: View {
         error = nil
         let ok = ek.updateItem(id: item.id, project: project.prefix, content: text,
                                date: useDate ? date : nil, useDate: useDate,
-                               containerName: containerName)
+                               containerName: containerName, notes: notes.isEmpty ? nil : notes)
         saving = false
         if ok { onUpdated(); dismiss() }
         else { error = "Could not save to \(containerName). Check access." }

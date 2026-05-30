@@ -258,7 +258,7 @@ struct ProjectDetailView: View {
         } else if newContent != item.content {
             _ = ek.updateItem(id: item.id, project: project.prefix, content: newContent,
                                date: item.date, useDate: item.date != nil,
-                               containerName: item.containerName)
+                               containerName: item.containerName, notes: item.notes)
         }
         Task { await reload() }
     }
@@ -279,7 +279,7 @@ struct ProjectDetailView: View {
             if let newId = ek.createReminder(project: project.prefix, content: "新建代办",
                                              listName: reminderList, dueDate: nil) {
                 await reload()
-                startInlineEdit(for: .init(id: newId, kind: .reminder, rawTitle: "", content: "新建代办", containerName: reminderList, isCompleted: false, date: nil))
+                startInlineEdit(for: .init(id: newId, kind: .reminder, rawTitle: "", content: "新建代办", containerName: reminderList, isCompleted: false, date: nil, notes: nil))
             }
         }
     }
@@ -612,6 +612,13 @@ struct ItemRow: View {
                     Text(item.content)
                         .strikethrough(item.isCompleted)
                         .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                }
+                
+                if !isInlineEditing, let notes = item.notes, !notes.isEmpty {
+                    Text(notes)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 
                 if let date = item.date {
