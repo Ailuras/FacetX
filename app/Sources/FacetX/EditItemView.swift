@@ -1,3 +1,4 @@
+import FacetXCore
 import SwiftUI
 
 /// Sheet to edit an existing item (reminder or event) in a project.

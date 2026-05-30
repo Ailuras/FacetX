@@ -1,3 +1,4 @@
+import FacetXCore
 import SwiftUI
 
 /// Single-project week view: a time-focused slice — this week's goal plus the

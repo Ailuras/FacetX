@@ -1,4 +1,5 @@
 import EventKit
+import FacetXCore
 import Foundation
 
 /// A reminder or calendar event, flattened for the UI and tagged with the

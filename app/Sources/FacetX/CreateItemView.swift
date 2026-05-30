@@ -1,3 +1,4 @@
+import FacetXCore
 import SwiftUI
 
 /// Sheet to create a new item in a project. The app composes the
