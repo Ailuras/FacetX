@@ -23,6 +23,12 @@ struct WeekView: View {
             guard let d = item.date else { return false }
             return week.contains(d)
         }
+        .sorted { a, b in
+            if a.isCompleted != b.isCompleted {
+                return !a.isCompleted
+            }
+            return (a.date ?? .distantFuture) < (b.date ?? .distantFuture)
+        }
     }
 
     private var goal: WeekGoal? {

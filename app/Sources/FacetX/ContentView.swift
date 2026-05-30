@@ -180,13 +180,18 @@ struct ProjectDetailView: View {
     @State private var inlineEditingNotesText: String = ""
     @State private var draggedItem: ProjectItem? = nil
     @State private var selectedDetailItem: ProjectItem? = nil
+    @State private var showCompleted = true
+
+    private var visibleItems: [ProjectItem] {
+        showCompleted ? items : items.filter { !$0.isCompleted }
+    }
 
     private var grouped: [(zone: String, items: [ProjectItem])] {
-        let groupedDict = Dictionary(grouping: items, by: \.containerName)
+        let groupedDict = Dictionary(grouping: visibleItems, by: \.containerName)
         return groupedDict.map { (key, value) in
             let sortedSectionItems = value.sorted { a, b in
-                let indexA = items.firstIndex(where: { $0.id == a.id }) ?? 0
-                let indexB = items.firstIndex(where: { $0.id == b.id }) ?? 0
+                let indexA = visibleItems.firstIndex(where: { $0.id == a.id }) ?? 0
+                let indexB = visibleItems.firstIndex(where: { $0.id == b.id }) ?? 0
                 return indexA < indexB
             }
             return (key, sortedSectionItems)
@@ -225,6 +230,12 @@ struct ProjectDetailView: View {
                 .frame(width: 160)
             }
             ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    showCompleted.toggle()
+                } label: {
+                    Image(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                }
+                .help(showCompleted ? "Hide completed reminders" : "Show completed reminders")
                 Button { showCreate = true } label: { Image(systemName: "plus") }
                     .help("Add an item to this project")
                 Button { Task { await reload() } } label: { Image(systemName: "arrow.clockwise") }
@@ -239,6 +250,11 @@ struct ProjectDetailView: View {
         }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
+        .onChange(of: showCompleted) {
+            if !showCompleted, selectedDetailItem?.isCompleted == true {
+                selectedDetailItem = nil
+            }
+        }
     }
 
     @ViewBuilder private var allItemsView: some View {
@@ -258,9 +274,9 @@ struct ProjectDetailView: View {
 
     private var allItemsList: some View {
         List {
-            if items.isEmpty {
+            if visibleItems.isEmpty {
                 Section {
-                    Text("No items yet.")
+                    Text(items.isEmpty ? "No items yet." : "Completed items are hidden.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 10)
@@ -504,7 +520,7 @@ struct ProjectDetailView: View {
         store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
         items = sortItems(fetched)
         if let selectedId = selectedDetailItem?.id {
-            selectedDetailItem = items.first { $0.id == selectedId }
+            selectedDetailItem = visibleItems.first { $0.id == selectedId }
         }
         loading = false
     }
@@ -512,12 +528,12 @@ struct ProjectDetailView: View {
     private func sortItems(_ fetched: [ProjectItem]) -> [ProjectItem] {
         let order = project.itemOrder ?? []
         return fetched.sorted { a, b in
+            if a.isCompleted != b.isCompleted {
+                return !a.isCompleted
+            }
             let indexA = order.firstIndex(of: a.id) ?? Int.max
             let indexB = order.firstIndex(of: b.id) ?? Int.max
             if indexA == indexB {
-                if a.isCompleted != b.isCompleted {
-                    return !a.isCompleted
-                }
                 return (a.date ?? Date.distantFuture) < (b.date ?? Date.distantFuture)
             }
             return indexA < indexB
