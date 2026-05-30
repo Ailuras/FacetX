@@ -71,7 +71,7 @@ struct ItemDetailPane: View {
                             .pickerStyle(.menu)
                             .labelsHidden()
                             .controlSize(.small)
-                            .frame(maxWidth: 172)
+                            .frame(width: 156)
                         }
                         
                         Divider().opacity(0.3)
@@ -223,11 +223,11 @@ struct ItemDetailPane: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 74, alignment: .leading)
             
-            Spacer()
-            
             content()
+                .frame(width: 156, alignment: .trailing)
         }
         .padding(.vertical, 3)
+        .padding(.trailing, 22)
     }
     
     private var containerOptions: [String] {
