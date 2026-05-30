@@ -75,7 +75,10 @@ struct ContentView: View {
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
             }
-            discovered = await ek.discoverProjectNames()
+            discovered = await ek.discoverProjectNames(
+                enabledReminderLists: settings.enabledReminderListNames,
+                enabledCalendars: settings.enabledCalendarNames
+            )
         }
         .sheet(item: $draftProject) { draft in
             NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar in
@@ -95,8 +98,8 @@ struct ContentView: View {
     private func startNewProject() {
         let existing = Set(store.projects.map(\.name))
         let suggestion = discovered.first { !existing.contains($0) } ?? uniqueProjectName(in: existing)
-        let reminderLists = ek.reminderListNames(enabled: settings.enabledContainerNames)
-        let calendars = ek.calendarNames(enabled: settings.enabledContainerNames)
+        let reminderLists = ek.reminderListNames(enabled: settings.enabledReminderListNames)
+        let calendars = ek.calendarNames(enabled: settings.enabledCalendarNames)
         draftProject = ProjectDraft(
             name: suggestion,
             prefix: suggestion,
@@ -496,7 +499,8 @@ struct ProjectDetailView: View {
     private func reload() async {
         loading = items.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
-                                     enabledContainers: settings.enabledContainerNames)
+                                     enabledReminderLists: settings.enabledReminderListNames,
+                                     enabledCalendars: settings.enabledCalendarNames)
         items = sortItems(fetched)
         if let selectedId = selectedDetailItem?.id {
             selectedDetailItem = items.first { $0.id == selectedId }
@@ -699,8 +703,8 @@ private struct EditProjectView: View {
     }
 
     private func loadFields() {
-        reminderLists = ek.reminderListNames(enabled: settings.enabledContainerNames)
-        calendars = ek.calendarNames(enabled: settings.enabledContainerNames)
+        reminderLists = ek.reminderListNames(enabled: settings.enabledReminderListNames)
+        calendars = ek.calendarNames(enabled: settings.enabledCalendarNames)
         name = project.name
         prefix = project.prefix
         tagline = project.tagline

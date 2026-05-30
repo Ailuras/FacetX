@@ -300,9 +300,9 @@ struct ItemDetailPane: View {
     private var containerOptions: [String] {
         switch item.kind {
         case .reminder:
-            return ek.reminderListNames(enabled: settings.enabledContainerNames)
+            return ek.reminderListNames(enabled: settings.enabledReminderListNames)
         case .event:
-            return ek.calendarNames(enabled: settings.enabledContainerNames)
+            return ek.calendarNames(enabled: settings.enabledCalendarNames)
         }
     }
 

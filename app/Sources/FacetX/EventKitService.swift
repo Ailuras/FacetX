@@ -65,27 +65,29 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// All items (reminders + events) whose title prefix matches `project`,
     /// limited to the enabled containers (empty/nil = all).
     func items(forProject project: String,
-               enabledContainers: Set<String>? = nil,
+               enabledReminderLists: Set<String>? = nil,
+               enabledCalendars: Set<String>? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
         let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
         var result: [ProjectItem] = []
-        if rem { result += await reminders(forProject: project, enabled: enabledContainers) }
-        if cal { result += events(forProject: project, enabled: enabledContainers, windowDays: eventWindowDays) }
+        if rem { result += await reminders(forProject: project, enabled: enabledReminderLists) }
+        if cal { result += events(forProject: project, enabled: enabledCalendars, windowDays: eventWindowDays) }
         return result.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
     /// Distinct project names discovered across enabled reminders + recent events.
-    func discoverProjectNames(enabledContainers: Set<String>? = nil,
+    func discoverProjectNames(enabledReminderLists: Set<String>? = nil,
+                              enabledCalendars: Set<String>? = nil,
                               eventWindowDays: Int = 120) async -> [String] {
         let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
         var names = Set<String>()
         if rem {
             // Map to project names inside the callback; EKReminder is not Sendable.
-            let discovered = await fetchReminderProjectNames(enabled: enabledContainers)
+            let discovered = await fetchReminderProjectNames(enabled: enabledReminderLists)
             names.formUnion(discovered)
         }
         if cal {
-            for e in recentEvents(enabled: enabledContainers, windowDays: eventWindowDays) {
+            for e in recentEvents(enabled: enabledCalendars, windowDays: eventWindowDays) {
                 if let n = ProjectPrefix.projectName(of: e.title ?? "") { names.insert(n) }
             }
         }

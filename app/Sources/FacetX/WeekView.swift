@@ -177,7 +177,8 @@ struct WeekView: View {
     private func reload() async {
         loading = allItems.isEmpty
         allItems = await ek.items(forProject: project.prefix,
-                                  enabledContainers: settings.enabledContainerNames)
+                                  enabledReminderLists: settings.enabledReminderListNames,
+                                  enabledCalendars: settings.enabledCalendarNames)
         loading = false
     }
 }
