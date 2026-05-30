@@ -33,11 +33,10 @@ struct ItemDetailPane: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 Label(item.kind == .reminder ? "Reminder Detail" : "Event Detail",
                       systemImage: item.kind == .reminder ? "list.bullet" : "calendar")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 
                 Spacer()
@@ -51,23 +50,20 @@ struct ItemDetailPane: View {
                 .help("Close sidebar")
             }
             .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
+            .padding(.top, 13)
+            .padding(.bottom, 11)
             
             Divider()
             
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    // Inline Title editor (borderless & prominent)
+                VStack(alignment: .leading, spacing: 16) {
                     TextField("What needs doing?", text: $content, axis: .vertical)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 16, weight: .semibold))
                         .padding(.horizontal, 4)
-                        .padding(.vertical, 6)
+                        .padding(.vertical, 8)
                     
-                    // Properties Card (Figma/Xcode property inspector style)
                     VStack(spacing: 10) {
-                        // Container (List or Calendar)
                         inspectorRow(label: item.kind == .reminder ? "List" : "Calendar", icon: item.kind == .reminder ? "list.bullet" : "calendar") {
                             Picker("", selection: $containerName) {
                                 ForEach(containerOptions, id: \.self) { Text($0).tag($0) }
@@ -75,12 +71,11 @@ struct ItemDetailPane: View {
                             .pickerStyle(.menu)
                             .labelsHidden()
                             .controlSize(.small)
-                            .frame(maxWidth: 160)
+                            .frame(maxWidth: 172)
                         }
                         
                         Divider().opacity(0.3)
                         
-                        // Priority (Reminders only)
                         if item.kind == .reminder {
                             inspectorRow(label: "Priority", icon: "exclamationmark.circle") {
                                 Picker("", selection: $priority) {
@@ -92,12 +87,11 @@ struct ItemDetailPane: View {
                                 .pickerStyle(.segmented)
                                 .labelsHidden()
                                 .controlSize(.small)
-                                .frame(width: 150)
+                                .frame(width: 156)
                             }
                             Divider().opacity(0.3)
                         }
                         
-                        // Date Picker
                         inspectorRow(label: item.kind == .reminder ? "Due Date" : "Start Date", icon: "calendar") {
                             HStack(spacing: 6) {
                                 Toggle("", isOn: $useDate)
@@ -117,7 +111,6 @@ struct ItemDetailPane: View {
                         
                         Divider().opacity(0.3)
                         
-                        // URL
                         inspectorRow(label: "URL", icon: "link") {
                             HStack(spacing: 6) {
                                 TextField("Link associated...", text: $urlString)
@@ -125,10 +118,10 @@ struct ItemDetailPane: View {
                                     .font(.system(size: 11))
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 3)
-                                    .background(Color(nsColor: .controlBackgroundColor))
-                                    .cornerRadius(4)
+                                    .background(FacetTheme.panel.opacity(0.7))
+                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 4)
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
                                             .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                                     )
                                 
@@ -145,14 +138,13 @@ struct ItemDetailPane: View {
                         }
                     }
                     .padding(12)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                    .cornerRadius(10)
+                    .background(FacetTheme.quietPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
                     )
                     
-                    // Notes / Description
                     VStack(alignment: .leading, spacing: 6) {
                         Label("Notes", systemImage: "doc.text")
                             .font(.system(size: 11, weight: .semibold))
@@ -174,22 +166,21 @@ struct ItemDetailPane: View {
                                 .scrollContentBackground(.hidden)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 4)
-                                .frame(minHeight: 160)
+                                .frame(minHeight: 190)
                         }
-                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                        .cornerRadius(10)
+                        .background(FacetTheme.quietPanel)
+                        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                                .stroke(FacetTheme.hairline, lineWidth: 1)
                         )
                     }
                 }
-                .padding(14)
+                .padding(16)
             }
             
             Divider()
             
-            // Actions (Bottom Bar)
             HStack {
                 Button(role: .destructive) {
                     deleteItem()
@@ -199,7 +190,7 @@ struct ItemDetailPane: View {
                         .foregroundStyle(.red.opacity(0.8))
                         .padding(6)
                         .background(Color.red.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help("Delete item")
@@ -215,29 +206,28 @@ struct ItemDetailPane: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background(FacetTheme.canvas)
         }
         .frame(maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(FacetTheme.canvas)
         .onAppear(perform: loadFields)
         .onChange(of: item) {
             loadFields()
         }
     }
     
-    // Row style helper for Figma-like property panel
     private func inspectorRow<Content: View>(label: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         HStack(alignment: .center, spacing: 8) {
             Label(label, systemImage: icon)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
-                .frame(width: 80, alignment: .leading)
+                .frame(width: 74, alignment: .leading)
             
             Spacer()
             
             content()
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
     }
     
     private var containerOptions: [String] {

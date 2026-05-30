@@ -21,13 +21,7 @@ struct ContentView: View {
                 List(selection: $selectedID) {
                     Section("Projects") {
                         ForEach(store.activeProjects) { project in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(project.name).font(.headline)
-                                if !project.tagline.isEmpty {
-                                    Text(project.tagline)
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
+                            ProjectSidebarRow(project: project)
                             .tag(project.id)
                             .contextMenu {
                                 Button("Edit Project") {
@@ -45,11 +39,16 @@ struct ContentView: View {
                         }
                     }
                 }
+                .listStyle(.sidebar)
                 Divider()
                 Button { startNewProject() } label: {
                     Label("New Project", systemImage: "plus.circle")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 5)
                 }
                 .buttonStyle(.plain)
+                .foregroundStyle(.primary.opacity(0.82))
                 .padding(8)
             }
             .navigationTitle("FacetX")
@@ -71,6 +70,7 @@ struct ContentView: View {
                     description: Text("Pick a project from the sidebar."))
             }
         }
+        .navigationSplitViewStyle(.balanced)
         .task {
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
@@ -117,6 +117,40 @@ struct ContentView: View {
 
     private func defaultName(_ name: String, in options: [String]) -> String {
         options.contains(name) ? name : (options.first ?? "")
+    }
+}
+
+private struct ProjectSidebarRow: View {
+    let project: Project
+
+    var body: some View {
+        HStack(spacing: 9) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.14))
+                Text(initial)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(project.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                Text(project.tagline.isEmpty ? project.prefix : project.tagline)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private var initial: String {
+        project.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .first
+            .map { String($0).uppercased() } ?? "F"
     }
 }
 
@@ -174,7 +208,7 @@ struct ProjectDetailView: View {
                 }, onUpdate: {
                     Task { await reload() }
                 })
-                .frame(width: 320)
+                .frame(width: 340)
                 .transition(.move(edge: .trailing))
             }
         }
@@ -205,99 +239,190 @@ struct ProjectDetailView: View {
     }
 
     @ViewBuilder private var allItemsView: some View {
-        if loading {
-            ProgressView().controlSize(.large)
-        } else {
-            List {
-                if items.isEmpty {
-                    Section {
-                        Text("No items yet.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    ForEach(grouped, id: \.zone) { group in
-                        Section(group.zone) {
-                            ForEach(group.items) { item in
-                                ItemRow(
-                                    item: item,
-                                    isSelected: item.id == selectedDetailItem?.id,
-                                    onToggle: { completed in
-                                        Task {
-                                            await ek.setReminderCompleted(id: item.id, completed: completed)
-                                            await reload()
-                                        }
-                                    },
-                                    onEdit: {
-                                        editingItem = item
-                                    },
-                                    inlineEditingText: $inlineEditingText,
-                                    isInlineEditing: item.id == inlineEditingID,
-                                    onInlineCommit: {
-                                        commitInlineEdit(for: item)
-                                    },
-                                    onInlineCancel: {
-                                        cancelInlineEdit(for: item)
-                                    },
-                                    inlineEditingNotesText: $inlineEditingNotesText,
-                                    isInlineEditingNotes: item.id == inlineEditingNotesID,
-                                    onInlineNotesCommit: {
-                                        commitInlineNotesEdit(for: item)
-                                    },
-                                    onInlineNotesCancel: {
-                                        cancelInlineNotesEdit(for: item)
-                                    },
-                                    onStartNotesEdit: {
-                                        startInlineNotesEdit(for: item)
-                                    }
-                                )
-                                .contextMenu {
-                                    Button("Edit...") {
-                                        editingItem = item
-                                    }
-                                    Button("Delete", role: .destructive) {
-                                        _ = ek.deleteItem(id: item.id)
-                                        Task { await reload() }
-                                    }
-                                }
-                                .onTapGesture(count: 2) {
-                                    startInlineEdit(for: item)
-                                }
-                                .onTapGesture {
-                                    withAnimation(.easeOut(duration: 0.15)) {
-                                        selectedDetailItem = item
-                                    }
-                                }
-                                .onDrag {
-                                    self.draggedItem = item
-                                    return NSItemProvider(object: item.id as NSString)
-                                }
-                                .onDrop(of: [.text], delegate: ItemDropDelegate(item: item, draggedItem: $draggedItem) { dragged, target in
-                                    moveItem(from: dragged, to: target)
-                                })
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                                .padding(.vertical, 2.5)
-                            }
-                        }
-                    }
-                }
-                
+        VStack(spacing: 0) {
+            projectHeader
+
+            if loading {
+                Spacer()
+                ProgressView().controlSize(.large)
+                Spacer()
+            } else {
+                allItemsList
+            }
+        }
+        .background(FacetTheme.canvas)
+    }
+
+    private var allItemsList: some View {
+        List {
+            if items.isEmpty {
                 Section {
-                    Button {
-                        addNewItemInline()
-                    } label: {
-                        Label("Add item...", systemImage: "plus.circle.fill")
-                            .foregroundStyle(.blue)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
+                    Text("No items yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 10)
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
+            } else {
+                ForEach(grouped, id: \.zone) { group in
+                    Section {
+                        ForEach(group.items) { item in
+                            projectItemRow(item)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+                        }
+                    } header: {
+                        Text(group.zone)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .textCase(nil)
+                            .padding(.top, 4)
+                    }
+                }
             }
-            .listStyle(.plain)
+
+            Section {
+                Button {
+                    addNewItemInline()
+                } label: {
+                    Label("Add item...", systemImage: "plus")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.vertical, 5)
+                }
+                .buttonStyle(.plain)
+            }
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 12, trailing: 16))
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    private var projectHeader: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(project.name)
+                    .font(.system(size: 18, weight: .semibold))
+                HStack(spacing: 8) {
+                    if !project.tagline.isEmpty {
+                        Text(project.tagline)
+                    }
+                    Text("#\(project.prefix)")
+                        .monospaced()
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                summaryChip(value: openItemCount, label: "Open", systemImage: "circle")
+                summaryChip(value: completedReminderCount, label: "Done", systemImage: "checkmark.circle")
+                summaryChip(value: zoneCount, label: "Zones", systemImage: "square.grid.2x2")
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    private var openItemCount: Int {
+        items.filter { $0.kind == .event || !$0.isCompleted }.count
+    }
+
+    private var completedReminderCount: Int {
+        items.filter { $0.kind == .reminder && $0.isCompleted }.count
+    }
+
+    private var zoneCount: Int {
+        Set(items.map(\.containerName)).count
+    }
+
+    private func summaryChip(value: Int, label: String, systemImage: String) -> some View {
+        Label {
+            Text("\(value) \(label)")
+        } icon: {
+            Image(systemName: systemImage)
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(FacetTheme.quietPanel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func projectItemRow(_ item: ProjectItem) -> some View {
+        ItemRow(
+            item: item,
+            isSelected: item.id == selectedDetailItem?.id,
+            onToggle: { completed in
+                Task {
+                    await ek.setReminderCompleted(id: item.id, completed: completed)
+                    await reload()
+                }
+            },
+            onEdit: {
+                editingItem = item
+            },
+            inlineEditingText: $inlineEditingText,
+            isInlineEditing: item.id == inlineEditingID,
+            onInlineCommit: {
+                commitInlineEdit(for: item)
+            },
+            onInlineCancel: {
+                cancelInlineEdit(for: item)
+            },
+            inlineEditingNotesText: $inlineEditingNotesText,
+            isInlineEditingNotes: item.id == inlineEditingNotesID,
+            onInlineNotesCommit: {
+                commitInlineNotesEdit(for: item)
+            },
+            onInlineNotesCancel: {
+                cancelInlineNotesEdit(for: item)
+            },
+            onStartNotesEdit: {
+                startInlineNotesEdit(for: item)
+            }
+        )
+        .contextMenu {
+            Button("Edit...") {
+                editingItem = item
+            }
+            Button("Delete", role: .destructive) {
+                _ = ek.deleteItem(id: item.id)
+                Task { await reload() }
+            }
+        }
+        .onTapGesture(count: 2) {
+            startInlineEdit(for: item)
+        }
+        .onTapGesture {
+            withAnimation(.easeOut(duration: 0.15)) {
+                selectedDetailItem = item
+            }
+        }
+        .onDrag {
+            self.draggedItem = item
+            return NSItemProvider(object: item.id as NSString)
+        }
+        .onDrop(of: [.text], delegate: ItemDropDelegate(item: item, draggedItem: $draggedItem) { dragged, target in
+            moveItem(from: dragged, to: target)
+        })
     }
 
     private func startInlineEdit(for item: ProjectItem) {
@@ -753,22 +878,32 @@ struct ItemRow: View {
         return .blue
     }
 
+    private var rowFill: Color {
+        if isSelected { return FacetTheme.softAccent }
+        if hovered { return Color.primary.opacity(0.035) }
+        return FacetTheme.quietPanel
+    }
+
+    private var rowStroke: Color {
+        if isSelected { return Color.accentColor.opacity(0.72) }
+        if hovered { return borderHighlightColor.opacity(0.32) }
+        return FacetTheme.hairline
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .center, spacing: 10) {
                 if item.kind == .reminder {
                     Button { onToggle(!item.isCompleted) } label: {
                         Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .font(.title3)
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundStyle(item.isCompleted ? .green : .secondary)
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 2)
                 } else {
                     Image(systemName: "calendar")
-                        .font(.title3)
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.blue)
-                        .padding(.top, 2)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -782,7 +917,7 @@ struct ItemRow: View {
                     } else {
                         HStack(spacing: 6) {
                             Text(item.content)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(size: 13, weight: .medium))
                                 .strikethrough(item.isCompleted)
                                 .foregroundStyle(item.isCompleted ? .secondary : .primary)
                             
@@ -809,9 +944,9 @@ struct ItemRow: View {
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(Color.blue.opacity(0.12))
+                            .background(Color.blue.opacity(0.10))
                             .foregroundStyle(.blue)
-                            .clipShape(Capsule())
+                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                         }
                         .buttonStyle(.plain)
                         .help("Open link: \(url.absoluteString)")
@@ -826,9 +961,9 @@ struct ItemRow: View {
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(dateHighlightColor(for: date).opacity(0.12))
+                        .background(dateHighlightColor(for: date).opacity(0.10))
                         .foregroundStyle(dateHighlightColor(for: date))
-                        .clipShape(Capsule())
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                     }
                     
                     if !isInlineEditing {
@@ -843,38 +978,36 @@ struct ItemRow: View {
                         .help("Edit item")
                     }
                 }
-                .padding(.top, 2)
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 9)
         .background(
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .fill(rowFill)
                 if item.kind == .reminder && item.priority > 0 {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(leftStripeColor.opacity(0.03))
+                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                        .fill(leftStripeColor.opacity(0.025))
                 }
             }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
         .overlay(
             HStack {
                 if item.kind == .reminder && item.priority > 0 {
                     Rectangle()
                         .fill(leftStripeColor)
-                        .frame(width: 5)
+                        .frame(width: 3)
                 }
                 Spacer()
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color.blue : (hovered ? borderHighlightColor.opacity(0.4) : Color.primary.opacity(0.1)), lineWidth: isSelected ? 2 : 1.5)
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(rowStroke, lineWidth: isSelected ? 1.5 : 1)
         )
-        .shadow(color: Color.black.opacity(hovered ? 0.12 : 0.06), radius: hovered ? 8 : 4, x: 0, y: hovered ? 4 : 2)
         .contentShape(Rectangle())
         .onHover { isHovered in
             withAnimation(.easeOut(duration: 0.15)) {

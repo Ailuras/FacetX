@@ -29,14 +29,16 @@ struct WeekView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
             weekNav
-            goalSection
-            Divider()
-            itemsSection
-            Spacer()
+            VStack(alignment: .leading, spacing: 14) {
+                goalSection
+                itemsSection
+                Spacer()
+            }
+            .padding(16)
         }
-        .padding(16)
+        .background(FacetTheme.canvas)
         .sheet(item: $editingItem) { item in
             EditItemView(project: project, item: item) { Task { await reload() } }
         }
@@ -58,6 +60,12 @@ struct WeekView: View {
             Button("This week") { week = ISOWeek.containing(Date()) }
                 .font(.caption)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
     }
 
     // ── Goal ─────────────────────────────────────────────────────────────────
@@ -78,6 +86,13 @@ struct WeekView: View {
                     Button("Cancel") { editingGoal = false }
                 }
             }
+            .padding(12)
+            .background(FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
         } else if let goal {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -91,11 +106,26 @@ struct WeekView: View {
                     Text(goal.body).font(.callout).foregroundStyle(.secondary)
                 }
             }
+            .padding(12)
+            .background(FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
         } else {
             Button { startEditingGoal() } label: {
                 Label("Set this week's goal", systemImage: "plus.circle")
             }
             .buttonStyle(.plain).foregroundStyle(.secondary)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
         }
     }
 
@@ -131,9 +161,10 @@ struct WeekView: View {
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .padding(.vertical, 4)
+                .listRowInsets(EdgeInsets(top: 3, leading: 0, bottom: 3, trailing: 0))
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
     }
 
