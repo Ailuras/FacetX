@@ -13,6 +13,7 @@ struct EditItemView: View {
 
     @State private var content = ""
     @State private var notes = ""
+    @State private var priority: Int = 0
     @State private var useDate = false
     @State private var date = Date()
     @State private var containerName = ""
@@ -35,6 +36,19 @@ struct EditItemView: View {
                 Text("Notes (optional)").font(.caption).foregroundStyle(.secondary)
                 TextField("Add details...", text: $notes)
                     .textFieldStyle(.roundedBorder)
+            }
+
+            if item.kind == .reminder {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Priority").font(.caption).foregroundStyle(.secondary)
+                    Picker("", selection: $priority) {
+                        Text("None").tag(0)
+                        Text("Low (!)").tag(9)
+                        Text("Medium (!!)").tag(5)
+                        Text("High (!!!)").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -86,6 +100,7 @@ struct EditItemView: View {
     private func loadFields() {
         content = item.content
         notes = item.notes ?? ""
+        priority = item.priority
         containerName = item.containerName
         if let d = item.date {
             useDate = true
@@ -103,7 +118,8 @@ struct EditItemView: View {
         error = nil
         let ok = ek.updateItem(id: item.id, project: project.prefix, content: text,
                                date: useDate ? date : nil, useDate: useDate,
-                               containerName: containerName, notes: notes.isEmpty ? nil : notes)
+                               containerName: containerName, notes: notes.isEmpty ? nil : notes,
+                               priority: priority)
         saving = false
         if ok { onUpdated(); dismiss() }
         else { error = "Could not save to \(containerName). Check access." }

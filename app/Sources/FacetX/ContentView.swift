@@ -224,6 +224,9 @@ struct ProjectDetailView: View {
                                 .onTapGesture(count: 2) {
                                     startInlineEdit(for: item)
                                 }
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .padding(.vertical, 4)
                             }
                         }
                     }
@@ -239,7 +242,10 @@ struct ProjectDetailView: View {
                     .buttonStyle(.plain)
                     .padding(.vertical, 4)
                 }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             }
+            .listStyle(.plain)
         }
     }
 
@@ -258,7 +264,8 @@ struct ProjectDetailView: View {
         } else if newContent != item.content {
             _ = ek.updateItem(id: item.id, project: project.prefix, content: newContent,
                                date: item.date, useDate: item.date != nil,
-                               containerName: item.containerName, notes: item.notes)
+                               containerName: item.containerName, notes: item.notes,
+                               priority: item.priority)
         }
         Task { await reload() }
     }
@@ -279,7 +286,7 @@ struct ProjectDetailView: View {
             if let newId = ek.createReminder(project: project.prefix, content: "新建代办",
                                              listName: reminderList, dueDate: nil) {
                 await reload()
-                startInlineEdit(for: .init(id: newId, kind: .reminder, rawTitle: "", content: "新建代办", containerName: reminderList, isCompleted: false, date: nil, notes: nil))
+                startInlineEdit(for: .init(id: newId, kind: .reminder, rawTitle: "", content: "新建代办", containerName: reminderList, isCompleted: false, date: nil, notes: nil, priority: 0))
             }
         }
     }
@@ -591,59 +598,151 @@ struct ItemRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            if item.kind == .reminder {
-                Button { onToggle(!item.isCompleted) } label: {
-                    Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(item.isCompleted ? .green : .secondary)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Image(systemName: "calendar").foregroundStyle(.blue)
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                if isInlineEditing, let inlineEditingText {
-                    InlineEditTextField(text: inlineEditingText,
-                                        onCommit: { onInlineCommit?() },
-                                        onCancel: { onInlineCancel?() })
-                        .frame(minHeight: 20)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                if item.kind == .reminder {
+                    Button { onToggle(!item.isCompleted) } label: {
+                        Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(item.isCompleted ? .green : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
                 } else {
-                    Text(item.content)
-                        .strikethrough(item.isCompleted)
-                        .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                    Image(systemName: "calendar")
+                        .font(.title3)
+                        .foregroundStyle(.blue)
+                        .padding(.top, 2)
                 }
                 
-                if !isInlineEditing, let notes = item.notes, !notes.isEmpty {
-                    Text(notes)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 4) {
+                    if isInlineEditing, let inlineEditingText {
+                        InlineEditTextField(text: inlineEditingText,
+                                            onCommit: { onInlineCommit?() },
+                                            onCancel: { onInlineCancel?() })
+                            .frame(minHeight: 22)
+                    } else {
+                        Text(item.content)
+                            .font(.system(size: 14, weight: .semibold))
+                            .strikethrough(item.isCompleted)
+                            .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                    }
                 }
+                
+                Spacer()
+                
+                if !isInlineEditing && item.kind == .reminder && item.priority > 0 {
+                    priorityBadge(for: item.priority)
+                }
+                
+                if !isInlineEditing {
+                    Button {
+                        onEdit()
+                    } label: {
+                        Image(systemName: "pencil")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(hovered ? 1.0 : 0.0)
+                    .help("Edit item")
+                }
+            }
+            
+            if !isInlineEditing, let notes = item.notes, !notes.isEmpty {
+                Text(notes)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(4)
+                    .multilineTextAlignment(.leading)
+                    .padding(.leading, 30)
+            }
+            
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: item.kind == .reminder ? "list.bullet" : "calendar")
+                        .font(.caption2)
+                    Text(item.containerName)
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.secondary.opacity(0.1))
+                .clipShape(Capsule())
                 
                 if let date = item.date {
-                    Text(date, style: .date).font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption2)
+                        Text(date, style: .date)
+                            .font(.system(size: 11, weight: .medium))
+                        if item.kind == .event {
+                            Text(date, style: .time)
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                    }
+                    .foregroundStyle(dateHighlightColor(for: date))
                 }
             }
-            Spacer()
-            
-            if !isInlineEditing {
-                Button {
-                    onEdit()
-                } label: {
-                    Image(systemName: "pencil")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .opacity(hovered ? 1.0 : 0.0)
-                .help("Edit item")
-            }
+            .padding(.leading, 30)
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.4))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(hovered ? Color.blue.opacity(0.4) : Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(hovered ? 0.04 : 0.01), radius: 4, x: 0, y: 2)
         .contentShape(Rectangle())
         .onHover { isHovered in
             withAnimation(.easeOut(duration: 0.15)) {
                 hovered = isHovered
             }
         }
+    }
+    
+    private func priorityBadge(for priority: Int) -> some View {
+        let text: String
+        let color: Color
+        switch priority {
+        case 1...4:
+            text = "High !!!"
+            color = .red
+        case 5:
+            text = "Medium !!"
+            color = .orange
+        case 6...9:
+            text = "Low !"
+            color = .blue
+        default:
+            text = ""
+            color = .secondary
+        }
+        
+        return Group {
+            if !text.isEmpty {
+                Text(text)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(color.opacity(0.12))
+                    .cornerRadius(4)
+            }
+        }
+    }
+    
+    private func dateHighlightColor(for date: Date) -> Color {
+        if item.isCompleted { return .secondary }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return .orange
+        } else if date < Date() {
+            return .red
+        }
+        return .secondary
     }
 }

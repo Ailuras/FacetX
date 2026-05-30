@@ -129,7 +129,11 @@ struct WeekView: View {
                 .onTapGesture(count: 2) {
                     editingItem = item
                 }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .padding(.vertical, 4)
             }
+            .listStyle(.plain)
         }
     }
 
