@@ -21,7 +21,7 @@ Regulus: 问题最小化&修复bugs      →  project "Regulus"
 
 Items without a recognized project prefix are never touched — your day-to-day
 reminders stay exactly as they are. (EventKit exposes no tag API, so a title
-prefix is the only reliable association mechanism — see `REBUILD.md`.)
+prefix is the only reliable association mechanism — see `CLAUDE.md`.)
 
 ## Build & run
 
@@ -47,10 +47,10 @@ swift run FacetXCoreChecks
 Native SwiftUI app (v0.2, local beta). The app now includes a polished
 three-pane workspace, modern detail and settings surfaces, menu bar quick
 capture, project-specific week planning, completed-item controls, and lightweight
-core checks. See **[REBUILD.md](REBUILD.md)** for the design.
+core checks. See **[CLAUDE.md](CLAUDE.md)** for architecture and maintenance
+notes.
 
 ## Layout
 
-- `REBUILD.md` — design / blueprint
 - `CLAUDE.md` — repository guide for future coding agents
 - `app/` — the SwiftUI app (sources, checks, build scripts)

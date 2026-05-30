@@ -11,6 +11,17 @@ It is a *lens* that gathers the subset of calendar/reminder items belonging to a
 project and presents them in one panel (each project = a *facet* of the same
 data).
 
+Current status: v0.2 local beta. Implemented: project creation/editing in the
+main window, prefix-based aggregation, grouped item view, complete/create/delete,
+modern detail editing, completed-item filtering with soft list transitions,
+per-project week view + goal, menu bar quick-capture, live refresh on EventKit
+changes, container selection + creation, and a standard Settings window for
+app-wide container configuration.
+
+Founding intent: Apple's Calendar and Reminders organize data flatly by calendar
+or list. FacetX supplies the missing project aggregation dimension without
+owning or mirroring the underlying item content.
+
 App Swift source lives under [app/Sources/FacetX/](app/Sources/FacetX/).
 Shared pure logic lives under [app/Sources/FacetXCore/](app/Sources/FacetXCore/),
 with lightweight executable checks in [app/Checks/FacetXCoreChecks/](app/Checks/FacetXCoreChecks/).
@@ -87,6 +98,31 @@ Both JSON stores resolve their directory through
 [AppSupport.swift](app/Sources/FacetX/AppSupport.swift) (`Application
 Support/FacetX/`) — change the folder name in that one place if ever needed.
 
+Project-side persisted shape:
+
+```text
+Project
+  id                 UUID
+  name               String
+  prefix             String
+  tagline            String
+  reminderListName   String?
+  calendarName       String?
+  createdAt          Date
+  archived           Bool
+  itemOrder          [String]?
+
+WeekGoal
+  id                 UUID
+  projectId          UUID
+  weekId             String   // ISO "2026-W22"
+  title              String
+  body               String
+```
+
+Items are intentionally absent from this store. They are fetched from EventKit on
+demand and matched by the project prefix.
+
 Scene/view split is deliberate: project creation/editing lives in the main
 window next to the project list, the menu bar is for reminder quick capture, and
 **Settings only holds app-wide container configuration**
@@ -139,3 +175,5 @@ first removal so unchecking one doesn't re-enable everything.
 - JSON stores write atomically with `[.prettyPrinted, .sortedKeys]`.
 - Keep the dependency surface at zero: pure SwiftPM + system frameworks only
   (this keeps the Command Line Tools build working — no Xcode project required).
+- Out of scope for now: Apple Notes integration (no public API; AppleScript
+  only) and the retired web/Python implementation.
