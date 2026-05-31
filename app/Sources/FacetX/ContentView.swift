@@ -263,20 +263,23 @@ struct ProjectDetailView: View {
         VStack(spacing: 0) {
             projectHeader
 
-            if loading {
-                Spacer()
-                ProgressView().controlSize(.large)
-                Spacer()
-            } else {
-                allItemsList
-            }
+            // Keep the List in the tree from the first render and show loading as
+            // an overlay. Swapping a ProgressView in/out for the List made the
+            // List lay out its rows on first appearance at a bad moment, so the
+            // initial open showed crammed rows until a project switch rebuilt it.
+            allItemsList
+                .overlay {
+                    if loading && items.isEmpty {
+                        ProgressView().controlSize(.large)
+                    }
+                }
         }
         .background(FacetTheme.canvas)
     }
 
     private var allItemsList: some View {
         List {
-            if visibleItems.isEmpty {
+            if visibleItems.isEmpty && !(loading && items.isEmpty) {
                 Section {
                     Text(items.isEmpty ? "No items yet." : "Completed items are hidden.")
                         .font(.subheadline)
@@ -539,9 +542,15 @@ struct ProjectDetailView: View {
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder ?? [])
         let selectedId = selectedDetailItem?.id
         if items.isEmpty {
-            items = sortedItems
-            if let selectedId {
-                selectedDetailItem = visibleItems.first { $0.id == selectedId }
+            // First population: skip the row insertion animation so the rows
+            // don't fly in from the top and momentarily pile up.
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                items = sortedItems
+                if let selectedId {
+                    selectedDetailItem = visibleItems.first { $0.id == selectedId }
+                }
             }
         } else {
             withAnimation(listAnimation) {
