@@ -180,19 +180,26 @@ struct ProjectDetailView: View {
     @State private var draggedItem: ProjectItem? = nil
     @State private var selectedDetailItem: ProjectItem? = nil
     @State private var showCompleted = true
-    /// The id of an item just created by "Add item" and still showing its
-    /// placeholder text. Tracked by id (not by matching the placeholder string)
-    /// so cancelling its edit removes exactly that row and nothing else.
-    @State private var freshlyCreatedID: String?
-
-    private static let placeholderContent = "新建代办"
+    @State private var searchText = ""
 
     private var listAnimation: Animation {
         .spring(response: 0.34, dampingFraction: 0.88)
     }
 
     private var visibleItems: [ProjectItem] {
-        showCompleted ? items : items.filter { !$0.isCompleted }
+        var result = showCompleted ? items : items.filter { !$0.isCompleted }
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return result }
+        result = result.filter {
+            $0.content.lowercased().contains(query)
+                || ($0.notes?.lowercased().contains(query) ?? false)
+                || $0.containerName.lowercased().contains(query)
+        }
+        return result
+    }
+
+    private var hasActiveSearch: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private var grouped: [ItemArrangement.ZoneGroup] {
@@ -200,50 +207,30 @@ struct ProjectDetailView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            Group {
-                switch mode {
-                case .all:  allItemsView
-                case .week: WeekView(project: project, selectedItem: $selectedDetailItem)
+        VStack(spacing: 0) {
+            controlBar
+            HStack(spacing: 0) {
+                Group {
+                    switch mode {
+                    case .all:  allItemsView
+                    case .week: WeekView(project: project, selectedItem: $selectedDetailItem)
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
-            if let selectedItem = selectedDetailItem {
-                Divider()
-                ItemDetailPane(item: selectedItem, project: project, onClose: {
-                    selectedDetailItem = nil
-                }, onUpdate: {
-                    Task { await reload() }
-                })
-                .frame(width: 340)
-                .transition(.move(edge: .trailing))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if let selectedItem = selectedDetailItem {
+                    Divider()
+                    ItemDetailPane(item: selectedItem, project: project, onClose: {
+                        selectedDetailItem = nil
+                    }, onUpdate: {
+                        Task { await reload() }
+                    })
+                    .frame(width: 340)
+                    .transition(.move(edge: .trailing))
+                }
             }
         }
         .navigationTitle(project.name)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("", selection: $mode) {
-                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 160)
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    withAnimation(listAnimation) {
-                        showCompleted.toggle()
-                    }
-                } label: {
-                    Image(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle")
-                }
-                .help(showCompleted ? "Hide completed reminders" : "Show completed reminders")
-                Button { showCreate = true } label: { Image(systemName: "plus") }
-                    .help("Add an item to this project")
-                Button { Task { await reload() } } label: { Image(systemName: "arrow.clockwise") }
-                    .help("Refresh")
-            }
-        }
         .sheet(isPresented: $showCreate) {
             CreateItemView(project: project) { Task { await reload() } }
         }
@@ -256,6 +243,92 @@ struct ProjectDetailView: View {
                 }
             }
         }
+    }
+
+    // ── Control bar (mode, search, actions) ──────────────────────────────────
+
+    private var controlBar: some View {
+        HStack(spacing: 10) {
+            Picker("", selection: $mode) {
+                ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 150)
+
+            Spacer(minLength: 12)
+
+            if mode == .all {
+                searchField
+                    .frame(maxWidth: 240)
+            }
+            actionCluster
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            TextField("Search items…", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+            if hasActiveSearch {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(FacetTheme.quietPanel))
+        .overlay(Capsule().stroke(FacetTheme.hairline, lineWidth: 1))
+    }
+
+    private var actionCluster: some View {
+        HStack(spacing: 2) {
+            if mode == .all {
+                pillButton(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
+                           help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
+                           active: showCompleted) {
+                    withAnimation(listAnimation) { showCompleted.toggle() }
+                }
+            }
+            pillButton(systemName: "arrow.clockwise", help: "Refresh") {
+                Task { await reload() }
+            }
+            pillButton(systemName: "plus", help: "Add an item to this project") {
+                showCreate = true
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(FacetTheme.quietPanel))
+        .overlay(Capsule().stroke(FacetTheme.hairline, lineWidth: 1))
+    }
+
+    private func pillButton(systemName: String, help: String, active: Bool = false,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(active ? Color.accentColor : .secondary)
+                .frame(width: 26, height: 24)
+                .background(active ? Color.accentColor.opacity(0.14) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     @ViewBuilder private var allItemsView: some View {
@@ -280,7 +353,7 @@ struct ProjectDetailView: View {
         List {
             if visibleItems.isEmpty && !(loading && items.isEmpty) {
                 Section {
-                    Text(items.isEmpty ? "No items yet." : "Completed items are hidden.")
+                    Text(emptyMessage)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 10)
@@ -309,25 +382,15 @@ struct ProjectDetailView: View {
                     }
                 }
             }
-
-            Section {
-                Button {
-                    addNewItemInline()
-                } label: {
-                    Label("Add item...", systemImage: "plus")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color.accentColor)
-                        .padding(.vertical, 5)
-                }
-                .buttonStyle(.plain)
-            }
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 12, trailing: 16))
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .animation(listAnimation, value: visibleItems.map { "\($0.id)-\($0.isCompleted)" })
+    }
+
+    private var emptyMessage: String {
+        if hasActiveSearch { return "No items match “\(searchText)”." }
+        return items.isEmpty ? "No items yet." : "Completed items are hidden."
     }
 
     private var projectHeader: some View {
@@ -464,7 +527,6 @@ struct ProjectDetailView: View {
         guard inlineEditingID == item.id else { return }
         let newContent = inlineEditingText.trimmingCharacters(in: .whitespaces)
         inlineEditingID = nil
-        freshlyCreatedID = nil
 
         Task {
             if newContent.isEmpty {
@@ -482,13 +544,7 @@ struct ProjectDetailView: View {
     private func cancelInlineEdit(for item: ProjectItem) {
         guard inlineEditingID == item.id else { return }
         inlineEditingID = nil
-        // Only discard the row if it was a never-filled fresh placeholder.
-        let wasFresh = freshlyCreatedID == item.id
-        freshlyCreatedID = nil
-        Task {
-            if wasFresh { _ = await ek.deleteItem(id: item.id) }
-            await reload()
-        }
+        Task { await reload() }
     }
 
     private func startInlineNotesEdit(for item: ProjectItem) {
@@ -517,19 +573,6 @@ struct ProjectDetailView: View {
         guard inlineEditingNotesID == item.id else { return }
         inlineEditingNotesID = nil
         Task { await reload() }
-    }
-
-    private func addNewItemInline() {
-        let reminderList = project.reminderListName ?? settings.defaultReminderListName
-        guard !reminderList.isEmpty else { return }
-        Task {
-            if let newId = await ek.createReminder(project: project.prefix, content: Self.placeholderContent,
-                                                   listName: reminderList, dueDate: nil) {
-                freshlyCreatedID = newId
-                await reload()
-                startInlineEdit(for: .init(id: newId, kind: .reminder, rawTitle: "", content: Self.placeholderContent, containerName: reminderList, isCompleted: false, date: nil, notes: nil, priority: 0, url: nil))
-            }
-        }
     }
 
     private func reload() async {
