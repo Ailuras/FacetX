@@ -181,6 +181,12 @@ struct ProjectDetailView: View {
     @State private var draggedItem: ProjectItem? = nil
     @State private var selectedDetailItem: ProjectItem? = nil
     @State private var showCompleted = true
+    /// The id of an item just created by "Add item" and still showing its
+    /// placeholder text. Tracked by id (not by matching the placeholder string)
+    /// so cancelling its edit removes exactly that row and nothing else.
+    @State private var freshlyCreatedID: String?
+
+    private static let placeholderContent = "新建代办"
 
     private var listAnimation: Animation {
         .spring(response: 0.34, dampingFraction: 0.88)
@@ -469,7 +475,8 @@ struct ProjectDetailView: View {
         guard inlineEditingID == item.id else { return }
         let newContent = inlineEditingText.trimmingCharacters(in: .whitespaces)
         inlineEditingID = nil
-        
+        freshlyCreatedID = nil
+
         if newContent.isEmpty {
             _ = ek.deleteItem(id: item.id)
         } else if newContent != item.content {
@@ -484,9 +491,11 @@ struct ProjectDetailView: View {
     private func cancelInlineEdit(for item: ProjectItem) {
         guard inlineEditingID == item.id else { return }
         inlineEditingID = nil
-        if item.content == "新建代办" {
+        // Only discard the row if it was a never-filled fresh placeholder.
+        if freshlyCreatedID == item.id {
             _ = ek.deleteItem(id: item.id)
         }
+        freshlyCreatedID = nil
         Task { await reload() }
     }
 
@@ -520,10 +529,11 @@ struct ProjectDetailView: View {
         let reminderList = project.reminderListName ?? settings.defaultReminderListName
         guard !reminderList.isEmpty else { return }
         Task {
-            if let newId = ek.createReminder(project: project.prefix, content: "新建代办",
+            if let newId = ek.createReminder(project: project.prefix, content: Self.placeholderContent,
                                              listName: reminderList, dueDate: nil) {
+                freshlyCreatedID = newId
                 await reload()
-                startInlineEdit(for: .init(id: newId, kind: .reminder, rawTitle: "", content: "新建代办", containerName: reminderList, isCompleted: false, date: nil, notes: nil, priority: 0, url: nil))
+                startInlineEdit(for: .init(id: newId, kind: .reminder, rawTitle: "", content: Self.placeholderContent, containerName: reminderList, isCompleted: false, date: nil, notes: nil, priority: 0, url: nil))
             }
         }
     }
