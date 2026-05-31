@@ -208,7 +208,7 @@ struct ProjectDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            controlBar
+            projectHeader
             HStack(spacing: 0) {
                 Group {
                     switch mode {
@@ -230,6 +230,8 @@ struct ProjectDetailView: View {
                 }
             }
         }
+        .background(FacetTheme.canvas)
+        .ignoresSafeArea(.container, edges: .top)
         .navigationTitle(project.name)
         .sheet(isPresented: $showCreate) {
             CreateItemView(project: project) { Task { await reload() } }
@@ -245,31 +247,50 @@ struct ProjectDetailView: View {
         }
     }
 
-    // ── Control bar (mode, search, actions) ──────────────────────────────────
+    // ── Header controls (mode, search, actions) ──────────────────────────────
 
-    private var controlBar: some View {
+    private var headerControls: some View {
+        ViewThatFits(in: .horizontal) {
+            fullHeaderControls
+            compactHeaderControls
+            minimalHeaderControls
+        }
+    }
+
+    private var fullHeaderControls: some View {
         HStack(spacing: 10) {
-            Picker("", selection: $mode) {
-                ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 150)
-
-            Spacer(minLength: 12)
-
+            modePicker(width: 150)
             if mode == .all {
                 searchField
-                    .frame(maxWidth: 240)
+                    .frame(width: 220)
             }
+            summaryCluster
             actionCluster
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+    }
+
+    private var compactHeaderControls: some View {
+        HStack(spacing: 8) {
+            modePicker(width: 150)
+            summaryCluster
+            actionCluster
         }
+    }
+
+    private var minimalHeaderControls: some View {
+        HStack(spacing: 8) {
+            modePicker(width: 132)
+            actionCluster
+        }
+    }
+
+    private func modePicker(width: CGFloat) -> some View {
+        Picker("", selection: $mode) {
+            ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: width)
     }
 
     private var searchField: some View {
@@ -333,8 +354,6 @@ struct ProjectDetailView: View {
 
     @ViewBuilder private var allItemsView: some View {
         VStack(spacing: 0) {
-            projectHeader
-
             // Keep the List in the tree from the first render and show loading as
             // an overlay. Swapping a ProgressView in/out for the List made the
             // List lay out its rows on first appearance at a bad moment, so the
@@ -395,33 +414,45 @@ struct ProjectDetailView: View {
 
     private var projectHeader: some View {
         HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(project.name)
-                    .font(.system(size: 18, weight: .semibold))
-                HStack(spacing: 8) {
-                    if !project.tagline.isEmpty {
-                        Text(project.tagline)
-                    }
-                    Text("#\(project.prefix)")
-                        .monospaced()
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
+            projectTitle
+                .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: 14)
 
-            HStack(spacing: 6) {
-                summaryChip(value: openItemCount, label: "Open", systemImage: "circle")
-                summaryChip(value: completedReminderCount, label: "Done", systemImage: "checkmark.circle")
-                summaryChip(value: zoneCount, label: "Zones", systemImage: "square.grid.2x2")
-            }
+            headerControls
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .background(FacetTheme.canvas)
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    private var projectTitle: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(project.name)
+                .font(.system(size: 18, weight: .semibold))
+                .lineLimit(1)
+            HStack(spacing: 8) {
+                if !project.tagline.isEmpty {
+                    Text(project.tagline)
+                        .lineLimit(1)
+                }
+                Text("#\(project.prefix)")
+                    .monospaced()
+                    .lineLimit(1)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var summaryCluster: some View {
+        HStack(spacing: 6) {
+            summaryChip(value: openItemCount, label: "Open", systemImage: "circle")
+            summaryChip(value: completedReminderCount, label: "Done", systemImage: "checkmark.circle")
+            summaryChip(value: zoneCount, label: "Zones", systemImage: "square.grid.2x2")
         }
     }
 

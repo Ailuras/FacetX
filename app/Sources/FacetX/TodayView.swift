@@ -39,6 +39,7 @@ struct TodayView: View {
             content
         }
         .background(FacetTheme.canvas)
+        .ignoresSafeArea(.container, edges: .top)
         .navigationTitle("Today")
         .task { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
