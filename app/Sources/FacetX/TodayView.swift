@@ -1,10 +1,10 @@
 import FacetXCore
 import SwiftUI
 
-/// Cross-project Today view: a single place to see everything due today or
-/// overdue across all projects, instead of opening each project in turn.
-/// Reads straight from EventKit (no new storage) and tags each row with its
-/// owning project.
+/// Cross-project Today view: a single flat list of everything across all
+/// projects whose date is today. Reads straight from EventKit (no new storage)
+/// and tags each row with its owning project; tapping a row jumps to that
+/// project so it can be edited there.
 struct TodayView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
@@ -23,8 +23,15 @@ struct TodayView: View {
         Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
     }
 
-    private var overdue: [ProjectItem] { items.filter { bucket(for: $0) == .overdue } }
-    private var today: [ProjectItem] { items.filter { bucket(for: $0) == .today } }
+    /// Items dated today, across projects. Completed reminders drop out.
+    private var todayItems: [ProjectItem] {
+        items.filter { item in
+            guard let date = item.date else { return false }
+            if item.kind == .reminder && item.isCompleted { return false }
+            return Calendar.current.isDateInToday(date)
+        }
+        .sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,54 +39,31 @@ struct TodayView: View {
             content
         }
         .background(FacetTheme.canvas)
+        .navigationTitle("Today")
         .task { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
     }
 
     @ViewBuilder private var content: some View {
-        if overdue.isEmpty && today.isEmpty {
+        if todayItems.isEmpty {
             ContentUnavailableView {
-                Label("All clear", systemImage: "checkmark.circle")
+                Label("Nothing today", systemImage: "checkmark.circle")
             } description: {
                 Text(store.activeProjects.isEmpty
                      ? "Create a project to start gathering its items here."
-                     : "Nothing is due today across your projects.")
+                     : "No items are dated today across your projects.")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 if loading && items.isEmpty { ProgressView().controlSize(.large) }
             }
         } else {
-            list
-        }
-    }
-
-    private var list: some View {
-        List {
-            section(title: "Overdue", tint: .red, rows: overdue)
-            section(title: "Today", tint: .accentColor, rows: today)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .animation(listAnimation, value: items.map { "\($0.id)-\($0.isCompleted)" })
-    }
-
-    @ViewBuilder
-    private func section(title: String, tint: Color, rows: [ProjectItem]) -> some View {
-        if !rows.isEmpty {
-            Section {
-                ForEach(rows) { item in row(item) }
-            } header: {
-                HStack(spacing: 6) {
-                    Text(title)
-                    Text("\(rows.count)")
-                        .foregroundStyle(.tertiary)
-                }
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(tint == .red ? .red : .secondary)
-                .textCase(nil)
-                .padding(.top, 4)
+            List {
+                ForEach(todayItems) { item in row(item) }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .animation(listAnimation, value: todayItems.map { "\($0.id)-\($0.isCompleted)" })
         }
     }
 
@@ -113,10 +97,7 @@ struct TodayView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            HStack(spacing: 6) {
-                summaryChip(value: overdue.count, label: "Overdue", systemImage: "exclamationmark.circle")
-                summaryChip(value: today.count, label: "Today", systemImage: "sun.max")
-            }
+            summaryChip(value: todayItems.count, label: "Due today", systemImage: "sun.max")
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
@@ -136,35 +117,18 @@ struct TodayView: View {
             .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
     }
 
-    // ── Classification ───────────────────────────────────────────────────────
-
-    private enum Bucket { case overdue, today }
-
-    /// Today shows actionable, dated items: today's reminders/events, plus
-    /// still-open overdue reminders. Completed reminders and past events drop out.
-    private func bucket(for item: ProjectItem) -> Bucket? {
-        guard let date = item.date else { return nil }
-        if item.kind == .reminder && item.isCompleted { return nil }
-        if Calendar.current.isDateInToday(date) { return .today }
-        if date < Calendar.current.startOfDay(for: Date()) {
-            return item.kind == .reminder ? .overdue : nil
-        }
-        return nil
-    }
-
     private func reload() async {
         loading = items.isEmpty
         let prefixes = Set(store.activeProjects.map(\.prefix))
         let fetched = await ek.items(forProjects: prefixes,
                                      enabledReminderLists: settings.enabledReminderListNames,
                                      enabledCalendars: settings.enabledCalendarNames)
-        let sorted = fetched.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
         if items.isEmpty {
             var transaction = Transaction()
             transaction.disablesAnimations = true
-            withTransaction(transaction) { items = sorted }
+            withTransaction(transaction) { items = fetched }
         } else {
-            withAnimation(listAnimation) { items = sorted }
+            withAnimation(listAnimation) { items = fetched }
         }
         loading = false
     }
