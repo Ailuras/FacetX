@@ -376,8 +376,11 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             do { try store.save(reminder, commit: true); return true } catch { return false }
         } else if let event = item as? EKEvent {
             guard let start = date else { return false }
+            // Preserve the event's existing duration instead of forcing 1 hour;
+            // ProjectItem only carries the start, so the end must be derived.
+            let duration = event.endDate.timeIntervalSince(event.startDate)
             event.startDate = start
-            event.endDate = Calendar.current.date(byAdding: .minute, value: 60, to: start)
+            event.endDate = start.addingTimeInterval(duration > 0 ? duration : 3600)
             do { try store.save(event, span: .thisEvent, commit: true); return true } catch { return false }
         }
         return false
