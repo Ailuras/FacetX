@@ -11,12 +11,13 @@ It is a *lens* that gathers the subset of calendar/reminder items belonging to a
 project and presents them in one panel (each project = a *facet* of the same
 data).
 
-Current status: v0.2 local beta. Implemented: project creation/editing in the
-main window, prefix-based aggregation, grouped item view, complete/create/delete,
-modern detail editing, completed-item filtering with soft list transitions,
-per-project week view + goal, menu bar quick-capture, live refresh on EventKit
-changes, container selection + creation, and a standard Settings window for
-app-wide container configuration.
+Current status: v0.3 local beta. Implemented: project creation/editing in the
+main window, prefix-based aggregation, grouped item view, cross-project Today
+view, project search and header controls, complete/create/delete, modern detail
+editing, completed-item filtering with soft list transitions, per-project week
+view + goal, menu bar quick-capture, live refresh on EventKit changes, container
+selection + creation, and a standard Settings window for app-wide container
+configuration.
 
 Founding intent: Apple's Calendar and Reminders organize data flatly by calendar
 or list. FacetX supplies the missing project aggregation dimension without
