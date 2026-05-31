@@ -9,6 +9,9 @@ struct WeekView: View {
     @EnvironmentObject private var settings: AppSettings
 
     let project: Project
+    /// The item shown in the shared detail pane (owned by ProjectDetailView), so
+    /// week-view edits open the same side pane as the all-items view.
+    @Binding var selectedItem: ProjectItem?
 
     @State private var week = ISOWeek.containing(Date())
     @State private var allItems: [ProjectItem] = []
@@ -16,7 +19,6 @@ struct WeekView: View {
     @State private var editingGoal = false
     @State private var goalTitle = ""
     @State private var goalBody = ""
-    @State private var editingItem: ProjectItem?
 
     private var listAnimation: Animation {
         .spring(response: 0.34, dampingFraction: 0.88)
@@ -50,9 +52,6 @@ struct WeekView: View {
             .padding(16)
         }
         .background(FacetTheme.canvas)
-        .sheet(item: $editingItem) { item in
-            EditItemView(project: project, item: item) { Task { await reload() } }
-        }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
     }
@@ -150,25 +149,25 @@ struct WeekView: View {
                 .font(.callout).foregroundStyle(.secondary)
         } else {
             List(weekItems) { item in
-                ItemRow(item: item) { completed in
+                ItemRow(item: item, isSelected: item.id == selectedItem?.id) { completed in
                     Task {
                         await ek.setReminderCompleted(id: item.id, completed: completed)
                         await reload()
                     }
                 } onEdit: {
-                    editingItem = item
+                    selectItem(item)
                 }
                 .contextMenu {
                     Button("Edit...") {
-                        editingItem = item
+                        selectItem(item)
                     }
                     Button("Delete", role: .destructive) {
                         _ = ek.deleteItem(id: item.id)
                         Task { await reload() }
                     }
                 }
-                .onTapGesture(count: 2) {
-                    editingItem = item
+                .onTapGesture {
+                    selectItem(item)
                 }
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .move(edge: .top)),
@@ -182,6 +181,10 @@ struct WeekView: View {
             .scrollContentBackground(.hidden)
             .animation(listAnimation, value: weekItems.map { "\($0.id)-\($0.isCompleted)" })
         }
+    }
+
+    private func selectItem(_ item: ProjectItem) {
+        withAnimation(.easeOut(duration: 0.15)) { selectedItem = item }
     }
 
     private func startEditingGoal() {

@@ -173,7 +173,6 @@ struct ProjectDetailView: View {
     @State private var items: [ProjectItem] = []
     @State private var loading = false
     @State private var showCreate = false
-    @State private var editingItem: ProjectItem?
     @State private var inlineEditingID: String?
     @State private var inlineEditingText: String = ""
     @State private var inlineEditingNotesID: String?
@@ -209,7 +208,7 @@ struct ProjectDetailView: View {
             Group {
                 switch mode {
                 case .all:  allItemsView
-                case .week: WeekView(project: project)
+                case .week: WeekView(project: project, selectedItem: $selectedDetailItem)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -251,9 +250,6 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showCreate) {
             CreateItemView(project: project) { Task { await reload() } }
-        }
-        .sheet(item: $editingItem) { item in
-            EditItemView(project: project, item: item) { Task { await reload() } }
         }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
@@ -410,7 +406,7 @@ struct ProjectDetailView: View {
                 }
             },
             onEdit: {
-                editingItem = item
+                withAnimation(.easeOut(duration: 0.15)) { selectedDetailItem = item }
             },
             inlineEditingText: $inlineEditingText,
             isInlineEditing: item.id == inlineEditingID,
@@ -434,7 +430,7 @@ struct ProjectDetailView: View {
         )
         .contextMenu {
             Button("Edit...") {
-                editingItem = item
+                withAnimation(.easeOut(duration: 0.15)) { selectedDetailItem = item }
             }
             Button("Delete", role: .destructive) {
                 _ = ek.deleteItem(id: item.id)
