@@ -341,15 +341,20 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     /// Update an existing item (reminder or event)'s content, date, container, notes, and priority.
+    ///
+    /// `url` is only written when `updateURL` is true. Callers that don't edit the
+    /// URL (inline title/notes edits, the edit sheet) leave it untouched — passing
+    /// the default would otherwise silently erase an item's existing link.
     func updateItem(id: String, project: String, content: String,
-                    date: Date?, useDate: Bool, containerName: String, notes: String?, priority: Int, url: URL? = nil) -> Bool {
+                    date: Date?, useDate: Bool, containerName: String, notes: String?, priority: Int,
+                    url: URL? = nil, updateURL: Bool = false) -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
-        
+
         let newTitle = ProjectPrefix.makeTitle(project: project, content: content)
         item.title = newTitle
         item.notes = notes
-        item.url = url
-        
+        if updateURL { item.url = url }
+
         if let reminder = item as? EKReminder {
             reminder.priority = priority
         }

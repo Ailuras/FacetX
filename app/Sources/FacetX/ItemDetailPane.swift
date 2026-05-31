@@ -346,7 +346,7 @@ struct ItemDetailPane: View {
                                date: shouldUseDate ? date : nil, useDate: shouldUseDate,
                                containerName: containerName,
                                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
-                               priority: priority, url: urlParam)
+                               priority: priority, url: urlParam, updateURL: true)
         saving = false
         if ok {
             onUpdate()
