@@ -121,7 +121,8 @@ struct QuickCaptureView: View {
             if ok != nil {
                 text = ""
                 justAdded = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { justAdded = false }
+                try? await Task.sleep(for: .seconds(1.5))
+                justAdded = false
             } else {
                 error = "Could not save to \(listName)."
             }
