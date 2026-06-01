@@ -113,13 +113,13 @@ struct WeekView: View {
                 .help("Previous week")
             Spacer()
             VStack(spacing: 2) {
-                Text(week.label).font(.headline)
-                Text(week.id).font(.caption2).foregroundStyle(.secondary)
+                Text("Week \(week.week)").font(.headline)
+                Text(weekRangeLabel).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer()
             Button { week = week.shifted(by: 1) } label: { Image(systemName: "chevron.right") }
                 .help("Next week")
-            Button("This week") { week = ISOWeek.containing(Date()) }
+            Button("Current week") { week = ISOWeek.containing(Date()) }
                 .font(.caption)
                 .help("Go to current week")
         }
@@ -340,11 +340,48 @@ struct WeekView: View {
         await reload()
     }
 
+    private var weekRangeLabel: String {
+        let start = week.startDate
+        let end = Calendar(identifier: .iso8601).date(byAdding: .day, value: 6, to: start) ?? start
+        let startFormatter = DateFormatter()
+        startFormatter.dateFormat = Calendar.current.isDate(start, equalTo: end, toGranularity: .year) ? "MMM d" : "MMM d, yyyy"
+        let endFormatter = DateFormatter()
+        endFormatter.dateFormat = "MMM d, yyyy"
+        return "\(startFormatter.string(from: start)) - \(endFormatter.string(from: end))"
+    }
+
+    private func syncGoalWithCalendar(for currentWeek: ISOWeek) async {
+        guard ek.calendarAuthorized,
+              !ek.calendarNames(enabled: settings.enabledCalendarNames).isEmpty else { return }
+
+        let localGoal = store.weekGoal(projectID: project.id, weekId: currentWeek.id)
+        let snapshot = await ek.weekGoalEvent(project: project.prefix,
+                                              week: currentWeek,
+                                              existingEventId: localGoal?.eventId,
+                                              enabledCalendars: settings.enabledCalendarNames)
+        guard !Task.isCancelled, currentWeek == week else { return }
+
+        if let snapshot {
+            if localGoal?.title != snapshot.title
+                || localGoal?.body != snapshot.body
+                || localGoal?.eventId != snapshot.eventId {
+                store.setWeekGoal(projectID: project.id, weekId: currentWeek.id,
+                                  title: snapshot.title, body: snapshot.body,
+                                  eventId: snapshot.eventId)
+            }
+        } else if localGoal?.eventId != nil {
+            store.setWeekGoal(projectID: project.id, weekId: currentWeek.id, title: "", body: "")
+        }
+    }
+
     private func reload() async {
+        let requestedWeek = week
         loading = allItems.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.enabledReminderListNames,
                                      enabledCalendars: settings.enabledCalendarNames)
+        await syncGoalWithCalendar(for: requestedWeek)
+        guard !Task.isCancelled, requestedWeek == week else { return }
         if allItems.isEmpty {
             allItems = fetched
         } else {

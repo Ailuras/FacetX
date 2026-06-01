@@ -63,12 +63,12 @@ struct MonthView: View {
             Spacer()
             VStack(spacing: 2) {
                 Text(month.label).font(.headline)
-                Text(month.id).font(.caption2).foregroundStyle(.secondary)
+                Text("Month \(month.id)").font(.caption2).foregroundStyle(.secondary)
             }
             Spacer()
             Button { month = month.shifted(by: 1) } label: { Image(systemName: "chevron.right") }
                 .help("Next month")
-            Button("This month") { month = MonthYear.containing(Date()) }
+            Button("Current month") { month = MonthYear.containing(Date()) }
                 .font(.caption)
                 .help("Go to current month")
         }
