@@ -33,4 +33,15 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.priority = priority
         self.url = url
     }
+
+    /// Whether this item matches a free-text search over its content, notes and
+    /// container name. An empty/whitespace query matches everything, so callers
+    /// can filter unconditionally.
+    public func matches(searchQuery query: String) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return true }
+        return content.lowercased().contains(q)
+            || (notes?.lowercased().contains(q) ?? false)
+            || containerName.lowercased().contains(q)
+    }
 }

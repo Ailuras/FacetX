@@ -186,15 +186,8 @@ struct ProjectDetailView: View {
     private var listAnimation: Animation { FacetTheme.listSpring }
 
     private var visibleItems: [ProjectItem] {
-        var result = showCompleted ? items : items.filter { !$0.isCompleted }
-        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return result }
-        result = result.filter {
-            $0.content.lowercased().contains(query)
-                || ($0.notes?.lowercased().contains(query) ?? false)
-                || $0.containerName.lowercased().contains(query)
-        }
-        return result
+        let base = showCompleted ? items : items.filter { !$0.isCompleted }
+        return base.filter { $0.matches(searchQuery: searchText) }
     }
 
     private var hasActiveSearch: Bool {

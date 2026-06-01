@@ -72,4 +72,16 @@ let weekItems = ItemArrangement.inWeek(
     ISOWeek(year: 2026, week: 22))
 check(weekItems.map(\.id) == ["mon", "sun"], "inWeek should filter to the week and sort by date")
 
+// ── ProjectItem.matches ──────────────────────────────────────────────────────
+
+let searchItem = ProjectItem(id: "s", kind: .reminder, rawTitle: "Regulus: Ship beta",
+                             content: "Ship beta", containerName: "Build",
+                             isCompleted: false, date: nil, notes: "needs review", priority: 0, url: nil)
+check(searchItem.matches(searchQuery: ""), "empty query should match everything")
+check(searchItem.matches(searchQuery: "  "), "whitespace query should match everything")
+check(searchItem.matches(searchQuery: "SHIP"), "matches should be case-insensitive on content")
+check(searchItem.matches(searchQuery: "review"), "matches should search notes")
+check(searchItem.matches(searchQuery: "build"), "matches should search container name")
+check(!searchItem.matches(searchQuery: "missing"), "non-matching query should not match")
+
 print("FacetXCoreChecks OK")
