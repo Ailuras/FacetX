@@ -65,6 +65,7 @@ struct WeekView: View {
     private var weekNav: some View {
         HStack {
             Button { week = week.shifted(by: -1) } label: { Image(systemName: "chevron.left") }
+                .help("Previous week")
             Spacer()
             VStack(spacing: 2) {
                 Text(week.label).font(.headline)
@@ -72,8 +73,10 @@ struct WeekView: View {
             }
             Spacer()
             Button { week = week.shifted(by: 1) } label: { Image(systemName: "chevron.right") }
+                .help("Next week")
             Button("This week") { week = ISOWeek.containing(Date()) }
                 .font(.caption)
+                .help("Go to current week")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -114,7 +117,9 @@ struct WeekView: View {
                     Label("Weekly goal", systemImage: "target")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Edit") { startEditingGoal() }.font(.caption)
+                    Button("Edit") { startEditingGoal() }
+                        .font(.caption)
+                        .help("Edit weekly goal")
                 }
                 Text(goal.title).font(.title3).bold()
                 if !goal.body.isEmpty {
@@ -133,6 +138,7 @@ struct WeekView: View {
                 Label("Set this week's goal", systemImage: "plus.circle")
             }
             .buttonStyle(.plain).foregroundStyle(.secondary)
+            .help("Set this week's project goal")
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(FacetTheme.quietPanel)

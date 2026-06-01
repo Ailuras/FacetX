@@ -286,6 +286,7 @@ struct ProjectDetailView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+        .help("Switch view mode")
         .frame(width: width)
     }
 
@@ -304,6 +305,7 @@ struct ProjectDetailView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .help("Clear search")
             }
         }
         .padding(.horizontal, 10)

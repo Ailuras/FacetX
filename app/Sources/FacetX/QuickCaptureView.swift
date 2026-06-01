@@ -33,6 +33,7 @@ struct QuickCaptureView: View {
                         ForEach(store.activeProjects) { Text($0.name).tag(Optional($0.id)) }
                     }
                     .labelsHidden()
+                    .help("Select project")
                     .frame(width: 106, alignment: .leading)
 
                     Rectangle()

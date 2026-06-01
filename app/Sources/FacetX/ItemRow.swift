@@ -208,6 +208,7 @@ struct ItemRow: View {
                             .foregroundStyle(checkmarkColor)
                     }
                     .buttonStyle(.plain)
+                    .help(item.isCompleted ? "Mark incomplete" : "Mark complete")
                 } else {
                     Image(systemName: "calendar")
                         .font(.system(size: 15, weight: .medium))
