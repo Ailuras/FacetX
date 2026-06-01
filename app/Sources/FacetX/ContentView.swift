@@ -369,24 +369,25 @@ struct ProjectDetailView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             } else {
+                // Render zone headers as plain rows rather than List Sections.
+                // macOS plain-List section headers draw a stubborn separator
+                // line (under the first group) that listRowSeparator /
+                // listSectionSeparator won't hide; flat rows avoid it entirely.
                 ForEach(grouped, id: \.zone) { group in
-                    Section {
-                        ForEach(group.items) { item in
-                            projectItemRow(item)
-                                .transition(.asymmetric(
-                                    insertion: .opacity.combined(with: .move(edge: .top)),
-                                    removal: .opacity.combined(with: .scale(scale: 0.98))
-                                ))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                                .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
-                        }
-                    } header: {
-                        Text(group.zone)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .textCase(nil)
-                            .padding(.top, 4)
+                    zoneHeader(group.zone)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 12, leading: 14, bottom: 2, trailing: 14))
+
+                    ForEach(group.items) { item in
+                        projectItemRow(item)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity.combined(with: .scale(scale: 0.98))
+                            ))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
                     }
                 }
             }
@@ -394,6 +395,13 @@ struct ProjectDetailView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .animation(listAnimation, value: visibleItems.map { "\($0.id)-\($0.isCompleted)" })
+    }
+
+    private func zoneHeader(_ zone: String) -> some View {
+        Text(zone)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var emptyMessage: String {
