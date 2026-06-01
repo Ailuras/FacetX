@@ -52,10 +52,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func items(forProject project: String,
                enabledReminderLists: Set<String>? = nil,
                enabledCalendars: Set<String>? = nil,
+               eventStartDate: Date? = nil,
+               eventEndDate: Date? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
         await items(forProjects: [project],
                     enabledReminderLists: enabledReminderLists,
                     enabledCalendars: enabledCalendars,
+                    eventStartDate: eventStartDate,
+                    eventEndDate: eventEndDate,
                     eventWindowDays: eventWindowDays)
     }
 
@@ -64,12 +68,18 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func items(forProjects prefixes: Set<String>,
                enabledReminderLists: Set<String>? = nil,
                enabledCalendars: Set<String>? = nil,
+               eventStartDate: Date? = nil,
+               eventEndDate: Date? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
         guard !prefixes.isEmpty else { return [] }
         let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
         var result: [ProjectItem] = []
         if rem { result += await reminders(forProjects: prefixes, enabled: enabledReminderLists) }
-        if cal { result += events(forProjects: prefixes, enabled: enabledCalendars, windowDays: eventWindowDays) }
+        if cal {
+            result += events(forProjects: prefixes, enabled: enabledCalendars,
+                             startDate: eventStartDate, endDate: eventEndDate,
+                             windowDays: eventWindowDays)
+        }
         return result.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
@@ -145,8 +155,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     // ── Events ─────────────────────────────────────────────────────────────
 
-    private func events(forProjects prefixes: Set<String>, enabled: Set<String>?, windowDays: Int) -> [ProjectItem] {
-        recentEvents(enabled: enabled, windowDays: windowDays).compactMap { e in
+    private func events(forProjects prefixes: Set<String>, enabled: Set<String>?,
+                        startDate: Date? = nil, endDate: Date? = nil,
+                        windowDays: Int) -> [ProjectItem] {
+        events(enabled: enabled, startDate: startDate, endDate: endDate, windowDays: windowDays).compactMap { e in
             let title = e.title ?? ""
             guard let name = ProjectPrefix.projectName(of: title),
                   prefixes.contains(name) else { return nil }
@@ -166,11 +178,15 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     private func recentEvents(enabled: Set<String>?, windowDays: Int) -> [EKEvent] {
+        events(enabled: enabled, startDate: nil, endDate: nil, windowDays: windowDays)
+    }
+
+    private func events(enabled: Set<String>?, startDate: Date?, endDate: Date?, windowDays: Int) -> [EKEvent] {
         let cals = filtered(store.calendars(for: .event), by: enabled)
         guard !cals.isEmpty else { return [] }
         let now = Date()
-        let start = Calendar.current.date(byAdding: .day, value: -windowDays, to: now)!
-        let end = Calendar.current.date(byAdding: .day, value: windowDays, to: now)!
+        let start = startDate ?? Calendar.current.date(byAdding: .day, value: -windowDays, to: now)!
+        let end = endDate ?? Calendar.current.date(byAdding: .day, value: windowDays, to: now)!
         let pred = store.predicateForEvents(withStart: start, end: end, calendars: cals)
         return store.events(matching: pred)
     }
