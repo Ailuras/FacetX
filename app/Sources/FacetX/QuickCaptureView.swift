@@ -103,12 +103,7 @@ struct QuickCaptureView: View {
     }
 
     private var targetReminderList: String {
-        nonEmpty(project?.reminderListName) ?? settings.defaultReminderListName
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return value
+        project?.reminderListName.nonEmpty ?? settings.defaultReminderListName
     }
 
     private func add() {

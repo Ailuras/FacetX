@@ -98,15 +98,10 @@ struct CreateItemView: View {
     private var targetContainer: String {
         switch kind {
         case .reminder:
-            return nonEmpty(project.reminderListName) ?? settings.defaultReminderListName
+            return project.reminderListName.nonEmpty ?? settings.defaultReminderListName
         case .event:
-            return nonEmpty(project.calendarName) ?? settings.defaultCalendarName
+            return project.calendarName.nonEmpty ?? settings.defaultCalendarName
         }
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return value
     }
 
     private func save() {
