@@ -127,15 +127,7 @@ struct ItemRow: View {
     }
 
     private var checkmarkColor: Color {
-        if item.isCompleted {
-            return .green
-        }
-        switch item.priority {
-        case 1...4: return .red
-        case 5: return .orange
-        case 6...9: return .blue
-        default: return .secondary
-        }
+        item.isCompleted ? .green : FacetTheme.priorityColor(item.priority)
     }
 
     private var borderHighlightColor: Color {
