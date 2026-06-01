@@ -452,6 +452,11 @@ struct ProjectDetailView: View {
                     if !isLeftPressed {
                         timer.invalidate()
                         Task { @MainActor in
+                            // A valid drop runs ItemDropDelegate.performDrop on
+                            // mouse-up, which clears draggedItem. Wait a beat so
+                            // we don't race it and revert a legitimate reorder;
+                            // only a still-set drag means the drop missed.
+                            try? await Task.sleep(for: .milliseconds(80))
                             if self.draggedItem != nil {
                                 self.cancelDrag()
                             }
