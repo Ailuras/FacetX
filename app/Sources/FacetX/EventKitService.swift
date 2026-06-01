@@ -209,16 +209,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return result
     }
 
-    /// Delete a container (calendar or reminder list) by title. Returns true if
-    /// one was removed. Use with care — deletes the list and its contents.
-    @discardableResult
-    func deleteContainer(title: String, kind: ContainerInfo.Kind) -> Bool {
-        let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
-        guard let cal = store.calendars(for: entity).first(where: { $0.title == title })
-        else { return false }
-        do { try store.removeCalendar(cal, commit: true); return true } catch { return false }
-    }
-
     /// Account (source) titles that can hold a NEW container of the given kind.
     /// Not every source allows new lists (e.g. subscribed/birthday sources).
     func sourceTitles(forNew kind: ContainerInfo.Kind) -> [String] {
