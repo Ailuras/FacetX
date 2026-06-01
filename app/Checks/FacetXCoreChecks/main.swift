@@ -32,11 +32,26 @@ check(!week.contains(nextMonday), "ISO week should exclude next Monday")
 check(ISOWeek(year: 2026, week: 22).shifted(by: 1).id == "2026-W23",
       "shifted week should preserve ISO identity")
 
+let june = MonthYear(year: 2026, month: 6)
+guard let juneStart = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)),
+      let juneEnd = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 23)),
+      let julyStart = calendar.date(from: DateComponents(year: 2026, month: 7, day: 1)) else {
+    fatalError("Could not create month test dates")
+}
+
+check(june.id == "2026-06", "month id should be zero-padded")
+check(june.firstWeekdayOffset == 0, "June 2026 should start on Monday")
+check(june.contains(juneStart), "month should contain its first day")
+check(june.contains(juneEnd), "month should contain its last day")
+check(!june.contains(julyStart), "month should exclude next month start")
+check(MonthYear(year: 2026, month: 12).shifted(by: 1).id == "2027-01",
+      "shifted month should cross year boundaries")
+
 // ── ItemArrangement ──────────────────────────────────────────────────────────
 
 func makeItem(_ id: String, zone: String = "Inbox", done: Bool = false,
-              day: Int? = nil) -> ProjectItem {
-    let date = day.flatMap { calendar.date(from: DateComponents(year: 2026, month: 5, day: $0)) }
+              month: Int = 5, day: Int? = nil) -> ProjectItem {
+    let date = day.flatMap { calendar.date(from: DateComponents(year: 2026, month: month, day: $0)) }
     return ProjectItem(id: id, kind: .reminder, rawTitle: id, content: id,
                        containerName: zone, isCompleted: done, date: date,
                        notes: nil, priority: 0, url: nil)
@@ -71,6 +86,14 @@ let weekItems = ItemArrangement.inWeek(
     [makeItem("out", day: 1), makeItem("sun", day: 31), makeItem("mon", day: 25)],
     ISOWeek(year: 2026, week: 22))
 check(weekItems.map(\.id) == ["mon", "sun"], "inWeek should filter to the week and sort by date")
+
+// inMonth: keep only items dated within the month, ordered by date.
+let monthItems = ItemArrangement.inMonth(
+    [makeItem("may", month: 5, day: 31), makeItem("jun2", month: 6, day: 2),
+     makeItem("jul", month: 7, day: 1), makeItem("jun1", month: 6, day: 1)],
+    MonthYear(year: 2026, month: 6))
+check(monthItems.map(\.id) == ["jun1", "jun2"],
+      "inMonth should filter to the month and sort by date")
 
 // ── ProjectItem.matches ──────────────────────────────────────────────────────
 
