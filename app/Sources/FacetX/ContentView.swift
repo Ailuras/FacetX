@@ -81,9 +81,10 @@ struct ContentView: View {
             )
         }
         .sheet(item: $draftProject) { draft in
-            NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar in
+            NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, githubRepo in
                 let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
-                                             reminderListName: reminderList, calendarName: calendar)
+                                             reminderListName: reminderList, calendarName: calendar,
+                                             githubRepo: githubRepo)
                 selection = .project(id)
                 draftProject = nil
             } onCancel: {
@@ -165,7 +166,7 @@ struct ProjectDetailView: View {
     let project: Project
 
     enum Mode: String, CaseIterable, Identifiable {
-        case all = "All", week = "Week"
+        case all = "All", week = "Week", commits = "Commits"
         var id: String { rawValue }
     }
 
@@ -206,6 +207,7 @@ struct ProjectDetailView: View {
                     switch mode {
                     case .all:  allItemsView
                     case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem)
+                    case .commits: CommitsView(project: project)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -411,7 +413,7 @@ struct ProjectDetailView: View {
 
     private var projectHeader: some View {
         HStack(alignment: .center, spacing: 14) {
-            modePicker(width: 140)
+            modePicker(width: 200)
 
             Spacer(minLength: 14)
 
