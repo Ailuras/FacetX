@@ -2,6 +2,12 @@ import EventKit
 import FacetXCore
 import Foundation
 
+struct WeekGoalEventSnapshot: Sendable {
+    let eventId: String
+    let title: String
+    let body: String
+}
+
 /// Wraps EKEventStore: authorization, fetching, prefix-filtering, write-back.
 ///
 /// NOT `@MainActor`: EventKit's fetch callbacks fire on its own background
@@ -346,7 +352,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             enabledCalendars: calendars
         ) ?? EKEvent(eventStore: store)
         event.title = WeekGoalEvent.makeTitle(project: project, title: title)
-        event.notes = body
+        event.notes = WeekGoalEvent.makeNotes(body: body, project: project, weekID: week.id)
         event.isAllDay = true
         event.startDate = startDate
         event.endDate = endDate
@@ -359,6 +365,23 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         } catch {
             return nil
         }
+    }
+
+    func weekGoalEvent(project: String, week: ISOWeek, existingEventId: String?,
+                       enabledCalendars: Set<String>? = nil) async -> WeekGoalEventSnapshot? {
+        let authorized = await MainActor.run { calendarAuthorized }
+        guard authorized else { return nil }
+        let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
+        guard let event = goalEvent(project: project, week: week,
+                                    existingEventId: existingEventId,
+                                    enabledCalendars: calendars),
+              let eventId = event.eventIdentifier else { return nil }
+        let content = ProjectPrefix.contentBody(of: event.title ?? "")
+        return WeekGoalEventSnapshot(
+            eventId: eventId,
+            title: WeekGoalEvent.title(fromContent: content),
+            body: WeekGoalEvent.body(fromNotes: event.notes)
+        )
     }
 
     private func calendarForGoalEvent(named name: String?, from calendars: [EKCalendar]) -> EKCalendar? {
@@ -378,7 +401,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         if let existingEventId,
            let event = store.calendarItem(withIdentifier: existingEventId) as? EKEvent,
            calendars.contains(where: { $0.calendarIdentifier == event.calendar.calendarIdentifier }),
-           isGoalEvent(event, project: project) {
+           isGoalEvent(event, project: project, week: week) {
             return event
         }
 
@@ -390,13 +413,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     private func goalEvents(project: String, week: ISOWeek, enabledCalendars calendars: [EKCalendar]) -> [EKEvent] {
         guard !calendars.isEmpty else { return [] }
         let pred = store.predicateForEvents(withStart: week.startDate, end: week.endDate, calendars: calendars)
-        return store.events(matching: pred).filter { isGoalEvent($0, project: project) }
+        return store.events(matching: pred).filter { isGoalEvent($0, project: project, week: week) }
     }
 
-    private func isGoalEvent(_ event: EKEvent, project: String) -> Bool {
+    private func isGoalEvent(_ event: EKEvent, project: String, week: ISOWeek) -> Bool {
         let title = event.title ?? ""
         guard ProjectPrefix.projectName(of: title) == project else { return false }
         return WeekGoalEvent.isGoalContent(ProjectPrefix.contentBody(of: title))
+            || WeekGoalEvent.hasNotesMarker(event.notes, project: project, weekID: week.id)
     }
 
     private func removeDuplicateGoalEvents(project: String, week: ISOWeek, keeping keptEvent: EKEvent,

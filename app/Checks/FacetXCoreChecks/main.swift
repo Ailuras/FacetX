@@ -32,6 +32,16 @@ check(!week.contains(nextMonday), "ISO week should exclude next Monday")
 check(ISOWeek(year: 2026, week: 22).shifted(by: 1).id == "2026-W23",
       "shifted week should preserve ISO identity")
 
+let goalTitle = WeekGoalEvent.makeTitle(project: "Regulus", title: "Ship beta")
+check(goalTitle == "Regulus: 🎯 Ship beta", "week goal title should use project prefix and marker")
+check(WeekGoalEvent.title(fromContent: "🎯 Ship beta") == "Ship beta",
+      "week goal content should strip marker")
+let goalNotes = WeekGoalEvent.makeNotes(body: "Focus on polish", project: "Regulus", weekID: week.id)
+check(WeekGoalEvent.body(fromNotes: goalNotes) == "Focus on polish",
+      "week goal notes body should hide sync marker")
+check(WeekGoalEvent.hasNotesMarker(goalNotes, project: "Regulus", weekID: week.id),
+      "week goal notes should include sync marker")
+
 let june = MonthYear(year: 2026, month: 6)
 guard let juneStart = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)),
       let juneEnd = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 23)),

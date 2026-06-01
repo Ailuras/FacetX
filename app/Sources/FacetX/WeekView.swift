@@ -54,6 +54,10 @@ struct WeekView: View {
         store.weekGoal(projectID: project.id, weekId: week.id)
     }
 
+    private var reloadKey: String {
+        "\(project.id.uuidString)-\(week.id)"
+    }
+
     private var dayGroups: [DayGroup] {
         let cal = Calendar(identifier: .iso8601)
         var groups: [DayGroup] = []
@@ -97,7 +101,7 @@ struct WeekView: View {
             .padding(16)
         }
         .background(FacetTheme.canvas)
-        .task(id: project.id) { await reload() }
+        .task(id: reloadKey) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
     }
 
