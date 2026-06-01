@@ -3,6 +3,9 @@ import SwiftUI
 enum FacetTheme {
     static let radius: CGFloat = 8
 
+    /// Shared spring used for soft item-list transitions (insert/complete/move).
+    static let listSpring: Animation = .spring(response: 0.34, dampingFraction: 0.88)
+
     static var canvas: Color {
         Color(nsColor: .windowBackgroundColor)
     }
@@ -21,5 +24,17 @@ enum FacetTheme {
 
     static var softAccent: Color {
         Color.accentColor.opacity(0.11)
+    }
+
+    /// Color for an EventKit reminder priority (1 = high … 9 = low), as a heat
+    /// gradient. Shared by the row stripe and the editor pill so the same
+    /// priority never shows two different colors.
+    static func priorityColor(_ value: Int) -> Color {
+        switch value {
+        case 1...4: return .red
+        case 5: return .orange
+        case 6...9: return .blue
+        default: return .secondary
+        }
     }
 }

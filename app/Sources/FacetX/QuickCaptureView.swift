@@ -103,12 +103,7 @@ struct QuickCaptureView: View {
     }
 
     private var targetReminderList: String {
-        nonEmpty(project?.reminderListName) ?? settings.defaultReminderListName
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return value
+        project?.reminderListName.nonEmpty ?? settings.defaultReminderListName
     }
 
     private func add() {
@@ -126,7 +121,8 @@ struct QuickCaptureView: View {
             if ok != nil {
                 text = ""
                 justAdded = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { justAdded = false }
+                try? await Task.sleep(for: .seconds(1.5))
+                justAdded = false
             } else {
                 error = "Could not save to \(listName)."
             }

@@ -131,14 +131,12 @@ struct ItemDetailPane: View {
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .controlSize(.small)
-                .frame(width: controlWidth, alignment: .trailing)
             }
 
             if item.kind == .reminder {
                 propertyDivider
                 propertyRow(label: "Priority", icon: "exclamationmark.circle") {
                     PriorityPillPicker(selection: $priority)
-                        .frame(width: controlWidth)
                 }
             }
 
@@ -146,7 +144,6 @@ struct ItemDetailPane: View {
             propertyRow(label: item.kind == .reminder ? "Due Date" : "Start",
                         icon: "calendar") {
                 dateControl
-                    .frame(width: controlWidth, alignment: .trailing)
             }
 
             propertyDivider
@@ -175,7 +172,6 @@ struct ItemDetailPane: View {
                         .help("Open link")
                     }
                 }
-                .frame(width: controlWidth)
             }
         }
         .padding(.horizontal, 12)

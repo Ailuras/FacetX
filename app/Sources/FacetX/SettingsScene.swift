@@ -370,7 +370,8 @@ struct ContainersSettingsView: View {
     private func create() {
         let title = newTitle.trimmingCharacters(in: .whitespaces)
         guard !title.isEmpty, !newSource.isEmpty else { return }
-        if ek.createContainer(title: title, kind: newKind, sourceTitle: newSource) {
+        let result = ek.createContainer(title: title, kind: newKind, sourceTitle: newSource)
+        if result.ok {
             containers = ek.allContainers()
             if newKind == .reminder {
                 settings.enableReminderList(title)
@@ -386,7 +387,7 @@ struct ContainersSettingsView: View {
             newTitle = ""
             showCreate = false
         } else {
-            createError = "Couldn't create in \(newSource)."
+            createError = result.error ?? "Couldn't create in \(newSource)."
         }
     }
 

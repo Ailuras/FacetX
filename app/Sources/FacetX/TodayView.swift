@@ -16,7 +16,7 @@ struct TodayView: View {
     @State private var items: [ProjectItem] = []
     @State private var loading = false
 
-    private var listAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
+    private var listAnimation: Animation { FacetTheme.listSpring }
 
     /// Map a claimed prefix to its project, for the row badge and tap target.
     private var projectsByPrefix: [String: Project] {
@@ -98,7 +98,7 @@ struct TodayView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            summaryChip(value: todayItems.count, label: "Due today", systemImage: "sun.max")
+            SummaryChip(value: todayItems.count, label: "Due today", systemImage: "sun.max")
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
@@ -106,16 +106,6 @@ struct TodayView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
-    }
-
-    private func summaryChip(value: Int, label: String, systemImage: String) -> some View {
-        Label("\(value) \(label)", systemImage: systemImage)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(FacetTheme.quietPanel))
-            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
     }
 
     private func reload() async {

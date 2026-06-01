@@ -209,16 +209,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return result
     }
 
-    /// Delete a container (calendar or reminder list) by title. Returns true if
-    /// one was removed. Use with care — deletes the list and its contents.
-    @discardableResult
-    func deleteContainer(title: String, kind: ContainerInfo.Kind) -> Bool {
-        let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
-        guard let cal = store.calendars(for: entity).first(where: { $0.title == title })
-        else { return false }
-        do { try store.removeCalendar(cal, commit: true); return true } catch { return false }
-    }
-
     /// Account (source) titles that can hold a NEW container of the given kind.
     /// Not every source allows new lists (e.g. subscribed/birthday sources).
     func sourceTitles(forNew kind: ContainerInfo.Kind) -> [String] {
@@ -236,15 +226,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     /// Create a new calendar or reminder list named `title` under the account
-    /// whose title is `sourceTitle`. Returns true on success.
-    @discardableResult
-    func createContainer(title: String, kind: ContainerInfo.Kind, sourceTitle: String) -> Bool {
-        createContainerResult(title: title, kind: kind, sourceTitle: sourceTitle).ok
-    }
-
-    /// Same as createContainer but surfaces the error message for diagnostics.
-    func createContainerResult(title: String, kind: ContainerInfo.Kind,
-                               sourceTitle: String) -> (ok: Bool, error: String?) {
+    /// whose title is `sourceTitle`. Returns whether it succeeded plus the
+    /// underlying error message (for diagnostics) when it didn't.
+    func createContainer(title: String, kind: ContainerInfo.Kind,
+                         sourceTitle: String) -> (ok: Bool, error: String?) {
         let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
         // Prefer a source that actually hosts containers of this entity.
         let source = store.sources.first(where: {

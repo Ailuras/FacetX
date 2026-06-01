@@ -182,9 +182,7 @@ struct ProjectDetailView: View {
     @State private var showCompleted = true
     @State private var searchText = ""
 
-    private var listAnimation: Animation {
-        .spring(response: 0.34, dampingFraction: 0.88)
-    }
+    private var listAnimation: Animation { FacetTheme.listSpring }
 
     private var visibleItems: [ProjectItem] {
         var result = showCompleted ? items : items.filter { !$0.isCompleted }
@@ -450,9 +448,9 @@ struct ProjectDetailView: View {
 
     private var summaryCluster: some View {
         HStack(spacing: 6) {
-            summaryChip(value: openItemCount, label: "Open", systemImage: "circle")
-            summaryChip(value: completedReminderCount, label: "Done", systemImage: "checkmark.circle")
-            summaryChip(value: zoneCount, label: "Zones", systemImage: "square.grid.2x2")
+            SummaryChip(value: openItemCount, label: "Open", systemImage: "circle")
+            SummaryChip(value: completedReminderCount, label: "Done", systemImage: "checkmark.circle")
+            SummaryChip(value: zoneCount, label: "Zones", systemImage: "square.grid.2x2")
         }
     }
 
@@ -466,26 +464,6 @@ struct ProjectDetailView: View {
 
     private var zoneCount: Int {
         Set(items.map(\.containerName)).count
-    }
-
-    private func summaryChip(value: Int, label: String, systemImage: String) -> some View {
-        Label {
-            Text("\(value) \(label)")
-        } icon: {
-            Image(systemName: systemImage)
-        }
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(FacetTheme.quietPanel)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
     }
 
     private func projectItemRow(_ item: ProjectItem) -> some View {
@@ -614,24 +592,25 @@ struct ProjectDetailView: View {
         store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder ?? [])
         let selectedId = selectedDetailItem?.id
-        if items.isEmpty {
+        let firstPopulation = items.isEmpty
+
+        let apply = {
+            items = sortedItems
+            if let selectedId {
+                // Keep the selection only if it's still visible under the
+                // current completed/search filters; otherwise drop the pane.
+                selectedDetailItem = visibleItems.first { $0.id == selectedId }
+            }
+        }
+
+        if firstPopulation {
             // First population: skip the row insertion animation so the rows
             // don't fly in from the top and momentarily pile up.
             var transaction = Transaction()
             transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                items = sortedItems
-                if let selectedId {
-                    selectedDetailItem = visibleItems.first { $0.id == selectedId }
-                }
-            }
+            withTransaction(transaction, apply)
         } else {
-            withAnimation(listAnimation) {
-                items = sortedItems
-                if let selectedId {
-                    selectedDetailItem = visibleItems.first { $0.id == selectedId }
-                }
-            }
+            withAnimation(listAnimation, apply)
         }
         loading = false
     }
