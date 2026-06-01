@@ -226,15 +226,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     /// Create a new calendar or reminder list named `title` under the account
-    /// whose title is `sourceTitle`. Returns true on success.
-    @discardableResult
-    func createContainer(title: String, kind: ContainerInfo.Kind, sourceTitle: String) -> Bool {
-        createContainerResult(title: title, kind: kind, sourceTitle: sourceTitle).ok
-    }
-
-    /// Same as createContainer but surfaces the error message for diagnostics.
-    func createContainerResult(title: String, kind: ContainerInfo.Kind,
-                               sourceTitle: String) -> (ok: Bool, error: String?) {
+    /// whose title is `sourceTitle`. Returns whether it succeeded plus the
+    /// underlying error message (for diagnostics) when it didn't.
+    func createContainer(title: String, kind: ContainerInfo.Kind,
+                         sourceTitle: String) -> (ok: Bool, error: String?) {
         let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
         // Prefer a source that actually hosts containers of this entity.
         let source = store.sources.first(where: {
