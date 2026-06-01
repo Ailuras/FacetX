@@ -34,6 +34,8 @@ struct WeekGoal: Identifiable, Codable, Hashable {
     var weekId: String
     var title: String
     var body: String = ""
+    /// The EventKit event identifier for the week-spanning goal event.
+    var eventId: String? = nil
 }
 
 /// Persists saved projects to a JSON file under Application Support.
@@ -89,7 +91,8 @@ final class ProjectStore: ObservableObject {
     }
 
     /// Create or update the goal for a project's week. Empty title removes it.
-    func setWeekGoal(projectID: Project.ID, weekId: String, title: String, body: String) {
+    /// `eventId` ties the goal to a week-spanning EventKit event.
+    func setWeekGoal(projectID: Project.ID, weekId: String, title: String, body: String, eventId: String? = nil) {
         guard let p = projects.firstIndex(where: { $0.id == projectID }) else { return }
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         if let g = projects[p].weekGoals.firstIndex(where: { $0.weekId == weekId }) {
@@ -98,9 +101,14 @@ final class ProjectStore: ObservableObject {
             } else {
                 projects[p].weekGoals[g].title = trimmed
                 projects[p].weekGoals[g].body = body
+                if let eventId {
+                    projects[p].weekGoals[g].eventId = eventId
+                }
             }
         } else if !trimmed.isEmpty {
-            projects[p].weekGoals.append(WeekGoal(weekId: weekId, title: trimmed, body: body))
+            var goal = WeekGoal(weekId: weekId, title: trimmed, body: body)
+            goal.eventId = eventId
+            projects[p].weekGoals.append(goal)
         }
         save()
     }

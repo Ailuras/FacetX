@@ -2,7 +2,7 @@ import Foundation
 
 /// ISO-8601 week utilities. A week is identified as "2026-W22" and runs
 /// Monday-Sunday.
-public struct ISOWeek: Equatable {
+public struct ISOWeek: Equatable, Sendable {
     public var year: Int
     public var week: Int
 
