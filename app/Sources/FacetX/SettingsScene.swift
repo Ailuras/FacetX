@@ -5,8 +5,16 @@ import SwiftUI
 struct SettingsRootView: View {
     var body: some View {
         ContainersSettingsView()
-            .frame(width: 560, height: 620)
+            .frame(width: 600, height: 660)
     }
+}
+
+private enum SettingsUI {
+    static let sectionFont = Font.system(size: 13, weight: .semibold)
+    static let rowFont = Font.system(size: 13, weight: .medium)
+    static let secondaryFont = Font.system(size: 12)
+    static let smallFont = Font.system(size: 11)
+    static let controlWidth: CGFloat = 230
 }
 
 // ── Containers ───────────────────────────────────────────────────────────────
@@ -85,7 +93,7 @@ struct ContainersSettingsView: View {
                 Text("Settings")
                     .font(.system(size: 20, weight: .semibold))
                 Text("Calendar and Reminders")
-                    .font(.caption)
+                    .font(SettingsUI.secondaryFont)
                     .foregroundStyle(.secondary)
             }
 
@@ -130,7 +138,7 @@ struct ContainersSettingsView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.caption2)
+                    .font(SettingsUI.smallFont)
                     .foregroundStyle(.secondary)
                 Text(value)
                     .font(.system(size: 12, weight: .semibold))
@@ -158,7 +166,7 @@ struct ContainersSettingsView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .frame(width: 220, alignment: .trailing)
+                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
             }
 
             cardDivider
@@ -170,7 +178,7 @@ struct ContainersSettingsView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .frame(width: 220, alignment: .trailing)
+                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
             }
         }
     }
@@ -181,6 +189,7 @@ struct ContainersSettingsView: View {
                 Toggle("", isOn: $settings.menuBarEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
+                    .controlSize(.small)
             }
         }
     }
@@ -189,7 +198,7 @@ struct ContainersSettingsView: View {
         settingsCard(title: "Containers", systemImage: "square.stack.3d.up") {
             if groups.isEmpty {
                 Text("No containers found.")
-                    .font(.callout)
+                    .font(SettingsUI.secondaryFont)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
@@ -210,11 +219,11 @@ struct ContainersSettingsView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Text(group.header)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(SettingsUI.smallFont.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text("\(enabledCount(in: group.items))/\(group.items.count)")
-                    .font(.caption2)
+                    .font(SettingsUI.smallFont)
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 2)
@@ -245,10 +254,10 @@ struct ContainersSettingsView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(container.title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(SettingsUI.rowFont)
                     .lineLimit(1)
                 Text(container.sourceTitle)
-                    .font(.caption2)
+                    .font(SettingsUI.smallFont)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
@@ -278,7 +287,7 @@ struct ContainersSettingsView: View {
                     Label("New Container", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
-                .controlSize(.regular)
+                .controlSize(.small)
             }
         }
     }
@@ -295,7 +304,7 @@ struct ContainersSettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 220)
+                .frame(width: SettingsUI.controlWidth)
             }
 
             settingRow(title: "Account", systemImage: "person.crop.circle") {
@@ -304,7 +313,7 @@ struct ContainersSettingsView: View {
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
-                .frame(width: 220)
+                .frame(width: SettingsUI.controlWidth)
             }
 
             if let createError {
@@ -320,6 +329,7 @@ struct ContainersSettingsView: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty || newSource.isEmpty)
             }
+            .controlSize(.small)
         }
     }
 
@@ -327,7 +337,7 @@ struct ContainersSettingsView: View {
                                              @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 13, weight: .semibold))
+                .font(SettingsUI.sectionFont)
                 .foregroundStyle(.primary.opacity(0.86))
 
             content()
@@ -349,7 +359,7 @@ struct ContainersSettingsView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
             Text(title)
-                .font(.system(size: 13, weight: .medium))
+                .font(SettingsUI.rowFont)
             Spacer()
             content()
         }
@@ -446,14 +456,14 @@ struct ContainersSettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if githubStatus.isEmpty {
                     Text("No token configured.")
-                        .font(.callout)
+                        .font(SettingsUI.secondaryFont)
                         .foregroundStyle(.secondary)
                 } else {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                         Text(githubStatus)
-                            .font(.callout)
+                            .font(SettingsUI.secondaryFont)
                     }
                 }
 
