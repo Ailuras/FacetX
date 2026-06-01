@@ -182,9 +182,7 @@ struct ProjectDetailView: View {
     @State private var showCompleted = true
     @State private var searchText = ""
 
-    private var listAnimation: Animation {
-        .spring(response: 0.34, dampingFraction: 0.88)
-    }
+    private var listAnimation: Animation { FacetTheme.listSpring }
 
     private var visibleItems: [ProjectItem] {
         var result = showCompleted ? items : items.filter { !$0.isCompleted }

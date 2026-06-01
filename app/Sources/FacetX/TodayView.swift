@@ -16,7 +16,7 @@ struct TodayView: View {
     @State private var items: [ProjectItem] = []
     @State private var loading = false
 
-    private var listAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
+    private var listAnimation: Animation { FacetTheme.listSpring }
 
     /// Map a claimed prefix to its project, for the row badge and tap target.
     private var projectsByPrefix: [String: Project] {

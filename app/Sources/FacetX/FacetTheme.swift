@@ -3,6 +3,9 @@ import SwiftUI
 enum FacetTheme {
     static let radius: CGFloat = 8
 
+    /// Shared spring used for soft item-list transitions (insert/complete/move).
+    static let listSpring: Animation = .spring(response: 0.34, dampingFraction: 0.88)
+
     static var canvas: Color {
         Color(nsColor: .windowBackgroundColor)
     }

@@ -20,9 +20,7 @@ struct WeekView: View {
     @State private var goalTitle = ""
     @State private var goalBody = ""
 
-    private var listAnimation: Animation {
-        .spring(response: 0.34, dampingFraction: 0.88)
-    }
+    private var listAnimation: Animation { FacetTheme.listSpring }
 
     private var weekItems: [ProjectItem] {
         ItemArrangement.inWeek(allItems, week)
