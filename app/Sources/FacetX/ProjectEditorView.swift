@@ -7,13 +7,14 @@ struct ProjectDraft: Identifiable {
     var tagline = ""
     var reminderListName: String
     var calendarName: String
+    var githubRepo: String = ""
     var reminderLists: [String]
     var calendars: [String]
 }
 
 struct NewProjectView: View {
     let draft: ProjectDraft
-    let onCreate: (String, String?, String, String?, String?) -> Void
+    let onCreate: (String, String?, String, String?, String?, String?) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
@@ -21,9 +22,10 @@ struct NewProjectView: View {
     @State private var tagline: String
     @State private var reminderListName: String
     @State private var calendarName: String
+    @State private var githubRepo: String
 
     init(draft: ProjectDraft,
-         onCreate: @escaping (String, String?, String, String?, String?) -> Void,
+         onCreate: @escaping (String, String?, String, String?, String?, String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.draft = draft
         self.onCreate = onCreate
@@ -33,6 +35,7 @@ struct NewProjectView: View {
         _tagline = State(initialValue: draft.tagline)
         _reminderListName = State(initialValue: draft.reminderListName)
         _calendarName = State(initialValue: draft.calendarName)
+        _githubRepo = State(initialValue: draft.githubRepo)
     }
 
     var body: some View {
@@ -54,6 +57,10 @@ struct NewProjectView: View {
                         if draft.calendars.isEmpty { Text("None").tag("") }
                         ForEach(draft.calendars, id: \.self) { Text($0).tag($0) }
                     }
+                    TextField("GitHub repo (optional)", text: $githubRepo)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Format: owner/repo  —  e.g. anomalyco/opencode")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
@@ -84,9 +91,11 @@ struct NewProjectView: View {
 
     private func create() {
         let prefix = trimmedPrefix.isEmpty ? nil : trimmedPrefix
+        let repo = githubRepo.trimmingCharacters(in: .whitespaces)
         onCreate(trimmedName, prefix, tagline.trimmingCharacters(in: .whitespaces),
                  reminderListName.isEmpty ? nil : reminderListName,
-                 calendarName.isEmpty ? nil : calendarName)
+                 calendarName.isEmpty ? nil : calendarName,
+                 repo.isEmpty ? nil : repo)
     }
 }
 
@@ -103,6 +112,7 @@ struct EditProjectView: View {
     @State private var tagline = ""
     @State private var reminderListName = ""
     @State private var calendarName = ""
+    @State private var githubRepo = ""
     @State private var reminderLists: [String] = []
     @State private var calendars: [String] = []
 
@@ -125,6 +135,10 @@ struct EditProjectView: View {
                         if calendars.isEmpty { Text("None").tag("") }
                         ForEach(calendars, id: \.self) { Text($0).tag($0) }
                     }
+                    TextField("GitHub repo (optional)", text: $githubRepo)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Format: owner/repo  —  e.g. anomalyco/opencode")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
@@ -166,6 +180,7 @@ struct EditProjectView: View {
         name = project.name
         prefix = project.prefix
         tagline = project.tagline
+        githubRepo = project.githubRepo ?? ""
         reminderListName = firstAvailable(project.reminderListName,
                                           settings.defaultReminderListName,
                                           in: reminderLists)
@@ -181,6 +196,8 @@ struct EditProjectView: View {
         updated.tagline = tagline.trimmingCharacters(in: .whitespaces)
         updated.reminderListName = reminderListName.isEmpty ? nil : reminderListName
         updated.calendarName = calendarName.isEmpty ? nil : calendarName
+        let repo = githubRepo.trimmingCharacters(in: .whitespaces)
+        updated.githubRepo = repo.isEmpty ? nil : repo
         store.update(updated)
         onClose()
     }

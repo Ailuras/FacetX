@@ -17,14 +17,18 @@ struct Project: Identifiable, Codable, Hashable {
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
     var itemOrder: [String]? = []
+    /// GitHub repository in "owner/repo" format (optional).
+    var githubRepo: String?
 
     init(name: String, prefix: String? = nil, tagline: String = "",
-         reminderListName: String? = nil, calendarName: String? = nil) {
+         reminderListName: String? = nil, calendarName: String? = nil,
+         githubRepo: String? = nil) {
         self.name = name
         self.prefix = prefix ?? name
         self.tagline = tagline
         self.reminderListName = reminderListName
         self.calendarName = calendarName
+        self.githubRepo = githubRepo
     }
 }
 
@@ -56,9 +60,11 @@ final class ProjectStore: ObservableObject {
 
     @discardableResult
     func createProject(name: String, prefix: String? = nil, tagline: String = "",
-                       reminderListName: String? = nil, calendarName: String? = nil) -> Project.ID {
+                       reminderListName: String? = nil, calendarName: String? = nil,
+                       githubRepo: String? = nil) -> Project.ID {
         let project = Project(name: name, prefix: prefix, tagline: tagline,
-                              reminderListName: reminderListName, calendarName: calendarName)
+                              reminderListName: reminderListName, calendarName: calendarName,
+                              githubRepo: githubRepo)
         projects.append(project)
         save()
         return project.id
