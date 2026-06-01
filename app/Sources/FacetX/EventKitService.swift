@@ -306,6 +306,107 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return false
     }
 
+    // ── Week goal events ─────────────────────────────────────────────────────
+
+    /// Create or update a week-spanning goal event. Returns the event identifier on success.
+    func createOrUpdateGoalEvent(project: String, title: String, body: String,
+                                  week: ISOWeek, calendarName: String?,
+                                  existingEventId: String?,
+                                  enabledCalendars: Set<String>? = nil) async -> String? {
+        let startDate = week.startDate
+        let endDate = week.endDate
+
+        let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
+        guard !calendars.isEmpty else { return nil }
+
+        // Prefer the project's saved calendar, then the default, then any enabled calendar.
+        let calendar = calendarForGoalEvent(named: calendarName, from: calendars)
+        guard let calendar else { return nil }
+
+        let event = goalEvent(
+            project: project,
+            week: week,
+            existingEventId: existingEventId,
+            enabledCalendars: calendars
+        ) ?? EKEvent(eventStore: store)
+        event.title = WeekGoalEvent.makeTitle(project: project, title: title)
+        event.notes = body
+        event.isAllDay = true
+        event.startDate = startDate
+        event.endDate = endDate
+        event.calendar = calendar
+
+        do {
+            try store.save(event, span: .thisEvent, commit: true)
+            removeDuplicateGoalEvents(project: project, week: week, keeping: event, enabledCalendars: calendars)
+            return event.eventIdentifier ?? existingEventId
+        } catch {
+            return nil
+        }
+    }
+
+    private func calendarForGoalEvent(named name: String?, from calendars: [EKCalendar]) -> EKCalendar? {
+        if let name,
+           let cal = calendars.first(where: { $0.title == name }) {
+            return cal
+        }
+        if let defaultCalendar = store.defaultCalendarForNewEvents {
+            return calendars.first { $0.calendarIdentifier == defaultCalendar.calendarIdentifier }
+                ?? calendars.first { $0.title == defaultCalendar.title }
+        }
+        return calendars.first
+    }
+
+    private func goalEvent(project: String, week: ISOWeek, existingEventId: String?,
+                           enabledCalendars calendars: [EKCalendar]) -> EKEvent? {
+        if let existingEventId,
+           let event = store.calendarItem(withIdentifier: existingEventId) as? EKEvent,
+           calendars.contains(where: { $0.calendarIdentifier == event.calendar.calendarIdentifier }),
+           isGoalEvent(event, project: project) {
+            return event
+        }
+
+        return goalEvents(project: project, week: week, enabledCalendars: calendars)
+            .sorted { $0.startDate < $1.startDate }
+            .first
+    }
+
+    private func goalEvents(project: String, week: ISOWeek, enabledCalendars calendars: [EKCalendar]) -> [EKEvent] {
+        guard !calendars.isEmpty else { return [] }
+        let pred = store.predicateForEvents(withStart: week.startDate, end: week.endDate, calendars: calendars)
+        return store.events(matching: pred).filter { isGoalEvent($0, project: project) }
+    }
+
+    private func isGoalEvent(_ event: EKEvent, project: String) -> Bool {
+        let title = event.title ?? ""
+        guard ProjectPrefix.projectName(of: title) == project else { return false }
+        return WeekGoalEvent.isGoalContent(ProjectPrefix.contentBody(of: title))
+    }
+
+    private func removeDuplicateGoalEvents(project: String, week: ISOWeek, keeping keptEvent: EKEvent,
+                                           enabledCalendars calendars: [EKCalendar]) {
+        let keptId = keptEvent.eventIdentifier
+        let duplicates = goalEvents(project: project, week: week, enabledCalendars: calendars).filter { event in
+            guard let keptId else { return event !== keptEvent }
+            return event.eventIdentifier != keptId
+        }
+        for event in duplicates {
+            try? store.remove(event, span: .thisEvent, commit: true)
+        }
+    }
+
+    /// Delete a goal event by its identifier. Missing events are treated as already deleted.
+    func deleteGoalEvent(eventId: String?) async -> Bool {
+        guard let id = eventId else { return true }
+        guard let event = store.calendarItem(withIdentifier: id) as? EKEvent else { return true }
+        do {
+            try store.remove(event, span: .thisEvent, commit: true)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Update an existing item (reminder or event)'s content, date, container, notes, and priority.
     ///
     /// `url` is only written when `updateURL` is true. Callers that don't edit the
