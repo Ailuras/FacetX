@@ -10,6 +10,7 @@ struct WeekView: View {
 
     let project: Project
     let searchText: String
+    let showCompleted: Bool
     /// The item shown in the shared detail pane (owned by ProjectDetailView), so
     /// week-view edits open the same side pane as the all-items view.
     @Binding var selectedItem: ProjectItem?
@@ -24,7 +25,10 @@ struct WeekView: View {
     private var listAnimation: Animation { FacetTheme.listSpring }
 
     private var weekItems: [ProjectItem] {
-        let items = ItemArrangement.inWeek(allItems, week)
+        var items = ItemArrangement.inWeek(allItems, week)
+        if !showCompleted {
+            items = items.filter { !$0.isCompleted }
+        }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         guard !query.isEmpty else { return items }
         return items.filter {

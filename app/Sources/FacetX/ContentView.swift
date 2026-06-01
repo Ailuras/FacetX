@@ -212,7 +212,7 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all:  allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, selectedItem: $selectedDetailItem)
+                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -247,17 +247,16 @@ struct ProjectDetailView: View {
 
     // ── Header controls (mode, search, actions) ──────────────────────────────
 
-    private var headerControls: some View {
+    private var rightControls: some View {
         ViewThatFits(in: .horizontal) {
-            fullHeaderControls
-            compactHeaderControls
-            minimalHeaderControls
+            fullRightControls
+            compactRightControls
+            minimalRightControls
         }
     }
 
-    private var fullHeaderControls: some View {
+    private var fullRightControls: some View {
         HStack(spacing: 10) {
-            modePicker(width: 150)
             searchField
                 .frame(width: 220)
             summaryCluster
@@ -265,18 +264,16 @@ struct ProjectDetailView: View {
         }
     }
 
-    private var compactHeaderControls: some View {
+    private var compactRightControls: some View {
         HStack(spacing: 8) {
-            modePicker(width: 150)
             searchField
                 .frame(width: 180)
             actionCluster
         }
     }
 
-    private var minimalHeaderControls: some View {
+    private var minimalRightControls: some View {
         HStack(spacing: 8) {
-            modePicker(width: 132)
             searchField
                 .frame(width: 140)
             actionCluster
@@ -317,12 +314,10 @@ struct ProjectDetailView: View {
 
     private var actionCluster: some View {
         HStack(spacing: 2) {
-            if mode == .all {
-                pillButton(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
-                           help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
-                           active: showCompleted) {
-                    withAnimation(listAnimation) { showCompleted.toggle() }
-                }
+            pillButton(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
+                       help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
+                       active: showCompleted) {
+                withAnimation(listAnimation) { showCompleted.toggle() }
             }
             pillButton(systemName: "arrow.clockwise", help: "Refresh") {
                 Task { await reload() }
@@ -413,8 +408,11 @@ struct ProjectDetailView: View {
 
     private var projectHeader: some View {
         HStack(alignment: .center, spacing: 14) {
-            headerControls
-            Spacer(minLength: 0)
+            modePicker(width: 140)
+
+            Spacer(minLength: 14)
+
+            rightControls
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
