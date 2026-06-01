@@ -212,7 +212,7 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all:  allItemsView
-                    case .week: WeekView(project: project, selectedItem: $selectedDetailItem)
+                    case .week: WeekView(project: project, searchText: searchText, selectedItem: $selectedDetailItem)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -258,10 +258,8 @@ struct ProjectDetailView: View {
     private var fullHeaderControls: some View {
         HStack(spacing: 10) {
             modePicker(width: 150)
-            if mode == .all {
-                searchField
-                    .frame(width: 220)
-            }
+            searchField
+                .frame(width: 220)
             summaryCluster
             actionCluster
         }
@@ -270,7 +268,8 @@ struct ProjectDetailView: View {
     private var compactHeaderControls: some View {
         HStack(spacing: 8) {
             modePicker(width: 150)
-            summaryCluster
+            searchField
+                .frame(width: 180)
             actionCluster
         }
     }
@@ -278,6 +277,8 @@ struct ProjectDetailView: View {
     private var minimalHeaderControls: some View {
         HStack(spacing: 8) {
             modePicker(width: 132)
+            searchField
+                .frame(width: 140)
             actionCluster
         }
     }
@@ -412,37 +413,14 @@ struct ProjectDetailView: View {
 
     private var projectHeader: some View {
         HStack(alignment: .center, spacing: 14) {
-            projectTitle
-                .layoutPriority(1)
-
-            Spacer(minLength: 14)
-
             headerControls
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.vertical, 10)
         .background(FacetTheme.canvas)
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
-        }
-    }
-
-    private var projectTitle: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(project.name)
-                .font(.system(size: 18, weight: .semibold))
-                .lineLimit(1)
-            HStack(spacing: 8) {
-                if !project.tagline.isEmpty {
-                    Text(project.tagline)
-                        .lineLimit(1)
-                }
-                Text("#\(project.prefix)")
-                    .monospaced()
-                    .lineLimit(1)
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
     }
 

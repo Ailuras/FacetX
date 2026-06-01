@@ -9,6 +9,7 @@ struct WeekView: View {
     @EnvironmentObject private var settings: AppSettings
 
     let project: Project
+    let searchText: String
     /// The item shown in the shared detail pane (owned by ProjectDetailView), so
     /// week-view edits open the same side pane as the all-items view.
     @Binding var selectedItem: ProjectItem?
@@ -23,7 +24,18 @@ struct WeekView: View {
     private var listAnimation: Animation { FacetTheme.listSpring }
 
     private var weekItems: [ProjectItem] {
-        ItemArrangement.inWeek(allItems, week)
+        let items = ItemArrangement.inWeek(allItems, week)
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return items }
+        return items.filter {
+            $0.content.lowercased().contains(query)
+                || ($0.notes?.lowercased().contains(query) ?? false)
+                || $0.containerName.lowercased().contains(query)
+        }
+    }
+
+    private var hasActiveSearch: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private var goal: WeekGoal? {
@@ -134,7 +146,7 @@ struct WeekView: View {
         if loading {
             ProgressView()
         } else if weekItems.isEmpty {
-            Text("No dated items fall in this week.")
+            Text(hasActiveSearch ? "No items match this search." : "No dated items fall in this week.")
                 .font(.callout).foregroundStyle(.secondary)
         } else {
             List(weekItems) { item in

@@ -122,13 +122,25 @@ struct ItemRow: View {
         self.onStartNotesEdit = onStartNotesEdit
     }
 
-    private var leftStripeColor: Color {
+    private var priorityColor: Color {
         item.priority > 0 ? FacetTheme.priorityColor(item.priority) : .clear
+    }
+
+    private var checkmarkColor: Color {
+        if item.isCompleted {
+            return .green
+        }
+        switch item.priority {
+        case 1...4: return .red
+        case 5: return .orange
+        case 6...9: return .blue
+        default: return .secondary
+        }
     }
 
     private var borderHighlightColor: Color {
         if item.kind == .reminder && item.priority > 0 {
-            return leftStripeColor
+            return priorityColor
         }
         return .blue
     }
@@ -193,7 +205,7 @@ struct ItemRow: View {
                     Button { onToggle(!item.isCompleted) } label: {
                         Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(item.isCompleted ? .green : .secondary)
+                            .foregroundStyle(checkmarkColor)
                     }
                     .buttonStyle(.plain)
                 } else {
@@ -294,22 +306,11 @@ struct ItemRow: View {
                     .fill(rowFill)
                 if item.kind == .reminder && item.priority > 0 {
                     RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                        .fill(leftStripeColor.opacity(0.025))
+                        .fill(priorityColor.opacity(0.025))
                 }
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            HStack {
-                if item.kind == .reminder && item.priority > 0 {
-                    Rectangle()
-                        .fill(leftStripeColor)
-                        .frame(width: 3)
-                }
-                Spacer()
-            }
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        )
         .overlay(
             RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
                 .stroke(rowStroke, lineWidth: isSelected ? 1.5 : 1)
