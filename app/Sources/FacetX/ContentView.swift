@@ -71,6 +71,7 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .onAppear { selection = .today }
         .task {
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
@@ -166,7 +167,7 @@ struct ProjectDetailView: View {
     let project: Project
 
     enum Mode: String, CaseIterable, Identifiable {
-        case all = "All", week = "Week", month = "Month", commits = "Commits"
+        case all = "All", week = "Week", month = "Month", commits = "Git"
         var id: String { rawValue }
     }
 
