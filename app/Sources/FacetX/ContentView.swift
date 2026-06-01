@@ -165,7 +165,7 @@ struct ProjectDetailView: View {
     let project: Project
 
     enum Mode: String, CaseIterable, Identifiable {
-        case all = "All", week = "Week"
+        case all = "All", week = "Week", month = "Month"
         var id: String { rawValue }
     }
 
@@ -206,6 +206,7 @@ struct ProjectDetailView: View {
                     switch mode {
                     case .all:  allItemsView
                     case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem)
+                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -403,7 +404,7 @@ struct ProjectDetailView: View {
 
     private var projectHeader: some View {
         HStack(alignment: .center, spacing: 14) {
-            modePicker(width: 140)
+            modePicker(width: 180)
 
             Spacer(minLength: 14)
 

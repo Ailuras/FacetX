@@ -56,4 +56,12 @@ public enum ItemArrangement {
             return week.contains(d)
         })
     }
+
+    /// The subset of items whose date falls within `month`, ordered by date.
+    public static func inMonth(_ items: [ProjectItem], _ month: MonthYear) -> [ProjectItem] {
+        byDate(items.filter { item in
+            guard let d = item.date else { return false }
+            return month.contains(d)
+        })
+    }
 }

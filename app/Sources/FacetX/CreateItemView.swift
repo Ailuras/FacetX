@@ -11,6 +11,7 @@ struct CreateItemView: View {
     @EnvironmentObject private var settings: AppSettings
 
     let project: Project
+    let initialDate: Date?
     /// Called after a successful create so the detail view can refresh.
     let onCreated: () -> Void
 
@@ -23,10 +24,18 @@ struct CreateItemView: View {
     @State private var content = ""
     @State private var notes = ""
     @State private var priority: Int = 0
-    @State private var useDate = false
-    @State private var date = Date()
+    @State private var useDate: Bool
+    @State private var date: Date
     @State private var saving = false
     @State private var error: String?
+
+    init(project: Project, initialDate: Date? = nil, onCreated: @escaping () -> Void) {
+        self.project = project
+        self.initialDate = initialDate
+        self.onCreated = onCreated
+        _date = State(initialValue: initialDate ?? Date())
+        _useDate = State(initialValue: initialDate != nil)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
