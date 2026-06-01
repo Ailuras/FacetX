@@ -117,16 +117,7 @@ struct ItemRow: View {
     }
 
     private var leftStripeColor: Color {
-        switch item.priority {
-        case 1...4:
-            return .red
-        case 5:
-            return .orange
-        case 6...9:
-            return .blue
-        default:
-            return .clear
-        }
+        item.priority > 0 ? FacetTheme.priorityColor(item.priority) : .clear
     }
 
     private var borderHighlightColor: Color {

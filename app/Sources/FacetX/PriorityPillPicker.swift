@@ -23,7 +23,7 @@ struct PriorityPillPicker: View {
                         .padding(.vertical, 4)
                         .background(
                             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(selection == option.value ? priorityColor(option.value) : Color.clear)
+                                .fill(selection == option.value ? FacetTheme.priorityColor(option.value) : Color.clear)
                         )
                 }
                 .buttonStyle(.plain)
@@ -36,15 +36,6 @@ struct PriorityPillPicker: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
-    }
-
-    private func priorityColor(_ value: Int) -> Color {
-        switch value {
-        case 1...4: return .red
-        case 5: return .blue
-        case 6...9: return .orange
-        default: return .secondary
-        }
     }
 
     private struct PriorityOption: Identifiable {
