@@ -34,10 +34,7 @@ struct TodayView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            content
-        }
+        content
         .background(FacetTheme.canvas)
         .navigationTitle("Today")
         .task { await reload() }
@@ -85,26 +82,6 @@ struct TodayView: View {
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Today")
-                    .font(.system(size: 18, weight: .semibold))
-                Text(Date().formatted(.dateTime.weekday(.wide).month().day()))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            SummaryChip(value: todayItems.count, label: "Due today", systemImage: "sun.max")
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
-        }
     }
 
     private func reload() async {
