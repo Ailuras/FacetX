@@ -98,7 +98,7 @@ struct TodayView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            summaryChip(value: todayItems.count, label: "Due today", systemImage: "sun.max")
+            SummaryChip(value: todayItems.count, label: "Due today", systemImage: "sun.max")
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
@@ -106,16 +106,6 @@ struct TodayView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
-    }
-
-    private func summaryChip(value: Int, label: String, systemImage: String) -> some View {
-        Label("\(value) \(label)", systemImage: systemImage)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(FacetTheme.quietPanel))
-            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
     }
 
     private func reload() async {
