@@ -27,6 +27,11 @@ struct ContainersSettingsView: View {
     @State private var sources: [String] = []
     @State private var createError: String?
 
+    // GitHub
+    @State private var githubToken = ""
+    @State private var githubStatus = ""
+    @State private var validating = false
+
     private var groups: [(header: String, kind: EventKitService.ContainerInfo.Kind, items: [EventKitService.ContainerInfo])] {
         Dictionary(grouping: containers) { "\($0.sourceTitle) · \($0.kind.rawValue)" }
             .map { key, items in
@@ -54,6 +59,7 @@ struct ContainersSettingsView: View {
                 interfaceSection
                 containersSection
                 createSection
+                githubSection
             }
             .padding(20)
         }
@@ -430,6 +436,87 @@ struct ContainersSettingsView: View {
         if settings.defaultCalendarName.isEmpty
             || !enabledCalendarNames.contains(settings.defaultCalendarName) {
             settings.defaultCalendarName = enabledCalendarNames.first ?? ""
+        }
+    }
+
+    // MARK: – GitHub
+
+    private var githubSection: some View {
+        settingsCard(title: "GitHub", systemImage: "curlybraces") {
+            VStack(alignment: .leading, spacing: 10) {
+                if githubStatus.isEmpty {
+                    Text("No token configured.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(githubStatus)
+                            .font(.callout)
+                    }
+                }
+
+                SecureField("Personal Access Token", text: $githubToken)
+                    .textFieldStyle(.roundedBorder)
+
+                HStack {
+                    if !githubStatus.isEmpty {
+                        Button("Remove Token") {
+                            GitHubTokenStore.deleteToken()
+                            githubToken = ""
+                            githubStatus = ""
+                        }
+                        .controlSize(.small)
+                    }
+                    Spacer()
+                    Button(validating ? "Validating…" : "Save Token") {
+                        saveGitHubToken()
+                    }
+                    .controlSize(.small)
+                    .disabled(githubToken.isEmpty || validating)
+                }
+            }
+        }
+        .onAppear { loadGitHubStatus() }
+    }
+
+    private func loadGitHubStatus() {
+        if let token = GitHubTokenStore.loadToken() {
+            githubToken = token
+            Task {
+                do {
+                    let username = try await GitHubService().validateToken(token)
+                    await MainActor.run {
+                        githubStatus = "Connected as \(username)"
+                    }
+                } catch {
+                    await MainActor.run {
+                        githubStatus = "Token invalid"
+                    }
+                }
+            }
+        }
+    }
+
+    private func saveGitHubToken() {
+        let token = githubToken.trimmingCharacters(in: .whitespaces)
+        guard !token.isEmpty else { return }
+        validating = true
+        Task {
+            do {
+                let username = try await GitHubService().validateToken(token)
+                GitHubTokenStore.saveToken(token)
+                await MainActor.run {
+                    githubStatus = "Connected as \(username)"
+                    validating = false
+                }
+            } catch {
+                await MainActor.run {
+                    githubStatus = "Validation failed"
+                    validating = false
+                }
+            }
         }
     }
 }
