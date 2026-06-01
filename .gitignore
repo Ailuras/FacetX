@@ -16,3 +16,6 @@ app/FacetX.iconset/
 # dmg packaging
 app/*.dmg
 app/dmg-staging/
+
+# Run logs
+app/*.log
