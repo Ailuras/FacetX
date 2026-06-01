@@ -70,6 +70,8 @@ struct ItemRow: View {
     /// When set (cross-project views like Today), shows the owning project as a
     /// small chip next to the content. Nil inside a single project's list.
     let projectBadge: String?
+    let showDragGrip: Bool
+    let onDragStart: (() -> NSItemProvider)?
     let onToggle: (Bool) -> Void
     let onEdit: () -> Void
 
@@ -89,6 +91,8 @@ struct ItemRow: View {
     init(item: ProjectItem,
          isSelected: Bool = false,
          projectBadge: String? = nil,
+         showDragGrip: Bool = false,
+         onDragStart: (() -> NSItemProvider)? = nil,
          onToggle: @escaping (Bool) -> Void,
          onEdit: @escaping () -> Void,
          inlineEditingText: Binding<String>? = nil,
@@ -103,6 +107,8 @@ struct ItemRow: View {
         self.item = item
         self.isSelected = isSelected
         self.projectBadge = projectBadge
+        self.showDragGrip = showDragGrip
+        self.onDragStart = onDragStart
         self.onToggle = onToggle
         self.onEdit = onEdit
         self.inlineEditingText = inlineEditingText
@@ -139,9 +145,50 @@ struct ItemRow: View {
         return FacetTheme.hairline
     }
 
+    private var dragGripDots: some View {
+        VStack(spacing: 2) {
+            ForEach(0..<3, id: \.self) { _ in
+                HStack(spacing: 2) {
+                    Circle().fill(Color.secondary.opacity(hovered ? 0.6 : 0.3))
+                        .frame(width: 3, height: 3)
+                    Circle().fill(Color.secondary.opacity(hovered ? 0.6 : 0.3))
+                        .frame(width: 3, height: 3)
+                }
+            }
+        }
+        .frame(width: 8)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .center, spacing: 10) {
+                if showDragGrip {
+                    dragGripDots
+                        .frame(width: 16, height: 28)
+                        .contentShape(Rectangle())
+                        .onDrag {
+                            onDragStart?() ?? NSItemProvider()
+                        } preview: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text(item.content)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(FacetTheme.quietPanel)
+                            .foregroundColor(.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
+                        }
+                }
+
                 if item.kind == .reminder {
                     Button { onToggle(!item.isCompleted) } label: {
                         Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")

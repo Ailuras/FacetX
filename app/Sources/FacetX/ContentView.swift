@@ -178,6 +178,7 @@ struct ProjectDetailView: View {
     @State private var inlineEditingNotesID: String?
     @State private var inlineEditingNotesText: String = ""
     @State private var draggedItem: ProjectItem? = nil
+    @State private var dragSnapshot: [ProjectItem]? = nil
     @State private var selectedDetailItem: ProjectItem? = nil
     @State private var showCompleted = true
     @State private var searchText = ""
@@ -229,7 +230,6 @@ struct ProjectDetailView: View {
             }
         }
         .background(FacetTheme.canvas)
-        .ignoresSafeArea(.container, edges: .top)
         .navigationTitle(project.name)
         .sheet(isPresented: $showCreate) {
             CreateItemView(project: project) { Task { await reload() } }
@@ -470,6 +470,27 @@ struct ProjectDetailView: View {
         ItemRow(
             item: item,
             isSelected: item.id == selectedDetailItem?.id,
+            showDragGrip: true,
+            onDragStart: {
+                self.dragSnapshot = items
+                self.draggedItem = item
+
+                let timer = Timer(timeInterval: 0.05, repeats: true) { timer in
+                    let pressedButtons = NSEvent.pressedMouseButtons
+                    let isLeftPressed = (pressedButtons & (1 << 0)) != 0
+                    if !isLeftPressed {
+                        timer.invalidate()
+                        Task { @MainActor in
+                            if self.draggedItem != nil {
+                                self.cancelDrag()
+                            }
+                        }
+                    }
+                }
+                RunLoop.main.add(timer, forMode: .common)
+
+                return NSItemProvider(object: item.id as NSString)
+            },
             onToggle: { completed in
                 Task {
                     await ek.setReminderCompleted(id: item.id, completed: completed)
@@ -515,16 +536,13 @@ struct ProjectDetailView: View {
                 selectedDetailItem = item
             }
         }
-        .onDrag {
-            self.draggedItem = item
-            return NSItemProvider(object: item.id as NSString)
-        }
         .onDrop(of: [.text], delegate: ItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
             onMove: { dragged, target in moveItem(from: dragged, to: target) },
-            onDrop: { commitItemOrder() }
+            onDrop: { commitItemOrder(); dragSnapshot = nil }
         ))
+        .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
     }
 
     private func startInlineEdit(for item: ProjectItem) {
@@ -633,5 +651,13 @@ struct ProjectDetailView: View {
     /// released, not on every drag-over (which would write to disk repeatedly).
     private func commitItemOrder() {
         store.setItemOrder(projectID: project.id, orderedIDs: items.map(\.id))
+    }
+
+    private func cancelDrag() {
+        if let snapshot = dragSnapshot {
+            withAnimation(listAnimation) { items = snapshot }
+        }
+        dragSnapshot = nil
+        draggedItem = nil
     }
 }
