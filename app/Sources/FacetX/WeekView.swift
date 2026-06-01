@@ -1,8 +1,8 @@
 import FacetXCore
 import SwiftUI
 
-/// Single-project week view: a time-focused slice — this week's goal plus the
-/// project's items whose due/start date falls within the selected ISO week.
+/// Single-project week view: a time-focused slice — this week's goal (backed by
+/// a week-spanning EventKit event) plus the project's items grouped by day.
 struct WeekView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
@@ -21,8 +21,12 @@ struct WeekView: View {
     @State private var editingGoal = false
     @State private var goalTitle = ""
     @State private var goalBody = ""
+    @State private var savingGoal = false
+    @State private var goalError: String?
 
     private var listAnimation: Animation { FacetTheme.listSpring }
+
+    // MARK: - Derived data
 
     private var weekItems: [ProjectItem] {
         var items = ItemArrangement.inWeek(allItems, week)
@@ -32,6 +36,16 @@ struct WeekView: View {
         return items.filter { $0.matches(searchQuery: searchText) }
     }
 
+    /// Exclude the goal event from the day list so it doesn't appear twice.
+    private var nonGoalItems: [ProjectItem] {
+        let goalEventId = goal?.eventId
+        return weekItems.filter { item in
+            if item.id == goalEventId { return false }
+            guard case .event = item.kind else { return true }
+            return !WeekGoalEvent.isGoalContent(item.content)
+        }
+    }
+
     private var hasActiveSearch: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -39,6 +53,38 @@ struct WeekView: View {
     private var goal: WeekGoal? {
         store.weekGoal(projectID: project.id, weekId: week.id)
     }
+
+    private var dayGroups: [DayGroup] {
+        let cal = Calendar(identifier: .iso8601)
+        var groups: [DayGroup] = []
+
+        for offset in 0..<7 {
+            guard let date = cal.date(byAdding: .day, value: offset, to: week.startDate) else { continue }
+            let dayItems = nonGoalItems.filter { item in
+                guard let d = item.date else { return false }
+                return cal.isDate(d, inSameDayAs: date)
+            }
+
+            let wd = DateFormatter()
+            wd.dateFormat = "EEE"
+            let weekdayLabel = wd.string(from: date)
+
+            let df = DateFormatter()
+            df.dateFormat = "MMM d"
+            let dateLabel = df.string(from: date)
+
+            groups.append(DayGroup(
+                date: date,
+                label: "\(weekdayLabel), \(dateLabel)",
+                weekdayLabel: weekdayLabel,
+                items: dayItems,
+                isToday: cal.isDateInToday(date)
+            ))
+        }
+        return groups
+    }
+
+    // MARK: - Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -55,7 +101,8 @@ struct WeekView: View {
         .onChange(of: ek.changeToken) { Task { await reload() } }
     }
 
-    // ── Week navigation ──────────────────────────────────────────────────────
+    // MARK: - Week navigation
+
     private var weekNav: some View {
         HStack {
             Button { week = week.shifted(by: -1) } label: { Image(systemName: "chevron.left") }
@@ -80,7 +127,8 @@ struct WeekView: View {
         }
     }
 
-    // ── Goal ─────────────────────────────────────────────────────────────────
+    // MARK: - Goal
+
     @ViewBuilder private var goalSection: some View {
         if editingGoal {
             VStack(alignment: .leading, spacing: 6) {
@@ -89,13 +137,17 @@ struct WeekView: View {
                     .textFieldStyle(.roundedBorder)
                 TextField("Details (optional)", text: $goalBody, axis: .vertical)
                     .textFieldStyle(.roundedBorder).lineLimit(2...4)
+                if let goalError {
+                    Text(goalError).font(.caption).foregroundStyle(.red)
+                }
                 HStack {
                     Button("Save") {
-                        store.setWeekGoal(projectID: project.id, weekId: week.id,
-                                          title: goalTitle, body: goalBody)
-                        editingGoal = false
+                        Task { await saveGoal() }
                     }
+                    .disabled(savingGoal)
+                    if savingGoal { ProgressView().scaleEffect(0.7) }
                     Button("Cancel") { editingGoal = false }
+                        .disabled(savingGoal)
                 }
             }
             .padding(12)
@@ -144,48 +196,88 @@ struct WeekView: View {
         }
     }
 
-    // ── Items in this week ───────────────────────────────────────────────────
+    // MARK: - Items grouped by day
+
     @ViewBuilder private var itemsSection: some View {
-        Text("Items this week").font(.caption).foregroundStyle(.secondary)
         if loading {
             ProgressView()
-        } else if weekItems.isEmpty {
-            Text(hasActiveSearch ? "No items match this search." : "No dated items fall in this week.")
+        } else if nonGoalItems.isEmpty && hasActiveSearch {
+            Text("No items match this search.")
+                .font(.callout).foregroundStyle(.secondary)
+        } else if nonGoalItems.isEmpty && !hasActiveSearch {
+            Text("No items this week.")
                 .font(.callout).foregroundStyle(.secondary)
         } else {
-            List(weekItems) { item in
-                ItemRow(item: item, isSelected: item.id == selectedItem?.id) { completed in
-                    Task {
-                        await ek.setReminderCompleted(id: item.id, completed: completed)
-                        await reload()
+            List {
+                ForEach(dayGroups) { group in
+                    Section {
+                        if group.items.isEmpty {
+                            Text("No items")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .padding(.vertical, 4)
+                        } else {
+                            ForEach(group.items) { item in
+                                ItemRow(
+                                    item: item,
+                                    isSelected: item.id == selectedItem?.id,
+                                    showDragGrip: false,
+                                    onToggle: { completed in
+                                        Task {
+                                            await ek.setReminderCompleted(id: item.id, completed: completed)
+                                            await reload()
+                                        }
+                                    },
+                                    onEdit: {
+                                        selectItem(item)
+                                    }
+                                )
+                                .contextMenu {
+                                    Button("Edit...") { selectItem(item) }
+                                    Button("Delete", role: .destructive) {
+                                        Task { _ = await ek.deleteItem(id: item.id); await reload() }
+                                    }
+                                }
+                                .onTapGesture { selectItem(item) }
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .move(edge: .top)),
+                                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                                ))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+                            }
+                        }
+                    } header: {
+                        HStack(spacing: 6) {
+                            Text(group.label)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(group.isToday ? Color.accentColor : .secondary)
+                            if group.isToday {
+                                Text("Today")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.accentColor)
+                                    .clipShape(Capsule())
+                            }
+                            Spacer()
+                            Text("\(group.items.count)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .textCase(nil)
                     }
-                } onEdit: {
-                    selectItem(item)
                 }
-                .contextMenu {
-                    Button("Edit...") {
-                        selectItem(item)
-                    }
-                    Button("Delete", role: .destructive) {
-                        Task { _ = await ek.deleteItem(id: item.id); await reload() }
-                    }
-                }
-                .onTapGesture {
-                    selectItem(item)
-                }
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .top)),
-                    removal: .opacity.combined(with: .scale(scale: 0.98))
-                ))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 3, leading: 0, bottom: 3, trailing: 0))
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .animation(listAnimation, value: weekItems.map { "\($0.id)-\($0.isCompleted)" })
+            .animation(listAnimation, value: nonGoalItems.map { "\($0.id)-\($0.isCompleted)" })
         }
     }
+
+    // MARK: - Helpers
 
     private func selectItem(_ item: ProjectItem) {
         withAnimation(.easeOut(duration: 0.15)) { selectedItem = item }
@@ -194,7 +286,54 @@ struct WeekView: View {
     private func startEditingGoal() {
         goalTitle = goal?.title ?? ""
         goalBody = goal?.body ?? ""
+        goalError = nil
         editingGoal = true
+    }
+
+    /// Saves or deletes the goal, keeping the week-spanning EventKit event in sync.
+    private func saveGoal() async {
+        guard !savingGoal else { return }
+        savingGoal = true
+        goalError = nil
+        defer { savingGoal = false }
+
+        let trimmed = goalTitle.trimmingCharacters(in: .whitespaces)
+        let currentWeek = week // copy to avoid sending main-actor state to nonisolated method
+
+        if trimmed.isEmpty {
+            if let eventId = goal?.eventId {
+                let deleted = await ek.deleteGoalEvent(eventId: eventId)
+                guard deleted else {
+                    goalError = "Could not delete the calendar event. Check Calendar access."
+                    return
+                }
+            }
+            store.setWeekGoal(projectID: project.id, weekId: currentWeek.id, title: "", body: "")
+        } else {
+            let eventId = await ek.createOrUpdateGoalEvent(
+                project: project.prefix,
+                title: trimmed,
+                body: goalBody,
+                week: currentWeek,
+                calendarName: project.calendarName,
+                existingEventId: goal?.eventId,
+                enabledCalendars: settings.enabledCalendarNames
+            )
+            guard let eventId else {
+                goalError = "Could not save the calendar event. Check Calendar access and enabled calendars."
+                return
+            }
+            store.setWeekGoal(
+                projectID: project.id,
+                weekId: currentWeek.id,
+                title: goalTitle,
+                body: goalBody,
+                eventId: eventId
+            )
+        }
+
+        editingGoal = false
+        await reload()
     }
 
     private func reload() async {
@@ -211,4 +350,16 @@ struct WeekView: View {
         }
         loading = false
     }
+}
+
+// MARK: - Day group model
+
+private struct DayGroup: Identifiable {
+    let date: Date
+    let label: String
+    let weekdayLabel: String
+    let items: [ProjectItem]
+    let isToday: Bool
+
+    var id: Date { date }
 }
