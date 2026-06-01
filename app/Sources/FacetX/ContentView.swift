@@ -592,24 +592,25 @@ struct ProjectDetailView: View {
         store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder ?? [])
         let selectedId = selectedDetailItem?.id
-        if items.isEmpty {
+        let firstPopulation = items.isEmpty
+
+        let apply = {
+            items = sortedItems
+            if let selectedId {
+                // Keep the selection only if it's still visible under the
+                // current completed/search filters; otherwise drop the pane.
+                selectedDetailItem = visibleItems.first { $0.id == selectedId }
+            }
+        }
+
+        if firstPopulation {
             // First population: skip the row insertion animation so the rows
             // don't fly in from the top and momentarily pile up.
             var transaction = Transaction()
             transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                items = sortedItems
-                if let selectedId {
-                    selectedDetailItem = visibleItems.first { $0.id == selectedId }
-                }
-            }
+            withTransaction(transaction, apply)
         } else {
-            withAnimation(listAnimation) {
-                items = sortedItems
-                if let selectedId {
-                    selectedDetailItem = visibleItems.first { $0.id == selectedId }
-                }
-            }
+            withAnimation(listAnimation, apply)
         }
         loading = false
     }
