@@ -136,69 +136,102 @@ struct WeekView: View {
 
     @ViewBuilder private var goalSection: some View {
         if editingGoal {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Weekly goal").font(.caption).foregroundStyle(.secondary)
-                TextField("This week I'm focused on…", text: $goalTitle)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Details (optional)", text: $goalBody, axis: .vertical)
-                    .textFieldStyle(.roundedBorder).lineLimit(2...4)
+            VStack(alignment: .leading, spacing: 10) {
+                goalEyebrow("This Week's Focus", systemImage: "target")
+                TextField("This week I'm focused on...", text: $goalTitle)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 18, weight: .semibold))
+                    .padding(10)
+                    .background(FacetTheme.panel.opacity(0.70))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
+                TextField("Details and constraints...", text: $goalBody, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .lineLimit(2...4)
+                    .padding(10)
+                    .background(FacetTheme.panel.opacity(0.52))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
                 if let goalError {
                     Text(goalError).font(.caption).foregroundStyle(.red)
                 }
                 HStack {
+                    Spacer()
                     Button("Save") {
                         Task { await saveGoal() }
                     }
+                    .buttonStyle(.borderedProminent)
                     .disabled(savingGoal)
                     if savingGoal { ProgressView().scaleEffect(0.7) }
                     Button("Cancel") { editingGoal = false }
                         .disabled(savingGoal)
                 }
+                .controlSize(.small)
             }
-            .padding(12)
-            .background(FacetTheme.quietPanel)
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
+            .goalCard(accented: true)
         } else if let goal {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Label("Weekly goal", systemImage: "target")
-                        .font(.caption).foregroundStyle(.secondary)
+                    goalEyebrow("This Week's Focus", systemImage: "target")
                     Spacer()
                     Button("Edit") { startEditingGoal() }
                         .font(.caption)
                         .help("Edit weekly goal")
                 }
-                Text(goal.title).font(.title3).bold()
+                Text(goal.title)
+                    .font(.system(size: 20, weight: .bold))
                 if !goal.body.isEmpty {
-                    Text(goal.body).font(.callout).foregroundStyle(.secondary)
+                    Text(goal.body)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(12)
-            .background(FacetTheme.quietPanel)
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
+            .goalCard(accented: true)
         } else {
             Button { startEditingGoal() } label: {
-                Label("Set this week's goal", systemImage: "plus.circle")
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.13))
+                        Image(systemName: "target")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .frame(width: 32, height: 32)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Set this week's focus")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text("Pick one outcome to keep this project's week anchored.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+                    Image(systemName: "plus.circle")
+                        .foregroundStyle(Color.accentColor)
+                }
             }
-            .buttonStyle(.plain).foregroundStyle(.secondary)
+            .buttonStyle(.plain)
             .help("Set this week's project goal")
-            .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(FacetTheme.quietPanel)
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
+            .goalCard(accented: false)
         }
+    }
+
+    private func goalEyebrow(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(Color.accentColor)
     }
 
     // MARK: - Items grouped by day
@@ -404,4 +437,17 @@ private struct DayGroup: Identifiable {
     let isToday: Bool
 
     var id: Date { date }
+}
+
+private extension View {
+    func goalCard(accented: Bool) -> some View {
+        self
+            .padding(14)
+            .background(accented ? FacetTheme.softAccent : FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(accented ? Color.accentColor.opacity(0.22) : FacetTheme.hairline, lineWidth: 1)
+            )
+    }
 }
