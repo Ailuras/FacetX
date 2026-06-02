@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Displays recent GitHub commits for a project's configured repository.
 struct CommitsView: View {
+    @EnvironmentObject private var settings: AppSettings
+
     let project: Project
 
     @State private var commits: [GitHubCommit] = []
@@ -10,15 +12,213 @@ struct CommitsView: View {
 
     private var listAnimation: Animation { FacetTheme.listSpring }
 
+    // MARK: – Derived stats
+
+    private var uniqueAuthors: [(name: String, count: Int)] {
+        let counts = Dictionary(grouping: commits, by: \.authorName)
+            .mapValues { $0.count }
+        return counts.map { (name: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
+    private var latestCommitDate: Date? {
+        commits.map(\.date).max()
+    }
+
+    private var oldestCommitDate: Date? {
+        commits.map(\.date).min()
+    }
+
+    private var commitPeriodString: String? {
+        guard let oldest = oldestCommitDate, let latest = latestCommitDate else { return nil }
+        let formatter = DateIntervalFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .none
+        return formatter.string(from: oldest, to: latest)
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            commitsHeader
-            Divider()
-            commitsContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        HSplitView {
+            gitSidebar
+                .frame(minWidth: 200, idealWidth: 240, maxWidth: 300)
+
+            VStack(spacing: 0) {
+                commitsHeader
+                Divider()
+                commitsContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .background(FacetTheme.canvas)
         }
         .background(FacetTheme.canvas)
         .task(id: project.id) { await reload() }
+    }
+
+    // MARK: – Sidebar
+
+    private var gitSidebar: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if let repo = project.githubRepo {
+                    repoInfoCard(repo: repo)
+
+                    if !commits.isEmpty {
+                        statsCard
+                        contributorsCard
+                    }
+                }
+            }
+            .padding(14)
+        }
+        .background(FacetTheme.canvas)
+        .overlay(
+            Rectangle().fill(FacetTheme.hairline).frame(width: 1),
+            alignment: .trailing
+        )
+    }
+
+    private func repoInfoCard(repo: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "curlybraces")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text("Repository")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.86))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(repo)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+
+                if let url = URL(string: "https://github.com/\(repo)") {
+                    Button("Open on GitHub") {
+                        NSWorkspace.shared.open(url)
+                    }
+                    .font(.system(size: 11))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private var statsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.bar")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text("Statistics")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.86))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                statRow(icon: "number", label: "Commits", value: "\(commits.count)")
+                statRow(icon: "person.2", label: "Contributors", value: "\(uniqueAuthors.count)")
+
+                if let period = commitPeriodString {
+                    statRow(icon: "calendar", label: "Period", value: period)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func statRow(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.primary)
+        }
+    }
+
+    private var contributorsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.2")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text("Contributors")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.86))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(uniqueAuthors.prefix(8), id: \.name) { author in
+                    HStack(spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(authorColor(for: author.name))
+                                .frame(width: 22, height: 22)
+                            Text(String(author.name.prefix(1)).uppercased())
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+
+                        Text(author.name)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Text("\(author.count)")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(FacetTheme.panel.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func authorColor(for name: String) -> Color {
+        let colors: [Color] = [
+            .blue, .green, .orange, .purple, .pink, .teal, .indigo, .red
+        ]
+        var hash = 0
+        for byte in name.utf8 {
+            hash = Int(byte) + ((hash << 5) - hash)
+        }
+        return colors[abs(hash) % colors.count]
     }
 
     // MARK: – Header
@@ -153,8 +353,8 @@ struct CommitsView: View {
         loading = commits.isEmpty
         errorMessage = nil
 
-        let token = GitHubTokenStore.loadToken()
-        guard token != nil else {
+        let token = settings.githubToken.trimmingCharacters(in: .whitespaces)
+        guard !token.isEmpty else {
             loading = false
             errorMessage = "No GitHub token configured.\nAdd one in Settings → GitHub."
             return
