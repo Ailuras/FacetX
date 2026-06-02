@@ -11,13 +11,15 @@ It is a *lens* that gathers the subset of calendar/reminder items belonging to a
 project and presents them in one panel (each project = a *facet* of the same
 data).
 
-Current status: v0.3 local beta. Implemented: project creation/editing in the
-main window, prefix-based aggregation, grouped item view, cross-project Today
+Current status: v0.3 local beta. Implemented: project creation/editing,
+prefix-based aggregation, grouped item view, cross-project Today view, month
 view, project search and header controls, complete/create/delete, modern detail
-editing, completed-item filtering with soft list transitions, per-project week
-view + goal, menu bar quick-capture, live refresh on EventKit changes, container
-selection + creation, and a standard Settings window for app-wide container
-configuration.
+editing with inline title/notes editing and drag-to-reorder, completed-item
+filtering with soft list transitions, per-project week view + goal backed by
+synced calendar events, GitHub commit integration, menu bar quick-capture, live
+refresh on EventKit changes and settings changes, container selection + creation
+with duplicate-name warnings, JSON persistence error surfacing, and a standard
+Settings window.
 
 Founding intent: Apple's Calendar and Reminders organize data flatly by calendar
 or list. FacetX supplies the missing project aggregation dimension without
@@ -119,6 +121,14 @@ is the only association mechanism because EventKit exposes no tag API. All of
 
 Always go through `ProjectPrefix` for parsing/composing — never hand-roll prefix
 string handling elsewhere.
+
+### FacetAssociation: unified classification
+
+New in v0.3: `[FacetAssociation.swift](app/Sources/FacetXCore/FacetAssociation.swift)`
+is the single entry point for deciding whether an EventKit item is a regular
+project item, a week goal, or unrelated. `EventKitService` uses it during fetch
+so that week-goal events never leak into the ordinary item list, and UI views
+read `ProjectItem.projectPrefix` instead of re-parsing `rawTitle`.
 
 ## Architecture
 
@@ -227,3 +237,27 @@ first removal so unchecking one doesn't re-enable everything.
   (this keeps the Command Line Tools build working — no Xcode project required).
 - Out of scope for now: Apple Notes integration (no public API; AppleScript
   only) and the retired web/Python implementation.
+
+## Commit style
+
+Commit by complete feature, never stack unrelated changes. Typical prefixes:
+
+- `feat(...)` — new capability
+- `fix(...)` — bug fix
+- `style(...)` — UI-only polish (no logic change)
+- `refactor(...)` — code restructuring with no user-visible change
+
+Message format: `prefix(scope): imperative description`. Example:
+`fix(settings): refresh views on settings changes`.
+
+## Design principles
+
+- **No backward compatibility.** When changing behavior or data shapes, clean up
+  old logic completely rather than keeping compatibility bridges.
+- **Efficiency first.** Every view should load in one pass; avoid redundant
+  EventKit fetches or redundant re-renders.
+- **Native macOS.** Follow Apple HIG, use system materials and springs, keep
+  the app feeling like a first-party utility.
+- **Aesthetic consistency.** All cards, sheets, and editors share the same
+  visual vocabulary (`FacetTheme` radius, hairline borders, quiet panels).
+  Avoid mixing default Form styles with custom card layouts.
