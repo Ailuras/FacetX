@@ -85,11 +85,11 @@ struct NewProjectView: View {
     }
 
     private var saveLocationsCard: some View {
-        ProjectEditorCard(title: "Save Locations", systemImage: "tray.and.arrow.down") {
-            ProjectEditorPicker(title: "Reminders", selection: $reminderListName, options: draft.reminderLists)
-            ProjectEditorPicker(title: "Calendar", selection: $calendarName, options: draft.calendars)
-            ProjectEditorPicker(title: "Goal Calendar", selection: $weekGoalCalendarName, options: draft.calendars)
-        }
+            ProjectEditorCard(title: "Save Locations", systemImage: "tray.and.arrow.down") {
+                ProjectEditorPicker(title: "Reminders", selection: $reminderListName, options: draft.reminderLists)
+                ProjectEditorPicker(title: "Calendar", selection: $calendarName, options: draft.calendars)
+                ProjectEditorPicker(title: "Goal Calendar", selection: $weekGoalCalendarName, options: draft.calendars)
+            }
     }
 
     private var integrationsCard: some View {
@@ -197,11 +197,11 @@ struct EditProjectView: View {
     }
 
     private var saveLocationsCard: some View {
-        ProjectEditorCard(title: "Save Locations", systemImage: "tray.and.arrow.down") {
-            ProjectEditorPicker(title: "Reminders", selection: $reminderListName, options: reminderLists)
-            ProjectEditorPicker(title: "Calendar", selection: $calendarName, options: calendars)
-            ProjectEditorPicker(title: "Goal Calendar", selection: $weekGoalCalendarName, options: calendars)
-        }
+            ProjectEditorCard(title: "Save Locations", systemImage: "tray.and.arrow.down") {
+                ProjectEditorPicker(title: "Reminders", selection: $reminderListName, options: reminderLists)
+                ProjectEditorPicker(title: "Calendar", selection: $calendarName, options: calendars)
+                ProjectEditorPicker(title: "Goal Calendar", selection: $weekGoalCalendarName, options: calendars)
+            }
     }
 
     private var integrationsCard: some View {
@@ -370,11 +370,7 @@ private struct ProjectEditorPicker: View {
     @Binding var selection: String
     let options: [String]
 
-    private var pickerWidth: CGFloat {
-        let labels = options.isEmpty ? ["None"] : options
-        let longest = labels.map(estimatedTextWidth).max() ?? estimatedTextWidth("None")
-        return min(230, max(86, longest + 30))
-    }
+    private let pickerWidth: CGFloat = 230
 
     var body: some View {
         HStack(spacing: 10) {
@@ -411,10 +407,6 @@ private struct ProjectEditorPicker: View {
             .menuStyle(.button)
             .buttonStyle(.plain)
         }
-    }
-
-    private func estimatedTextWidth(_ text: String) -> CGFloat {
-        CGFloat(text.count) * 7.2
     }
 }
 
