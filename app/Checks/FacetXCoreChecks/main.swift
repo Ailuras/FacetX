@@ -119,4 +119,15 @@ check(searchItem.matches(searchQuery: "review"), "matches should search notes")
 check(searchItem.matches(searchQuery: "build"), "matches should search container name")
 check(!searchItem.matches(searchQuery: "missing"), "non-matching query should not match")
 
+// ── FacetAssociation ─────────────────────────────────────────────────────────
+
+check(FacetAssociation.classify(title: "Regulus: fix bug") == .item(projectPrefix: "Regulus", content: "fix bug"),
+      "classify should return item for regular title")
+check(FacetAssociation.classify(title: "Regulus: 🎯 Ship beta") == .weekGoal(projectPrefix: "Regulus", title: "Ship beta"),
+      "classify should return weekGoal for goal marker title")
+check(FacetAssociation.classify(title: "plain title") == .none,
+      "classify should return none for unassociated title")
+check(FacetAssociation.classify(title: "plain title\nRegulus: fix bug") == .none,
+      "classify should ignore prefixes after the first line")
+
 print("FacetXCoreChecks OK")
