@@ -53,6 +53,9 @@ struct ContainersSettingsView: View {
                 summaryStrip
                 defaultSaveLocations
                 interfaceSection
+                if !duplicateContainerWarnings.isEmpty {
+                    duplicateContainersSection
+                }
                 containersSection
                 githubSection
             }
@@ -259,6 +262,43 @@ struct ContainersSettingsView: View {
             if $0.kind != $1.kind { return $0.kind == .reminder }
             if $0.title != $1.title { return $0.title < $1.title }
             return $0.sourceTitle < $1.sourceTitle
+        }
+    }
+
+    private var duplicateContainerWarnings: [(kind: EventKitService.ContainerInfo.Kind, title: String, sources: [String])] {
+        let grouped = Dictionary(grouping: containers) { container in
+            "\(container.kind.rawValue)/\(container.title)"
+        }
+        return grouped.compactMap { _, matches in
+            guard matches.count > 1, let first = matches.first else { return nil }
+            let sources = matches.map(\.sourceTitle).sorted()
+            return (kind: first.kind, title: first.title, sources: sources)
+        }
+        .sorted {
+            if $0.kind != $1.kind { return $0.kind == .reminder }
+            return $0.title < $1.title
+        }
+    }
+
+    private var duplicateContainersSection: some View {
+        settingsCard(title: "Duplicate Names", systemImage: "exclamationmark.triangle") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("FacetX currently stores container selections by title. Duplicate names below are enabled, disabled, and chosen as save targets together.")
+                    .font(SettingsUI.secondaryFont)
+                    .foregroundStyle(.secondary)
+
+                ForEach(Array(duplicateContainerWarnings.enumerated()), id: \.offset) { _, warning in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: warning.kind == .reminder ? "checklist" : "calendar")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(warning.kind == .reminder ? .green : .blue)
+                            .frame(width: 16)
+                        Text("\(warning.title) appears in \(warning.sources.joined(separator: ", ")). Rename one if you need exact control.")
+                            .font(SettingsUI.secondaryFont)
+                            .foregroundStyle(.primary.opacity(0.82))
+                    }
+                }
+            }
         }
     }
 
