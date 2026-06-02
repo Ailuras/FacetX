@@ -288,9 +288,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// `dueDate` is optional. Returns the reminder's identifier on success, or nil.
     @discardableResult
     func createReminder(project: String, content: String,
-                        listName: String, dueDate: Date?, notes: String? = nil, priority: Int = 0) async -> String? {
-        guard let list = store.calendars(for: .reminder)
-            .first(where: { $0.title == listName }) ?? store.defaultCalendarForNewReminders()
+                        listName: String, dueDate: Date?, notes: String? = nil,
+                        priority: Int = 0, enabledLists: Set<String>? = nil) async -> String? {
+        let lists = filtered(store.calendars(for: .reminder), by: enabledLists)
+        guard let list = lists.first(where: { $0.title == listName })
         else { return nil }
         let r = EKReminder(eventStore: store)
         r.title = ProjectPrefix.makeTitle(project: project, content: content)
@@ -315,9 +316,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func createEvent(project: String, content: String,
                      calendarName: String, startDate: Date,
                      durationMinutes: Int = 60, notes: String? = nil,
-                     isAllDay: Bool = false) async -> Bool {
-        guard let cal = store.calendars(for: .event)
-            .first(where: { $0.title == calendarName })
+                     isAllDay: Bool = false, enabledCalendars: Set<String>? = nil) async -> Bool {
+        let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
+        guard let cal = calendars.first(where: { $0.title == calendarName })
         else { return false }
         let e = EKEvent(eventStore: store)
         e.title = ProjectPrefix.makeTitle(project: project, content: content)

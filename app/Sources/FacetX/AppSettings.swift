@@ -126,6 +126,35 @@ final class AppSettings: ObservableObject {
         calendarsDisabled ? [] : (enabledCalendarNames.isEmpty ? nil : enabledCalendarNames)
     }
 
+    func reminderSaveTarget(projectListName: String?) -> String {
+        saveTarget(preferred: projectListName,
+                   fallback: defaultReminderListName,
+                   disabled: reminderListsDisabled,
+                   enabledNames: enabledReminderListNames)
+    }
+
+    func calendarSaveTarget(projectCalendarName: String?) -> String {
+        saveTarget(preferred: projectCalendarName,
+                   fallback: defaultCalendarName,
+                   disabled: calendarsDisabled,
+                   enabledNames: enabledCalendarNames)
+    }
+
+    private func saveTarget(preferred: String?, fallback: String,
+                            disabled: Bool, enabledNames: Set<String>) -> String {
+        guard !disabled else { return "" }
+        if let preferred = enabledContainerName(preferred, enabledNames: enabledNames) {
+            return preferred
+        }
+        return enabledContainerName(fallback, enabledNames: enabledNames) ?? ""
+    }
+
+    private func enabledContainerName(_ name: String?, enabledNames: Set<String>) -> String? {
+        guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else { return nil }
+        return enabledNames.isEmpty || enabledNames.contains(name) ? name : nil
+    }
+
     func useAllContainers() {
         reminderListsDisabled = false
         calendarsDisabled = false

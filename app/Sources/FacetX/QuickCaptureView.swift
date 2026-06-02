@@ -104,7 +104,7 @@ struct QuickCaptureView: View {
     }
 
     private var targetReminderList: String {
-        project?.reminderListName.nonEmpty ?? settings.defaultReminderListName
+        settings.reminderSaveTarget(projectListName: project?.reminderListName)
     }
 
     private func add() {
@@ -118,7 +118,8 @@ struct QuickCaptureView: View {
         error = nil
         Task {
             let ok = await ek.createReminder(project: project.prefix, content: content,
-                                             listName: listName, dueDate: nil)
+                                             listName: listName, dueDate: nil,
+                                             enabledLists: settings.effectiveReminderListNames)
             if ok != nil {
                 text = ""
                 justAdded = true

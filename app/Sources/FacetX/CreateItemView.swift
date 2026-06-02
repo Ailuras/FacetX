@@ -303,9 +303,9 @@ struct CreateItemView: View {
     private var targetContainer: String {
         switch kind {
         case .reminder:
-            return project.reminderListName.nonEmpty ?? settings.defaultReminderListName
+            return settings.reminderSaveTarget(projectListName: project.reminderListName)
         case .event:
-            return project.calendarName.nonEmpty ?? settings.defaultCalendarName
+            return settings.calendarSaveTarget(projectCalendarName: project.calendarName)
         }
     }
 
@@ -324,13 +324,15 @@ struct CreateItemView: View {
                 ok = await ek.createReminder(project: project.prefix, content: text,
                                               listName: container, dueDate: useDate ? date : nil,
                                               notes: nativeNotes,
-                                              priority: priority) != nil
+                                              priority: priority,
+                                              enabledLists: settings.effectiveReminderListNames) != nil
             case .event:
                 ok = await ek.createEvent(project: project.prefix, content: text,
                                            calendarName: container, startDate: date,
                                            durationMinutes: max(5, durationMinutes),
                                            notes: nativeNotes,
-                                           isAllDay: isAllDay)
+                                           isAllDay: isAllDay,
+                                           enabledCalendars: settings.effectiveCalendarNames)
             }
             saving = false
             if ok { onCreated(); dismiss() }
