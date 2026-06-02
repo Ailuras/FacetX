@@ -84,7 +84,15 @@ final class ProjectStore: ObservableObject {
     }
 
     var activeProjects: [Project] {
-        projects.filter { !$0.archived }.sorted { $0.sortOrder < $1.sortOrder }
+        projects.enumerated()
+            .filter { !$0.element.archived }
+            .sorted {
+                if $0.element.sortOrder != $1.element.sortOrder {
+                    return $0.element.sortOrder < $1.element.sortOrder
+                }
+                return $0.offset < $1.offset
+            }
+            .map(\.element)
     }
 
     @discardableResult
@@ -92,7 +100,7 @@ final class ProjectStore: ObservableObject {
                        reminderListName: String? = nil, calendarName: String? = nil,
                        weekGoalCalendarName: String? = nil,
                        githubRepo: String? = nil) -> Project.ID {
-        let maxOrder = projects.map(\.sortOrder).max() ?? 0
+        let maxOrder = projects.map(\.sortOrder).max() ?? -1
         var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
                               weekGoalCalendarName: weekGoalCalendarName,
@@ -188,9 +196,22 @@ final class ProjectStore: ObservableObject {
             let data = try Data(contentsOf: url)
             projects = try JSONDecoder().decode([Project].self, from: data)
             persistenceError = nil
+            normalizeProjectSortOrderIfNeeded()
         } catch {
             persistenceError = "Could not read projects.json: \(error.localizedDescription)"
         }
+    }
+
+    private func normalizeProjectSortOrderIfNeeded() {
+        var seen = Set<Int>()
+        let needsNormalization = projects.contains { project in
+            project.sortOrder < 0 || !seen.insert(project.sortOrder).inserted
+        }
+        guard needsNormalization else { return }
+        for index in projects.indices {
+            projects[index].sortOrder = index
+        }
+        save()
     }
 
     private func save() {
