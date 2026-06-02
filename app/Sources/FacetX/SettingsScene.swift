@@ -5,7 +5,7 @@ import SwiftUI
 struct SettingsRootView: View {
     var body: some View {
         ContainersSettingsView()
-            .frame(width: 600, height: 660)
+            .frame(width: 720, height: 600)
     }
 }
 
@@ -27,13 +27,6 @@ struct ContainersSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
 
     @State private var containers: [EventKitService.ContainerInfo] = []
-
-    @State private var showCreate = false
-    @State private var newTitle = ""
-    @State private var newKind: EventKitService.ContainerInfo.Kind = .reminder
-    @State private var newSource = ""
-    @State private var sources: [String] = []
-    @State private var createError: String?
 
     // GitHub
     @State private var githubToken = ""
@@ -57,7 +50,6 @@ struct ContainersSettingsView: View {
                 defaultSaveLocations
                 interfaceSection
                 containersSection
-                createSection
                 githubSection
             }
             .padding(20)
@@ -172,7 +164,7 @@ struct ContainersSettingsView: View {
                 Toggle("", isOn: $settings.menuBarEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .controlSize(.small)
+                    .controlSize(.mini)
             }
         }
     }
@@ -186,10 +178,45 @@ struct ContainersSettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
             } else {
+                HStack(alignment: .top, spacing: 16) {
+                    containerColumn(kind: .reminder, title: "Reminders", icon: "checklist", color: .green)
+                    containerColumn(kind: .calendar, title: "Calendars", icon: "calendar", color: .blue)
+                }
+            }
+        }
+    }
+
+    private func containerColumn(kind: EventKitService.ContainerInfo.Kind, title: String, icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.bottom, 6)
+
+            let filtered = compactContainers.filter { $0.kind == kind }
+            if filtered.isEmpty {
+                Text("None")
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(FacetTheme.panel.opacity(0.42))
+                    .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
+            } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(compactContainers.enumerated()), id: \.element.id) { index, container in
+                    ForEach(Array(filtered.enumerated()), id: \.element.id) { index, container in
                         compactContainerRow(container)
-                        if index < compactContainers.count - 1 { compactDivider }
+                        if index < filtered.count - 1 { compactDivider }
                     }
                 }
                 .padding(.horizontal, 10)
@@ -202,6 +229,7 @@ struct ContainersSettingsView: View {
                 )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var compactContainers: [EventKitService.ContainerInfo] {
@@ -221,14 +249,14 @@ struct ContainersSettingsView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(container.kind == .reminder ? .green : .blue)
             }
-            .frame(width: 22, height: 22)
+            .frame(width: 20, height: 20)
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(container.title)
-                    .font(SettingsUI.rowFont)
+                    .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
-                Text("\(container.sourceTitle) · \(container.kind.rawValue)")
-                    .font(SettingsUI.smallFont)
+                Text(container.sourceTitle)
+                    .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
@@ -244,70 +272,15 @@ struct ContainersSettingsView: View {
             ))
             .labelsHidden()
             .toggleStyle(.switch)
-            .controlSize(.small)
+            .controlSize(.mini)
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 4)
     }
 
     private var compactDivider: some View {
         Divider()
             .opacity(0.36)
             .padding(.leading, 30)
-    }
-
-    private var createSection: some View {
-        settingsCard(title: "New Container", systemImage: "plus.app") {
-            if showCreate {
-                createForm
-            } else {
-                Button { startCreate() } label: {
-                    Label("New Container", systemImage: "plus")
-                        .frame(maxWidth: .infinity)
-                }
-                .controlSize(.small)
-            }
-        }
-    }
-
-    private var createForm: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TextField("Name", text: $newTitle)
-                .textFieldStyle(.roundedBorder)
-
-            settingRow(title: "Type", systemImage: "rectangle.split.2x1") {
-                Picker("", selection: $newKind) {
-                    Text("Reminders").tag(EventKitService.ContainerInfo.Kind.reminder)
-                    Text("Calendar").tag(EventKitService.ContainerInfo.Kind.calendar)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: SettingsUI.controlWidth)
-            }
-
-            settingRow(title: "Account", systemImage: "person.crop.circle") {
-                Picker("", selection: $newSource) {
-                    ForEach(sources, id: \.self) { Text($0).tag($0) }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(width: SettingsUI.controlWidth)
-            }
-
-            if let createError {
-                Label(createError, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            HStack {
-                Button("Cancel") { showCreate = false }
-                Spacer()
-                Button("Create") { create() }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty || newSource.isEmpty)
-            }
-            .controlSize(.small)
-        }
     }
 
     private func settingsCard<Content: View>(title: String, systemImage: String,
@@ -347,41 +320,6 @@ struct ContainersSettingsView: View {
         Divider()
             .opacity(0.42)
             .padding(.leading, 28)
-    }
-
-    private func startCreate() {
-        showCreate = true
-        createError = nil
-        reloadSources()
-    }
-
-    private func reloadSources() {
-        sources = ek.sourceTitles(forNew: newKind)
-        if !sources.contains(newSource) { newSource = sources.first ?? "" }
-    }
-
-    private func create() {
-        let title = newTitle.trimmingCharacters(in: .whitespaces)
-        guard !title.isEmpty, !newSource.isEmpty else { return }
-        let result = ek.createContainer(title: title, kind: newKind, sourceTitle: newSource)
-        if result.ok {
-            containers = ek.allContainers()
-            if newKind == .reminder {
-                settings.enableReminderList(title)
-            } else {
-                settings.enableCalendar(title)
-            }
-            if newKind == .reminder, settings.defaultReminderListName.isEmpty {
-                settings.defaultReminderListName = title
-            }
-            if newKind == .calendar, settings.defaultCalendarName.isEmpty {
-                settings.defaultCalendarName = title
-            }
-            newTitle = ""
-            showCreate = false
-        } else {
-            createError = result.error ?? "Couldn't create in \(newSource)."
-        }
     }
 
     private func names(kind: EventKitService.ContainerInfo.Kind) -> [String] {
@@ -427,36 +365,39 @@ struct ContainersSettingsView: View {
     private var githubSection: some View {
         settingsCard(title: "GitHub", systemImage: "curlybraces") {
             VStack(alignment: .leading, spacing: 10) {
-                if githubStatus.isEmpty {
-                    Text("No token configured.")
-                        .font(SettingsUI.secondaryFont)
-                        .foregroundStyle(.secondary)
-                } else {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text(githubStatus)
-                            .font(SettingsUI.secondaryFont)
-                    }
-                }
-
-                SecureField("Personal Access Token", text: $githubToken)
-                    .textFieldStyle(.roundedBorder)
-
                 HStack {
+                    if githubStatus.isEmpty {
+                        Text("No token configured.")
+                            .font(SettingsUI.secondaryFont)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text(githubStatus)
+                                .font(SettingsUI.secondaryFont)
+                        }
+                    }
+
+                    Spacer()
+
                     if !githubStatus.isEmpty {
-                        Button("Remove Token") {
+                        Button("Remove") {
                             GitHubTokenStore.deleteToken()
                             githubToken = ""
                             githubStatus = ""
                         }
                         .controlSize(.small)
                     }
-                    Spacer()
-                    Button(validating ? "Validating…" : "Save Token") {
+                }
+
+                HStack(spacing: 8) {
+                    SecureField("Personal Access Token", text: $githubToken)
+                        .textFieldStyle(.roundedBorder)
+
+                    Button(validating ? "Validating…" : "Save") {
                         saveGitHubToken()
                     }
-                    .controlSize(.small)
                     .disabled(githubToken.isEmpty || validating)
                 }
             }
