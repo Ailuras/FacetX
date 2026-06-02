@@ -40,15 +40,8 @@ struct CommitsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            commitsHeader
+            unifiedHeader
             Divider()
-
-            if !commits.isEmpty {
-                projectInfoBar
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
-                Divider()
-            }
 
             HStack(spacing: 0) {
                 commitsContent
@@ -66,80 +59,11 @@ struct CommitsView: View {
         .task(id: project.id) { await reload() }
     }
 
-    // MARK: – Project Info Bar
+    // MARK: – Unified Header
 
-    private var projectInfoBar: some View {
-        HStack(spacing: 16) {
-            if let repo = project.githubRepo {
-                HStack(spacing: 6) {
-                    Image(systemName: "curlybraces")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text(repo)
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                }
-
-                Divider().frame(height: 14)
-
-                HStack(spacing: 4) {
-                    Image(systemName: "number")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text("\(commits.count) commits")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider().frame(height: 14)
-
-                HStack(spacing: 4) {
-                    Image(systemName: "person.2")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text("\(uniqueAuthors.count) contributors")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-
-                if let period = commitPeriodString {
-                    Divider().frame(height: 14)
-                    HStack(spacing: 4) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                        Text(period)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                // Top contributors avatars
-                HStack(spacing: -6) {
-                    ForEach(uniqueAuthors.prefix(4), id: \.name) { author in
-                        Circle()
-                            .fill(authorColor(for: author.name))
-                            .frame(width: 20, height: 20)
-                            .overlay(
-                                Text(String(author.name.prefix(1)).uppercased())
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(.white)
-                            )
-                            .overlay(
-                                Circle().stroke(FacetTheme.canvas, lineWidth: 1.5)
-                            )
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: – Header
-
-    private var commitsHeader: some View {
+    private var unifiedHeader: some View {
         HStack(spacing: 14) {
+            // Left: title
             HStack(spacing: 6) {
                 Image(systemName: "curlybraces")
                     .font(.system(size: 13, weight: .semibold))
@@ -148,18 +72,73 @@ struct CommitsView: View {
                     .font(.system(size: 13, weight: .semibold))
             }
 
+            // Center: project stats (only when data loaded)
+            if !commits.isEmpty, project.githubRepo != nil {
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "number")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        Text("\(commits.count) commits")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.2")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        Text("\(uniqueAuthors.count) contributors")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let period = commitPeriodString {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                            Text(period)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
             Spacer()
 
-            Button {
-                Task { await reload() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .medium))
+            // Right: refresh + avatars
+            HStack(spacing: 10) {
+                if !commits.isEmpty {
+                    HStack(spacing: -6) {
+                        ForEach(uniqueAuthors.prefix(4), id: \.name) { author in
+                            Circle()
+                                .fill(authorColor(for: author.name))
+                                .frame(width: 20, height: 20)
+                                .overlay(
+                                    Text(String(author.name.prefix(1)).uppercased())
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(.white)
+                                )
+                                .overlay(
+                                    Circle().stroke(FacetTheme.canvas, lineWidth: 1.5)
+                                )
+                        }
+                    }
+                }
+
+                Button {
+                    Task { await reload() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Refresh commits")
+                .disabled(loading)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Refresh commits")
-            .disabled(loading)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
@@ -355,27 +334,6 @@ struct CommitsView: View {
                             Text(formattedDate(commit.date))
                                 .font(.system(size: 12))
                                 .foregroundStyle(.primary)
-                        }
-
-                        detailDivider
-
-                        detailRow(label: "SHA", icon: "number") {
-                            Text(commit.id)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                                .help(commit.id)
-                        }
-
-                        detailDivider
-
-                        detailRow(label: "Repository", icon: "curlybraces") {
-                            if let repo = project.githubRepo {
-                                Text(repo)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                            }
                         }
                     }
                     .padding(.horizontal, 12)
