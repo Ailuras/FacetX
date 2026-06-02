@@ -124,13 +124,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             store.fetchReminders(matching: pred) { reminders in
                 let items = (reminders ?? []).compactMap { r -> ProjectItem? in
                     let title = r.title ?? ""
-                    guard let name = ProjectPrefix.projectName(of: title),
-                          prefixes.contains(name) else { return nil }
+                    guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: r.notes),
+                          prefixes.contains(prefix) else { return nil }
                     return ProjectItem(
                         id: r.calendarItemIdentifier,
                         kind: .reminder,
                         rawTitle: title,
-                        content: ProjectPrefix.contentBody(of: title),
+                        projectPrefix: prefix,
+                        content: content,
                         containerName: r.calendar?.title ?? "?",
                         isCompleted: r.isCompleted,
                         date: r.dueDateComponents?.date,
@@ -166,13 +167,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                         windowDays: Int) -> [ProjectItem] {
         events(enabled: enabled, startDate: startDate, endDate: endDate, windowDays: windowDays).compactMap { e in
             let title = e.title ?? ""
-            guard let name = ProjectPrefix.projectName(of: title),
-                  prefixes.contains(name) else { return nil }
+            guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: e.notes),
+                  prefixes.contains(prefix) else { return nil }
             return ProjectItem(
                 id: e.eventIdentifier ?? UUID().uuidString,
                 kind: .event,
                 rawTitle: title,
-                content: ProjectPrefix.contentBody(of: title),
+                projectPrefix: prefix,
+                content: content,
                 containerName: e.calendar.title,
                 isCompleted: false,
                 date: e.startDate,

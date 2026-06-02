@@ -11,6 +11,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let id: String          // EventKit calendarItemIdentifier / eventIdentifier
     public let kind: Kind
     public let rawTitle: String
+    public let projectPrefix: String   // the project prefix extracted from the title
     public let content: String     // title with the project prefix stripped
     public let containerName: String   // reminder list / calendar = functional zone
     public let isCompleted: Bool
@@ -19,12 +20,13 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let priority: Int       // priority value (0 = none, 1-4 = high, 5 = med, 9 = low)
     public let url: URL?           // URL associated with the item
 
-    public init(id: String, kind: Kind, rawTitle: String, content: String,
-                containerName: String, isCompleted: Bool, date: Date?,
+    public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
+                content: String, containerName: String, isCompleted: Bool, date: Date?,
                 notes: String?, priority: Int, url: URL?) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
+        self.projectPrefix = projectPrefix
         self.content = content
         self.containerName = containerName
         self.isCompleted = isCompleted
