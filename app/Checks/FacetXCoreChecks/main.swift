@@ -66,7 +66,7 @@ func makeItem(_ id: String, zone: String = "Inbox", done: Bool = false,
     let date = day.flatMap { calendar.date(from: DateComponents(year: 2026, month: month, day: $0)) }
     return ProjectItem(id: id, kind: .reminder, rawTitle: id, projectPrefix: "Test", content: id,
                        containerName: zone, isCompleted: done, date: date,
-                       notes: nil, priority: 0, url: nil)
+                       notes: nil, priority: 0, url: nil, isAllDay: false, endDate: nil)
 }
 
 // arranged: incomplete before completed, regardless of saved order.
@@ -111,7 +111,8 @@ check(monthItems.map(\.id) == ["jun1", "jun2"],
 
 let searchItem = ProjectItem(id: "s", kind: .reminder, rawTitle: "Regulus: Ship beta",
                              projectPrefix: "Regulus", content: "Ship beta", containerName: "Build",
-                             isCompleted: false, date: nil, notes: "needs review", priority: 0, url: nil)
+                             isCompleted: false, date: nil, notes: "needs review", priority: 0, url: nil,
+                             isAllDay: false, endDate: nil)
 check(searchItem.matches(searchQuery: ""), "empty query should match everything")
 check(searchItem.matches(searchQuery: "  "), "whitespace query should match everything")
 check(searchItem.matches(searchQuery: "SHIP"), "matches should be case-insensitive on content")

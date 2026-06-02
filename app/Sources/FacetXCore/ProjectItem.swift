@@ -19,10 +19,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let notes: String?      // notes / description
     public let priority: Int       // priority value (0 = none, 1-4 = high, 5 = med, 9 = low)
     public let url: URL?           // URL associated with the item
+    public let isAllDay: Bool      // true for all-day events (events only; always false for reminders)
+    public let endDate: Date?      // end date for events (nil for reminders and all-day events display)
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
                 content: String, containerName: String, isCompleted: Bool, date: Date?,
-                notes: String?, priority: Int, url: URL?) {
+                notes: String?, priority: Int, url: URL?, isAllDay: Bool = false, endDate: Date? = nil) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
@@ -34,6 +36,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.notes = notes
         self.priority = priority
         self.url = url
+        self.isAllDay = isAllDay
+        self.endDate = endDate
     }
 
     /// Whether this item matches a free-text search over its content, notes and
