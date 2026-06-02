@@ -17,6 +17,8 @@ struct Project: Identifiable, Codable, Hashable {
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
     var itemOrder: [String]? = []
+    /// Manual sort index for sidebar ordering (lower = higher).
+    var sortOrder: Int = 0
     /// GitHub repository in "owner/repo" format (optional).
     var githubRepo: String?
 
@@ -29,6 +31,27 @@ struct Project: Identifiable, Codable, Hashable {
         self.reminderListName = reminderListName
         self.calendarName = calendarName
         self.githubRepo = githubRepo
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, prefix, tagline, reminderListName, calendarName
+        case createdAt, archived, weekGoals, itemOrder, sortOrder, githubRepo
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        prefix = try container.decode(String.self, forKey: .prefix)
+        tagline = try container.decodeIfPresent(String.self, forKey: .tagline) ?? ""
+        reminderListName = try container.decodeIfPresent(String.self, forKey: .reminderListName)
+        calendarName = try container.decodeIfPresent(String.self, forKey: .calendarName)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        archived = try container.decodeIfPresent(Bool.self, forKey: .archived) ?? false
+        weekGoals = try container.decodeIfPresent([WeekGoal].self, forKey: .weekGoals) ?? []
+        itemOrder = try container.decodeIfPresent([String].self, forKey: .itemOrder) ?? []
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        githubRepo = try container.decodeIfPresent(String.self, forKey: .githubRepo)
     }
 }
 
@@ -58,16 +81,18 @@ final class ProjectStore: ObservableObject {
     }
 
     var activeProjects: [Project] {
-        projects.filter { !$0.archived }.sorted { $0.createdAt < $1.createdAt }
+        projects.filter { !$0.archived }.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     @discardableResult
     func createProject(name: String, prefix: String? = nil, tagline: String = "",
                        reminderListName: String? = nil, calendarName: String? = nil,
                        githubRepo: String? = nil) -> Project.ID {
-        let project = Project(name: name, prefix: prefix, tagline: tagline,
+        let maxOrder = projects.map(\.sortOrder).max() ?? 0
+        var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
                               githubRepo: githubRepo)
+        project.sortOrder = maxOrder + 1
         projects.append(project)
         save()
         return project.id
@@ -87,6 +112,19 @@ final class ProjectStore: ObservableObject {
 
     func delete(_ project: Project) {
         projects.removeAll { $0.id == project.id }
+        save()
+    }
+
+    // ── Project ordering ─────────────────────────────────────────────────────
+
+    func reorderProjects(from source: IndexSet, to destination: Int) {
+        var active = projects.filter { !$0.archived }.sorted { $0.sortOrder < $1.sortOrder }
+        active.move(fromOffsets: source, toOffset: destination)
+        for (index, project) in active.enumerated() {
+            if let i = projects.firstIndex(where: { $0.id == project.id }) {
+                projects[i].sortOrder = index
+            }
+        }
         save()
     }
 
