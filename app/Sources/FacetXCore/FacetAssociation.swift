@@ -18,8 +18,8 @@ public enum FacetAssociation {
             return .none
         }
         let content = ProjectPrefix.contentBody(of: title)
-        if WeekGoalEvent.isGoalContent(content) {
-            return .weekGoal(projectPrefix: prefix, title: WeekGoalEvent.title(fromContent: content))
+        if WeekGoalEvent.hasGoalMetadata(notes, project: prefix) {
+            return .weekGoal(projectPrefix: prefix, title: content)
         }
         return .item(projectPrefix: prefix, content: content)
     }

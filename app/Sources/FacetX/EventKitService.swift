@@ -395,10 +395,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                                     existingEventId: existingEventId,
                                     enabledCalendars: calendars),
               let eventId = event.eventIdentifier else { return nil }
-        let content = ProjectPrefix.contentBody(of: event.title ?? "")
         return WeekGoalEventSnapshot(
             eventId: eventId,
-            title: WeekGoalEvent.title(fromContent: content),
+            title: ProjectPrefix.contentBody(of: event.title ?? ""),
             body: WeekGoalEvent.body(fromNotes: event.notes)
         )
     }
@@ -438,8 +437,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     private func isGoalEvent(_ event: EKEvent, project: String, week: ISOWeek) -> Bool {
         let title = event.title ?? ""
         guard ProjectPrefix.projectName(of: title) == project else { return false }
-        return WeekGoalEvent.isGoalContent(ProjectPrefix.contentBody(of: title))
-            || WeekGoalEvent.hasNotesMarker(event.notes, project: project, weekID: week.id)
+        return WeekGoalEvent.hasGoalMetadata(event.notes, project: project, weekID: week.id)
     }
 
     private func removeDuplicateGoalEvents(project: String, week: ISOWeek, keeping keptEvent: EKEvent,

@@ -38,8 +38,8 @@ struct WeekView: View {
         return items.filter { $0.matches(searchQuery: searchText) }
     }
 
-    /// Goal events are already filtered out by EventKitService via FacetAssociation,
-    /// so the day list uses the project's items directly.
+    /// Goal events are already filtered out by EventKitService via notes-backed
+    /// FacetAssociation metadata, so the day list uses the project's items directly.
     private var nonGoalItems: [ProjectItem] { weekItems }
 
     private var hasActiveSearch: Bool {

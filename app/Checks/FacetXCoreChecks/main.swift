@@ -35,14 +35,12 @@ check(ISOWeek(year: 2026, week: 22).shifted(by: 1).id == "2026-W23",
       "shifted week should preserve ISO identity")
 
 let goalTitle = WeekGoalEvent.makeTitle(project: "Regulus", title: "Ship beta")
-check(goalTitle == "Regulus: 🎯 Ship beta", "week goal title should use project prefix and marker")
-check(WeekGoalEvent.title(fromContent: "🎯 Ship beta") == "Ship beta",
-      "week goal content should strip marker")
+check(goalTitle == "Regulus: Ship beta", "week goal title should stay human-readable")
 let goalNotes = WeekGoalEvent.makeNotes(body: "Focus on polish", project: "Regulus", weekID: week.id)
 check(WeekGoalEvent.body(fromNotes: goalNotes) == "Focus on polish",
-      "week goal notes body should hide sync marker")
-check(WeekGoalEvent.hasNotesMarker(goalNotes, project: "Regulus", weekID: week.id),
-      "week goal notes should include sync marker")
+      "week goal notes body should hide metadata")
+check(WeekGoalEvent.hasGoalMetadata(goalNotes, project: "Regulus", weekID: week.id),
+      "week goal notes should include identity metadata")
 
 // ── FacetMetadata ────────────────────────────────────────────────────────────
 
@@ -144,8 +142,10 @@ check(!searchItem.matches(searchQuery: "missing"), "non-matching query should no
 
 check(FacetAssociation.classify(title: "Regulus: fix bug") == .item(projectPrefix: "Regulus", content: "fix bug"),
       "classify should return item for regular title")
-check(FacetAssociation.classify(title: "Regulus: 🎯 Ship beta") == .weekGoal(projectPrefix: "Regulus", title: "Ship beta"),
-      "classify should return weekGoal for goal marker title")
+check(FacetAssociation.classify(title: "Regulus: Ship beta", notes: goalNotes) == .weekGoal(projectPrefix: "Regulus", title: "Ship beta"),
+      "classify should return weekGoal for goal metadata")
+check(FacetAssociation.classify(title: "Regulus: Ship beta") == .item(projectPrefix: "Regulus", content: "Ship beta"),
+      "classify should treat a goal-looking title as a regular item without metadata")
 check(FacetAssociation.classify(title: "plain title") == .none,
       "classify should return none for unassociated title")
 check(FacetAssociation.classify(title: "plain title\nRegulus: fix bug") == .none,

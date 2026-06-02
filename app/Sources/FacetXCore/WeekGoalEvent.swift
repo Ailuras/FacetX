@@ -2,44 +2,35 @@ import Foundation
 
 /// Shared title convention for week-goal calendar events.
 public enum WeekGoalEvent {
-    public static let marker = "🎯 "
-    public static let notesMarkerPrefix = "FacetX-WeekGoal:"
-
-    public static func content(title: String) -> String {
-        marker + title
-    }
-
-    public static func isGoalContent(_ content: String) -> Bool {
-        content.hasPrefix(marker)
-    }
-
-    public static func title(fromContent content: String) -> String {
-        guard isGoalContent(content) else { return content }
-        return String(content.dropFirst(marker.count))
-    }
+    private static let kindKey = "facetx-kind"
+    private static let projectKey = "facetx-project"
+    private static let weekKey = "facetx-week"
+    private static let goalKind = "week-goal"
 
     public static func makeTitle(project: String, title: String) -> String {
-        ProjectPrefix.makeTitle(project: project, content: content(title: title))
+        ProjectPrefix.makeTitle(project: project, content: title)
     }
 
     public static func makeNotes(body: String, project: String, weekID: String) -> String {
-        let markerLine = notesMarker(project: project, weekID: weekID)
-        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? markerLine : "\(trimmed)\n\n\(markerLine)"
+        let metadata = FacetMetadata(
+            fields: [
+                kindKey: goalKind,
+                projectKey: project,
+                weekKey: weekID
+            ]
+        )
+        return FacetMetadata.compose(userNotes: body, metadata: metadata) ?? ""
     }
 
     public static func body(fromNotes notes: String?) -> String {
-        guard let notes else { return "" }
-        let lines = notes.components(separatedBy: .newlines)
-            .filter { !$0.hasPrefix(notesMarkerPrefix) }
-        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        FacetMetadata.parse(notes: notes).userNotes
     }
 
-    public static func hasNotesMarker(_ notes: String?, project: String, weekID: String) -> Bool {
-        notes?.contains(notesMarker(project: project, weekID: weekID)) == true
-    }
-
-    private static func notesMarker(project: String, weekID: String) -> String {
-        "\(notesMarkerPrefix) \(project) | \(weekID)"
+    public static func hasGoalMetadata(_ notes: String?, project: String? = nil, weekID: String? = nil) -> Bool {
+        let fields = FacetMetadata.parse(notes: notes).fields
+        guard fields[kindKey] == goalKind else { return false }
+        if let project, fields[projectKey] != project { return false }
+        if let weekID, fields[weekKey] != weekID { return false }
+        return true
     }
 }
