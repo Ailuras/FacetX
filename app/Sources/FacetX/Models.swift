@@ -13,6 +13,7 @@ struct Project: Identifiable, Codable, Hashable {
     /// Where new project reminders/events are saved by default.
     var reminderListName: String?
     var calendarName: String?
+    var weekGoalCalendarName: String?
     var createdAt: Date = Date()
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
@@ -23,18 +24,19 @@ struct Project: Identifiable, Codable, Hashable {
     var githubRepo: String?
 
     init(name: String, prefix: String? = nil, tagline: String = "",
-         reminderListName: String? = nil, calendarName: String? = nil,
+         reminderListName: String? = nil, calendarName: String? = nil, weekGoalCalendarName: String? = nil,
          githubRepo: String? = nil) {
         self.name = name
         self.prefix = prefix ?? name
         self.tagline = tagline
         self.reminderListName = reminderListName
         self.calendarName = calendarName
+        self.weekGoalCalendarName = weekGoalCalendarName
         self.githubRepo = githubRepo
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, prefix, tagline, reminderListName, calendarName
+        case id, name, prefix, tagline, reminderListName, calendarName, weekGoalCalendarName
         case createdAt, archived, weekGoals, itemOrder, sortOrder, githubRepo
     }
 
@@ -46,6 +48,7 @@ struct Project: Identifiable, Codable, Hashable {
         tagline = try container.decodeIfPresent(String.self, forKey: .tagline) ?? ""
         reminderListName = try container.decodeIfPresent(String.self, forKey: .reminderListName)
         calendarName = try container.decodeIfPresent(String.self, forKey: .calendarName)
+        weekGoalCalendarName = try container.decodeIfPresent(String.self, forKey: .weekGoalCalendarName)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         archived = try container.decodeIfPresent(Bool.self, forKey: .archived) ?? false
         weekGoals = try container.decodeIfPresent([WeekGoal].self, forKey: .weekGoals) ?? []
@@ -87,10 +90,12 @@ final class ProjectStore: ObservableObject {
     @discardableResult
     func createProject(name: String, prefix: String? = nil, tagline: String = "",
                        reminderListName: String? = nil, calendarName: String? = nil,
+                       weekGoalCalendarName: String? = nil,
                        githubRepo: String? = nil) -> Project.ID {
         let maxOrder = projects.map(\.sortOrder).max() ?? 0
         var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
+                              weekGoalCalendarName: weekGoalCalendarName,
                               githubRepo: githubRepo)
         project.sortOrder = maxOrder + 1
         projects.append(project)

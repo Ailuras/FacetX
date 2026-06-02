@@ -7,6 +7,7 @@ struct ProjectDraft: Identifiable {
     var tagline = ""
     var reminderListName: String
     var calendarName: String
+    var weekGoalCalendarName: String
     var githubRepo: String = ""
     var reminderLists: [String]
     var calendars: [String]
@@ -14,7 +15,7 @@ struct ProjectDraft: Identifiable {
 
 struct NewProjectView: View {
     let draft: ProjectDraft
-    let onCreate: (String, String?, String, String?, String?, String?) -> Void
+    let onCreate: (String, String?, String, String?, String?, String?, String?) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
@@ -22,10 +23,11 @@ struct NewProjectView: View {
     @State private var tagline: String
     @State private var reminderListName: String
     @State private var calendarName: String
+    @State private var weekGoalCalendarName: String
     @State private var githubRepo: String
 
     init(draft: ProjectDraft,
-         onCreate: @escaping (String, String?, String, String?, String?, String?) -> Void,
+         onCreate: @escaping (String, String?, String, String?, String?, String?, String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.draft = draft
         self.onCreate = onCreate
@@ -35,6 +37,7 @@ struct NewProjectView: View {
         _tagline = State(initialValue: draft.tagline)
         _reminderListName = State(initialValue: draft.reminderListName)
         _calendarName = State(initialValue: draft.calendarName)
+        _weekGoalCalendarName = State(initialValue: draft.weekGoalCalendarName)
         _githubRepo = State(initialValue: draft.githubRepo)
     }
 
@@ -85,6 +88,7 @@ struct NewProjectView: View {
         ProjectEditorCard(title: "Save Locations", systemImage: "tray.and.arrow.down") {
             ProjectEditorPicker(title: "Reminders", selection: $reminderListName, options: draft.reminderLists)
             ProjectEditorPicker(title: "Calendar", selection: $calendarName, options: draft.calendars)
+            ProjectEditorPicker(title: "Goal Calendar", selection: $weekGoalCalendarName, options: draft.calendars)
         }
     }
 
@@ -117,6 +121,7 @@ struct NewProjectView: View {
         onCreate(trimmedName, prefix, tagline.trimmingCharacters(in: .whitespaces),
                  reminderListName.isEmpty ? nil : reminderListName,
                  calendarName.isEmpty ? nil : calendarName,
+                 weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName,
                  repo.isEmpty ? nil : repo)
     }
 }
@@ -134,6 +139,7 @@ struct EditProjectView: View {
     @State private var tagline = ""
     @State private var reminderListName = ""
     @State private var calendarName = ""
+    @State private var weekGoalCalendarName = ""
     @State private var githubRepo = ""
     @State private var reminderLists: [String] = []
     @State private var calendars: [String] = []
@@ -194,6 +200,7 @@ struct EditProjectView: View {
         ProjectEditorCard(title: "Save Locations", systemImage: "tray.and.arrow.down") {
             ProjectEditorPicker(title: "Reminders", selection: $reminderListName, options: reminderLists)
             ProjectEditorPicker(title: "Calendar", selection: $calendarName, options: calendars)
+            ProjectEditorPicker(title: "Goal Calendar", selection: $weekGoalCalendarName, options: calendars)
         }
     }
 
@@ -225,8 +232,8 @@ struct EditProjectView: View {
     }
 
     private func loadFields() {
-        reminderLists = ek.reminderListNames(enabled: settings.enabledReminderListNames)
-        calendars = ek.calendarNames(enabled: settings.enabledCalendarNames)
+        reminderLists = ek.reminderListNames(enabled: settings.effectiveReminderListNames)
+        calendars = ek.calendarNames(enabled: settings.effectiveCalendarNames)
         name = project.name
         prefix = project.prefix
         tagline = project.tagline
@@ -235,8 +242,11 @@ struct EditProjectView: View {
                                           settings.defaultReminderListName,
                                           in: reminderLists)
         calendarName = firstAvailable(project.calendarName,
-                                      settings.defaultCalendarName,
-                                      in: calendars)
+                                       settings.defaultCalendarName,
+                                       in: calendars)
+        weekGoalCalendarName = firstAvailable(project.weekGoalCalendarName,
+                                              settings.weekGoalCalendarName,
+                                              in: calendars)
     }
 
     private func save() {
@@ -246,6 +256,7 @@ struct EditProjectView: View {
         updated.tagline = tagline.trimmingCharacters(in: .whitespaces)
         updated.reminderListName = reminderListName.isEmpty ? nil : reminderListName
         updated.calendarName = calendarName.isEmpty ? nil : calendarName
+        updated.weekGoalCalendarName = weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName
         let repo = githubRepo.trimmingCharacters(in: .whitespaces)
         updated.githubRepo = repo.isEmpty ? nil : repo
         store.update(updated)
@@ -359,21 +370,51 @@ private struct ProjectEditorPicker: View {
     @Binding var selection: String
     let options: [String]
 
+    private var pickerWidth: CGFloat {
+        let labels = options.isEmpty ? ["None"] : options
+        let longest = labels.map(estimatedTextWidth).max() ?? estimatedTextWidth("None")
+        return min(230, max(86, longest + 30))
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             Text(title)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
             Spacer()
-            Picker("", selection: $selection) {
-                if options.isEmpty { Text("None").tag("") }
-                ForEach(options, id: \.self) { Text($0).tag($0) }
+
+            Menu {
+                if options.isEmpty {
+                    Button("None") { selection = "" }
+                } else {
+                    ForEach(options, id: \.self) { option in
+                        Button(option) { selection = option }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(selection.isEmpty ? "None" : selection)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundStyle(selection.isEmpty ? .secondary : .primary)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 9)
+                .frame(width: pickerWidth, height: 24)
+                .background(FacetTheme.panel.opacity(0.70))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .controlSize(.small)
-            .frame(width: 230, alignment: .trailing)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
         }
+    }
+
+    private func estimatedTextWidth(_ text: String) -> CGFloat {
+        CGFloat(text.count) * 7.2
     }
 }
 

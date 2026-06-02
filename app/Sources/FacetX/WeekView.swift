@@ -428,7 +428,7 @@ struct WeekView: View {
                 week: currentWeek,
                 calendarName: goalCalendarName,
                 existingEventId: goal?.eventId,
-                enabledCalendars: settings.enabledCalendarNames
+                enabledCalendars: settings.effectiveCalendarNames
             )
             guard let eventId else {
                 goalError = "Could not save the calendar event. Check Calendar access and enabled calendars."
@@ -458,6 +458,7 @@ struct WeekView: View {
     }
 
     private var goalCalendarName: String? {
+        if let name = project.weekGoalCalendarName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
         if !settings.weekGoalCalendarName.isEmpty { return settings.weekGoalCalendarName }
         if !settings.defaultCalendarName.isEmpty { return settings.defaultCalendarName }
         return project.calendarName.nonEmpty
@@ -465,13 +466,13 @@ struct WeekView: View {
 
     private func syncGoalWithCalendar(for currentWeek: ISOWeek) async {
         guard ek.calendarAuthorized,
-              !ek.calendarNames(enabled: settings.enabledCalendarNames).isEmpty else { return }
+              !ek.calendarNames(enabled: settings.effectiveCalendarNames).isEmpty else { return }
 
         let localGoal = store.weekGoal(projectID: project.id, weekId: currentWeek.id)
         let snapshot = await ek.weekGoalEvent(project: project.prefix,
-                                              week: currentWeek,
-                                              existingEventId: localGoal?.eventId,
-                                              enabledCalendars: settings.enabledCalendarNames)
+                                               week: currentWeek,
+                                               existingEventId: localGoal?.eventId,
+                                               enabledCalendars: settings.effectiveCalendarNames)
         guard !Task.isCancelled, currentWeek == week else { return }
 
         if let snapshot {
@@ -491,8 +492,8 @@ struct WeekView: View {
         let requestedWeek = week
         loading = allItems.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
-                                     enabledReminderLists: settings.enabledReminderListNames,
-                                     enabledCalendars: settings.enabledCalendarNames)
+                                     enabledReminderLists: settings.effectiveReminderListNames,
+                                     enabledCalendars: settings.effectiveCalendarNames)
         await syncGoalWithCalendar(for: requestedWeek)
         guard !Task.isCancelled, requestedWeek == week else { return }
         if allItems.isEmpty {

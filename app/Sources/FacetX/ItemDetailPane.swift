@@ -23,8 +23,8 @@ struct ItemDetailPane: View {
     @State private var containerName = ""
     @State private var saving = false
 
-    private let labelWidth: CGFloat = 82
-    private let controlWidth: CGFloat = 210
+    private let labelWidth: CGFloat = 78
+    private let controlWidth: CGFloat = 202
 
     private var hasChanges: Bool {
         if content.trimmingCharacters(in: .whitespaces) != item.content { return true }
@@ -38,8 +38,10 @@ struct ItemDetailPane: View {
            Calendar.current.compare(date, to: d, toGranularity: .minute) != .orderedSame { return true }
         if item.kind == .event {
             if isAllDay != item.isAllDay { return true }
-            if !isAllDay, let e = item.endDate,
-               Calendar.current.compare(endDate, to: e, toGranularity: .minute) != .orderedSame { return true }
+            if let e = item.endDate {
+                let granularity: Calendar.Component = isAllDay ? .day : .minute
+                if Calendar.current.compare(endDate, to: e, toGranularity: granularity) != .orderedSame { return true }
+            }
         }
         if containerName != item.containerName { return true }
         if urlString.trimmingCharacters(in: .whitespaces) != (item.url?.absoluteString ?? "") { return true }
@@ -70,6 +72,12 @@ struct ItemDetailPane: View {
         .onAppear(perform: loadFields)
         .onChange(of: item) {
             loadFields()
+        }
+        .onChange(of: date) {
+            alignEventEndAfterStartChange()
+        }
+        .onChange(of: isAllDay) {
+            alignEventEndAfterAllDayToggle()
         }
     }
 
@@ -151,9 +159,12 @@ struct ItemDetailPane: View {
             }
 
             propertyDivider
-            propertyRow(label: item.kind == .reminder ? "Due Date" : "Start",
-                        icon: "calendar") {
-                dateControl
+            if item.kind == .event {
+                eventScheduleSection
+            } else {
+                propertyRow(label: "Due Date", icon: "calendar") {
+                    reminderDateControl
+                }
             }
 
             propertyDivider
@@ -248,85 +259,37 @@ struct ItemDetailPane: View {
         }
     }
 
-    private var dateControl: some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            if item.kind == .event {
-                eventDateControl
-            } else {
-                reminderDateControl
+    private var eventScheduleSection: some View {
+        VStack(spacing: 0) {
+            propertyRow(label: "All day", icon: "clock") {
+                allDayToggle
             }
+
+            propertyDivider
+
+            scheduleDateRow(label: "Starts", icon: "calendar", selection: $date)
+
+            propertyDivider
+
+            scheduleDateRow(label: "Ends", icon: "arrow.right", selection: $endDate)
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
-    private var eventDateControl: some View {
-        VStack(alignment: .trailing, spacing: 6) {
-            if isAllDay {
-                // All-day: single clean row
-                HStack(spacing: 12) {
-                    DatePicker("", selection: $date, displayedComponents: [.date])
+    private func scheduleDateRow(label: String, icon: String, selection: Binding<Date>) -> some View {
+        propertyRow(label: label, icon: icon) {
+            HStack(spacing: 6) {
+                DatePicker("", selection: selection, displayedComponents: [.date])
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    .controlSize(.small)
+                    .frame(width: 118)
+
+                if !isAllDay {
+                    DatePicker("", selection: selection, displayedComponents: [.hourAndMinute])
                         .labelsHidden()
                         .datePickerStyle(.compact)
                         .controlSize(.small)
-                        .frame(width: 120)
-
-                    Spacer()
-
-                    allDayToggle
-                }
-            } else {
-                // Timed event: start / end with arrow
-                HStack(spacing: 6) {
-                    Text("Starts")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 38, alignment: .trailing)
-
-                    DatePicker("", selection: $date, displayedComponents: [.date])
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                        .controlSize(.small)
-                        .frame(width: 110)
-
-                    DatePicker("", selection: $date, displayedComponents: [.hourAndMinute])
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                        .controlSize(.small)
-                        .frame(width: 70)
-                }
-
-                // Arrow connector
-                HStack(spacing: 6) {
-                    Text("")
-                        .frame(width: 38, alignment: .trailing)
-                    Image(systemName: "arrow.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary.opacity(0.6))
-                    Spacer()
-                }
-
-                HStack(spacing: 6) {
-                    Text("Ends")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 38, alignment: .trailing)
-
-                    DatePicker("", selection: $endDate, displayedComponents: [.date])
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                        .controlSize(.small)
-                        .frame(width: 110)
-
-                    DatePicker("", selection: $endDate, displayedComponents: [.hourAndMinute])
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                        .controlSize(.small)
-                        .frame(width: 70)
-                }
-
-                HStack {
-                    Spacer()
-                    allDayToggle
+                        .frame(width: 76)
                 }
             }
         }
@@ -355,10 +318,10 @@ struct ItemDetailPane: View {
     }
 
     private var allDayToggle: some View {
-        Toggle("All day", isOn: $isAllDay)
+        Toggle("", isOn: $isAllDay)
+            .labelsHidden()
             .toggleStyle(.checkbox)
             .controlSize(.small)
-            .font(.system(size: 11, weight: .medium))
     }
 
     private var propertyDivider: some View {
@@ -421,9 +384,9 @@ struct ItemDetailPane: View {
     private var containerOptions: [String] {
         switch item.kind {
         case .reminder:
-            return ek.reminderListNames(enabled: settings.enabledReminderListNames)
+            return ek.reminderListNames(enabled: settings.effectiveReminderListNames)
         case .event:
-            return ek.calendarNames(enabled: settings.enabledCalendarNames)
+            return ek.calendarNames(enabled: settings.effectiveCalendarNames)
         }
     }
 
@@ -456,6 +419,31 @@ struct ItemDetailPane: View {
         }
     }
 
+    private func alignEventEndAfterStartChange() {
+        guard item.kind == .event else { return }
+        if isAllDay {
+            endDate = oneDayAfterStart()
+        } else if endDate <= date {
+            endDate = defaultTimedEndDate()
+        }
+    }
+
+    private func alignEventEndAfterAllDayToggle() {
+        guard item.kind == .event else { return }
+        endDate = isAllDay ? oneDayAfterStart() : defaultTimedEndDate()
+    }
+
+    private func oneDayAfterStart() -> Date {
+        let startOfDay = Calendar.current.startOfDay(for: date)
+        return Calendar.current.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+    }
+
+    private func defaultTimedEndDate() -> Date {
+        let minutes = max(settings.defaultEventDurationMinutes, 5)
+        return Calendar.current.date(byAdding: .minute, value: minutes, to: date)
+            ?? date.addingTimeInterval(3600)
+    }
+
     private func saveChanges() {
         let text = content.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty, !containerName.isEmpty else { return }
@@ -480,7 +468,7 @@ struct ItemDetailPane: View {
                 url: urlParam,
                 updateURL: true,
                 isAllDay: item.kind == .event ? isAllDay : nil,
-                endDate: item.kind == .event && !isAllDay ? endDate : nil
+                endDate: item.kind == .event ? endDate : nil
             )
             saving = false
             if ok { onUpdate() }

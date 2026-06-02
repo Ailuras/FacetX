@@ -86,10 +86,11 @@ struct ContentView: View {
         }
         .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
         .sheet(item: $draftProject) { draft in
-            NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, githubRepo in
+            NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, githubRepo in
                 let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
-                                             reminderListName: reminderList, calendarName: calendar,
-                                             githubRepo: githubRepo)
+                                              reminderListName: reminderList, calendarName: calendar,
+                                              weekGoalCalendarName: goalCalendar,
+                                              githubRepo: githubRepo)
                 selection = .project(id)
                 draftProject = nil
             } onCancel: {
@@ -104,13 +105,14 @@ struct ContentView: View {
     private func startNewProject() {
         let existing = Set(store.projects.map(\.name))
         let suggestion = discovered.first { !existing.contains($0) } ?? uniqueProjectName(in: existing)
-        let reminderLists = ek.reminderListNames(enabled: settings.enabledReminderListNames)
-        let calendars = ek.calendarNames(enabled: settings.enabledCalendarNames)
+        let reminderLists = ek.reminderListNames(enabled: settings.effectiveReminderListNames)
+        let calendars = ek.calendarNames(enabled: settings.effectiveCalendarNames)
         draftProject = ProjectDraft(
             name: suggestion,
             prefix: suggestion,
             reminderListName: defaultName(settings.defaultReminderListName, in: reminderLists),
             calendarName: defaultName(settings.defaultCalendarName, in: calendars),
+            weekGoalCalendarName: defaultName(settings.weekGoalCalendarName, in: calendars),
             reminderLists: reminderLists,
             calendars: calendars
         )
@@ -130,8 +132,8 @@ struct ContentView: View {
 
     private func reloadDiscoveredProjects() async {
         discovered = await ek.discoverProjectNames(
-            enabledReminderLists: settings.enabledReminderListNames,
-            enabledCalendars: settings.enabledCalendarNames
+            enabledReminderLists: settings.effectiveReminderListNames,
+            enabledCalendars: settings.effectiveCalendarNames
         )
     }
 
@@ -213,6 +215,7 @@ struct ProjectDetailView: View {
     @State private var searchText = ""
 
     private var listAnimation: Animation { FacetTheme.listSpring }
+    private var detailPaneAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
 
     private var visibleItems: [ProjectItem] {
         let base = showCompleted ? items : items.filter { !$0.isCompleted }
@@ -254,16 +257,10 @@ struct ProjectDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let selectedItem = selectedDetailItem {
-                    Divider()
-                    ItemDetailPane(item: selectedItem, project: project, onClose: {
-                        selectedDetailItem = nil
-                    }, onUpdate: {
-                        Task { await reload() }
-                    })
-                    .frame(width: 340)
-                    .transition(.move(edge: .trailing))
+                    detailPane(for: selectedItem)
                 }
             }
+            .animation(detailPaneAnimation, value: selectedDetailItem != nil)
         }
         .background(FacetTheme.canvas)
         .navigationTitle(project.name)
@@ -275,11 +272,34 @@ struct ProjectDetailView: View {
         .onChange(of: settings.changeToken) { Task { await reload() } }
         .onChange(of: showCompleted) {
             if !showCompleted, selectedDetailItem?.isCompleted == true {
-                withAnimation(listAnimation) {
+                withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
                 }
             }
         }
+    }
+
+    private func detailPane(for selectedItem: ProjectItem) -> some View {
+        ItemDetailPane(item: selectedItem, project: project, onClose: {
+            withAnimation(detailPaneAnimation) {
+                selectedDetailItem = nil
+            }
+        }, onUpdate: {
+            Task { await reload() }
+        })
+        .frame(width: 360)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 8)
+        .padding(.vertical, 10)
+        .padding(.trailing, 10)
+        .transition(.asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .trailing).combined(with: .opacity)
+        ))
     }
 
     // ── Header controls (mode, search, actions) ──────────────────────────────
@@ -660,8 +680,8 @@ struct ProjectDetailView: View {
     private func reload() async {
         loading = items.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
-                                     enabledReminderLists: settings.enabledReminderListNames,
-                                     enabledCalendars: settings.enabledCalendarNames)
+                                     enabledReminderLists: settings.effectiveReminderListNames,
+                                     enabledCalendars: settings.effectiveCalendarNames)
         store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder ?? [])
         let selectedId = selectedDetailItem?.id
