@@ -10,6 +10,12 @@ public struct GitHubCommit: Identifiable, Sendable {
     public let htmlURL: URL
 }
 
+/// A repository visible to the configured GitHub token.
+public struct GitHubRepository: Identifiable, Sendable, Hashable {
+    public let id: Int
+    public let fullName: String
+}
+
 /// Thin wrapper around the GitHub REST API. Nonisolated so it can be used
 /// safely from background contexts without tripping Swift 6 isolation checks.
 final class GitHubService {
@@ -26,6 +32,37 @@ final class GitHubService {
     }()
 
     // MARK: – Commits
+
+    /// Fetch repositories visible to the authenticated user.
+    func fetchRepositories(token: String, perPage: Int = 100) async throws -> [GitHubRepository] {
+        var page = 1
+        var repositories: [GitHubRepository] = []
+
+        while true {
+            guard let url = URL(string: "https://api.github.com/user/repos?per_page=\(perPage)&page=\(page)&sort=updated&affiliation=owner,collaborator,organization_member") else {
+                throw APIError(statusCode: 0, message: "Bad URL.")
+            }
+            var request = URLRequest(url: url)
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw APIError(statusCode: 0, message: "Unexpected response type.")
+            }
+            guard http.statusCode == 200 else {
+                throw APIError(statusCode: http.statusCode,
+                               message: errorMessage(statusCode: http.statusCode, data: data))
+            }
+
+            let raw = try decoder.decode([RawRepository].self, from: data)
+            repositories += raw.map { GitHubRepository(id: $0.id, fullName: $0.full_name) }
+            if raw.count < perPage { break }
+            page += 1
+        }
+
+        return repositories
+    }
 
     /// Fetch the most recent commits for a repository.
     /// - Parameters:
@@ -104,6 +141,11 @@ final class GitHubService {
         let sha: String
         let commit: RawCommitDetail
         let html_url: String
+    }
+
+    private struct RawRepository: Decodable {
+        let id: Int
+        let full_name: String
     }
 
     private struct RawCommitDetail: Decodable {
