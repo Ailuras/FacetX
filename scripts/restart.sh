@@ -23,4 +23,4 @@ echo "[2/3] building"
 "$REPO/app/build-app.sh" "$CONFIG" "$VARIANT"
 
 echo "[3/3] launching $APP_PATH"
-open -n "$APP_PATH"
+FACETX_RESTART=1 open -n "$APP_PATH"
