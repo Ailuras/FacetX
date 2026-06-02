@@ -23,6 +23,8 @@ struct WeekView: View {
     @State private var goalBody = ""
     @State private var savingGoal = false
     @State private var goalError: String?
+    @State private var inlineEditingID: String?
+    @State private var inlineEditingText: String = ""
 
     private var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -256,21 +258,33 @@ struct WeekView: View {
                                     showDragGrip: false,
                                     onToggle: { completed in
                                         Task {
-                                            await ek.setReminderCompleted(id: item.id, completed: completed)
+                                            await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
                                             await reload()
                                         }
                                     },
                                     onEdit: {
                                         selectItem(item)
+                                    },
+                                    inlineEditingText: $inlineEditingText,
+                                    isInlineEditing: item.id == inlineEditingID,
+                                    onInlineCommit: {
+                                        commitInlineEdit(for: item)
+                                    },
+                                    onInlineCancel: {
+                                        cancelInlineEdit(for: item)
                                     }
                                 )
                                 .contextMenu {
                                     Button("Edit...") { selectItem(item) }
                                     Button("Delete", role: .destructive) {
-                                        Task { _ = await ek.deleteItem(id: item.id); await reload() }
+                                        Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
                                     }
                                 }
-                                .onTapGesture { selectItem(item) }
+                                .itemSelectionGestures(
+                                    item: item,
+                                    selectedItem: $selectedItem,
+                                    onDoubleTap: { startInlineEdit(for: item) }
+                                )
                                 .transition(.asymmetric(
                                     insertion: .opacity.combined(with: .move(edge: .top)),
                                     removal: .opacity.combined(with: .scale(scale: 0.98))
@@ -311,8 +325,35 @@ struct WeekView: View {
 
     // MARK: - Helpers
 
+    private func startInlineEdit(for item: ProjectItem) {
+        ItemEditHelpers.startTitleEdit(for: item, editingID: &inlineEditingID, editingText: &inlineEditingText)
+    }
+
+    private func commitInlineEdit(for item: ProjectItem) {
+        Task {
+            _ = await ItemEditHelpers.commitTitleEdit(
+                editingID: inlineEditingID,
+                editingText: inlineEditingText,
+                for: item,
+                projectPrefix: project.prefix,
+                ek: ek
+            )
+            await reload()
+        }
+    }
+
+    private func cancelInlineEdit(for item: ProjectItem) {
+        ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
+    }
+
     private func selectItem(_ item: ProjectItem) {
-        withAnimation(.easeOut(duration: 0.15)) { selectedItem = item }
+        withAnimation(.easeOut(duration: 0.15)) {
+            if selectedItem?.id == item.id {
+                selectedItem = nil
+            } else {
+                selectedItem = item
+            }
+        }
     }
 
     private func startEditingGoal() {

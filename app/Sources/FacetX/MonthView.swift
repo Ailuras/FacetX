@@ -212,9 +212,11 @@ struct MonthView: View {
         .background((item.kind == .event ? Color.blue : FacetTheme.priorityColor(item.priority)).opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         .contentShape(Rectangle())
-        .onTapGesture {
-            selectItem(item)
-        }
+        .itemSelectionGestures(
+            item: item,
+            selectedItem: $selectedItem,
+            onDoubleTap: { selectItem(item) }
+        )
         .help(item.content)
     }
 
@@ -225,7 +227,13 @@ struct MonthView: View {
     }
 
     private func selectItem(_ item: ProjectItem) {
-        withAnimation(.easeOut(duration: 0.15)) { selectedItem = item }
+        withAnimation(.easeOut(duration: 0.15)) {
+            if selectedItem?.id == item.id {
+                selectedItem = nil
+            } else {
+                selectedItem = item
+            }
+        }
     }
 
     private func reload() async {

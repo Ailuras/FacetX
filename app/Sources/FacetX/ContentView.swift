@@ -29,20 +29,23 @@ struct ContentView: View {
                     Section("Projects") {
                         ForEach(store.activeProjects) { project in
                             ProjectSidebarRow(project: project)
-                            .tag(SidebarItem.project(project.id))
-                            .contextMenu {
-                                Button("Edit Project") {
-                                    selection = .project(project.id)
-                                    editingProject = project
+                                .tag(SidebarItem.project(project.id))
+                                .contextMenu {
+                                    Button("Edit Project") {
+                                        selection = .project(project.id)
+                                        editingProject = project
+                                    }
+                                    Divider()
+                                    Button("Archive") {
+                                        store.archive(project)
+                                    }
+                                    Button("Delete", role: .destructive) {
+                                        store.delete(project)
+                                    }
                                 }
-                                Divider()
-                                Button("Archive") {
-                                    store.archive(project)
-                                }
-                                Button("Delete", role: .destructive) {
-                                    store.delete(project)
-                                }
-                            }
+                        }
+                        .onMove { indices, newOffset in
+                            store.reorderProjects(from: indices, to: newOffset)
                         }
                     }
                 }
@@ -506,7 +509,7 @@ struct ProjectDetailView: View {
             },
             onToggle: { completed in
                 Task {
-                    await ek.setReminderCompleted(id: item.id, completed: completed)
+                    await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
                     await reload()
                 }
             },
@@ -538,17 +541,14 @@ struct ProjectDetailView: View {
                 withAnimation(.easeOut(duration: 0.15)) { selectedDetailItem = item }
             }
             Button("Delete", role: .destructive) {
-                Task { _ = await ek.deleteItem(id: item.id); await reload() }
+                Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
             }
         }
-        .onTapGesture(count: 2) {
-            startInlineEdit(for: item)
-        }
-        .onTapGesture {
-            withAnimation(.easeOut(duration: 0.15)) {
-                selectedDetailItem = item
-            }
-        }
+        .itemSelectionGestures(
+            item: item,
+            selectedItem: $selectedDetailItem,
+            onDoubleTap: { startInlineEdit(for: item) }
+        )
         .onDrop(of: [.text], delegate: ItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
@@ -559,60 +559,45 @@ struct ProjectDetailView: View {
     }
 
     private func startInlineEdit(for item: ProjectItem) {
-        inlineEditingText = item.content
-        inlineEditingID = item.id
+        ItemEditHelpers.startTitleEdit(for: item, editingID: &inlineEditingID, editingText: &inlineEditingText)
     }
 
     private func commitInlineEdit(for item: ProjectItem) {
-        guard inlineEditingID == item.id else { return }
-        let newContent = inlineEditingText.trimmingCharacters(in: .whitespaces)
-        inlineEditingID = nil
-
         Task {
-            if newContent.isEmpty {
-                _ = await ek.deleteItem(id: item.id)
-            } else if newContent != item.content {
-                _ = await ek.updateItem(id: item.id, project: project.prefix, content: newContent,
-                                        date: item.date, useDate: item.date != nil,
-                                        containerName: item.containerName, notes: item.notes,
-                                        priority: item.priority)
-            }
+            _ = await ItemEditHelpers.commitTitleEdit(
+                editingID: inlineEditingID,
+                editingText: inlineEditingText,
+                for: item,
+                projectPrefix: project.prefix,
+                ek: ek
+            )
             await reload()
         }
     }
 
     private func cancelInlineEdit(for item: ProjectItem) {
-        guard inlineEditingID == item.id else { return }
-        inlineEditingID = nil
-        Task { await reload() }
+        ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
     }
 
     private func startInlineNotesEdit(for item: ProjectItem) {
-        inlineEditingNotesText = item.notes ?? ""
-        inlineEditingNotesID = item.id
+        ItemEditHelpers.startNotesEdit(for: item, editingID: &inlineEditingNotesID, editingText: &inlineEditingNotesText)
     }
 
     private func commitInlineNotesEdit(for item: ProjectItem) {
-        guard inlineEditingNotesID == item.id else { return }
-        let newNotes = inlineEditingNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
-        inlineEditingNotesID = nil
-        
-        let notesParam = newNotes.isEmpty ? nil : newNotes
         Task {
-            if notesParam != item.notes {
-                _ = await ek.updateItem(id: item.id, project: project.prefix, content: item.content,
-                                        date: item.date, useDate: item.date != nil,
-                                        containerName: item.containerName, notes: notesParam,
-                                        priority: item.priority)
-            }
+            _ = await ItemEditHelpers.commitNotesEdit(
+                editingID: inlineEditingNotesID,
+                editingText: inlineEditingNotesText,
+                for: item,
+                projectPrefix: project.prefix,
+                ek: ek
+            )
             await reload()
         }
     }
 
     private func cancelInlineNotesEdit(for item: ProjectItem) {
-        guard inlineEditingNotesID == item.id else { return }
-        inlineEditingNotesID = nil
-        Task { await reload() }
+        ItemEditHelpers.cancelNotesEdit(editingID: &inlineEditingNotesID)
     }
 
     private func reload() async {
