@@ -38,70 +38,209 @@ struct CreateItemView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Add to \(project.name)").font(.title2).bold()
+        VStack(spacing: 0) {
+            header
+            Divider().opacity(0.7)
 
+            VStack(alignment: .leading, spacing: 14) {
+                captureCard
+                detailsCard
+                if let error { errorCard(error) }
+            }
+            .padding(18)
+
+            Divider().opacity(0.7)
+            footer
+        }
+        .background(FacetTheme.canvas)
+        .frame(width: 500)
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.14))
+                Text(projectInitial)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .frame(width: 36, height: 36)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Add to \(project.name)")
+                    .font(.system(size: 18, weight: .semibold))
+                Text(targetContainer.isEmpty ? "Choose a default save location first" : targetContainer)
+                    .font(.caption)
+                    .foregroundStyle(targetContainer.isEmpty ? .red : .secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+    }
+
+    private var captureCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Picker("Type", selection: $kind) {
                 ForEach(Kind.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Content").font(.caption).foregroundStyle(.secondary)
-                TextField("What needs doing?", text: $content)
-                    .textFieldStyle(.roundedBorder)
-                Text("Will be saved as “\(ProjectPrefix.makeTitle(project: project.prefix, content: content.isEmpty ? "…" : content))”.")
-                    .font(.caption2).foregroundStyle(.secondary)
+            TextField("What needs doing?", text: $content, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(size: 18, weight: .semibold))
+                .lineLimit(1...3)
+                .padding(12)
+                .background(FacetTheme.panel.opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                        .stroke(FacetTheme.hairline, lineWidth: 1)
+                )
+
+            Text("Saved as “\(ProjectPrefix.makeTitle(project: project.prefix, content: content.isEmpty ? "…" : content))”.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private var detailsCard: some View {
+        VStack(spacing: 0) {
+            settingRow(title: kind == .reminder ? "Reminder List" : "Calendar",
+                       systemImage: kind == .reminder ? "list.bullet" : "calendar") {
+                Text(targetContainer.isEmpty ? "None" : targetContainer)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(targetContainer.isEmpty ? .red : .secondary)
+                    .lineLimit(1)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Notes (optional)").font(.caption).foregroundStyle(.secondary)
-                TextField("Add details...", text: $notes)
-                    .textFieldStyle(.roundedBorder)
-            }
+            cardDivider
 
             if kind == .reminder {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Priority").font(.caption).foregroundStyle(.secondary)
+                settingRow(title: "Priority", systemImage: "exclamationmark.circle") {
                     PriorityPillPicker(selection: $priority)
                 }
+                cardDivider
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(kind == .reminder ? "Reminder list" : "Calendar")
-                    .font(.caption).foregroundStyle(.secondary)
-                Label(targetContainer.isEmpty ? "No default selected" : targetContainer,
-                      systemImage: kind == .reminder ? "list.bullet" : "calendar")
-                    .foregroundStyle(targetContainer.isEmpty ? .red : .secondary)
+            settingRow(title: kind == .reminder ? "Due Date" : "Start", systemImage: "calendar") {
+                dateControl
             }
 
-            if kind == .reminder {
-                Toggle("Due date", isOn: $useDate)
+            cardDivider
+
+            VStack(alignment: .leading, spacing: 7) {
+                Label("Notes", systemImage: "doc.text")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("Add details...", text: $notes, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .lineLimit(2...4)
+                    .padding(10)
+                    .background(FacetTheme.panel.opacity(0.60))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
+            }
+            .padding(.vertical, 10)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private var dateControl: some View {
+        HStack(spacing: 8) {
+            if kind == .event {
+                DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    .controlSize(.small)
+            } else {
+                Toggle("", isOn: $useDate)
+                    .labelsHidden()
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
                 if useDate {
                     DatePicker("", selection: $date, displayedComponents: [.date])
                         .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .controlSize(.small)
+                } else {
+                    Text("No date")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.tertiary)
                 }
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Start date").font(.caption).foregroundStyle(.secondary)
-                    DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute])
-                        .labelsHidden()
-                }
-            }
-
-            if let error { Text(error).font(.caption).foregroundStyle(.red) }
-
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
-                Button("Add") { save() }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(content.trimmingCharacters(in: .whitespaces).isEmpty
-                              || targetContainer.isEmpty || saving)
             }
         }
-        .padding(24)
-        .frame(width: 460)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 10) {
+            Spacer()
+            Button("Cancel") { dismiss() }
+                .controlSize(.small)
+            Button { save() } label: {
+                Label(saving ? "Adding..." : "Add", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .keyboardShortcut(.defaultAction)
+            .disabled(content.trimmingCharacters(in: .whitespaces).isEmpty
+                      || targetContainer.isEmpty || saving)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+    }
+
+    private func settingRow<Content: View>(title: String, systemImage: String,
+                                           @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 10) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Spacer()
+            content()
+        }
+        .padding(.vertical, 9)
+    }
+
+    private var cardDivider: some View {
+        Divider().opacity(0.38)
+    }
+
+    private func errorCard(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.triangle")
+            .font(.caption)
+            .foregroundStyle(.red)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.red.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+    }
+
+    private var projectInitial: String {
+        project.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .first.map { String($0).uppercased() } ?? "F"
     }
 
     private var targetContainer: String {
