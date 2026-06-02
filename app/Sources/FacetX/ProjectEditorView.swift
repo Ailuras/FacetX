@@ -126,6 +126,11 @@ struct EditProjectView: View {
                     TextField("Prefix", text: $prefix)
                     Text("Items whose title starts with “\(effectivePrefix):” belong to this project.")
                         .font(.caption2).foregroundStyle(.secondary)
+                    if prefixWillChange {
+                        Label("Existing Calendar and Reminder items will keep the old “\(project.prefix):” prefix and will no longer appear here unless renamed.", systemImage: "exclamationmark.triangle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
                     TextField("Tagline", text: $tagline)
                     Picker("Reminders", selection: $reminderListName) {
                         if reminderLists.isEmpty { Text("None").tag("") }
@@ -172,6 +177,10 @@ struct EditProjectView: View {
 
     private var effectivePrefix: String {
         trimmedPrefix.isEmpty ? (trimmedName.isEmpty ? "..." : trimmedName) : trimmedPrefix
+    }
+
+    private var prefixWillChange: Bool {
+        effectivePrefix != project.prefix
     }
 
     private func loadFields() {
