@@ -2,49 +2,179 @@ import SwiftUI
 
 /// Displays recent GitHub commits for a project's configured repository.
 struct CommitsView: View {
+    @EnvironmentObject private var settings: AppSettings
+
     let project: Project
 
     @State private var commits: [GitHubCommit] = []
+    @State private var selectedCommit: GitHubCommit?
     @State private var loading = false
     @State private var errorMessage: String?
+    @State private var dateRange: DateRange = .none
+    @State private var selectedWeekDay: Date? = Calendar.current.startOfDay(for: Date())
 
     private var listAnimation: Animation { FacetTheme.listSpring }
 
+    enum DateRange: String, CaseIterable, Identifiable {
+        case none = "None"
+        case week = "7 days"
+        case month = "30 days"
+        case quarter = "90 days"
+        case all = "All time"
+
+        var id: String { rawValue }
+
+        var sinceDate: Date? {
+            let calendar = Calendar.current
+            let now = Date()
+            switch self {
+            case .none:
+                return nil
+            case .week:
+                return calendar.date(byAdding: .day, value: -7, to: now)
+            case .month:
+                return calendar.date(byAdding: .day, value: -30, to: now)
+            case .quarter:
+                return calendar.date(byAdding: .day, value: -90, to: now)
+            case .all:
+                return nil
+            }
+        }
+    }
+
+    // MARK: – Week selector helpers
+
+    private var weekDates: [Date] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let weekday = calendar.component(.weekday, from: today)
+        let daysToSunday = weekday - 1
+        guard let sunday = calendar.date(byAdding: .day, value: -daysToSunday, to: today) else { return [] }
+        return (0...6).compactMap { day in
+            calendar.date(byAdding: .day, value: day, to: sunday)
+        }
+    }
+
+    private func weekdayShortName(for date: Date) -> String {
+        let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        let weekday = Calendar.current.component(.weekday, from: date)
+        return weekdays[weekday - 1]
+    }
+
+    private func isToday(_ date: Date) -> Bool {
+        Calendar.current.isDate(date, inSameDayAs: Date())
+    }
+
+    private func isFuture(_ date: Date) -> Bool {
+        let calendar = Calendar.current
+        return calendar.compare(date, to: calendar.startOfDay(for: Date()), toGranularity: .day) == .orderedDescending
+    }
+
+    // MARK: – Derived stats
+
+    private var uniqueAuthors: [(name: String, count: Int)] {
+        let counts = Dictionary(grouping: commits, by: \.authorName)
+            .mapValues { $0.count }
+        return counts.map { (name: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
+    private var latestCommitDate: Date? {
+        commits.map(\.date).max()
+    }
+
+    private var oldestCommitDate: Date? {
+        commits.map(\.date).min()
+    }
+
+    private var commitPeriodString: String? {
+        guard let oldest = oldestCommitDate, let latest = latestCommitDate else { return nil }
+        let formatter = DateIntervalFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .none
+        return formatter.string(from: oldest, to: latest)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            commitsHeader
+            unifiedHeader
             Divider()
-            commitsContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 0) {
+                commitsContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if let commit = selectedCommit {
+                    Divider()
+                    commitDetailPane(commit)
+                        .frame(width: 320)
+                        .transition(.move(edge: .trailing))
+                }
+            }
         }
         .background(FacetTheme.canvas)
         .task(id: project.id) { await reload() }
     }
 
-    // MARK: – Header
+    // MARK: – Unified Header
 
-    private var commitsHeader: some View {
+    private var unifiedHeader: some View {
         HStack(spacing: 14) {
-            HStack(spacing: 6) {
-                Image(systemName: "curlybraces")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text("GitHub Activity")
-                    .font(.system(size: 13, weight: .semibold))
+            // Left: title + stats
+            HStack(spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "curlybraces")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text("GitHub Activity")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+
+                if !commits.isEmpty {
+                    HStack(spacing: 8) {
+                        statBadge(icon: "number", value: "\(commits.count)", label: "commits")
+                        statBadge(icon: "person.2", value: "\(uniqueAuthors.count)", label: "contributors")
+                    }
+                }
             }
 
             Spacer()
 
-            Button {
-                Task { await reload() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .medium))
+            // Right: week selector + date range + refresh
+            HStack(spacing: 10) {
+                weekSelector
+
+                Divider().frame(height: 20)
+
+                Picker("", selection: $dateRange) {
+                    ForEach(DateRange.allCases) { range in
+                        Text(range.rawValue).tag(range)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .controlSize(.small)
+                .frame(width: 100)
+                .onChange(of: dateRange) {
+                    if dateRange != .none {
+                        selectedWeekDay = nil
+                    } else if selectedWeekDay == nil {
+                        selectedWeekDay = Calendar.current.startOfDay(for: Date())
+                    }
+                    Task { await reload() }
+                }
+
+                Button {
+                    Task { await reload() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Refresh commits")
+                .disabled(loading)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Refresh commits")
-            .disabled(loading)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
@@ -52,6 +182,73 @@ struct CommitsView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
+    }
+
+    private func statBadge(icon: String, value: String, label: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.primary)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private var weekSelector: some View {
+        HStack(spacing: 2) {
+            ForEach(weekDates, id: \.self) { date in
+                weekDayCell(date)
+            }
+        }
+    }
+
+    private func weekDayCell(_ date: Date) -> some View {
+        let calendar = Calendar.current
+        let isSelected = selectedWeekDay.map { calendar.isDate($0, inSameDayAs: date) } ?? false
+        let isTodayDate = isToday(date)
+        let isFutureDate = isFuture(date)
+        let isEnabled = dateRange == .none && !isFutureDate
+
+        return VStack(spacing: 1) {
+            Text(weekdayShortName(for: date))
+                .font(.system(size: 8, weight: .semibold))
+            Text("\(calendar.component(.day, from: date))")
+                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+        }
+        .foregroundStyle(
+            !isEnabled ? Color.gray.opacity(0.4) :
+            isSelected ? Color.white :
+            isTodayDate ? Color.accentColor :
+            Color.primary.opacity(0.8)
+        )
+        .frame(width: 30, height: 34)
+        .background(
+            isSelected ? Color.accentColor :
+            isTodayDate && !isSelected ? Color.accentColor.opacity(0.1) :
+            Color.clear
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isEnabled {
+                selectedWeekDay = date
+                dateRange = .none
+                Task { await reload() }
+            }
+        }
+        .opacity(isEnabled ? 1.0 : 0.5)
     }
 
     // MARK: – Content
@@ -133,17 +330,140 @@ struct CommitsView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(FacetTheme.quietPanel)
+        .background(selectedCommit?.id == commit.id
+                    ? Color.accentColor.opacity(0.08)
+                    : FacetTheme.quietPanel)
         .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
+                .stroke(selectedCommit?.id == commit.id
+                        ? Color.accentColor.opacity(0.35)
+                        : FacetTheme.hairline,
+                        lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            NSWorkspace.shared.open(commit.htmlURL)
+            withAnimation(.easeOut(duration: 0.15)) {
+                if selectedCommit?.id == commit.id {
+                    selectedCommit = nil
+                } else {
+                    selectedCommit = commit
+                }
+            }
         }
-        .help("Open commit on GitHub")
+    }
+
+    // MARK: – Commit Detail Pane
+
+    private func commitDetailPane(_ commit: GitHubCommit) -> some View {
+        VStack(spacing: 0) {
+            // Close button
+            HStack {
+                Spacer()
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        selectedCommit = nil
+                    }
+                } label: {
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Close sidebar")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Commit message (main title)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(authorColor(for: commit.authorName))
+                                .frame(width: 8, height: 8)
+                            Text(commit.shortSHA)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .monospaced()
+                        }
+
+                        Text(commit.message)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    // Metadata rows
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "person")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 14)
+
+                            Text("Author")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 50, alignment: .leading)
+
+                            Text(commit.authorName)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.primary)
+                        }
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 14)
+
+                            Text("Date")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 50, alignment: .leading)
+
+                            Text(formattedDate(commit.date))
+                                .font(.system(size: 12))
+                                .foregroundStyle(.primary)
+                        }
+                    }
+
+                    // Action link
+                    Button {
+                        NSWorkspace.shared.open(commit.htmlURL)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("View on GitHub")
+                                .font(.system(size: 12, weight: .medium))
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+        }
+        .frame(maxHeight: .infinity)
+        .background(FacetTheme.canvas)
+    }
+
+    private func authorColor(for name: String) -> Color {
+        let colors: [Color] = [
+            .blue, .green, .orange, .purple, .pink, .teal, .indigo, .red
+        ]
+        var hash = 0
+        for byte in name.utf8 {
+            hash = Int(byte) + ((hash << 5) - hash)
+        }
+        return colors[abs(hash) % colors.count]
     }
 
     // MARK: – Helpers
@@ -152,23 +472,39 @@ struct CommitsView: View {
         guard let repo = project.githubRepo else { return }
         loading = commits.isEmpty
         errorMessage = nil
+        selectedCommit = nil
 
-        let token = GitHubTokenStore.loadToken()
-        guard token != nil else {
+        let token = settings.githubToken.trimmingCharacters(in: .whitespaces)
+        guard !token.isEmpty else {
             loading = false
             errorMessage = "No GitHub token configured.\nAdd one in Settings → GitHub."
             return
         }
 
         do {
-            let fetched = try await GitHubService().fetchCommits(repo: repo, token: token)
+            var since: Date?
+            var until: Date?
+            let calendar = Calendar.current
+
+            if let selectedDay = selectedWeekDay, dateRange == .none {
+                since = calendar.startOfDay(for: selectedDay)
+                until = calendar.date(byAdding: .day, value: 1, to: since!)
+            } else {
+                since = dateRange.sinceDate
+            }
+
+            let fetched = try await GitHubService().fetchCommits(repo: repo, token: token, since: since, until: until)
             withAnimation(listAnimation) {
                 commits = fetched
             }
         } catch let error as GitHubService.APIError {
             errorMessage = error.message
+        } catch let error as URLError {
+            errorMessage = "Network error: \(error.localizedDescription)"
+        } catch let error as DecodingError {
+            errorMessage = "Data error: \(error.localizedDescription)"
         } catch {
-            errorMessage = "Failed to load commits."
+            errorMessage = "Failed to load commits: \(error.localizedDescription)"
         }
         loading = false
     }
@@ -177,5 +513,12 @@ struct CommitsView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }

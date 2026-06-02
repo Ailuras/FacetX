@@ -1,6 +1,7 @@
 # Swift / SwiftPM
 app/.build/
 app/FacetX.app/
+app/FacetX-*.app/
 .swiftpm/
 *.xcodeproj
 

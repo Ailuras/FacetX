@@ -495,7 +495,7 @@ private struct IntegrationsSettingsTab: View {
 
                         if !githubStatus.isEmpty {
                             Button("Remove") {
-                                GitHubTokenStore.deleteToken()
+                                settings.githubToken = ""
                                 githubToken = ""
                                 githubStatus = ""
                             }
@@ -527,7 +527,8 @@ private struct IntegrationsSettingsTab: View {
     }
 
     private func loadGitHubStatus() {
-        guard githubToken.isEmpty, let token = GitHubTokenStore.loadToken() else { return }
+        let token = settings.githubToken
+        guard githubToken.isEmpty, !token.isEmpty else { return }
         githubToken = token
         Task {
             do {
@@ -546,8 +547,8 @@ private struct IntegrationsSettingsTab: View {
         Task {
             do {
                 let username = try await GitHubService().validateToken(token)
-                GitHubTokenStore.saveToken(token)
                 await MainActor.run {
+                    settings.githubToken = token
                     githubStatus = "Connected as \(username)"
                     validating = false
                 }
