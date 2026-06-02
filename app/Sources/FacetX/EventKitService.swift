@@ -346,7 +346,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         do {
             try store.save(event, span: .thisEvent, commit: true)
             removeDuplicateGoalEvents(project: project, week: week, keeping: event, enabledCalendars: calendars)
-            return event.eventIdentifier ?? existingEventId
+            return event.calendarItemIdentifier
         } catch {
             return nil
         }
@@ -359,10 +359,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
         guard let event = goalEvent(project: project, week: week,
                                     existingEventId: existingEventId,
-                                    enabledCalendars: calendars),
-              let eventId = event.eventIdentifier else { return nil }
+                                    enabledCalendars: calendars) else { return nil }
         return WeekGoalEventSnapshot(
-            eventId: eventId,
+            eventId: event.calendarItemIdentifier,
             title: ProjectPrefix.contentBody(of: event.title ?? ""),
             body: WeekGoalEvent.body(fromNotes: event.notes)
         )
@@ -408,10 +407,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     private func removeDuplicateGoalEvents(project: String, week: ISOWeek, keeping keptEvent: EKEvent,
                                            enabledCalendars calendars: [EKCalendar]) {
-        let keptId = keptEvent.eventIdentifier
         let duplicates = goalEvents(project: project, week: week, enabledCalendars: calendars).filter { event in
-            guard let keptId else { return event !== keptEvent }
-            return event.eventIdentifier != keptId
+            event !== keptEvent
         }
         for event in duplicates {
             try? store.remove(event, span: .thisEvent, commit: true)
