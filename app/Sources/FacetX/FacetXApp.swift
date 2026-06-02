@@ -60,9 +60,10 @@ struct WindowPositionRestorer: View {
         let screenFrame = rightScreen.visibleFrame
         let windowFrame = window.frame
 
-        // 将窗口放到右侧屏幕中央
-        let newX = screenFrame.minX + (screenFrame.width - windowFrame.width) / 2
-        let newY = screenFrame.minY + (screenFrame.height - windowFrame.height) / 2
+        // 将窗口放到右侧屏幕右下
+        let margin: CGFloat = 20
+        let newX = screenFrame.maxX - windowFrame.width - margin
+        let newY = screenFrame.minY + margin
         window.setFrameOrigin(NSPoint(x: newX, y: newY))
     }
 }
