@@ -123,14 +123,32 @@ struct MonthView: View {
     private func dayCell(day: Int) -> some View {
         let items = itemsByDay[day] ?? []
         let isToday = month.isToday(day: day)
+        let hasItems = !items.isEmpty
 
         return VStack(alignment: .leading, spacing: 2) {
-            Text("\(day)")
-                .font(.system(size: 12, weight: isToday ? .bold : .regular))
-                .foregroundStyle(isToday ? Color.accentColor : .primary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.top, 4)
-                .padding(.trailing, 6)
+            HStack(spacing: 4) {
+                if hasItems {
+                    Text("\(items.count)")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(isToday ? Color.accentColor : .secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background((isToday ? Color.accentColor : Color.secondary).opacity(0.10))
+                        .clipShape(Capsule())
+                }
+
+                Spacer()
+
+                Text("\(day)")
+                    .font(.system(size: 12, weight: isToday ? .bold : .regular))
+                    .foregroundStyle(isToday ? Color.accentColor : .primary)
+                    .padding(.horizontal, isToday ? 6 : 0)
+                    .padding(.vertical, isToday ? 2 : 0)
+                    .background(isToday ? Color.accentColor.opacity(0.12) : Color.clear)
+                    .clipShape(Capsule())
+            }
+            .padding(.top, 5)
+            .padding(.horizontal, 6)
 
             VStack(alignment: .leading, spacing: 1) {
                 ForEach(items.prefix(3)) { item in
@@ -138,9 +156,14 @@ struct MonthView: View {
                 }
                 if items.count > 3 {
                     Text("+\(items.count - 3)")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 4)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.accentColor.opacity(0.10))
+                        .clipShape(Capsule())
+                        .padding(.leading, 2)
+                        .help("\(items.count - 3) more items on this day")
                 }
             }
             .padding(.horizontal, 4)
@@ -149,12 +172,12 @@ struct MonthView: View {
             Spacer(minLength: 0)
         }
         .frame(minHeight: 80)
-        .background(isToday ? FacetTheme.softAccent : Color.clear)
+        .background(dayBackground(isToday: isToday, hasItems: hasItems))
         .overlay(
             Rectangle()
                 .stroke(
-                    isToday ? Color.accentColor.opacity(0.4) : FacetTheme.hairline,
-                    lineWidth: isToday ? 2 : 0.5
+                    isToday ? Color.accentColor.opacity(0.45) : (hasItems ? Color.accentColor.opacity(0.14) : FacetTheme.hairline),
+                    lineWidth: isToday ? 1.5 : 0.5
                 )
         )
         .contentShape(Rectangle())
@@ -174,21 +197,31 @@ struct MonthView: View {
 
     private func dayItemRow(item: ProjectItem) -> some View {
         HStack(spacing: 3) {
-            Circle()
-                .fill(FacetTheme.priorityColor(item.priority))
-                .frame(width: 5, height: 5)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(item.kind == .event ? Color.blue : FacetTheme.priorityColor(item.priority))
+                .frame(width: 3, height: 12)
             Text(item.content)
-                .font(.system(size: 10))
+                .font(.system(size: 10, weight: .medium))
                 .lineLimit(1)
                 .foregroundStyle(item.isCompleted ? .secondary : .primary)
                 .strikethrough(item.isCompleted)
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background((item.kind == .event ? Color.blue : FacetTheme.priorityColor(item.priority)).opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {
             selectItem(item)
         }
+        .help(item.content)
+    }
+
+    private func dayBackground(isToday: Bool, hasItems: Bool) -> Color {
+        if isToday { return FacetTheme.softAccent }
+        if hasItems { return Color.accentColor.opacity(0.035) }
+        return Color.clear
     }
 
     private func selectItem(_ item: ProjectItem) {
