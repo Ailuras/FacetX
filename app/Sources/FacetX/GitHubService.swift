@@ -48,11 +48,11 @@ final class GitHubService {
         }
 
         guard http.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw APIError(statusCode: http.statusCode, message: body)
+            throw APIError(statusCode: http.statusCode,
+                           message: errorMessage(statusCode: http.statusCode, data: data))
         }
 
-        let raw = try JSONDecoder().decode([RawCommit].self, from: data)
+        let raw = try decoder.decode([RawCommit].self, from: data)
         return raw.compactMap { commit in
             guard let url = URL(string: commit.html_url) else { return nil }
             let sha = commit.sha
@@ -91,6 +91,13 @@ final class GitHubService {
         return user.login
     }
 
+    private func errorMessage(statusCode: Int, data: Data) -> String {
+        if let raw = try? decoder.decode(RawError.self, from: data) {
+            return "GitHub error \(statusCode): \(raw.message)"
+        }
+        return "GitHub error \(statusCode)."
+    }
+
     // MARK: – JSON helpers
 
     private struct RawCommit: Decodable {
@@ -111,5 +118,9 @@ final class GitHubService {
 
     private struct RawUser: Decodable {
         let login: String
+    }
+
+    private struct RawError: Decodable {
+        let message: String
     }
 }
