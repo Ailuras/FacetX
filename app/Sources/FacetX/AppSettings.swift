@@ -29,6 +29,9 @@ final class AppSettings: ObservableObject {
     @Published var menuBarEnabled: Bool {
         didSet { settingsDidChange() }
     }
+    @Published var githubToken: String {
+        didSet { settingsDidChange() }
+    }
     @Published private(set) var changeToken = 0
     @Published private(set) var persistenceError: String?
 
@@ -60,12 +63,14 @@ final class AppSettings: ObservableObject {
                 self.defaultReminderListName = stored.defaultReminderListName ?? ""
                 self.defaultCalendarName = stored.defaultCalendarName ?? ""
                 self.menuBarEnabled = stored.menuBarEnabled ?? true
+                self.githubToken = stored.githubToken ?? ""
             } else {
                 self.enabledReminderListNames = []
                 self.enabledCalendarNames = []
                 self.defaultReminderListName = ""
                 self.defaultCalendarName = ""
                 self.menuBarEnabled = true
+                self.githubToken = ""
             }
         } else {
             self.enabledReminderListNames = []   // empty = all reminders
@@ -73,6 +78,7 @@ final class AppSettings: ObservableObject {
             self.defaultReminderListName = ""
             self.defaultCalendarName = ""
             self.menuBarEnabled = true
+            self.githubToken = ""
         }
     }
 
@@ -124,15 +130,17 @@ final class AppSettings: ObservableObject {
         var defaultReminderListName: String?
         var defaultCalendarName: String?
         var menuBarEnabled: Bool?
+        var githubToken: String?
     }
 
     private func save() {
         let stored = Stored(enabledReminderListNames: enabledReminderListNames.sorted(),
                             enabledCalendarNames: enabledCalendarNames.sorted(),
-                            enabledContainerNames: nil,
-                            defaultReminderListName: defaultReminderListName,
-                            defaultCalendarName: defaultCalendarName,
-                            menuBarEnabled: menuBarEnabled)
+                             enabledContainerNames: nil,
+                             defaultReminderListName: defaultReminderListName,
+                             defaultCalendarName: defaultCalendarName,
+                             menuBarEnabled: menuBarEnabled,
+                             githubToken: githubToken.isEmpty ? nil : githubToken)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
             try enc.encode(stored).write(to: url, options: .atomic)
