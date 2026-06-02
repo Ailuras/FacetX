@@ -139,7 +139,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                         notes: metadata.userNotes.isEmpty ? nil : metadata.userNotes,
                         tags: metadata.tags,
                         priority: r.priority,
-                        url: r.url
+                        url: r.url,
+                        isAllDay: false,
+                        endDate: nil
                     )
                 }
                 cont.resume(returning: items)
@@ -184,7 +186,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                 notes: metadata.userNotes.isEmpty ? nil : metadata.userNotes,
                 tags: metadata.tags,
                 priority: 0,
-                url: e.url
+                url: e.url,
+                isAllDay: e.isAllDay,
+                endDate: e.endDate
             )
         }
     }
@@ -310,7 +314,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     @discardableResult
     func createEvent(project: String, content: String,
                      calendarName: String, startDate: Date,
-                     durationMinutes: Int = 60, notes: String? = nil) async -> Bool {
+                     durationMinutes: Int = 60, notes: String? = nil,
+                     isAllDay: Bool = false) async -> Bool {
         guard let cal = store.calendars(for: .event)
             .first(where: { $0.title == calendarName })
         else { return false }
@@ -318,8 +323,15 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         e.title = ProjectPrefix.makeTitle(project: project, content: content)
         e.calendar = cal
         e.notes = notes
-        e.startDate = startDate
-        e.endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate)
+        e.isAllDay = isAllDay
+        if isAllDay {
+            // All-day events span exactly one day in EventKit (end = start + 1 day, exclusive)
+            e.startDate = Calendar.current.startOfDay(for: startDate)
+            e.endDate = Calendar.current.date(byAdding: .day, value: 1, to: e.startDate)!
+        } else {
+            e.startDate = startDate
+            e.endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate)
+        }
         do { try store.save(e, span: .thisEvent, commit: true); return true } catch { return false }
     }
 
@@ -460,7 +472,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// the default would otherwise silently erase an item's existing link.
     func updateItem(id: String, project: String, content: String,
                     date: Date?, useDate: Bool, containerName: String, notes: String?, tags: [String]? = nil, priority: Int,
-                    url: URL? = nil, updateURL: Bool = false) async -> Bool {
+                    url: URL? = nil, updateURL: Bool = false,
+                    isAllDay: Bool? = nil, endDate: Date? = nil) async -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
 
         let newTitle = ProjectPrefix.makeTitle(project: project, content: content)
@@ -493,11 +506,32 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             do { try store.save(reminder, commit: true); return true } catch { return false }
         } else if let event = item as? EKEvent {
             guard let start = date else { return false }
-            // Preserve the event's existing duration instead of forcing 1 hour;
-            // ProjectItem only carries the start, so the end must be derived.
-            let duration = event.endDate.timeIntervalSince(event.startDate)
-            event.startDate = start
-            event.endDate = start.addingTimeInterval(duration > 0 ? duration : 3600)
+            let existingDuration = event.endDate.timeIntervalSince(event.startDate)
+
+            if let allDay = isAllDay {
+                event.isAllDay = allDay
+            }
+
+            if event.isAllDay {
+                // All-day events: start at beginning of day, end = start + 1 day (exclusive)
+                let cal = Calendar.current
+                event.startDate = cal.startOfDay(for: start)
+                if let end = endDate {
+                    // Ensure end is at least start + 1 day
+                    let minEnd = cal.date(byAdding: .day, value: 1, to: event.startDate)!
+                    event.endDate = end < minEnd ? minEnd : cal.startOfDay(for: end)
+                } else {
+                    event.endDate = cal.date(byAdding: .day, value: 1, to: event.startDate)!
+                }
+            } else {
+                // Timed events: use explicit endDate if provided, otherwise preserve duration
+                event.startDate = start
+                if let end = endDate {
+                    event.endDate = end
+                } else {
+                    event.endDate = start.addingTimeInterval(existingDuration > 0 ? existingDuration : 3600)
+                }
+            }
             do { try store.save(event, span: .thisEvent, commit: true); return true } catch { return false }
         }
         return false

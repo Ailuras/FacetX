@@ -17,12 +17,14 @@ struct ItemDetailPane: View {
     @State private var priority = 0
     @State private var useDate = false
     @State private var date = Date()
+    @State private var endDate = Date()
+    @State private var isAllDay = false
     @State private var urlString = ""
     @State private var containerName = ""
     @State private var saving = false
 
     private let labelWidth: CGFloat = 82
-    private let controlWidth: CGFloat = 184
+    private let controlWidth: CGFloat = 210
 
     private var hasChanges: Bool {
         if content.trimmingCharacters(in: .whitespaces) != item.content { return true }
@@ -34,6 +36,11 @@ struct ItemDetailPane: View {
         if (item.kind == .event || useDate),
            let d = item.date,
            Calendar.current.compare(date, to: d, toGranularity: .minute) != .orderedSame { return true }
+        if item.kind == .event {
+            if isAllDay != item.isAllDay { return true }
+            if !isAllDay, let e = item.endDate,
+               Calendar.current.compare(endDate, to: e, toGranularity: .minute) != .orderedSame { return true }
+        }
         if containerName != item.containerName { return true }
         if urlString.trimmingCharacters(in: .whitespaces) != (item.url?.absoluteString ?? "") { return true }
         return false
@@ -242,32 +249,116 @@ struct ItemDetailPane: View {
     }
 
     private var dateControl: some View {
-        HStack(spacing: 8) {
+        VStack(alignment: .trailing, spacing: 8) {
             if item.kind == .event {
-                DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute])
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .controlSize(.small)
-            } else if useDate {
-                DatePicker("", selection: $date,
-                           displayedComponents: [.date])
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .controlSize(.small)
+                eventDateControl
             } else {
-                Text("No date")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.tertiary)
-            }
-
-            if item.kind == .reminder {
-                Toggle("", isOn: $useDate)
-                    .labelsHidden()
-                    .toggleStyle(.checkbox)
-                    .controlSize(.small)
+                reminderDateControl
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private var eventDateControl: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            if isAllDay {
+                // All-day: single clean row
+                HStack(spacing: 12) {
+                    DatePicker("", selection: $date, displayedComponents: [.date])
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .controlSize(.small)
+                        .frame(width: 120)
+
+                    Spacer()
+
+                    allDayToggle
+                }
+            } else {
+                // Timed event: start / end with arrow
+                HStack(spacing: 6) {
+                    Text("Starts")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 38, alignment: .trailing)
+
+                    DatePicker("", selection: $date, displayedComponents: [.date])
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .controlSize(.small)
+                        .frame(width: 110)
+
+                    DatePicker("", selection: $date, displayedComponents: [.hourAndMinute])
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .controlSize(.small)
+                        .frame(width: 70)
+                }
+
+                // Arrow connector
+                HStack(spacing: 6) {
+                    Text("")
+                        .frame(width: 38, alignment: .trailing)
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                    Spacer()
+                }
+
+                HStack(spacing: 6) {
+                    Text("Ends")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 38, alignment: .trailing)
+
+                    DatePicker("", selection: $endDate, displayedComponents: [.date])
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .controlSize(.small)
+                        .frame(width: 110)
+
+                    DatePicker("", selection: $endDate, displayedComponents: [.hourAndMinute])
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .controlSize(.small)
+                        .frame(width: 70)
+                }
+
+                HStack {
+                    Spacer()
+                    allDayToggle
+                }
+            }
+        }
+    }
+
+    private var reminderDateControl: some View {
+        HStack(spacing: 10) {
+            if useDate {
+                DatePicker("", selection: $date, displayedComponents: [.date])
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    .controlSize(.small)
+                    .frame(width: 120)
+            } else {
+                Text("No due date")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            Toggle("Set date", isOn: $useDate)
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
+        }
+    }
+
+    private var allDayToggle: some View {
+        Toggle("All day", isOn: $isAllDay)
+            .toggleStyle(.checkbox)
+            .controlSize(.small)
+            .font(.system(size: 11, weight: .medium))
     }
 
     private var propertyDivider: some View {
@@ -346,12 +437,22 @@ struct ItemDetailPane: View {
         if item.kind == .event {
             useDate = true
             date = item.date ?? Date()
+            isAllDay = item.isAllDay
+            if let end = item.endDate {
+                endDate = end
+            } else {
+                endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? date
+            }
         } else if let d = item.date {
             useDate = true
             date = d
+            isAllDay = false
+            endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? d
         } else {
             useDate = false
             date = Date()
+            isAllDay = false
+            endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? date
         }
     }
 
@@ -366,11 +467,21 @@ struct ItemDetailPane: View {
         let tags = FacetMetadata.tags(from: tagsText)
 
         Task {
-            let ok = await ek.updateItem(id: item.id, project: project.prefix, content: text,
-                                          date: shouldUseDate ? date : nil, useDate: shouldUseDate,
-                                          containerName: containerName,
-                                          notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
-                                          tags: tags, priority: priority, url: urlParam, updateURL: true)
+            let ok = await ek.updateItem(
+                id: item.id,
+                project: project.prefix,
+                content: text,
+                date: shouldUseDate ? date : nil,
+                useDate: shouldUseDate,
+                containerName: containerName,
+                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
+                tags: tags,
+                priority: priority,
+                url: urlParam,
+                updateURL: true,
+                isAllDay: item.kind == .event ? isAllDay : nil,
+                endDate: item.kind == .event && !isAllDay ? endDate : nil
+            )
             saving = false
             if ok { onUpdate() }
         }

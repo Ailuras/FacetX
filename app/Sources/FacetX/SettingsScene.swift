@@ -108,6 +108,20 @@ private struct DefaultsSettingsTab: View {
                     .pickerStyle(.menu)
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)
                 }
+
+                SettingsDivider()
+
+                SettingsRow(title: "Event Duration", systemImage: "clock") {
+                    HStack(spacing: 8) {
+                        Text("\(settings.defaultEventDurationMinutes) min")
+                            .font(SettingsUI.secondaryFont)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 64, alignment: .trailing)
+                        Stepper("", value: $settings.defaultEventDurationMinutes, in: 5...1440, step: 15)
+                            .labelsHidden()
+                    }
+                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                }
             }
 
             SettingsCard(title: "Week Goals", systemImage: "target") {
@@ -149,6 +163,11 @@ private struct DefaultsSettingsTab: View {
             settings.weekGoalCalendarName = settings.defaultCalendarName.isEmpty
                 ? (enabledCalendarNames.first ?? "")
                 : settings.defaultCalendarName
+        }
+        if settings.defaultEventDurationMinutes < 5 {
+            settings.defaultEventDurationMinutes = 5
+        } else if settings.defaultEventDurationMinutes > 1440 {
+            settings.defaultEventDurationMinutes = 1440
         }
     }
 }

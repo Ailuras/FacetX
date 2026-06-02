@@ -32,6 +32,9 @@ final class AppSettings: ObservableObject {
     @Published var menuBarEnabled: Bool {
         didSet { settingsDidChange() }
     }
+    @Published var defaultEventDurationMinutes: Int {
+        didSet { settingsDidChange() }
+    }
     @Published private(set) var changeToken = 0
     @Published private(set) var persistenceError: String?
 
@@ -64,6 +67,7 @@ final class AppSettings: ObservableObject {
                 self.defaultCalendarName = stored.defaultCalendarName ?? ""
                 self.weekGoalCalendarName = stored.weekGoalCalendarName ?? ""
                 self.menuBarEnabled = stored.menuBarEnabled ?? true
+                self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes ?? 120
             } else {
                 self.enabledReminderListNames = []
                 self.enabledCalendarNames = []
@@ -71,6 +75,7 @@ final class AppSettings: ObservableObject {
                 self.defaultCalendarName = ""
                 self.weekGoalCalendarName = ""
                 self.menuBarEnabled = true
+                self.defaultEventDurationMinutes = 120
             }
         } else {
             self.enabledReminderListNames = []   // empty = all reminders
@@ -79,6 +84,7 @@ final class AppSettings: ObservableObject {
             self.defaultCalendarName = ""
             self.weekGoalCalendarName = ""
             self.menuBarEnabled = true
+            self.defaultEventDurationMinutes = 120
         }
     }
 
@@ -132,16 +138,18 @@ final class AppSettings: ObservableObject {
         var defaultCalendarName: String?
         var weekGoalCalendarName: String?
         var menuBarEnabled: Bool?
+        var defaultEventDurationMinutes: Int?
     }
 
     private func save() {
         let stored = Stored(enabledReminderListNames: enabledReminderListNames.sorted(),
                             enabledCalendarNames: enabledCalendarNames.sorted(),
-                             enabledContainerNames: nil,
-                             defaultReminderListName: defaultReminderListName,
-                             defaultCalendarName: defaultCalendarName,
-                             weekGoalCalendarName: weekGoalCalendarName,
-                             menuBarEnabled: menuBarEnabled)
+                            enabledContainerNames: nil,
+                            defaultReminderListName: defaultReminderListName,
+                            defaultCalendarName: defaultCalendarName,
+                            weekGoalCalendarName: weekGoalCalendarName,
+                            menuBarEnabled: menuBarEnabled,
+                            defaultEventDurationMinutes: defaultEventDurationMinutes)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
             try enc.encode(stored).write(to: url, options: .atomic)

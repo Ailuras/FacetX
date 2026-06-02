@@ -1,0 +1,3 @@
+# Build artifacts
+*.app/
+.DS_Store

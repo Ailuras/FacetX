@@ -15,6 +15,8 @@ struct TodayView: View {
 
     @State private var items: [ProjectItem] = []
     @State private var loading = false
+    @State private var inlineEditingID: String?
+    @State private var inlineEditingText: String = ""
 
     private var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -72,17 +74,50 @@ struct TodayView: View {
             projectBadge: project?.name ?? item.projectPrefix,
             onToggle: { completed in
                 Task {
-                    await ek.setReminderCompleted(id: item.id, completed: completed)
+                    await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
                     await reload()
                 }
             },
-            onEdit: { if let project { onOpenProject(project.id) } }
+            onEdit: { if let project { onOpenProject(project.id) } },
+            inlineEditingText: $inlineEditingText,
+            isInlineEditing: item.id == inlineEditingID,
+            onInlineCommit: {
+                commitInlineEdit(for: item)
+            },
+            onInlineCancel: {
+                cancelInlineEdit(for: item)
+            }
         )
         .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            startInlineEdit(for: item)
+        }
         .onTapGesture { if let project { onOpenProject(project.id) } }
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+    }
+
+    private func startInlineEdit(for item: ProjectItem) {
+        ItemEditHelpers.startTitleEdit(for: item, editingID: &inlineEditingID, editingText: &inlineEditingText)
+    }
+
+    private func commitInlineEdit(for item: ProjectItem) {
+        Task {
+            _ = await ItemEditHelpers.commitTitleEdit(
+                editingID: inlineEditingID,
+                editingText: inlineEditingText,
+                for: item,
+                projectPrefix: item.projectPrefix,
+                ek: ek
+            )
+            inlineEditingID = nil
+            await reload()
+        }
+    }
+
+    private func cancelInlineEdit(for item: ProjectItem) {
+        ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
     }
 
     private func reload() async {

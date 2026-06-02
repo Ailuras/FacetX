@@ -20,10 +20,13 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let tags: [String]      // FacetX tags parsed from the native notes metadata block
     public let priority: Int       // priority value (0 = none, 1-4 = high, 5 = med, 9 = low)
     public let url: URL?           // URL associated with the item
+    public let isAllDay: Bool      // true for all-day events (events only; always false for reminders)
+    public let endDate: Date?      // end date for events (nil for reminders)
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
                  content: String, containerName: String, isCompleted: Bool, date: Date?,
-                 notes: String?, tags: [String] = [], priority: Int, url: URL?) {
+                 notes: String?, tags: [String] = [], priority: Int, url: URL?,
+                 isAllDay: Bool = false, endDate: Date? = nil) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
@@ -36,6 +39,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.tags = tags
         self.priority = priority
         self.url = url
+        self.isAllDay = isAllDay
+        self.endDate = endDate
     }
 
     /// Whether this item matches a free-text search over its content, notes and

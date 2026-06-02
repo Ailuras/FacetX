@@ -27,6 +27,8 @@ struct CreateItemView: View {
     @State private var priority: Int = 0
     @State private var useDate: Bool
     @State private var date: Date
+    @State private var isAllDay = false
+    @State private var durationMinutes: Int
     @State private var saving = false
     @State private var error: String?
 
@@ -36,6 +38,7 @@ struct CreateItemView: View {
         self.onCreated = onCreated
         _date = State(initialValue: initialDate ?? Date())
         _useDate = State(initialValue: initialDate != nil)
+        _durationMinutes = State(initialValue: 120) // Default 2 hours
     }
 
     var body: some View {
@@ -55,6 +58,9 @@ struct CreateItemView: View {
         }
         .background(FacetTheme.canvas)
         .frame(width: 500)
+        .onAppear {
+            durationMinutes = settings.defaultEventDurationMinutes
+        }
     }
 
     private var header: some View {
@@ -189,26 +195,57 @@ struct CreateItemView: View {
     }
 
     private var dateControl: some View {
-        HStack(spacing: 8) {
-            if kind == .event {
-                DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute])
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .controlSize(.small)
-            } else {
-                Toggle("", isOn: $useDate)
-                    .labelsHidden()
-                    .toggleStyle(.checkbox)
-                    .controlSize(.small)
-                if useDate {
-                    DatePicker("", selection: $date, displayedComponents: [.date])
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
+        VStack(alignment: .trailing, spacing: 6) {
+            HStack(spacing: 8) {
+                if kind == .event {
+                    if isAllDay {
+                        DatePicker("", selection: $date, displayedComponents: [.date])
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            .controlSize(.small)
+                    } else {
+                        DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            .controlSize(.small)
+                    }
+                    Toggle("All day", isOn: $isAllDay)
+                        .toggleStyle(.checkbox)
                         .controlSize(.small)
                 } else {
-                    Text("No date")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.tertiary)
+                    Toggle("", isOn: $useDate)
+                        .labelsHidden()
+                        .toggleStyle(.checkbox)
+                        .controlSize(.small)
+                    if useDate {
+                        DatePicker("", selection: $date, displayedComponents: [.date])
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            .controlSize(.small)
+                    } else {
+                        Text("No date")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+
+            if kind == .event && !isAllDay {
+                HStack(spacing: 4) {
+                    Text("Duration:")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    TextField("", value: $durationMinutes, format: .number)
+                        .textFieldStyle(.plain)
+                        .frame(width: 40)
+                        .multilineTextAlignment(.trailing)
+                        .font(.system(size: 12))
+                    Text("min")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Stepper("", value: $durationMinutes, in: 5...1440, step: 15)
+                        .labelsHidden()
+                        .controlSize(.small)
                 }
             }
         }
@@ -291,7 +328,9 @@ struct CreateItemView: View {
             case .event:
                 ok = await ek.createEvent(project: project.prefix, content: text,
                                            calendarName: container, startDate: date,
-                                           notes: nativeNotes)
+                                           durationMinutes: max(5, durationMinutes),
+                                           notes: nativeNotes,
+                                           isAllDay: isAllDay)
             }
             saving = false
             if ok { onCreated(); dismiss() }
