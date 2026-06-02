@@ -40,15 +40,6 @@ struct ContainersSettingsView: View {
     @State private var githubStatus = ""
     @State private var validating = false
 
-    private var groups: [(header: String, kind: EventKitService.ContainerInfo.Kind, items: [EventKitService.ContainerInfo])] {
-        Dictionary(grouping: containers) { "\($0.sourceTitle) · \($0.kind.rawValue)" }
-            .map { key, items in
-                let sorted = items.sorted { $0.title < $1.title }
-                return (key, sorted.first?.kind ?? .reminder, sorted)
-            }
-            .sorted { $0.header < $1.header }
-    }
-
     private var allReminderNames: [String] { names(kind: .reminder) }
     private var allCalendarNames: [String] { names(kind: .calendar) }
     private var enabledReminderNames: [String] {
@@ -98,14 +89,6 @@ struct ContainersSettingsView: View {
             }
 
             Spacer()
-
-            Button {
-                settings.useAllContainers()
-                ensureDefaults()
-            } label: {
-                Label("Use All", systemImage: "checkmark.circle")
-            }
-            .controlSize(.small)
         }
     }
 
@@ -196,67 +179,55 @@ struct ContainersSettingsView: View {
 
     private var containersSection: some View {
         settingsCard(title: "Containers", systemImage: "square.stack.3d.up") {
-            if groups.isEmpty {
+            if containers.isEmpty {
                 Text("No containers found.")
                     .font(SettingsUI.secondaryFont)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
             } else {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(groups, id: \.header) { group in
-                        containerGroup(group)
+                VStack(spacing: 0) {
+                    ForEach(Array(compactContainers.enumerated()), id: \.element.id) { index, container in
+                        compactContainerRow(container)
+                        if index < compactContainers.count - 1 { compactDivider }
                     }
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 2)
+                .background(FacetTheme.panel.opacity(0.42))
+                .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                        .stroke(FacetTheme.hairline, lineWidth: 1)
+                )
             }
         }
     }
 
-    private func containerGroup(_ group: (header: String, kind: EventKitService.ContainerInfo.Kind, items: [EventKitService.ContainerInfo])) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: group.kind == .reminder ? "checklist" : "calendar")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text(group.header)
-                    .font(SettingsUI.smallFont.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(enabledCount(in: group.items))/\(group.items.count)")
-                    .font(SettingsUI.smallFont)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 2)
-
-            VStack(spacing: 0) {
-                ForEach(Array(group.items.enumerated()), id: \.element.id) { index, container in
-                    containerRow(container)
-                    if index < group.items.count - 1 { cardDivider }
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 3)
-            .background(FacetTheme.panel.opacity(0.48))
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
+    private var compactContainers: [EventKitService.ContainerInfo] {
+        containers.sorted {
+            if $0.kind != $1.kind { return $0.kind == .reminder }
+            if $0.title != $1.title { return $0.title < $1.title }
+            return $0.sourceTitle < $1.sourceTitle
         }
     }
 
-    private func containerRow(_ container: EventKitService.ContainerInfo) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: container.kind == .reminder ? "list.bullet" : "calendar")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
+    private func compactContainerRow(_ container: EventKitService.ContainerInfo) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(container.kind == .reminder ? Color.green.opacity(0.12) : Color.blue.opacity(0.12))
+                Image(systemName: container.kind == .reminder ? "checklist" : "calendar")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(container.kind == .reminder ? .green : .blue)
+            }
+            .frame(width: 22, height: 22)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(container.title)
                     .font(SettingsUI.rowFont)
                     .lineLimit(1)
-                Text(container.sourceTitle)
+                Text("\(container.sourceTitle) · \(container.kind.rawValue)")
                     .font(SettingsUI.smallFont)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
@@ -275,7 +246,13 @@ struct ContainersSettingsView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
         }
-        .padding(.vertical, 7)
+        .padding(.vertical, 5)
+    }
+
+    private var compactDivider: some View {
+        Divider()
+            .opacity(0.36)
+            .padding(.leading, 30)
     }
 
     private var createSection: some View {
@@ -427,10 +404,6 @@ struct ContainersSettingsView: View {
         case .calendar:
             settings.toggleCalendar(container.title, allNames: allCalendarNames)
         }
-    }
-
-    private func enabledCount(in containers: [EventKitService.ContainerInfo]) -> Int {
-        containers.filter { isEnabled($0) }.count
     }
 
     private func selectionSummary(enabled: Int, total: Int, allSelected: Bool) -> String {
