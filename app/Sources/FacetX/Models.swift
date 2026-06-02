@@ -14,7 +14,6 @@ struct Project: Identifiable, Codable, Hashable {
     var reminderListName: String?
     var calendarName: String?
     var weekGoalCalendarName: String?
-    var createdAt: Date = Date()
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
     var itemOrder: [String] = []

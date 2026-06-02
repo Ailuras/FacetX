@@ -1,5 +1,4 @@
 import SwiftUI
-import EventKit
 import FacetXCore
 
 struct ItemDetailPane: View {

@@ -25,13 +25,6 @@ public enum ProjectPrefix {
         return name.isEmpty ? nil : name
     }
 
-    /// Does this title belong to the given project? Case-sensitive on the name,
-    /// colon-tolerant on the separator.
-    public static func belongs(title: String, toProject project: String) -> Bool {
-        guard let name = projectName(of: title) else { return false }
-        return name == project
-    }
-
     /// Strip the `Project:` prefix to get the human-facing item text.
     public static func contentBody(of rawTitle: String) -> String {
         guard let idx = firstLine(in: rawTitle).firstIndex(where: { $0 == asciiColon || $0 == fullwidthColon })

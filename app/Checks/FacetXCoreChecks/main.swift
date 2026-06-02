@@ -11,8 +11,6 @@ check(ProjectPrefix.projectName(of: "Regulus：fix bug") == "Regulus",
       "Fullwidth colon prefix should parse")
 check(ProjectPrefix.projectName(of: "Regulus: first\nOther: second") == "Regulus",
       "Prefix parser should only inspect first line")
-check(ProjectPrefix.belongs(title: "Regulus: first\nOther: second", toProject: "Regulus"),
-      "belongs should match first-line project prefix")
 check(ProjectPrefix.contentBody(of: "Regulus： fix bug") == "fix bug",
       "contentBody should strip colon-tolerant prefix")
 check(ProjectPrefix.contentBody(of: "plain title\nRegulus: second") == "plain title\nRegulus: second",

@@ -1,6 +1,5 @@
 import FacetXCore
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var ek: EventKitService
