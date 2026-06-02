@@ -8,7 +8,7 @@ import Foundation
 /// builds these value types from EKReminder/EKEvent inside its fetch callbacks.
 public struct ProjectItem: Identifiable, Hashable, Sendable {
     public enum Kind: Sendable { case reminder, event }
-    public let id: String          // EventKit calendarItemIdentifier / eventIdentifier
+    public let id: String          // EventKit calendarItemIdentifier
     public let kind: Kind
     public let rawTitle: String
     public let projectPrefix: String   // the project prefix extracted from the title

@@ -175,7 +175,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                   prefixes.contains(prefix) else { return nil }
             let metadata = FacetMetadata.parse(notes: e.notes)
             return ProjectItem(
-                id: e.eventIdentifier ?? UUID().uuidString,
+                id: e.calendarItemIdentifier,
                 kind: .event,
                 rawTitle: title,
                 projectPrefix: prefix,
