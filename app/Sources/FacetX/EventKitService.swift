@@ -47,9 +47,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Filter a container list by enabled titles. `enabled` empty/nil = all.
+    /// Filter a container list by enabled titles. `nil` = all; empty set = none.
     private func filtered(_ calendars: [EKCalendar], by enabled: Set<String>?) -> [EKCalendar] {
-        guard let enabled, !enabled.isEmpty else { return calendars }
+        guard let enabled else { return calendars }
         return calendars.filter { enabled.contains($0.title) }
     }
 

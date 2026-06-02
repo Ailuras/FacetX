@@ -20,6 +20,12 @@ final class AppSettings: ObservableObject {
     @Published var enabledCalendarNames: Set<String> {
         didSet { settingsDidChange() }
     }
+    @Published var reminderListsDisabled: Bool {
+        didSet { settingsDidChange() }
+    }
+    @Published var calendarsDisabled: Bool {
+        didSet { settingsDidChange() }
+    }
     @Published var defaultReminderListName: String {
         didSet { settingsDidChange() }
     }
@@ -63,6 +69,8 @@ final class AppSettings: ObservableObject {
                     self.enabledReminderListNames = legacy
                     self.enabledCalendarNames = legacy
                 }
+                self.reminderListsDisabled = stored.reminderListsDisabled ?? false
+                self.calendarsDisabled = stored.calendarsDisabled ?? false
                 self.defaultReminderListName = stored.defaultReminderListName ?? ""
                 self.defaultCalendarName = stored.defaultCalendarName ?? ""
                 self.weekGoalCalendarName = stored.weekGoalCalendarName ?? ""
@@ -71,6 +79,8 @@ final class AppSettings: ObservableObject {
             } else {
                 self.enabledReminderListNames = []
                 self.enabledCalendarNames = []
+                self.reminderListsDisabled = false
+                self.calendarsDisabled = false
                 self.defaultReminderListName = ""
                 self.defaultCalendarName = ""
                 self.weekGoalCalendarName = ""
@@ -80,6 +90,8 @@ final class AppSettings: ObservableObject {
         } else {
             self.enabledReminderListNames = []   // empty = all reminders
             self.enabledCalendarNames = []       // empty = all calendars
+            self.reminderListsDisabled = false
+            self.calendarsDisabled = false
             self.defaultReminderListName = ""
             self.defaultCalendarName = ""
             self.weekGoalCalendarName = ""
@@ -90,30 +102,59 @@ final class AppSettings: ObservableObject {
 
     /// Is this reminder list enabled? Empty config = all reminder lists enabled.
     func isReminderListEnabled(_ name: String) -> Bool {
-        enabledReminderListNames.isEmpty || enabledReminderListNames.contains(name)
+        guard !reminderListsDisabled else { return false }
+        return enabledReminderListNames.isEmpty || enabledReminderListNames.contains(name)
     }
 
     /// Is this calendar enabled? Empty config = all calendars enabled.
     func isCalendarEnabled(_ name: String) -> Bool {
-        enabledCalendarNames.isEmpty || enabledCalendarNames.contains(name)
+        guard !calendarsDisabled else { return false }
+        return enabledCalendarNames.isEmpty || enabledCalendarNames.contains(name)
+    }
+
+    var effectiveReminderListNames: Set<String>? {
+        reminderListsDisabled ? [] : (enabledReminderListNames.isEmpty ? nil : enabledReminderListNames)
+    }
+
+    var effectiveCalendarNames: Set<String>? {
+        calendarsDisabled ? [] : (enabledCalendarNames.isEmpty ? nil : enabledCalendarNames)
     }
 
     func useAllContainers() {
+        reminderListsDisabled = false
+        calendarsDisabled = false
         enabledReminderListNames = []
         enabledCalendarNames = []
+    }
+
+    func disableAllContainers() {
+        reminderListsDisabled = true
+        calendarsDisabled = true
+        enabledReminderListNames = []
+        enabledCalendarNames = []
+        defaultReminderListName = ""
+        defaultCalendarName = ""
+        weekGoalCalendarName = ""
     }
 
     /// Ensure `name` is enabled. If config is "all" (empty), it stays all —
     /// the name is already implicitly enabled.
     func enableReminderList(_ name: String) {
+        reminderListsDisabled = false
         if !enabledReminderListNames.isEmpty { enabledReminderListNames.insert(name) }
     }
 
     func enableCalendar(_ name: String) {
+        calendarsDisabled = false
         if !enabledCalendarNames.isEmpty { enabledCalendarNames.insert(name) }
     }
 
     func toggleReminderList(_ name: String, allNames: [String]) {
+        if reminderListsDisabled {
+            reminderListsDisabled = false
+            enabledReminderListNames = [name]
+            return
+        }
         // Materialize "all" into an explicit set before the first removal, so
         // unchecking one doesn't accidentally enable everything else.
         if enabledReminderListNames.isEmpty { enabledReminderListNames = Set(allNames) }
@@ -123,6 +164,11 @@ final class AppSettings: ObservableObject {
     }
 
     func toggleCalendar(_ name: String, allNames: [String]) {
+        if calendarsDisabled {
+            calendarsDisabled = false
+            enabledCalendarNames = [name]
+            return
+        }
         if enabledCalendarNames.isEmpty { enabledCalendarNames = Set(allNames) }
         if enabledCalendarNames.contains(name) { enabledCalendarNames.remove(name) }
         else { enabledCalendarNames.insert(name) }
@@ -134,6 +180,8 @@ final class AppSettings: ObservableObject {
         var enabledReminderListNames: [String]?
         var enabledCalendarNames: [String]?
         var enabledContainerNames: [String]?
+        var reminderListsDisabled: Bool?
+        var calendarsDisabled: Bool?
         var defaultReminderListName: String?
         var defaultCalendarName: String?
         var weekGoalCalendarName: String?
@@ -145,6 +193,8 @@ final class AppSettings: ObservableObject {
         let stored = Stored(enabledReminderListNames: enabledReminderListNames.sorted(),
                             enabledCalendarNames: enabledCalendarNames.sorted(),
                             enabledContainerNames: nil,
+                            reminderListsDisabled: reminderListsDisabled,
+                            calendarsDisabled: calendarsDisabled,
                             defaultReminderListName: defaultReminderListName,
                             defaultCalendarName: defaultCalendarName,
                             weekGoalCalendarName: weekGoalCalendarName,

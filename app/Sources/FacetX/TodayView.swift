@@ -124,8 +124,8 @@ struct TodayView: View {
         loading = items.isEmpty
         let prefixes = Set(store.activeProjects.map(\.prefix))
         let fetched = await ek.items(forProjects: prefixes,
-                                     enabledReminderLists: settings.enabledReminderListNames,
-                                     enabledCalendars: settings.enabledCalendarNames)
+                                     enabledReminderLists: settings.effectiveReminderListNames,
+                                     enabledCalendars: settings.effectiveCalendarNames)
         if items.isEmpty {
             var transaction = Transaction()
             transaction.disablesAnimations = true

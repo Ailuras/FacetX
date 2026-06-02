@@ -74,11 +74,11 @@ private struct DefaultsSettingsTab: View {
     @EnvironmentObject private var settings: AppSettings
 
     private var enabledReminderNames: [String] {
-        ek.reminderListNames(enabled: settings.enabledReminderListNames)
+        ek.reminderListNames(enabled: settings.effectiveReminderListNames)
     }
 
     private var enabledCalendarNames: [String] {
-        ek.calendarNames(enabled: settings.enabledCalendarNames)
+        ek.calendarNames(enabled: settings.effectiveCalendarNames)
     }
 
     var body: some View {
@@ -216,29 +216,45 @@ private struct SourcesSettingsTab: View {
             SummaryPill(title: "Reminders",
                         value: selectionSummary(enabled: enabledReminderNames.count,
                                                 total: allReminderNames.count,
-                                                allSelected: settings.enabledReminderListNames.isEmpty),
+                                                allSelected: !settings.reminderListsDisabled && settings.enabledReminderListNames.isEmpty,
+                                                allDisabled: settings.reminderListsDisabled),
                         systemImage: "checklist")
             SummaryPill(title: "Calendars",
                         value: selectionSummary(enabled: enabledCalendarNames.count,
                                                 total: allCalendarNames.count,
-                                                allSelected: settings.enabledCalendarNames.isEmpty),
+                                                allSelected: !settings.calendarsDisabled && settings.enabledCalendarNames.isEmpty,
+                                                allDisabled: settings.calendarsDisabled),
                         systemImage: "calendar")
-            Button {
-                settings.useAllContainers()
-                ensureDefaults()
-            } label: {
-                Label("Use All", systemImage: "checkmark.circle")
-                    .frame(maxWidth: .infinity)
+
+            VStack(spacing: 6) {
+                sourceActionButton(title: "Use All", systemImage: "checkmark.circle") {
+                    settings.useAllContainers()
+                    ensureDefaults()
+                }
+                sourceActionButton(title: "Disable All", systemImage: "xmark.circle") {
+                    settings.disableAllContainers()
+                    ensureDefaults()
+                }
             }
-            .buttonStyle(.borderless)
-            .padding(10)
-            .background(FacetTheme.quietPanel)
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
+            .frame(width: 118)
         }
+    }
+
+    private func sourceActionButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(SettingsUI.smallFont.weight(.semibold))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
     }
 
     private var containersSection: some View {
@@ -420,8 +436,9 @@ private struct SourcesSettingsTab: View {
         }
     }
 
-    private func selectionSummary(enabled: Int, total: Int, allSelected: Bool) -> String {
+    private func selectionSummary(enabled: Int, total: Int, allSelected: Bool, allDisabled: Bool) -> String {
         guard total > 0 else { return "None" }
+        if allDisabled { return "0/\(total)" }
         return allSelected ? "All \(total)" : "\(enabled)/\(total)"
     }
 

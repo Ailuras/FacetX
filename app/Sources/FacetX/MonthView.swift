@@ -269,8 +269,8 @@ struct MonthView: View {
     private func reload() async {
         let requestedMonth = month
         let fetched = await ek.items(forProject: project.prefix,
-                                      enabledReminderLists: settings.enabledReminderListNames,
-                                      enabledCalendars: settings.enabledCalendarNames,
+                                      enabledReminderLists: settings.effectiveReminderListNames,
+                                      enabledCalendars: settings.effectiveCalendarNames,
                                       eventStartDate: requestedMonth.startDate,
                                       eventEndDate: requestedMonth.endDate)
         guard !Task.isCancelled, requestedMonth == month else { return }
