@@ -15,20 +15,21 @@ import Foundation
 @MainActor
 final class AppSettings: ObservableObject {
     @Published var enabledReminderListNames: Set<String> {
-        didSet { save() }
+        didSet { settingsDidChange() }
     }
     @Published var enabledCalendarNames: Set<String> {
-        didSet { save() }
+        didSet { settingsDidChange() }
     }
     @Published var defaultReminderListName: String {
-        didSet { save() }
+        didSet { settingsDidChange() }
     }
     @Published var defaultCalendarName: String {
-        didSet { save() }
+        didSet { settingsDidChange() }
     }
     @Published var menuBarEnabled: Bool {
-        didSet { save() }
+        didSet { settingsDidChange() }
     }
+    @Published private(set) var changeToken = 0
 
     private let url: URL
 
@@ -116,5 +117,10 @@ final class AppSettings: ObservableObject {
                             menuBarEnabled: menuBarEnabled)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         try? enc.encode(stored).write(to: url, options: .atomic)
+    }
+
+    private func settingsDidChange() {
+        save()
+        changeToken &+= 1
     }
 }

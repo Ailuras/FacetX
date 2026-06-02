@@ -103,6 +103,7 @@ struct WeekView: View {
         .background(FacetTheme.canvas)
         .task(id: reloadKey) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
+        .onChange(of: settings.changeToken) { Task { await reload() } }
     }
 
     // MARK: - Week navigation

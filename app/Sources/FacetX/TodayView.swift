@@ -39,6 +39,7 @@ struct TodayView: View {
         .navigationTitle("Today")
         .task { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
+        .onChange(of: settings.changeToken) { Task { await reload() } }
     }
 
     @ViewBuilder private var content: some View {

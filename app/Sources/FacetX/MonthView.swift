@@ -43,6 +43,7 @@ struct MonthView: View {
         .background(FacetTheme.canvas)
         .task(id: reloadKey) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
+        .onChange(of: settings.changeToken) { Task { await reload() } }
         .sheet(item: $createDate) { wrapper in
             CreateItemView(project: project, initialDate: wrapper.date) {
                 createDate = nil

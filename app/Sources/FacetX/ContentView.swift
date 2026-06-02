@@ -76,11 +76,9 @@ struct ContentView: View {
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
             }
-            discovered = await ek.discoverProjectNames(
-                enabledReminderLists: settings.enabledReminderListNames,
-                enabledCalendars: settings.enabledCalendarNames
-            )
+            await reloadDiscoveredProjects()
         }
+        .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
         .sheet(item: $draftProject) { draft in
             NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, githubRepo in
                 let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
@@ -122,6 +120,13 @@ struct ContentView: View {
 
     private func defaultName(_ name: String, in options: [String]) -> String {
         options.contains(name) ? name : (options.first ?? "")
+    }
+
+    private func reloadDiscoveredProjects() async {
+        discovered = await ek.discoverProjectNames(
+            enabledReminderLists: settings.enabledReminderListNames,
+            enabledCalendars: settings.enabledCalendarNames
+        )
     }
 }
 
@@ -233,6 +238,7 @@ struct ProjectDetailView: View {
         }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
+        .onChange(of: settings.changeToken) { Task { await reload() } }
         .onChange(of: showCompleted) {
             if !showCompleted, selectedDetailItem?.isCompleted == true {
                 withAnimation(listAnimation) {
