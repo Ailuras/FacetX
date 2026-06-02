@@ -7,6 +7,7 @@ struct CommitsView: View {
     let project: Project
 
     @State private var commits: [GitHubCommit] = []
+    @State private var selectedCommit: GitHubCommit?
     @State private var loading = false
     @State private var errorMessage: String?
 
@@ -38,187 +39,101 @@ struct CommitsView: View {
     }
 
     var body: some View {
-        HSplitView {
-            gitSidebar
-                .frame(minWidth: 200, idealWidth: 240, maxWidth: 300)
+        VStack(spacing: 0) {
+            commitsHeader
+            Divider()
 
-            VStack(spacing: 0) {
-                commitsHeader
+            if !commits.isEmpty {
+                projectInfoBar
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
                 Divider()
+            }
+
+            HStack(spacing: 0) {
                 commitsContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if let commit = selectedCommit {
+                    Divider()
+                    commitDetailPane(commit)
+                        .frame(width: 320)
+                        .transition(.move(edge: .trailing))
+                }
             }
-            .background(FacetTheme.canvas)
         }
         .background(FacetTheme.canvas)
         .task(id: project.id) { await reload() }
     }
 
-    // MARK: – Sidebar
+    // MARK: – Project Info Bar
 
-    private var gitSidebar: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if let repo = project.githubRepo {
-                    repoInfoCard(repo: repo)
-
-                    if !commits.isEmpty {
-                        statsCard
-                        contributorsCard
-                    }
+    private var projectInfoBar: some View {
+        HStack(spacing: 16) {
+            if let repo = project.githubRepo {
+                HStack(spacing: 6) {
+                    Image(systemName: "curlybraces")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text(repo)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
                 }
-            }
-            .padding(14)
-        }
-        .background(FacetTheme.canvas)
-        .overlay(
-            Rectangle().fill(FacetTheme.hairline).frame(width: 1),
-            alignment: .trailing
-        )
-    }
 
-    private func repoInfoCard(repo: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "curlybraces")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                Text("Repository")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary.opacity(0.86))
-            }
+                Divider().frame(height: 14)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(repo)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-
-                if let url = URL(string: "https://github.com/\(repo)") {
-                    Button("Open on GitHub") {
-                        NSWorkspace.shared.open(url)
-                    }
-                    .font(.system(size: 11))
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
+                HStack(spacing: 4) {
+                    Image(systemName: "number")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("\(commits.count) commits")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                 }
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-    }
 
-    private var statsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "chart.bar")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                Text("Statistics")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary.opacity(0.86))
-            }
+                Divider().frame(height: 14)
 
-            VStack(alignment: .leading, spacing: 8) {
-                statRow(icon: "number", label: "Commits", value: "\(commits.count)")
-                statRow(icon: "person.2", label: "Contributors", value: "\(uniqueAuthors.count)")
+                HStack(spacing: 4) {
+                    Image(systemName: "person.2")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("\(uniqueAuthors.count) contributors")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
 
                 if let period = commitPeriodString {
-                    statRow(icon: "calendar", label: "Period", value: period)
-                }
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-    }
-
-    private func statRow(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.primary)
-        }
-    }
-
-    private var contributorsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "person.2")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                Text("Contributors")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary.opacity(0.86))
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(uniqueAuthors.prefix(8), id: \.name) { author in
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle()
-                                .fill(authorColor(for: author.name))
-                                .frame(width: 22, height: 22)
-                            Text(String(author.name.prefix(1)).uppercased())
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
-
-                        Text(author.name)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        Spacer()
-
-                        Text("\(author.count)")
-                            .font(.system(size: 10, weight: .medium))
+                    Divider().frame(height: 14)
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 10))
                             .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(FacetTheme.panel.opacity(0.5))
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        Text(period)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                // Top contributors avatars
+                HStack(spacing: -6) {
+                    ForEach(uniqueAuthors.prefix(4), id: \.name) { author in
+                        Circle()
+                            .fill(authorColor(for: author.name))
+                            .frame(width: 20, height: 20)
+                            .overlay(
+                                Text(String(author.name.prefix(1)).uppercased())
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.white)
+                            )
+                            .overlay(
+                                Circle().stroke(FacetTheme.canvas, lineWidth: 1.5)
+                            )
                     }
                 }
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-    }
-
-    private func authorColor(for name: String) -> Color {
-        let colors: [Color] = [
-            .blue, .green, .orange, .purple, .pink, .teal, .indigo, .red
-        ]
-        var hash = 0
-        for byte in name.utf8 {
-            hash = Int(byte) + ((hash << 5) - hash)
-        }
-        return colors[abs(hash) % colors.count]
     }
 
     // MARK: – Header
@@ -333,17 +248,205 @@ struct CommitsView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(FacetTheme.quietPanel)
+        .background(selectedCommit?.id == commit.id
+                    ? Color.accentColor.opacity(0.08)
+                    : FacetTheme.quietPanel)
         .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
+                .stroke(selectedCommit?.id == commit.id
+                        ? Color.accentColor.opacity(0.35)
+                        : FacetTheme.hairline,
+                        lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            NSWorkspace.shared.open(commit.htmlURL)
+            withAnimation(.easeOut(duration: 0.15)) {
+                if selectedCommit?.id == commit.id {
+                    selectedCommit = nil
+                } else {
+                    selectedCommit = commit
+                }
+            }
         }
-        .help("Open commit on GitHub")
+    }
+
+    // MARK: – Commit Detail Pane
+
+    private func commitDetailPane(_ commit: GitHubCommit) -> some View {
+        VStack(spacing: 0) {
+            // Pane header
+            HStack(spacing: 10) {
+                Label {
+                    Text("Commit")
+                } icon: {
+                    Image(systemName: "checkmark.circle")
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        selectedCommit = nil
+                    }
+                } label: {
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Close sidebar")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    // Commit message card
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 6) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color.accentColor.opacity(0.14))
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                            .frame(width: 30, height: 30)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Commit")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.primary.opacity(0.86))
+                                Text(commit.shortSHA)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Text(commit.message)
+                            .font(.system(size: 14, weight: .medium))
+                            .lineLimit(nil)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(FacetTheme.quietPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
+
+                    // Details card
+                    VStack(alignment: .leading, spacing: 0) {
+                        detailRow(label: "Author", icon: "person") {
+                            Text(commit.authorName)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.primary)
+                        }
+
+                        detailDivider
+
+                        detailRow(label: "Date", icon: "calendar") {
+                            Text(formattedDate(commit.date))
+                                .font(.system(size: 12))
+                                .foregroundStyle(.primary)
+                        }
+
+                        detailDivider
+
+                        detailRow(label: "SHA", icon: "number") {
+                            Text(commit.id)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .help(commit.id)
+                        }
+
+                        detailDivider
+
+                        detailRow(label: "Repository", icon: "curlybraces") {
+                            if let repo = project.githubRepo {
+                                Text(repo)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(FacetTheme.quietPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
+            }
+
+            Divider()
+
+            // Footer with open button
+            HStack {
+                Spacer()
+                Button {
+                    NSWorkspace.shared.open(commit.htmlURL)
+                } label: {
+                    Label("Open on GitHub", systemImage: "arrow.up.right")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(FacetTheme.canvas)
+        }
+        .frame(maxHeight: .infinity)
+        .background(FacetTheme.canvas)
+    }
+
+    private func detailRow<Content: View>(label: String, icon: String,
+                                          @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Label {
+                Text(label)
+            } icon: {
+                Image(systemName: icon)
+                    .frame(width: 13)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .frame(width: 80, alignment: .leading)
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.vertical, 9)
+    }
+
+    private var detailDivider: some View {
+        Divider()
+            .padding(.leading, 92)
+            .opacity(0.38)
+    }
+
+    private func authorColor(for name: String) -> Color {
+        let colors: [Color] = [
+            .blue, .green, .orange, .purple, .pink, .teal, .indigo, .red
+        ]
+        var hash = 0
+        for byte in name.utf8 {
+            hash = Int(byte) + ((hash << 5) - hash)
+        }
+        return colors[abs(hash) % colors.count]
     }
 
     // MARK: – Helpers
@@ -352,6 +455,7 @@ struct CommitsView: View {
         guard let repo = project.githubRepo else { return }
         loading = commits.isEmpty
         errorMessage = nil
+        selectedCommit = nil
 
         let token = settings.githubToken.trimmingCharacters(in: .whitespaces)
         guard !token.isEmpty else {
@@ -377,5 +481,12 @@ struct CommitsView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
