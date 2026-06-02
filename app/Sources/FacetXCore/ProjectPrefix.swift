@@ -11,10 +11,14 @@ public enum ProjectPrefix {
     public static let asciiColon: Character = ":"
     public static let fullwidthColon: Character = "："
 
+    private static func firstLine(in rawTitle: String) -> Substring {
+        let end = rawTitle.firstIndex(of: "\n") ?? rawTitle.endIndex
+        return rawTitle[..<end]
+    }
+
     /// Extract the project name from an item title, or nil if it has no prefix.
     public static func projectName(of rawTitle: String) -> String? {
-        let firstLine = rawTitle.split(separator: "\n", maxSplits: 1,
-                                       omittingEmptySubsequences: false).first.map(String.init) ?? rawTitle
+        let firstLine = firstLine(in: rawTitle)
         guard let idx = firstLine.firstIndex(where: { $0 == asciiColon || $0 == fullwidthColon })
         else { return nil }
         let name = firstLine[..<idx].trimmingCharacters(in: .whitespaces)
@@ -30,7 +34,7 @@ public enum ProjectPrefix {
 
     /// Strip the `Project:` prefix to get the human-facing item text.
     public static func contentBody(of rawTitle: String) -> String {
-        guard let idx = rawTitle.firstIndex(where: { $0 == asciiColon || $0 == fullwidthColon })
+        guard let idx = firstLine(in: rawTitle).firstIndex(where: { $0 == asciiColon || $0 == fullwidthColon })
         else { return rawTitle }
         let after = rawTitle[rawTitle.index(after: idx)...]
         return after.trimmingCharacters(in: .whitespaces)

@@ -15,6 +15,8 @@ check(ProjectPrefix.belongs(title: "Regulus: first\nOther: second", toProject: "
       "belongs should match first-line project prefix")
 check(ProjectPrefix.contentBody(of: "Regulus： fix bug") == "fix bug",
       "contentBody should strip colon-tolerant prefix")
+check(ProjectPrefix.contentBody(of: "plain title\nRegulus: second") == "plain title\nRegulus: second",
+      "contentBody should not strip a prefix from later lines")
 check(ProjectPrefix.makeTitle(project: "Regulus", content: "fix bug") == "Regulus: fix bug",
       "makeTitle should write ASCII colon")
 
