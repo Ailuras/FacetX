@@ -368,7 +368,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             project: project,
             week: week,
             existingEventId: existingEventId,
-            enabledCalendars: calendars
+            enabledCalendars: calendars,
+            allowUnmarkedExistingEvent: existingEventId != nil
         ) ?? EKEvent(eventStore: store)
         event.title = WeekGoalEvent.makeTitle(project: project, title: title)
         event.notes = WeekGoalEvent.makeNotes(body: body, project: project, weekID: week.id)
@@ -402,6 +403,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         )
     }
 
+    func calendarEventExists(id: String, enabledCalendars: Set<String>? = nil) async -> Bool {
+        let authorized = await MainActor.run { calendarAuthorized }
+        guard authorized,
+              let event = store.calendarItem(withIdentifier: id) as? EKEvent else { return false }
+        let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
+        return calendars.contains { $0.calendarIdentifier == event.calendar.calendarIdentifier }
+    }
+
     private func calendarForGoalEvent(named name: String?, from calendars: [EKCalendar]) -> EKCalendar? {
         if let name,
            let cal = calendars.first(where: { $0.title == name }) {
@@ -415,12 +424,18 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     private func goalEvent(project: String, week: ISOWeek, existingEventId: String?,
-                           enabledCalendars calendars: [EKCalendar]) -> EKEvent? {
+                           enabledCalendars calendars: [EKCalendar],
+                           allowUnmarkedExistingEvent: Bool = false) -> EKEvent? {
         if let existingEventId,
            let event = store.calendarItem(withIdentifier: existingEventId) as? EKEvent,
-           calendars.contains(where: { $0.calendarIdentifier == event.calendar.calendarIdentifier }),
-           isGoalEvent(event, project: project, week: week) {
-            return event
+           calendars.contains(where: { $0.calendarIdentifier == event.calendar.calendarIdentifier }) {
+            if isGoalEvent(event, project: project, week: week) {
+                return event
+            }
+            if allowUnmarkedExistingEvent,
+               ProjectPrefix.projectName(of: event.title ?? "") == project {
+                return event
+            }
         }
 
         return goalEvents(project: project, week: week, enabledCalendars: calendars)
