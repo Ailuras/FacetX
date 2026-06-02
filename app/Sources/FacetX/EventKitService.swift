@@ -241,40 +241,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return result
     }
 
-    /// Account (source) titles that can hold a NEW container of the given kind.
-    /// Not every source allows new lists (e.g. subscribed/birthday sources).
-    func sourceTitles(forNew kind: ContainerInfo.Kind) -> [String] {
-        let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
-        return store.sources
-            .filter { src in
-                // A source can host new containers of a kind if it already
-                // exposes calendars for that entity (filters out read-only ones).
-                !src.calendars(for: entity).isEmpty || src.sourceType == .local || src.sourceType == .calDAV
-            }
-            .map(\.title)
-            // De-dup: iCloud may appear as separate calendar/reminder sources.
-            .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
-            .sorted()
-    }
-
-    /// Create a new calendar or reminder list named `title` under the account
-    /// whose title is `sourceTitle`. Returns whether it succeeded plus the
-    /// underlying error message (for diagnostics) when it didn't.
-    func createContainer(title: String, kind: ContainerInfo.Kind,
-                         sourceTitle: String) -> (ok: Bool, error: String?) {
-        let entity: EKEntityType = (kind == .reminder) ? .reminder : .event
-        // Prefer a source that actually hosts containers of this entity.
-        let source = store.sources.first(where: {
-            $0.title == sourceTitle && !$0.calendars(for: entity).isEmpty
-        }) ?? store.sources.first(where: { $0.title == sourceTitle })
-        guard let source else { return (false, "no source titled \(sourceTitle)") }
-        let cal = EKCalendar(for: entity, eventStore: store)
-        cal.title = title
-        cal.source = source
-        do { try store.saveCalendar(cal, commit: true); return (true, nil) }
-        catch { return (false, "\(error)") }
-    }
-
     // ── Write-back ───────────────────────────────────────────────────────────
 
     /// Toggle a reminder's completion by its identifier.
@@ -368,8 +334,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             project: project,
             week: week,
             existingEventId: existingEventId,
-            enabledCalendars: calendars,
-            allowUnmarkedExistingEvent: existingEventId != nil
+            enabledCalendars: calendars
         ) ?? EKEvent(eventStore: store)
         event.title = WeekGoalEvent.makeTitle(project: project, title: title)
         event.notes = WeekGoalEvent.makeNotes(body: body, project: project, weekID: week.id)
@@ -403,14 +368,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         )
     }
 
-    func calendarEventExists(id: String, enabledCalendars: Set<String>? = nil) async -> Bool {
-        let authorized = await MainActor.run { calendarAuthorized }
-        guard authorized,
-              let event = store.calendarItem(withIdentifier: id) as? EKEvent else { return false }
-        let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
-        return calendars.contains { $0.calendarIdentifier == event.calendar.calendarIdentifier }
-    }
-
     private func calendarForGoalEvent(named name: String?, from calendars: [EKCalendar]) -> EKCalendar? {
         if let name,
            let cal = calendars.first(where: { $0.title == name }) {
@@ -424,18 +381,12 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     private func goalEvent(project: String, week: ISOWeek, existingEventId: String?,
-                           enabledCalendars calendars: [EKCalendar],
-                           allowUnmarkedExistingEvent: Bool = false) -> EKEvent? {
+                           enabledCalendars calendars: [EKCalendar]) -> EKEvent? {
         if let existingEventId,
            let event = store.calendarItem(withIdentifier: existingEventId) as? EKEvent,
-           calendars.contains(where: { $0.calendarIdentifier == event.calendar.calendarIdentifier }) {
-            if isGoalEvent(event, project: project, week: week) {
-                return event
-            }
-            if allowUnmarkedExistingEvent,
-               ProjectPrefix.projectName(of: event.title ?? "") == project {
-                return event
-            }
+           calendars.contains(where: { $0.calendarIdentifier == event.calendar.calendarIdentifier }),
+           isGoalEvent(event, project: project, week: week) {
+            return event
         }
 
         return goalEvents(project: project, week: week, enabledCalendars: calendars)

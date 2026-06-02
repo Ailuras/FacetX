@@ -17,7 +17,7 @@ struct Project: Identifiable, Codable, Hashable {
     var createdAt: Date = Date()
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
-    var itemOrder: [String]? = []
+    var itemOrder: [String] = []
     /// Manual sort index for sidebar ordering (lower = higher).
     var sortOrder: Int = 0
     /// GitHub repository in "owner/repo" format (optional).
@@ -35,27 +35,6 @@ struct Project: Identifiable, Codable, Hashable {
         self.githubRepo = githubRepo
     }
 
-    enum CodingKeys: String, CodingKey {
-        case id, name, prefix, tagline, reminderListName, calendarName, weekGoalCalendarName
-        case createdAt, archived, weekGoals, itemOrder, sortOrder, githubRepo
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        prefix = try container.decode(String.self, forKey: .prefix)
-        tagline = try container.decodeIfPresent(String.self, forKey: .tagline) ?? ""
-        reminderListName = try container.decodeIfPresent(String.self, forKey: .reminderListName)
-        calendarName = try container.decodeIfPresent(String.self, forKey: .calendarName)
-        weekGoalCalendarName = try container.decodeIfPresent(String.self, forKey: .weekGoalCalendarName)
-        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
-        archived = try container.decodeIfPresent(Bool.self, forKey: .archived) ?? false
-        weekGoals = try container.decodeIfPresent([WeekGoal].self, forKey: .weekGoals) ?? []
-        itemOrder = try container.decodeIfPresent([String].self, forKey: .itemOrder) ?? []
-        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
-        githubRepo = try container.decodeIfPresent(String.self, forKey: .githubRepo)
-    }
 }
 
 /// A per-week goal attached to a project. ISO week id like "2026-W22".
@@ -180,8 +159,8 @@ final class ProjectStore: ObservableObject {
     }
 
     func pruneItemOrder(projectID: Project.ID, keeping validIDs: Set<String>) {
-        guard let p = projects.firstIndex(where: { $0.id == projectID }),
-              let order = projects[p].itemOrder else { return }
+        guard let p = projects.firstIndex(where: { $0.id == projectID }) else { return }
+        let order = projects[p].itemOrder
         let pruned = order.filter { validIDs.contains($0) }
         guard pruned != order else { return }
         projects[p].itemOrder = pruned
@@ -196,22 +175,9 @@ final class ProjectStore: ObservableObject {
             let data = try Data(contentsOf: url)
             projects = try JSONDecoder().decode([Project].self, from: data)
             persistenceError = nil
-            normalizeProjectSortOrderIfNeeded()
         } catch {
             persistenceError = "Could not read projects.json: \(error.localizedDescription)"
         }
-    }
-
-    private func normalizeProjectSortOrderIfNeeded() {
-        var seen = Set<Int>()
-        let needsNormalization = projects.contains { project in
-            project.sortOrder < 0 || !seen.insert(project.sortOrder).inserted
-        }
-        guard needsNormalization else { return }
-        for index in projects.indices {
-            projects[index].sortOrder = index
-        }
-        save()
     }
 
     private func save() {

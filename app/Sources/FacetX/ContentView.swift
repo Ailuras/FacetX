@@ -683,7 +683,7 @@ struct ProjectDetailView: View {
                                      enabledReminderLists: settings.effectiveReminderListNames,
                                      enabledCalendars: settings.effectiveCalendarNames)
         store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
-        let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder ?? [])
+        let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
         let selectedId = selectedDetailItem?.id
         let firstPopulation = items.isEmpty
 

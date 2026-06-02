@@ -17,8 +17,8 @@ view, project search and header controls, complete/create/delete, modern detail
 editing with inline title/notes editing and drag-to-reorder, completed-item
 filtering with soft list transitions, per-project week view + goal backed by
 synced calendar events, GitHub commit integration, menu bar quick-capture, live
-refresh on EventKit changes and settings changes, container selection + creation
-with duplicate-name warnings, JSON persistence error surfacing, and a standard
+refresh on EventKit changes and settings changes, container selection with
+duplicate-name warnings, JSON persistence error surfacing, and a standard
 Settings window.
 
 Founding intent: Apple's Calendar and Reminders organize data flatly by calendar
@@ -167,9 +167,12 @@ Project
   tagline            String
   reminderListName   String?
   calendarName       String?
+  weekGoalCalendarName String?
   createdAt          Date
   archived           Bool
-  itemOrder          [String]?
+  weekGoals          [WeekGoal]
+  itemOrder          [String]
+  sortOrder          Int
   githubRepo         String?
 
 WeekGoal
@@ -215,21 +218,24 @@ UI updates when data changes in Apple's apps or via iCloud.
 
 ### Containers keyed by title, not identifier
 
-`AppSettings.enabledContainerNames` and all container lookups use the container
-**title**, not `calendarIdentifier` — identifiers are device-local (the same
-iCloud calendar has a different id per Mac) while titles are stable across
-devices/accounts. An **empty** enabled-set means "all containers" (fresh-install
-default). `AppSettings.toggle` materializes "all" into an explicit set before the
-first removal so unchecking one doesn't re-enable everything.
+`AppSettings.enabledReminderListNames`, `enabledCalendarNames`, and all container
+lookups use the container **title**, not `calendarIdentifier` — identifiers are
+device-local (the same iCloud calendar has a different id per Mac) while titles
+are stable across devices/accounts. An **empty** enabled-set means "all
+containers" (fresh-install default). `AppSettings.toggleReminderList` and
+`toggleCalendar` materialize "all" into an explicit set before the first removal
+so unchecking one doesn't re-enable everything.
 
 ## Conventions
 
 - Reads/writes are scoped to enabled containers everywhere via the
   `enabled: Set<String>?` parameter (empty/nil = all). When adding fetch/create
-  paths, thread `settings.enabledContainerNames` through.
+  paths, thread `settings.effectiveReminderListNames` and
+  `settings.effectiveCalendarNames` through. Save-target selection should go
+  through `AppSettings.reminderSaveTarget` / `calendarSaveTarget`.
 - New item creation writes to the project's saved reminder list / calendar.
-  Settings owns only the defaults used when a project is created or when older
-  project data has no saved container yet.
+  Settings owns only the defaults used when a project is created or when project
+  data has no saved container.
 - Week identity is ISO-8601, Monday-start, formatted `"2026-W22"` — use
   [ISOWeek.swift](app/Sources/FacetXCore/ISOWeek.swift), don't reimplement week math.
 - JSON stores write atomically with `[.prettyPrinted, .sortedKeys]`.

@@ -8,10 +8,9 @@ import Foundation
 /// the same iCloud calendar has a different id on each Mac — whereas the title
 /// is stable across devices.
 ///
-/// An EMPTY set means "all containers of that kind" (the default — preserves
-/// the original no-filter behavior so a fresh install just works). Reminder and
-/// calendar selections are split so same-title containers do not toggle each
-/// other accidentally.
+/// An EMPTY set means "all containers of that kind" (the fresh-install
+/// default). Reminder and calendar selections are split so same-title
+/// containers do not toggle each other accidentally.
 @MainActor
 final class AppSettings: ObservableObject {
     @Published var enabledReminderListNames: Set<String> {
@@ -51,59 +50,30 @@ final class AppSettings: ObservableObject {
 
     init(filename: String = "settings.json") {
         self.url = AppSupport.directory().appendingPathComponent(filename)
+        var persistenceError: String?
+        let stored: Stored
         if FileManager.default.fileExists(atPath: url.path) {
-            let stored: Stored?
             do {
                 let data = try Data(contentsOf: url)
                 stored = try JSONDecoder().decode(Stored.self, from: data)
-                self.persistenceError = nil
             } catch {
-                stored = nil
-                self.persistenceError = "Could not read settings.json: \(error.localizedDescription)"
-            }
-
-            if let stored {
-                if let reminderNames = stored.enabledReminderListNames,
-                   let calendarNames = stored.enabledCalendarNames {
-                    self.enabledReminderListNames = Set(reminderNames)
-                    self.enabledCalendarNames = Set(calendarNames)
-                } else {
-                    let legacy = Set(stored.enabledContainerNames ?? [])
-                    self.enabledReminderListNames = legacy
-                    self.enabledCalendarNames = legacy
-                }
-                self.reminderListsDisabled = stored.reminderListsDisabled ?? false
-                self.calendarsDisabled = stored.calendarsDisabled ?? false
-                self.defaultReminderListName = stored.defaultReminderListName ?? ""
-                self.defaultCalendarName = stored.defaultCalendarName ?? ""
-                self.weekGoalCalendarName = stored.weekGoalCalendarName ?? ""
-                self.menuBarEnabled = stored.menuBarEnabled ?? true
-                self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes ?? 120
-                self.githubToken = stored.githubToken ?? ""
-            } else {
-                self.enabledReminderListNames = []
-                self.enabledCalendarNames = []
-                self.reminderListsDisabled = false
-                self.calendarsDisabled = false
-                self.defaultReminderListName = ""
-                self.defaultCalendarName = ""
-                self.weekGoalCalendarName = ""
-                self.menuBarEnabled = true
-                self.defaultEventDurationMinutes = 120
-                self.githubToken = ""
+                stored = .defaults
+                persistenceError = "Could not read settings.json: \(error.localizedDescription)"
             }
         } else {
-            self.enabledReminderListNames = []   // empty = all reminders
-            self.enabledCalendarNames = []       // empty = all calendars
-            self.reminderListsDisabled = false
-            self.calendarsDisabled = false
-            self.defaultReminderListName = ""
-            self.defaultCalendarName = ""
-            self.weekGoalCalendarName = ""
-            self.menuBarEnabled = true
-            self.defaultEventDurationMinutes = 120
-            self.githubToken = ""
+            stored = .defaults
         }
+        self.enabledReminderListNames = Set(stored.enabledReminderListNames)
+        self.enabledCalendarNames = Set(stored.enabledCalendarNames)
+        self.reminderListsDisabled = stored.reminderListsDisabled
+        self.calendarsDisabled = stored.calendarsDisabled
+        self.defaultReminderListName = stored.defaultReminderListName
+        self.defaultCalendarName = stored.defaultCalendarName
+        self.weekGoalCalendarName = stored.weekGoalCalendarName
+        self.menuBarEnabled = stored.menuBarEnabled
+        self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes
+        self.githubToken = stored.githubToken ?? ""
+        self.persistenceError = persistenceError
     }
 
     /// Is this reminder list enabled? Empty config = all reminder lists enabled.
@@ -212,23 +182,32 @@ final class AppSettings: ObservableObject {
     }
 
     private struct Stored: Codable {
-        var enabledReminderListNames: [String]?
-        var enabledCalendarNames: [String]?
-        var enabledContainerNames: [String]?
-        var reminderListsDisabled: Bool?
-        var calendarsDisabled: Bool?
-        var defaultReminderListName: String?
-        var defaultCalendarName: String?
-        var weekGoalCalendarName: String?
-        var menuBarEnabled: Bool?
-        var defaultEventDurationMinutes: Int?
+        var enabledReminderListNames: [String]
+        var enabledCalendarNames: [String]
+        var reminderListsDisabled: Bool
+        var calendarsDisabled: Bool
+        var defaultReminderListName: String
+        var defaultCalendarName: String
+        var weekGoalCalendarName: String
+        var menuBarEnabled: Bool
+        var defaultEventDurationMinutes: Int
         var githubToken: String?
+
+        static let defaults = Stored(enabledReminderListNames: [],
+                                     enabledCalendarNames: [],
+                                     reminderListsDisabled: false,
+                                     calendarsDisabled: false,
+                                     defaultReminderListName: "",
+                                     defaultCalendarName: "",
+                                     weekGoalCalendarName: "",
+                                     menuBarEnabled: true,
+                                     defaultEventDurationMinutes: 120,
+                                     githubToken: nil)
     }
 
     private func save() {
         let stored = Stored(enabledReminderListNames: enabledReminderListNames.sorted(),
                             enabledCalendarNames: enabledCalendarNames.sorted(),
-                            enabledContainerNames: nil,
                             reminderListsDisabled: reminderListsDisabled,
                             calendarsDisabled: calendarsDisabled,
                             defaultReminderListName: defaultReminderListName,

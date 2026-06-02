@@ -79,22 +79,6 @@ struct CommitsView: View {
             .sorted { $0.count > $1.count }
     }
 
-    private var latestCommitDate: Date? {
-        commits.map(\.date).max()
-    }
-
-    private var oldestCommitDate: Date? {
-        commits.map(\.date).min()
-    }
-
-    private var commitPeriodString: String? {
-        guard let oldest = oldestCommitDate, let latest = latestCommitDate else { return nil }
-        let formatter = DateIntervalFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        return formatter.string(from: oldest, to: latest)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             unifiedHeader

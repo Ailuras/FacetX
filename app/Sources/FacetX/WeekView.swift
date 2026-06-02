@@ -483,26 +483,8 @@ struct WeekView: View {
                                   title: snapshot.title, body: snapshot.body,
                                   eventId: snapshot.eventId)
             }
-        } else if let localGoal, let eventId = localGoal.eventId {
-            if await ek.calendarEventExists(id: eventId, enabledCalendars: settings.effectiveCalendarNames) {
-                let migratedEventId = await ek.createOrUpdateGoalEvent(
-                    project: project.prefix,
-                    title: localGoal.title,
-                    body: localGoal.body,
-                    week: currentWeek,
-                    calendarName: goalCalendarName,
-                    existingEventId: eventId,
-                    enabledCalendars: settings.effectiveCalendarNames
-                )
-                guard !Task.isCancelled, currentWeek == week else { return }
-                if let migratedEventId {
-                    store.setWeekGoal(projectID: project.id, weekId: currentWeek.id,
-                                      title: localGoal.title, body: localGoal.body,
-                                      eventId: migratedEventId)
-                }
-            } else {
-                store.setWeekGoal(projectID: project.id, weekId: currentWeek.id, title: "", body: "")
-            }
+        } else if localGoal?.eventId != nil {
+            store.setWeekGoal(projectID: project.id, weekId: currentWeek.id, title: "", body: "")
         }
     }
 
