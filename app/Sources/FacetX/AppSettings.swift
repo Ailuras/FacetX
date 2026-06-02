@@ -30,25 +30,43 @@ final class AppSettings: ObservableObject {
         didSet { settingsDidChange() }
     }
     @Published private(set) var changeToken = 0
+    @Published private(set) var persistenceError: String?
 
     private let url: URL
 
     init(filename: String = "settings.json") {
         self.url = AppSupport.directory().appendingPathComponent(filename)
-        if let data = try? Data(contentsOf: url),
-           let stored = try? JSONDecoder().decode(Stored.self, from: data) {
-            if let reminderNames = stored.enabledReminderListNames,
-               let calendarNames = stored.enabledCalendarNames {
-                self.enabledReminderListNames = Set(reminderNames)
-                self.enabledCalendarNames = Set(calendarNames)
-            } else {
-                let legacy = Set(stored.enabledContainerNames ?? [])
-                self.enabledReminderListNames = legacy
-                self.enabledCalendarNames = legacy
+        if FileManager.default.fileExists(atPath: url.path) {
+            let stored: Stored?
+            do {
+                let data = try Data(contentsOf: url)
+                stored = try JSONDecoder().decode(Stored.self, from: data)
+                self.persistenceError = nil
+            } catch {
+                stored = nil
+                self.persistenceError = "Could not read settings.json: \(error.localizedDescription)"
             }
-            self.defaultReminderListName = stored.defaultReminderListName ?? ""
-            self.defaultCalendarName = stored.defaultCalendarName ?? ""
-            self.menuBarEnabled = stored.menuBarEnabled ?? true
+
+            if let stored {
+                if let reminderNames = stored.enabledReminderListNames,
+                   let calendarNames = stored.enabledCalendarNames {
+                    self.enabledReminderListNames = Set(reminderNames)
+                    self.enabledCalendarNames = Set(calendarNames)
+                } else {
+                    let legacy = Set(stored.enabledContainerNames ?? [])
+                    self.enabledReminderListNames = legacy
+                    self.enabledCalendarNames = legacy
+                }
+                self.defaultReminderListName = stored.defaultReminderListName ?? ""
+                self.defaultCalendarName = stored.defaultCalendarName ?? ""
+                self.menuBarEnabled = stored.menuBarEnabled ?? true
+            } else {
+                self.enabledReminderListNames = []
+                self.enabledCalendarNames = []
+                self.defaultReminderListName = ""
+                self.defaultCalendarName = ""
+                self.menuBarEnabled = true
+            }
         } else {
             self.enabledReminderListNames = []   // empty = all reminders
             self.enabledCalendarNames = []       // empty = all calendars
@@ -116,7 +134,12 @@ final class AppSettings: ObservableObject {
                             defaultCalendarName: defaultCalendarName,
                             menuBarEnabled: menuBarEnabled)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try? enc.encode(stored).write(to: url, options: .atomic)
+        do {
+            try enc.encode(stored).write(to: url, options: .atomic)
+            persistenceError = nil
+        } catch {
+            persistenceError = "Could not write settings.json: \(error.localizedDescription)"
+        }
     }
 
     private func settingsDidChange() {

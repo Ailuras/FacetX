@@ -18,6 +18,9 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
+                if let persistenceWarning {
+                    persistenceWarningView(persistenceWarning)
+                }
                 List(selection: $selection) {
                     Section {
                         Label("Today", systemImage: "sun.max.fill")
@@ -127,6 +130,22 @@ struct ContentView: View {
             enabledReminderLists: settings.enabledReminderListNames,
             enabledCalendars: settings.enabledCalendarNames
         )
+    }
+
+    private var persistenceWarning: String? {
+        store.persistenceError ?? settings.persistenceError
+    }
+
+    private func persistenceWarningView(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.triangle")
+            .font(.caption2)
+            .foregroundStyle(.orange)
+            .lineLimit(3)
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(8)
     }
 }
 

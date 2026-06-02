@@ -24,6 +24,7 @@ private enum SettingsUI {
 /// (device-stable, without coupling same-title calendars and reminder lists).
 struct ContainersSettingsView: View {
     @EnvironmentObject private var ek: EventKitService
+    @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
 
     @State private var containers: [EventKitService.ContainerInfo] = []
@@ -46,6 +47,9 @@ struct ContainersSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                if let persistenceWarning {
+                    persistenceWarningView(persistenceWarning)
+                }
                 summaryStrip
                 defaultSaveLocations
                 interfaceSection
@@ -82,6 +86,24 @@ struct ContainersSettingsView: View {
 
             Spacer()
         }
+    }
+
+    private var persistenceWarning: String? {
+        store.persistenceError ?? settings.persistenceError
+    }
+
+    private func persistenceWarningView(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.triangle")
+            .font(SettingsUI.secondaryFont)
+            .foregroundStyle(.orange)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(Color.orange.opacity(0.24), lineWidth: 1)
+            )
     }
 
     private var summaryStrip: some View {

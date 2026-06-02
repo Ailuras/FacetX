@@ -48,6 +48,7 @@ struct WeekGoal: Identifiable, Codable, Hashable {
 @MainActor
 final class ProjectStore: ObservableObject {
     @Published private(set) var projects: [Project] = []
+    @Published private(set) var persistenceError: String?
 
     private let url: URL
 
@@ -139,13 +140,24 @@ final class ProjectStore: ObservableObject {
     // ── Persistence ──────────────────────────────────────────────────────────
 
     private func load() {
-        guard let data = try? Data(contentsOf: url) else { return }
-        projects = (try? JSONDecoder().decode([Project].self, from: data)) ?? []
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            projects = try JSONDecoder().decode([Project].self, from: data)
+            persistenceError = nil
+        } catch {
+            persistenceError = "Could not read projects.json: \(error.localizedDescription)"
+        }
     }
 
     private func save() {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try? encoder.encode(projects).write(to: url, options: .atomic)
+        do {
+            try encoder.encode(projects).write(to: url, options: .atomic)
+            persistenceError = nil
+        } catch {
+            persistenceError = "Could not write projects.json: \(error.localizedDescription)"
+        }
     }
 }
