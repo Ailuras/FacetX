@@ -9,6 +9,7 @@
   <key>CFBundleShortVersionString</key><string>0.3</string>
   <key>CFBundleExecutable</key><string>FacetX</string>
   <key>CFBundleIconFile</key><string>FacetX</string>
+  <key>FacetXApplicationSupportName</key><string>FacetX</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHumanReadableCopyright</key><string>FacetX</string>

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Codex agents when working with code in this repository.
 
 ## What this is
 
@@ -34,15 +34,18 @@ silently denied EventKit access by macOS. Never `swift run`; always build the
 bundle:
 
 ```bash
+scripts/build.sh          # release (default), branch-aware bundle build
+scripts/build.sh debug    # debug build
+scripts/restart.sh        # debug stop→build→open -n development loop
 cd app
-./build-app.sh            # release (default); or ./build-app.sh debug
-open ./FacetX.app
 ./make-dmg.sh             # package FacetX.app into a distributable .dmg
 ```
 
-`build-app.sh` runs `swift build`, wraps the binary into `FacetX.app` with
+`app/build-app.sh` runs `swift build`, wraps the binary into a `.app` bundle with
 [Info.plist](app/Info.plist) (EventKit usage strings) +
-[FacetX.entitlements](app/FacetX.entitlements), then ad-hoc code-signs it.
+[FacetX.entitlements](app/FacetX.entitlements), patches branch-specific bundle
+metadata, then code-signs it. It prefers `FACETX_SIGN_IDENTITY`, then the first
+local `Apple Development` signing identity, and falls back to ad-hoc signing.
 For a quick non-UI regression pass, run:
 
 ```bash
@@ -51,10 +54,53 @@ swift build -c debug
 swift run FacetXCoreChecks
 ```
 
-EventKit permission state is granted per-bundle by macOS (TCC). If you change the
-bundle identifier or signing, you may need to re-grant Calendar/Reminders access
-(System Settings → Privacy & Security) or `tccutil reset` for the bundle id
-(`com.facetx.app`).
+EventKit permission state is granted per-bundle by macOS (TCC). `main`/`master`
+builds the canonical `FacetX.app` with bundle ID `com.facetx.app`. Other branches
+build variants such as `FacetX-feat-calendar.app` with bundle ID
+`com.facetx.app.dev.feat-calendar`; each variant has its own support directory
+(`Application Support/FacetX-feat-calendar/`) and must be authorized once. Keep
+the bundle ID and signing identity stable to reuse that authorization across
+rebuilds. Ad-hoc fallback signing may cause macOS to ask again.
+
+### Signing identity for single authorization
+
+To avoid repeated Calendar/Reminders prompts during development, use a stable
+local code-signing identity instead of relying on ad-hoc signing. First inspect
+available identities:
+
+```bash
+security find-identity -v -p codesigning
+```
+
+Use the full quoted `Apple Development: ...` identity shown by that command:
+
+```bash
+FACETX_SIGN_IDENTITY="Apple Development: Your Name (TEAMID)" scripts/restart.sh
+```
+
+For persistent local use, export it from the shell before building, or add it to
+your private shell profile (do not commit machine-specific identities):
+
+```bash
+export FACETX_SIGN_IDENTITY="Apple Development: Your Name (TEAMID)"
+scripts/restart.sh
+```
+
+Agents should not hard-code a developer identity in repo files. If no identity is
+configured, `app/build-app.sh` automatically tries the first local
+`Apple Development` identity and then falls back to ad-hoc signing. When the
+build output says `signing: ad-hoc`, tell the user that TCC may prompt again.
+
+TCC authorization is still per bundle ID. Each worktree/variant should be opened
+and authorized once, then reused with the same variant and signing identity.
+
+Variant build overrides:
+
+```bash
+FACETX_VARIANT=myfork scripts/restart.sh
+FACETX_SIGN_IDENTITY="Apple Development: Your Name" scripts/restart.sh
+FACETX_APP_NAME=FacetX-local FACETX_BUNDLE_ID=com.facetx.app.dev.local scripts/build.sh debug
+```
 
 ## The core contract (do not break)
 
@@ -86,18 +132,20 @@ quick-capture, and the standard `SwiftUI.Settings` window):
   the only file that touches EventKit.
 - **`ProjectStore`** ([Models.swift](app/Sources/FacetX/Models.swift)) —
   `@MainActor`; persists saved projects + week goals as JSON under Application
-  Support (`FacetX/projects.json`). Holds *only* project-side metadata EventKit
+  Support (`FacetX/projects.json`, or the active variant directory). Holds *only* project-side metadata EventKit
   can't represent (name, claimed prefix, tagline, default reminder/calendar
   save locations, week goals, and optional local item presentation order).
   **No item content is stored here** — that's what avoids any two-source sync
   problem.
 - **[AppSettings.swift](app/Sources/FacetX/AppSettings.swift)** — `@MainActor`;
   persists which containers are enabled plus the default reminder/calendar save
-  locations for new projects (`FacetX/settings.json`).
+  locations for new projects (`FacetX/settings.json`, or the active variant directory).
 
 Both JSON stores resolve their directory through
-[AppSupport.swift](app/Sources/FacetX/AppSupport.swift) (`Application
-Support/FacetX/`) — change the folder name in that one place if ever needed.
+[AppSupport.swift](app/Sources/FacetX/AppSupport.swift). The default is
+`Application Support/FacetX/`; development variants read
+`FacetXApplicationSupportName` from Info.plist so worktrees do not share local
+JSON state.
 
 Project-side persisted shape:
 
@@ -112,13 +160,14 @@ Project
   createdAt          Date
   archived           Bool
   itemOrder          [String]?
+  githubRepo         String?
 
 WeekGoal
   id                 UUID
-  projectId          UUID
   weekId             String   // ISO "2026-W22"
   title              String
   body               String
+  eventId            String?
 ```
 
 Items are intentionally absent from this store. They are fetched from EventKit on

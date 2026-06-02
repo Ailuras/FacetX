@@ -33,18 +33,30 @@ Regulus: 问题最小化&修复bugs      →  project "Regulus"
 
 Items without a recognized project prefix are never touched — your day-to-day
 reminders stay exactly as they are. (EventKit exposes no tag API, so a title
-prefix is the only reliable association mechanism — see `CLAUDE.md`.)
+prefix is the only reliable association mechanism.)
 
 ## Build & run
 
 ```bash
-cd app
-./build-app.sh            # compile + bundle + ad-hoc sign FacetX.app
-open ./FacetX.app
+scripts/build.sh          # release build, auto-detects branch variant
+scripts/build.sh debug    # debug build
+scripts/restart.sh        # preferred dev loop: stop, build debug, open -n
 ```
 
 The app must run as a bundled, signed `.app` — a bare binary is denied EventKit
-access by macOS. See [CLAUDE.md](CLAUDE.md) for architecture notes.
+access by macOS.
+
+Development builds auto-detect the current git branch. `main` builds the
+canonical `FacetX.app` (`com.facetx.app`); other branches build separate apps
+such as `FacetX-feat-calendar.app` with bundle IDs like
+`com.facetx.app.dev.feat-calendar` and isolated data under
+`~/Library/Application Support/FacetX-feat-calendar/`. Each variant needs
+Calendar/Reminders permission once. To make that permission stick across
+rebuilds, set a stable signing identity, for example:
+
+```bash
+FACETX_SIGN_IDENTITY="Apple Development: Your Name" scripts/restart.sh
+```
 
 To create a distributable disk image:
 
@@ -54,9 +66,9 @@ cd app
 ./make-dmg.sh
 ```
 
-The DMG contains `FacetX.app` and an `/Applications` shortcut. The app is
-ad-hoc signed rather than notarized, so a first launch on another Mac may need
-right-click > Open.
+The DMG contains `FacetX.app` and an `/Applications` shortcut. The app is locally
+signed but not notarized, so a first launch on another Mac may need right-click >
+Open.
 
 ## Checks
 
@@ -71,12 +83,9 @@ swift run FacetXCoreChecks
 Native SwiftUI app (v0.3, local beta). The app includes a polished three-pane
 workspace, cross-project Today view, project search and controls, modern detail
 and settings surfaces, menu bar quick capture, project-specific week planning,
-completed-item controls, and lightweight core checks. See
-**[RELEASE_NOTES.md](RELEASE_NOTES.md)** for the latest release notes and
-**[CLAUDE.md](CLAUDE.md)** for architecture and maintenance notes.
+completed-item controls, and lightweight core checks.
 
 ## Layout
 
-- `CLAUDE.md` — repository guide for future coding agents
-- `RELEASE_NOTES.md` — current release notes in English and Chinese
+- `scripts/` — build, restart, logging, and shared variant helpers
 - `app/` — the SwiftUI app (sources, checks, build scripts)
