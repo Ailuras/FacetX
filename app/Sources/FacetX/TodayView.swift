@@ -66,10 +66,10 @@ struct TodayView: View {
     }
 
     private func row(_ item: ProjectItem) -> some View {
-        let project = projectsByPrefix[ProjectPrefix.projectName(of: item.rawTitle) ?? ""]
+        let project = projectsByPrefix[item.projectPrefix]
         return ItemRow(
             item: item,
-            projectBadge: project?.name ?? ProjectPrefix.projectName(of: item.rawTitle),
+            projectBadge: project?.name ?? item.projectPrefix,
             onToggle: { completed in
                 Task {
                     await ek.setReminderCompleted(id: item.id, completed: completed)

@@ -36,15 +36,9 @@ struct WeekView: View {
         return items.filter { $0.matches(searchQuery: searchText) }
     }
 
-    /// Exclude the goal event from the day list so it doesn't appear twice.
-    private var nonGoalItems: [ProjectItem] {
-        let goalEventId = goal?.eventId
-        return weekItems.filter { item in
-            if item.id == goalEventId { return false }
-            guard case .event = item.kind else { return true }
-            return !WeekGoalEvent.isGoalContent(item.content)
-        }
-    }
+    /// Goal events are already filtered out by EventKitService via FacetAssociation,
+    /// so the day list uses the project's items directly.
+    private var nonGoalItems: [ProjectItem] { weekItems }
 
     private var hasActiveSearch: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
