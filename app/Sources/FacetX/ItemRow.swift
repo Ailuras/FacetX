@@ -240,6 +240,29 @@ struct ItemRow: View {
                             }
                         }
                     }
+
+                    if !item.tags.isEmpty {
+                        HStack(spacing: 4) {
+                            ForEach(Array(item.tags.prefix(3)), id: \.self) { tag in
+                                Text("#\(tag)")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.accentColor.opacity(0.10))
+                                    .clipShape(Capsule())
+                            }
+                            if item.tags.count > 3 {
+                                Text("+\(item.tags.count - 3)")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.10))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
                 }
 
                 Spacer()

@@ -16,13 +16,14 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let containerName: String   // reminder list / calendar = functional zone
     public let isCompleted: Bool
     public let date: Date?         // due date (reminder) or start date (event)
-    public let notes: String?      // notes / description
+    public let notes: String?      // user-facing notes / description, metadata stripped
+    public let tags: [String]      // FacetX tags parsed from the native notes metadata block
     public let priority: Int       // priority value (0 = none, 1-4 = high, 5 = med, 9 = low)
     public let url: URL?           // URL associated with the item
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
-                content: String, containerName: String, isCompleted: Bool, date: Date?,
-                notes: String?, priority: Int, url: URL?) {
+                 content: String, containerName: String, isCompleted: Bool, date: Date?,
+                 notes: String?, tags: [String] = [], priority: Int, url: URL?) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
@@ -32,6 +33,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.isCompleted = isCompleted
         self.date = date
         self.notes = notes
+        self.tags = tags
         self.priority = priority
         self.url = url
     }
@@ -44,6 +46,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         guard !q.isEmpty else { return true }
         return content.lowercased().contains(q)
             || (notes?.lowercased().contains(q) ?? false)
+            || tags.contains { $0.lowercased().contains(q) }
             || containerName.lowercased().contains(q)
     }
 }

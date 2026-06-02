@@ -13,6 +13,7 @@ struct ItemDetailPane: View {
 
     @State private var content = ""
     @State private var notes = ""
+    @State private var tagsText = ""
     @State private var priority = 0
     @State private var useDate = false
     @State private var date = Date()
@@ -26,6 +27,7 @@ struct ItemDetailPane: View {
     private var hasChanges: Bool {
         if content.trimmingCharacters(in: .whitespaces) != item.content { return true }
         if notes.trimmingCharacters(in: .whitespacesAndNewlines) != (item.notes ?? "") { return true }
+        if FacetMetadata.tags(from: tagsText) != item.tags { return true }
         if priority != item.priority { return true }
         let itemHasDate = item.date != nil
         if item.kind == .reminder, useDate != itemHasDate { return true }
@@ -46,6 +48,7 @@ struct ItemDetailPane: View {
                 VStack(alignment: .leading, spacing: 14) {
                     titleCard
                     propertyCard
+                    tagsCard
                     notesCard
                 }
                 .padding(.horizontal, 18)
@@ -217,6 +220,27 @@ struct ItemDetailPane: View {
         }
     }
 
+    private var tagsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Tags", systemImage: "tag")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 2)
+
+            TextField("deep, waiting, writing", text: $tagsText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(FacetTheme.quietPanel)
+                .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                        .stroke(FacetTheme.hairline, lineWidth: 1)
+                )
+        }
+    }
+
     private var dateControl: some View {
         HStack(spacing: 8) {
             if item.kind == .event {
@@ -315,6 +339,7 @@ struct ItemDetailPane: View {
     private func loadFields() {
         content = item.content
         notes = item.notes ?? ""
+        tagsText = item.tags.joined(separator: ", ")
         priority = item.priority
         containerName = item.containerName
         urlString = item.url?.absoluteString ?? ""
@@ -338,13 +363,14 @@ struct ItemDetailPane: View {
         let trimmedURL = urlString.trimmingCharacters(in: .whitespaces)
         let urlParam = trimmedURL.isEmpty ? nil : URL(string: trimmedURL)
         let shouldUseDate = item.kind == .event || useDate
+        let tags = FacetMetadata.tags(from: tagsText)
 
         Task {
             let ok = await ek.updateItem(id: item.id, project: project.prefix, content: text,
-                                         date: shouldUseDate ? date : nil, useDate: shouldUseDate,
-                                         containerName: containerName,
-                                         notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
-                                         priority: priority, url: urlParam, updateURL: true)
+                                          date: shouldUseDate ? date : nil, useDate: shouldUseDate,
+                                          containerName: containerName,
+                                          notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
+                                          tags: tags, priority: priority, url: urlParam, updateURL: true)
             saving = false
             if ok { onUpdate() }
         }

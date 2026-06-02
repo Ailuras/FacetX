@@ -126,6 +126,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     let title = r.title ?? ""
                     guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: r.notes),
                           prefixes.contains(prefix) else { return nil }
+                    let metadata = FacetMetadata.parse(notes: r.notes)
                     return ProjectItem(
                         id: r.calendarItemIdentifier,
                         kind: .reminder,
@@ -135,7 +136,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                         containerName: r.calendar?.title ?? "?",
                         isCompleted: r.isCompleted,
                         date: r.dueDateComponents?.date,
-                        notes: r.notes,
+                        notes: metadata.userNotes.isEmpty ? nil : metadata.userNotes,
+                        tags: metadata.tags,
                         priority: r.priority,
                         url: r.url
                     )
@@ -169,6 +171,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             let title = e.title ?? ""
             guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: e.notes),
                   prefixes.contains(prefix) else { return nil }
+            let metadata = FacetMetadata.parse(notes: e.notes)
             return ProjectItem(
                 id: e.eventIdentifier ?? UUID().uuidString,
                 kind: .event,
@@ -178,7 +181,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                 containerName: e.calendar.title,
                 isCompleted: false,
                 date: e.startDate,
-                notes: e.notes,
+                notes: metadata.userNotes.isEmpty ? nil : metadata.userNotes,
+                tags: metadata.tags,
                 priority: 0,
                 url: e.url
             )
@@ -455,13 +459,17 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// URL (inline title/notes edits, the edit sheet) leave it untouched — passing
     /// the default would otherwise silently erase an item's existing link.
     func updateItem(id: String, project: String, content: String,
-                    date: Date?, useDate: Bool, containerName: String, notes: String?, priority: Int,
+                    date: Date?, useDate: Bool, containerName: String, notes: String?, tags: [String]? = nil, priority: Int,
                     url: URL? = nil, updateURL: Bool = false) async -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
 
         let newTitle = ProjectPrefix.makeTitle(project: project, content: content)
         item.title = newTitle
-        item.notes = notes
+        let existingMetadata = FacetMetadata.parse(notes: item.notes)
+        let metadata = FacetMetadata(userNotes: notes ?? "",
+                                     tags: tags ?? existingMetadata.tags,
+                                     fields: existingMetadata.fields)
+        item.notes = FacetMetadata.compose(userNotes: notes ?? "", metadata: metadata)
         if updateURL { item.url = url }
 
         if let reminder = item as? EKReminder {

@@ -23,6 +23,7 @@ struct CreateItemView: View {
     @State private var kind: Kind = .reminder
     @State private var content = ""
     @State private var notes = ""
+    @State private var tagsText = ""
     @State private var priority: Int = 0
     @State private var useDate: Bool
     @State private var date: Date
@@ -137,6 +138,25 @@ struct CreateItemView: View {
             settingRow(title: kind == .reminder ? "Due Date" : "Start", systemImage: "calendar") {
                 dateControl
             }
+
+            cardDivider
+
+            VStack(alignment: .leading, spacing: 7) {
+                Label("Tags", systemImage: "tag")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("deep, waiting, writing", text: $tagsText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .padding(10)
+                    .background(FacetTheme.panel.opacity(0.60))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
+            }
+            .padding(.vertical, 10)
 
             cardDivider
 
@@ -260,16 +280,18 @@ struct CreateItemView: View {
         error = nil
         Task {
             let ok: Bool
+            let metadata = FacetMetadata(tags: FacetMetadata.tags(from: tagsText))
+            let nativeNotes = FacetMetadata.compose(userNotes: notes, metadata: metadata)
             switch kind {
             case .reminder:
                 ok = await ek.createReminder(project: project.prefix, content: text,
-                                             listName: container, dueDate: useDate ? date : nil,
-                                             notes: notes.isEmpty ? nil : notes,
-                                             priority: priority) != nil
+                                              listName: container, dueDate: useDate ? date : nil,
+                                              notes: nativeNotes,
+                                              priority: priority) != nil
             case .event:
                 ok = await ek.createEvent(project: project.prefix, content: text,
-                                          calendarName: container, startDate: date,
-                                          notes: notes.isEmpty ? nil : notes)
+                                           calendarName: container, startDate: date,
+                                           notes: nativeNotes)
             }
             saving = false
             if ok { onCreated(); dismiss() }

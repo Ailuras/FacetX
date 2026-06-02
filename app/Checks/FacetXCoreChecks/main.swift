@@ -44,6 +44,26 @@ check(WeekGoalEvent.body(fromNotes: goalNotes) == "Focus on polish",
 check(WeekGoalEvent.hasNotesMarker(goalNotes, project: "Regulus", weekID: week.id),
       "week goal notes should include sync marker")
 
+// ── FacetMetadata ────────────────────────────────────────────────────────────
+
+let plainMetadata = FacetMetadata.parse(notes: "A plain note")
+check(plainMetadata.userNotes == "A plain note", "plain notes should stay user-facing")
+check(plainMetadata.tags.isEmpty, "plain notes should not have tags")
+
+let nativeNotes = "Discuss scope\n\nFacetX-Metadata-Begin\ntags: deep, waiting, Deep\ncustom: keep me\nFacetX-Metadata-End"
+let parsedMetadata = FacetMetadata.parse(notes: nativeNotes)
+check(parsedMetadata.userNotes == "Discuss scope", "metadata block should be stripped from user notes")
+check(parsedMetadata.tags == ["deep", "waiting"], "tags should trim and de-duplicate case-insensitively")
+check(parsedMetadata.fields["custom"] == "keep me", "unknown metadata fields should be preserved")
+
+let recomposed = FacetMetadata.compose(userNotes: "Updated", metadata: FacetMetadata(userNotes: "", tags: ["ship"], fields: parsedMetadata.fields)) ?? ""
+check(recomposed.contains("tags: ship"), "compose should write updated tags")
+check(recomposed.contains("custom: keep me"), "compose should preserve unknown fields")
+check(FacetMetadata.compose(userNotes: "  ", metadata: FacetMetadata()) == nil,
+      "empty notes and metadata should compose to nil")
+check(FacetMetadata.tags(from: "#deep, waiting\nship") == ["deep", "waiting", "ship"],
+      "tag parser should accept hashes, commas, and newlines")
+
 let june = MonthYear(year: 2026, month: 6)
 guard let juneStart = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)),
       let juneEnd = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 23)),
@@ -65,8 +85,8 @@ func makeItem(_ id: String, zone: String = "Inbox", done: Bool = false,
               month: Int = 5, day: Int? = nil) -> ProjectItem {
     let date = day.flatMap { calendar.date(from: DateComponents(year: 2026, month: month, day: $0)) }
     return ProjectItem(id: id, kind: .reminder, rawTitle: id, projectPrefix: "Test", content: id,
-                       containerName: zone, isCompleted: done, date: date,
-                       notes: nil, priority: 0, url: nil)
+                        containerName: zone, isCompleted: done, date: date,
+                        notes: nil, priority: 0, url: nil)
 }
 
 // arranged: incomplete before completed, regardless of saved order.
@@ -110,12 +130,13 @@ check(monthItems.map(\.id) == ["jun1", "jun2"],
 // ── ProjectItem.matches ──────────────────────────────────────────────────────
 
 let searchItem = ProjectItem(id: "s", kind: .reminder, rawTitle: "Regulus: Ship beta",
-                             projectPrefix: "Regulus", content: "Ship beta", containerName: "Build",
-                             isCompleted: false, date: nil, notes: "needs review", priority: 0, url: nil)
+                              projectPrefix: "Regulus", content: "Ship beta", containerName: "Build",
+                              isCompleted: false, date: nil, notes: "needs review", tags: ["Deep"], priority: 0, url: nil)
 check(searchItem.matches(searchQuery: ""), "empty query should match everything")
 check(searchItem.matches(searchQuery: "  "), "whitespace query should match everything")
 check(searchItem.matches(searchQuery: "SHIP"), "matches should be case-insensitive on content")
 check(searchItem.matches(searchQuery: "review"), "matches should search notes")
+check(searchItem.matches(searchQuery: "deep"), "matches should search tags")
 check(searchItem.matches(searchQuery: "build"), "matches should search container name")
 check(!searchItem.matches(searchQuery: "missing"), "non-matching query should not match")
 
