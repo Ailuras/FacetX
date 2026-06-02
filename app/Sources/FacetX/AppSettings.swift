@@ -26,6 +26,9 @@ final class AppSettings: ObservableObject {
     @Published var defaultCalendarName: String {
         didSet { settingsDidChange() }
     }
+    @Published var weekGoalCalendarName: String {
+        didSet { settingsDidChange() }
+    }
     @Published var menuBarEnabled: Bool {
         didSet { settingsDidChange() }
     }
@@ -59,12 +62,14 @@ final class AppSettings: ObservableObject {
                 }
                 self.defaultReminderListName = stored.defaultReminderListName ?? ""
                 self.defaultCalendarName = stored.defaultCalendarName ?? ""
+                self.weekGoalCalendarName = stored.weekGoalCalendarName ?? ""
                 self.menuBarEnabled = stored.menuBarEnabled ?? true
             } else {
                 self.enabledReminderListNames = []
                 self.enabledCalendarNames = []
                 self.defaultReminderListName = ""
                 self.defaultCalendarName = ""
+                self.weekGoalCalendarName = ""
                 self.menuBarEnabled = true
             }
         } else {
@@ -72,6 +77,7 @@ final class AppSettings: ObservableObject {
             self.enabledCalendarNames = []       // empty = all calendars
             self.defaultReminderListName = ""
             self.defaultCalendarName = ""
+            self.weekGoalCalendarName = ""
             self.menuBarEnabled = true
         }
     }
@@ -115,6 +121,7 @@ final class AppSettings: ObservableObject {
         if enabledCalendarNames.contains(name) { enabledCalendarNames.remove(name) }
         else { enabledCalendarNames.insert(name) }
         if !isCalendarEnabled(defaultCalendarName) { defaultCalendarName = "" }
+        if !isCalendarEnabled(weekGoalCalendarName) { weekGoalCalendarName = "" }
     }
 
     private struct Stored: Codable {
@@ -123,16 +130,18 @@ final class AppSettings: ObservableObject {
         var enabledContainerNames: [String]?
         var defaultReminderListName: String?
         var defaultCalendarName: String?
+        var weekGoalCalendarName: String?
         var menuBarEnabled: Bool?
     }
 
     private func save() {
         let stored = Stored(enabledReminderListNames: enabledReminderListNames.sorted(),
                             enabledCalendarNames: enabledCalendarNames.sorted(),
-                            enabledContainerNames: nil,
-                            defaultReminderListName: defaultReminderListName,
-                            defaultCalendarName: defaultCalendarName,
-                            menuBarEnabled: menuBarEnabled)
+                             enabledContainerNames: nil,
+                             defaultReminderListName: defaultReminderListName,
+                             defaultCalendarName: defaultCalendarName,
+                             weekGoalCalendarName: weekGoalCalendarName,
+                             menuBarEnabled: menuBarEnabled)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
             try enc.encode(stored).write(to: url, options: .atomic)

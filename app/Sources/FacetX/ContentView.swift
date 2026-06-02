@@ -220,8 +220,20 @@ struct ProjectDetailView: View {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    private var grouped: [ItemArrangement.ZoneGroup] {
-        ItemArrangement.groupedByZone(visibleItems)
+    private var taskItems: [ProjectItem] {
+        visibleItems.filter { $0.kind == .reminder }
+    }
+
+    private var scheduleItems: [ProjectItem] {
+        visibleItems.filter { $0.kind == .event }
+    }
+
+    private var taskGroups: [ItemArrangement.ZoneGroup] {
+        ItemArrangement.groupedByZone(taskItems)
+    }
+
+    private var scheduleGroups: [ItemArrangement.ZoneGroup] {
+        ItemArrangement.groupedByZone(scheduleItems)
     }
 
     var body: some View {
@@ -402,23 +414,10 @@ struct ProjectDetailView: View {
                 // macOS plain-List section headers draw a stubborn separator
                 // line (under the first group) that listRowSeparator /
                 // listSectionSeparator won't hide; flat rows avoid it entirely.
-                ForEach(grouped, id: \.zone) { group in
-                    zoneHeader(group.zone)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 12, leading: 14, bottom: 2, trailing: 14))
-
-                    ForEach(group.items) { item in
-                        projectItemRow(item)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .top)),
-                                removal: .opacity.combined(with: .scale(scale: 0.98))
-                            ))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
-                    }
-                }
+                itemKindSection(title: "Tasks", systemImage: "checklist",
+                                count: taskItems.count, color: .green, groups: taskGroups)
+                itemKindSection(title: "Schedule", systemImage: "calendar",
+                                count: scheduleItems.count, color: .blue, groups: scheduleGroups)
             }
         }
         .listStyle(.plain)
@@ -426,11 +425,67 @@ struct ProjectDetailView: View {
         .animation(listAnimation, value: visibleItems.map { "\($0.id)-\($0.isCompleted)" })
     }
 
-    private func zoneHeader(_ zone: String) -> some View {
-        Text(zone)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    @ViewBuilder private func itemKindSection(title: String, systemImage: String,
+                                              count: Int, color: Color,
+                                              groups: [ItemArrangement.ZoneGroup]) -> some View {
+        if !groups.isEmpty {
+            itemKindHeader(title: title, systemImage: systemImage, count: count, color: color)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
+
+            ForEach(groups, id: \.zone) { group in
+                zoneHeader(group.zone, count: group.items.count)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 2, trailing: 14))
+
+                ForEach(group.items) { item in
+                    projectItemRow(item)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.98))
+                        ))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+                }
+            }
+        }
+    }
+
+    private func itemKindHeader(title: String, systemImage: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(color)
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+            Text("\(count)")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(color)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(color.opacity(0.12))
+                .clipShape(Capsule())
+            Spacer()
+        }
+        .foregroundStyle(.primary.opacity(0.86))
+    }
+
+    private func zoneHeader(_ zone: String, count: Int? = nil) -> some View {
+        HStack(spacing: 6) {
+            Text(zone)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            if let count {
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var emptyMessage: String {
@@ -456,22 +511,22 @@ struct ProjectDetailView: View {
 
     private var summaryCluster: some View {
         HStack(spacing: 6) {
-            SummaryChip(value: openItemCount, label: "Open", systemImage: "circle")
+            SummaryChip(value: openTaskCount, label: "Tasks", systemImage: "circle")
+            SummaryChip(value: eventCount, label: "Events", systemImage: "calendar")
             SummaryChip(value: completedReminderCount, label: "Done", systemImage: "checkmark.circle")
-            SummaryChip(value: zoneCount, label: "Zones", systemImage: "square.grid.2x2")
         }
     }
 
-    private var openItemCount: Int {
-        items.filter { $0.kind == .event || !$0.isCompleted }.count
+    private var openTaskCount: Int {
+        items.filter { $0.kind == .reminder && !$0.isCompleted }.count
+    }
+
+    private var eventCount: Int {
+        items.filter { $0.kind == .event }.count
     }
 
     private var completedReminderCount: Int {
         items.filter { $0.kind == .reminder && $0.isCompleted }.count
-    }
-
-    private var zoneCount: Int {
-        Set(items.map(\.containerName)).count
     }
 
     private func projectItemRow(_ item: ProjectItem) -> some View {

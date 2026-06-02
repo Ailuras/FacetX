@@ -249,35 +249,18 @@ struct WeekView: View {
                                 .foregroundStyle(.tertiary)
                                 .padding(.vertical, 4)
                         } else {
-                            ForEach(group.items) { item in
-                                ItemRow(
-                                    item: item,
-                                    isSelected: item.id == selectedItem?.id,
-                                    showDragGrip: false,
-                                    onToggle: { completed in
-                                        Task {
-                                            await ek.setReminderCompleted(id: item.id, completed: completed)
-                                            await reload()
-                                        }
-                                    },
-                                    onEdit: {
-                                        selectItem(item)
-                                    }
-                                )
-                                .contextMenu {
-                                    Button("Edit...") { selectItem(item) }
-                                    Button("Delete", role: .destructive) {
-                                        Task { _ = await ek.deleteItem(id: item.id); await reload() }
-                                    }
+                            if !group.scheduleItems.isEmpty {
+                                dayKindHeader("Schedule", systemImage: "calendar", count: group.scheduleItems.count, color: .blue)
+                                ForEach(group.scheduleItems) { item in
+                                    weekItemRow(item)
                                 }
-                                .onTapGesture { selectItem(item) }
-                                .transition(.asymmetric(
-                                    insertion: .opacity.combined(with: .move(edge: .top)),
-                                    removal: .opacity.combined(with: .scale(scale: 0.98))
-                                ))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+                            }
+
+                            if !group.taskItems.isEmpty {
+                                dayKindHeader("Tasks", systemImage: "checklist", count: group.taskItems.count, color: .green)
+                                ForEach(group.taskItems) { item in
+                                    weekItemRow(item)
+                                }
                             }
                         }
                     } header: {
@@ -307,6 +290,60 @@ struct WeekView: View {
             .scrollContentBackground(.hidden)
             .animation(listAnimation, value: nonGoalItems.map { "\($0.id)-\($0.isCompleted)" })
         }
+    }
+
+    private func dayKindHeader(_ title: String, systemImage: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(color)
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text("\(count)")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(color)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(color.opacity(0.10))
+                .clipShape(Capsule())
+            Spacer()
+        }
+        .padding(.top, 5)
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 1, trailing: 0))
+    }
+
+    private func weekItemRow(_ item: ProjectItem) -> some View {
+        ItemRow(
+            item: item,
+            isSelected: item.id == selectedItem?.id,
+            showDragGrip: false,
+            onToggle: { completed in
+                Task {
+                    await ek.setReminderCompleted(id: item.id, completed: completed)
+                    await reload()
+                }
+            },
+            onEdit: {
+                selectItem(item)
+            }
+        )
+        .contextMenu {
+            Button("Edit...") { selectItem(item) }
+            Button("Delete", role: .destructive) {
+                Task { _ = await ek.deleteItem(id: item.id); await reload() }
+            }
+        }
+        .onTapGesture { selectItem(item) }
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .move(edge: .top)),
+            removal: .opacity.combined(with: .scale(scale: 0.98))
+        ))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
     }
 
     // MARK: - Helpers
@@ -347,7 +384,7 @@ struct WeekView: View {
                 title: trimmed,
                 body: goalBody,
                 week: currentWeek,
-                calendarName: project.calendarName,
+                calendarName: goalCalendarName,
                 existingEventId: goal?.eventId,
                 enabledCalendars: settings.enabledCalendarNames
             )
@@ -376,6 +413,12 @@ struct WeekView: View {
         let endFormatter = DateFormatter()
         endFormatter.dateFormat = "MMM d, yyyy"
         return "\(startFormatter.string(from: start)) - \(endFormatter.string(from: end))"
+    }
+
+    private var goalCalendarName: String? {
+        if !settings.weekGoalCalendarName.isEmpty { return settings.weekGoalCalendarName }
+        if !settings.defaultCalendarName.isEmpty { return settings.defaultCalendarName }
+        return project.calendarName.nonEmpty
     }
 
     private func syncGoalWithCalendar(for currentWeek: ISOWeek) async {
@@ -431,6 +474,8 @@ private struct DayGroup: Identifiable {
     let isToday: Bool
 
     var id: Date { date }
+    var scheduleItems: [ProjectItem] { items.filter { $0.kind == .event } }
+    var taskItems: [ProjectItem] { items.filter { $0.kind == .reminder } }
 }
 
 private extension View {

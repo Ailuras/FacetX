@@ -1,11 +1,20 @@
 import SwiftUI
 
-/// The standard macOS Settings window (⌘,). Project management lives in the
-/// main window; Settings only contains app-wide container configuration.
+/// The standard macOS Settings window (⌘,), organized by function instead of a
+/// single long page. Project management still lives in the main window.
 struct SettingsRootView: View {
     var body: some View {
-        ContainersSettingsView()
-            .frame(width: 720, height: 600)
+        TabView {
+            GeneralSettingsTab()
+                .tabItem { Label("General", systemImage: "gearshape") }
+            DefaultsSettingsTab()
+                .tabItem { Label("Defaults", systemImage: "tray.and.arrow.down") }
+            SourcesSettingsTab()
+                .tabItem { Label("Sources", systemImage: "square.stack.3d.up") }
+            IntegrationsSettingsTab()
+                .tabItem { Label("Integrations", systemImage: "curlybraces") }
+        }
+        .frame(width: 720, height: 600)
     }
 }
 
@@ -17,22 +26,141 @@ private enum SettingsUI {
     static let controlWidth: CGFloat = 230
 }
 
-// ── Containers ───────────────────────────────────────────────────────────────
+// MARK: - General
 
-/// Choose which calendars / reminder lists FacetX reads and writes; create new
-/// ones if the expected lists are missing. Stored by title within each type
-/// (device-stable, without coupling same-title calendars and reminder lists).
-struct ContainersSettingsView: View {
+private struct GeneralSettingsTab: View {
+    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var settings: AppSettings
+
+    var body: some View {
+        SettingsPage(title: "General",
+                     subtitle: "Interface and local state",
+                     systemImage: "gearshape",
+                     warning: persistenceWarning) {
+            SettingsCard(title: "Interface", systemImage: "macwindow") {
+                SettingsRow(title: "Show in Menu Bar", systemImage: "menubar.rectangle") {
+                    Toggle("", isOn: $settings.menuBarEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                }
+            }
+
+            SettingsCard(title: "Storage", systemImage: "externaldrive") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Application Support")
+                        .font(SettingsUI.rowFont)
+                    Text(AppSupport.directory().path)
+                        .font(SettingsUI.secondaryFont)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var persistenceWarning: String? {
+        store.persistenceError ?? settings.persistenceError
+    }
+}
+
+// MARK: - Defaults
+
+private struct DefaultsSettingsTab: View {
+    @EnvironmentObject private var ek: EventKitService
+    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var settings: AppSettings
+
+    private var enabledReminderNames: [String] {
+        ek.reminderListNames(enabled: settings.enabledReminderListNames)
+    }
+
+    private var enabledCalendarNames: [String] {
+        ek.calendarNames(enabled: settings.enabledCalendarNames)
+    }
+
+    var body: some View {
+        SettingsPage(title: "Defaults",
+                     subtitle: "Where new project data is saved",
+                     systemImage: "tray.and.arrow.down",
+                     warning: persistenceWarning) {
+            SettingsCard(title: "Project Items", systemImage: "tray.and.arrow.down") {
+                SettingsRow(title: "Reminders", systemImage: "checklist") {
+                    Picker("", selection: $settings.defaultReminderListName) {
+                        if enabledReminderNames.isEmpty { Text("None").tag("") }
+                        ForEach(enabledReminderNames, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                }
+
+                SettingsDivider()
+
+                SettingsRow(title: "Calendar", systemImage: "calendar") {
+                    Picker("", selection: $settings.defaultCalendarName) {
+                        if enabledCalendarNames.isEmpty { Text("None").tag("") }
+                        ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                }
+            }
+
+            SettingsCard(title: "Week Goals", systemImage: "target") {
+                SettingsRow(title: "Calendar", systemImage: "calendar.badge.clock") {
+                    Picker("", selection: $settings.weekGoalCalendarName) {
+                        if enabledCalendarNames.isEmpty { Text("None").tag("") }
+                        ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                }
+
+                Text("Week goals are all-day calendar events shared across projects. They are kept out of normal project item lists.")
+                    .font(SettingsUI.secondaryFont)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onAppear(perform: ensureDefaults)
+        .onChange(of: settings.changeToken) { ensureDefaults() }
+    }
+
+    private var persistenceWarning: String? {
+        store.persistenceError ?? settings.persistenceError
+    }
+
+    private func ensureDefaults() {
+        if settings.defaultReminderListName.isEmpty
+            || !enabledReminderNames.contains(settings.defaultReminderListName) {
+            settings.defaultReminderListName = enabledReminderNames.first ?? ""
+        }
+        if settings.defaultCalendarName.isEmpty
+            || !enabledCalendarNames.contains(settings.defaultCalendarName) {
+            settings.defaultCalendarName = enabledCalendarNames.first ?? ""
+        }
+        if settings.weekGoalCalendarName.isEmpty
+            || !enabledCalendarNames.contains(settings.weekGoalCalendarName) {
+            settings.weekGoalCalendarName = settings.defaultCalendarName.isEmpty
+                ? (enabledCalendarNames.first ?? "")
+                : settings.defaultCalendarName
+        }
+    }
+}
+
+// MARK: - Sources
+
+private struct SourcesSettingsTab: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
 
     @State private var containers: [EventKitService.ContainerInfo] = []
-
-    // GitHub
-    @State private var githubToken = ""
-    @State private var githubStatus = ""
-    @State private var validating = false
 
     private var allReminderNames: [String] { names(kind: .reminder) }
     private var allCalendarNames: [String] { names(kind: .calendar) }
@@ -44,158 +172,58 @@ struct ContainersSettingsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                if let persistenceWarning {
-                    persistenceWarningView(persistenceWarning)
-                }
-                summaryStrip
-                defaultSaveLocations
-                interfaceSection
-                if !duplicateContainerWarnings.isEmpty {
-                    duplicateContainersSection
-                }
-                containersSection
-                githubSection
-            }
-            .padding(20)
-        }
-        .background(FacetTheme.canvas)
-        .onAppear {
-            containers = ek.allContainers()
-            ensureDefaults()
-        }
-    }
+        SettingsPage(title: "Sources",
+                     subtitle: "Calendar and Reminders containers",
+                     systemImage: "square.stack.3d.up",
+                     warning: persistenceWarning) {
+            summaryStrip
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.13))
-                Image(systemName: "switch.2")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-            }
-            .frame(width: 34, height: 34)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Settings")
-                    .font(.system(size: 20, weight: .semibold))
-                Text("Calendar and Reminders")
-                    .font(SettingsUI.secondaryFont)
-                    .foregroundStyle(.secondary)
+            if !duplicateContainerWarnings.isEmpty {
+                duplicateContainersSection
             }
 
-            Spacer()
+            containersSection
         }
+        .onAppear(perform: reloadContainers)
+        .onChange(of: ek.changeToken) { reloadContainers() }
     }
 
     private var persistenceWarning: String? {
         store.persistenceError ?? settings.persistenceError
     }
 
-    private func persistenceWarningView(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle")
-            .font(SettingsUI.secondaryFont)
-            .foregroundStyle(.orange)
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.orange.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(Color.orange.opacity(0.24), lineWidth: 1)
-            )
-    }
-
     private var summaryStrip: some View {
         HStack(spacing: 8) {
-            summaryPill(title: "Reminders",
+            SummaryPill(title: "Reminders",
                         value: selectionSummary(enabled: enabledReminderNames.count,
                                                 total: allReminderNames.count,
                                                 allSelected: settings.enabledReminderListNames.isEmpty),
                         systemImage: "checklist")
-            summaryPill(title: "Calendars",
+            SummaryPill(title: "Calendars",
                         value: selectionSummary(enabled: enabledCalendarNames.count,
                                                 total: allCalendarNames.count,
                                                 allSelected: settings.enabledCalendarNames.isEmpty),
                         systemImage: "calendar")
-            summaryPill(title: "Menu Bar",
-                        value: settings.menuBarEnabled ? "On" : "Off",
-                        systemImage: "menubar.rectangle")
-        }
-    }
-
-    private func summaryPill(title: String, value: String, systemImage: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 20, height: 20)
-                .background(Color.accentColor.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(SettingsUI.smallFont)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
+            Button {
+                settings.useAllContainers()
+                ensureDefaults()
+            } label: {
+                Label("Use All", systemImage: "checkmark.circle")
+                    .frame(maxWidth: .infinity)
             }
-
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-    }
-
-    private var defaultSaveLocations: some View {
-        settingsCard(title: "Default Save Locations", systemImage: "tray.and.arrow.down") {
-            settingRow(title: "Reminders", systemImage: "checklist") {
-                Picker("", selection: $settings.defaultReminderListName) {
-                    if enabledReminderNames.isEmpty { Text("None").tag("") }
-                    ForEach(enabledReminderNames, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-            }
-
-            cardDivider
-
-            settingRow(title: "Calendar", systemImage: "calendar") {
-                Picker("", selection: $settings.defaultCalendarName) {
-                    if enabledCalendarNames.isEmpty { Text("None").tag("") }
-                    ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-            }
-        }
-    }
-
-    private var interfaceSection: some View {
-        settingsCard(title: "Interface", systemImage: "macwindow") {
-            settingRow(title: "Show in Menu Bar", systemImage: "menubar.rectangle") {
-                Toggle("", isOn: $settings.menuBarEnabled)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-            }
+            .buttonStyle(.borderless)
+            .padding(10)
+            .background(FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
         }
     }
 
     private var containersSection: some View {
-        settingsCard(title: "Containers", systemImage: "square.stack.3d.up") {
+        SettingsCard(title: "Enabled Sources", systemImage: "square.stack.3d.up") {
             if containers.isEmpty {
                 Text("No containers found.")
                     .font(SettingsUI.secondaryFont)
@@ -211,7 +239,30 @@ struct ContainersSettingsView: View {
         }
     }
 
-    private func containerColumn(kind: EventKitService.ContainerInfo.Kind, title: String, icon: String, color: Color) -> some View {
+    private var duplicateContainersSection: some View {
+        SettingsCard(title: "Duplicate Names", systemImage: "exclamationmark.triangle") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("FacetX stores container selections by title. Duplicate names below are enabled, disabled, and chosen as save targets together.")
+                    .font(SettingsUI.secondaryFont)
+                    .foregroundStyle(.secondary)
+
+                ForEach(Array(duplicateContainerWarnings.enumerated()), id: \.offset) { _, warning in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: warning.kind == .reminder ? "checklist" : "calendar")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(warning.kind == .reminder ? .green : .blue)
+                            .frame(width: 16)
+                        Text("\(warning.title) appears in \(warning.sources.joined(separator: ", ")). Rename one if you need exact control.")
+                            .font(SettingsUI.secondaryFont)
+                            .foregroundStyle(.primary.opacity(0.82))
+                    }
+                }
+            }
+        }
+    }
+
+    private func containerColumn(kind: EventKitService.ContainerInfo.Kind,
+                                 title: String, icon: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
@@ -257,51 +308,6 @@ struct ContainersSettingsView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    private var compactContainers: [EventKitService.ContainerInfo] {
-        containers.sorted {
-            if $0.kind != $1.kind { return $0.kind == .reminder }
-            if $0.title != $1.title { return $0.title < $1.title }
-            return $0.sourceTitle < $1.sourceTitle
-        }
-    }
-
-    private var duplicateContainerWarnings: [(kind: EventKitService.ContainerInfo.Kind, title: String, sources: [String])] {
-        let grouped = Dictionary(grouping: containers) { container in
-            "\(container.kind.rawValue)/\(container.title)"
-        }
-        return grouped.compactMap { _, matches in
-            guard matches.count > 1, let first = matches.first else { return nil }
-            let sources = matches.map(\.sourceTitle).sorted()
-            return (kind: first.kind, title: first.title, sources: sources)
-        }
-        .sorted {
-            if $0.kind != $1.kind { return $0.kind == .reminder }
-            return $0.title < $1.title
-        }
-    }
-
-    private var duplicateContainersSection: some View {
-        settingsCard(title: "Duplicate Names", systemImage: "exclamationmark.triangle") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("FacetX currently stores container selections by title. Duplicate names below are enabled, disabled, and chosen as save targets together.")
-                    .font(SettingsUI.secondaryFont)
-                    .foregroundStyle(.secondary)
-
-                ForEach(Array(duplicateContainerWarnings.enumerated()), id: \.offset) { _, warning in
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: warning.kind == .reminder ? "checklist" : "calendar")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(warning.kind == .reminder ? .green : .blue)
-                            .frame(width: 16)
-                        Text("\(warning.title) appears in \(warning.sources.joined(separator: ", ")). Rename one if you need exact control.")
-                            .font(SettingsUI.secondaryFont)
-                            .foregroundStyle(.primary.opacity(0.82))
-                    }
-                }
-            }
-        }
-    }
-
     private func compactContainerRow(_ container: EventKitService.ContainerInfo) -> some View {
         HStack(spacing: 8) {
             ZStack {
@@ -345,43 +351,32 @@ struct ContainersSettingsView: View {
             .padding(.leading, 30)
     }
 
-    private func settingsCard<Content: View>(title: String, systemImage: String,
-                                             @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: systemImage)
-                .font(SettingsUI.sectionFont)
-                .foregroundStyle(.primary.opacity(0.86))
-
-            content()
+    private var compactContainers: [EventKitService.ContainerInfo] {
+        containers.sorted {
+            if $0.kind != $1.kind { return $0.kind == .reminder }
+            if $0.title != $1.title { return $0.title < $1.title }
+            return $0.sourceTitle < $1.sourceTitle
         }
-        .padding(14)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
     }
 
-    private func settingRow<Content: View>(title: String, systemImage: String,
-                                           @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-            Text(title)
-                .font(SettingsUI.rowFont)
-            Spacer()
-            content()
+    private var duplicateContainerWarnings: [(kind: EventKitService.ContainerInfo.Kind, title: String, sources: [String])] {
+        let grouped = Dictionary(grouping: containers) { container in
+            "\(container.kind.rawValue)/\(container.title)"
         }
-        .padding(.vertical, 3)
+        return grouped.compactMap { _, matches in
+            guard matches.count > 1, let first = matches.first else { return nil }
+            let sources = matches.map(\.sourceTitle).sorted()
+            return (kind: first.kind, title: first.title, sources: sources)
+        }
+        .sorted {
+            if $0.kind != $1.kind { return $0.kind == .reminder }
+            return $0.title < $1.title
+        }
     }
 
-    private var cardDivider: some View {
-        Divider()
-            .opacity(0.42)
-            .padding(.leading, 28)
+    private func reloadContainers() {
+        containers = ek.allContainers()
+        ensureDefaults()
     }
 
     private func names(kind: EventKitService.ContainerInfo.Kind) -> [String] {
@@ -420,67 +415,90 @@ struct ContainersSettingsView: View {
             || !enabledCalendarNames.contains(settings.defaultCalendarName) {
             settings.defaultCalendarName = enabledCalendarNames.first ?? ""
         }
+        if settings.weekGoalCalendarName.isEmpty
+            || !enabledCalendarNames.contains(settings.weekGoalCalendarName) {
+            settings.weekGoalCalendarName = settings.defaultCalendarName.isEmpty
+                ? (enabledCalendarNames.first ?? "")
+                : settings.defaultCalendarName
+        }
     }
+}
 
-    // MARK: – GitHub
+// MARK: - Integrations
 
-    private var githubSection: some View {
-        settingsCard(title: "GitHub", systemImage: "curlybraces") {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    if githubStatus.isEmpty {
-                        Text("No token configured.")
-                            .font(SettingsUI.secondaryFont)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            Text(githubStatus)
+private struct IntegrationsSettingsTab: View {
+    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var settings: AppSettings
+
+    @State private var githubToken = ""
+    @State private var githubStatus = ""
+    @State private var validating = false
+
+    var body: some View {
+        SettingsPage(title: "Integrations",
+                     subtitle: "External services and credentials",
+                     systemImage: "curlybraces",
+                     warning: persistenceWarning) {
+            SettingsCard(title: "GitHub", systemImage: "curlybraces") {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        if githubStatus.isEmpty {
+                            Text("No token configured.")
                                 .font(SettingsUI.secondaryFont)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            HStack(spacing: 6) {
+                                Image(systemName: githubConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                    .foregroundStyle(githubConnected ? .green : .orange)
+                                Text(githubStatus)
+                                    .font(SettingsUI.secondaryFont)
+                            }
+                        }
+
+                        Spacer()
+
+                        if !githubStatus.isEmpty {
+                            Button("Remove") {
+                                GitHubTokenStore.deleteToken()
+                                githubToken = ""
+                                githubStatus = ""
+                            }
+                            .controlSize(.small)
                         }
                     }
 
-                    Spacer()
+                    HStack(spacing: 8) {
+                        SecureField("Personal Access Token", text: $githubToken)
+                            .textFieldStyle(.roundedBorder)
 
-                    if !githubStatus.isEmpty {
-                        Button("Remove") {
-                            GitHubTokenStore.deleteToken()
-                            githubToken = ""
-                            githubStatus = ""
+                        Button(validating ? "Validating..." : "Save") {
+                            saveGitHubToken()
                         }
-                        .controlSize(.small)
+                        .disabled(githubToken.isEmpty || validating)
                     }
-                }
-
-                HStack(spacing: 8) {
-                    SecureField("Personal Access Token", text: $githubToken)
-                        .textFieldStyle(.roundedBorder)
-
-                    Button(validating ? "Validating…" : "Save") {
-                        saveGitHubToken()
-                    }
-                    .disabled(githubToken.isEmpty || validating)
                 }
             }
         }
-        .onAppear { loadGitHubStatus() }
+        .onAppear(perform: loadGitHubStatus)
+    }
+
+    private var persistenceWarning: String? {
+        store.persistenceError ?? settings.persistenceError
+    }
+
+    private var githubConnected: Bool {
+        githubStatus.hasPrefix("Connected as ")
     }
 
     private func loadGitHubStatus() {
-        if let token = GitHubTokenStore.loadToken() {
-            githubToken = token
-            Task {
-                do {
-                    let username = try await GitHubService().validateToken(token)
-                    await MainActor.run {
-                        githubStatus = "Connected as \(username)"
-                    }
-                } catch {
-                    await MainActor.run {
-                        githubStatus = "Token invalid"
-                    }
-                }
+        guard githubToken.isEmpty, let token = GitHubTokenStore.loadToken() else { return }
+        githubToken = token
+        Task {
+            do {
+                let username = try await GitHubService().validateToken(token)
+                await MainActor.run { githubStatus = "Connected as \(username)" }
+            } catch {
+                await MainActor.run { githubStatus = "Token invalid" }
             }
         }
     }
@@ -504,5 +522,176 @@ struct ContainersSettingsView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Shared Settings UI
+
+private struct SettingsPage<Content: View>: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let warning: String?
+    let content: () -> Content
+
+    init(title: String, subtitle: String, systemImage: String, warning: String?,
+         @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.warning = warning
+        self.content = content
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                if let warning {
+                    persistenceWarningView(warning)
+                }
+                content()
+            }
+            .padding(20)
+        }
+        .background(FacetTheme.canvas)
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.13))
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold))
+                Text(subtitle)
+                    .font(SettingsUI.secondaryFont)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+    }
+
+    private func persistenceWarningView(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.triangle")
+            .font(SettingsUI.secondaryFont)
+            .foregroundStyle(.orange)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(Color.orange.opacity(0.24), lineWidth: 1)
+            )
+    }
+}
+
+private struct SettingsCard<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let content: () -> Content
+
+    init(title: String, systemImage: String,
+         @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(title, systemImage: systemImage)
+                .font(SettingsUI.sectionFont)
+                .foregroundStyle(.primary.opacity(0.86))
+
+            content()
+        }
+        .padding(14)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+}
+
+private struct SettingsRow<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let content: () -> Content
+
+    init(title: String, systemImage: String,
+         @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(title)
+                .font(SettingsUI.rowFont)
+            Spacer()
+            content()
+        }
+        .padding(.vertical, 3)
+    }
+}
+
+private struct SettingsDivider: View {
+    var body: some View {
+        Divider()
+            .opacity(0.42)
+            .padding(.leading, 28)
+    }
+}
+
+private struct SummaryPill: View {
+    let title: String
+    let value: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 20, height: 20)
+                .background(Color.accentColor.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
     }
 }

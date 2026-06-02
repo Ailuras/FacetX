@@ -122,19 +122,19 @@ struct MonthView: View {
 
     private func dayCell(day: Int) -> some View {
         let items = itemsByDay[day] ?? []
+        let scheduleItems = items.filter { $0.kind == .event }
+        let taskItems = items.filter { $0.kind == .reminder }
+        let shownSchedule = Array(scheduleItems.prefix(2))
+        let shownTasks = Array(taskItems.prefix(max(0, 3 - shownSchedule.count)))
+        let hiddenCount = items.count - shownSchedule.count - shownTasks.count
         let isToday = month.isToday(day: day)
         let hasItems = !items.isEmpty
 
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
                 if hasItems {
-                    Text("\(items.count)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(isToday ? Color.accentColor : .secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background((isToday ? Color.accentColor : Color.secondary).opacity(0.10))
-                        .clipShape(Capsule())
+                    monthCountPills(scheduleCount: scheduleItems.count, taskCount: taskItems.count,
+                                    emphasized: isToday)
                 }
 
                 Spacer()
@@ -151,11 +151,14 @@ struct MonthView: View {
             .padding(.horizontal, 6)
 
             VStack(alignment: .leading, spacing: 1) {
-                ForEach(items.prefix(3)) { item in
+                ForEach(shownSchedule) { item in
                     dayItemRow(item: item)
                 }
-                if items.count > 3 {
-                    Text("+\(items.count - 3)")
+                ForEach(shownTasks) { item in
+                    dayItemRow(item: item)
+                }
+                if hiddenCount > 0 {
+                    Text("+\(hiddenCount)")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(Color.accentColor)
                         .padding(.horizontal, 5)
@@ -163,7 +166,7 @@ struct MonthView: View {
                         .background(Color.accentColor.opacity(0.10))
                         .clipShape(Capsule())
                         .padding(.leading, 2)
-                        .help("\(items.count - 3) more items on this day")
+                        .help("\(hiddenCount) more items on this day")
                 }
             }
             .padding(.horizontal, 4)
@@ -188,6 +191,31 @@ struct MonthView: View {
         }
     }
 
+    private func monthCountPills(scheduleCount: Int, taskCount: Int, emphasized: Bool) -> some View {
+        HStack(spacing: 3) {
+            if scheduleCount > 0 {
+                monthCountPill(value: scheduleCount, systemImage: "calendar", color: .blue, emphasized: emphasized)
+            }
+            if taskCount > 0 {
+                monthCountPill(value: taskCount, systemImage: "checklist", color: .green, emphasized: emphasized)
+            }
+        }
+    }
+
+    private func monthCountPill(value: Int, systemImage: String, color: Color, emphasized: Bool) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: systemImage)
+                .font(.system(size: 7, weight: .bold))
+            Text("\(value)")
+                .font(.system(size: 9, weight: .bold))
+        }
+        .foregroundStyle(emphasized ? Color.accentColor : color)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .background((emphasized ? Color.accentColor : color).opacity(0.10))
+        .clipShape(Capsule())
+    }
+
     private var emptyCell: some View {
         Rectangle()
             .fill(Color.clear)
@@ -196,10 +224,12 @@ struct MonthView: View {
     }
 
     private func dayItemRow(item: ProjectItem) -> some View {
-        HStack(spacing: 3) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(item.kind == .event ? Color.blue : FacetTheme.priorityColor(item.priority))
-                .frame(width: 3, height: 12)
+        let color = item.kind == .event ? Color.blue : FacetTheme.priorityColor(item.priority)
+        return HStack(spacing: 3) {
+            Image(systemName: item.kind == .event ? "calendar" : (item.isCompleted ? "checkmark.circle.fill" : "circle"))
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 10)
             Text(item.content)
                 .font(.system(size: 10, weight: .medium))
                 .lineLimit(1)
@@ -209,7 +239,7 @@ struct MonthView: View {
         .padding(.horizontal, 5)
         .padding(.vertical, 1)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background((item.kind == .event ? Color.blue : FacetTheme.priorityColor(item.priority)).opacity(0.08))
+        .background(color.opacity(item.kind == .event ? 0.10 : 0.08))
         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {
