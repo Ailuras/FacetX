@@ -69,8 +69,19 @@ final class GitHubService {
     ///   - repo: "owner/repo" format.
     ///   - token: GitHub Personal Access Token (may be nil for public repos).
     ///   - perPage: number of commits to retrieve (max 100).
-    func fetchCommits(repo: String, token: String?, perPage: Int = 30) async throws -> [GitHubCommit] {
-        guard let url = URL(string: "https://api.github.com/repos/\(repo)/commits?per_page=\(perPage)") else {
+    ///   - since: optional ISO-8601 date to filter commits from.
+    ///   - until: optional ISO-8601 date to filter commits before.
+    func fetchCommits(repo: String, token: String?, perPage: Int = 30, since: Date? = nil, until: Date? = nil) async throws -> [GitHubCommit] {
+        var urlString = "https://api.github.com/repos/\(repo)/commits?per_page=\(perPage)"
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        if let since {
+            urlString += "&since=\(formatter.string(from: since))"
+        }
+        if let until {
+            urlString += "&until=\(formatter.string(from: until))"
+        }
+        guard let url = URL(string: urlString) else {
             throw APIError(statusCode: 0, message: "Invalid repository format.")
         }
         var request = URLRequest(url: url)
