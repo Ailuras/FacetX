@@ -6,7 +6,7 @@ the app itself; macOS silently denies EventKit access to the bare executable.
 ## Commands
 
 ```bash
-make run
+make run      # debug rebuild, codesign, stop, relaunch
 make build
 make check
 make dmg
@@ -40,6 +40,21 @@ Signing identity selection:
 If the build output says `signing: ad-hoc`, Calendar/Reminders may ask for
 authorization again after rebuilds.
 
+## Prompt Model
+
+Two different macOS prompt families can appear during development:
+
+1. `codesign` or login-keychain password prompts happen while building. They
+   mean the signing tool wants to use the Apple Development private key in the
+   login keychain. Choose Always Allow for `codesign` to avoid repeated
+   build-time prompts. Do not paste the keychain password into scripts or docs.
+2. FacetX Calendar/Reminders prompts happen when the app asks EventKit for
+   access. This is macOS TCC authorization and is independent from keychain
+   private-key access.
+
+Changing source code and rebuilding does not require a new Calendar/Reminders
+grant as long as the bundle ID and signing identity stay stable.
+
 ## Stable TCC Authorization
 
 Calendar and Reminders authorization is granted per bundle ID and signing
@@ -59,8 +74,16 @@ com.facetx.app.dev.feat-calendar
 ~/Library/Application Support/FacetX-feat-calendar
 ```
 
-Each variant needs authorization once. Keep the same bundle ID and signing
-identity to reuse authorization across rebuilds.
+Each variant needs Calendar/Reminders authorization once. Keep the same bundle
+ID and signing identity to reuse authorization across rebuilds.
+
+For multiple worktrees, decide whether you want shared or isolated local state:
+
+- Use the branch-derived default variant when worktrees should be isolated.
+  Each variant gets its own app name, bundle ID, support directory, and one-time
+  Calendar/Reminders grant.
+- Set `FACETX_VARIANT=dev` when several worktrees should share one development
+  authorization and support directory.
 
 ## Local Signing
 

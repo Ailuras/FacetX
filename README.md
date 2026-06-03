@@ -18,7 +18,7 @@ project workspace.
 ## Build And Run
 
 ```bash
-make run      # debug build, stop the current app, relaunch
+make run      # debug rebuild, codesign, stop the current app, relaunch
 make build    # release bundle build
 make check    # SwiftPM debug build + FacetXCoreChecks
 make dmg      # package app/FacetX-<version>.dmg
@@ -28,6 +28,13 @@ make logs     # stream FacetX OS logs
 
 FacetX must run as a bundled, signed `.app`; a bare SwiftPM binary is denied
 EventKit access by macOS.
+
+Development rebuilds reuse Calendar and Reminders authorization when the bundle
+ID and signing identity stay stable. Branch and worktree variants use separate
+bundle IDs, so each variant needs Calendar and Reminders authorization once.
+If macOS asks for the login keychain password while building, that is `codesign`
+requesting access to the local Apple Development private key; choose Always
+Allow for `codesign` to avoid repeated build-time prompts.
 
 ## Project Prefixes
 

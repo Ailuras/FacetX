@@ -51,6 +51,16 @@ ad-hoc signing.
 When build output says `signing: ad-hoc`, tell the user Calendar/Reminders may
 ask for authorization again after rebuilds.
 
+Distinguish the two common prompt families:
+
+- `codesign` or login-keychain password prompts happen during build/signing.
+  Tell the user to choose Always Allow for `codesign` if they want repeated
+  rebuilds to avoid private-key access prompts.
+- FacetX Calendar/Reminders prompts are macOS TCC prompts. Rebuilding changed
+  code does not require a new TCC grant when bundle ID and signing identity stay
+  stable. Branch/worktree variants use distinct bundle IDs and each variant
+  needs Calendar/Reminders authorization once.
+
 ## Core Contract
 
 An item belongs to a project when its title starts with `ProjectName:`.
