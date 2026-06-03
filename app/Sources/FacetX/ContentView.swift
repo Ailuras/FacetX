@@ -393,9 +393,15 @@ struct ProjectDetailView: View {
             }
         }
         .padding(.horizontal, 4)
-        .padding(.vertical, 3)
-        .background(Capsule().fill(FacetTheme.quietPanel))
-        .overlay(Capsule().stroke(FacetTheme.hairline, lineWidth: 1))
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+        )
     }
 
     private func pillButton(systemName: String, help: String, active: Bool = false,
@@ -414,6 +420,8 @@ struct ProjectDetailView: View {
 
     @ViewBuilder private var allItemsView: some View {
         VStack(spacing: 0) {
+            allViewInfoBar
+
             // Keep the List in the tree from the first render and show loading as
             // an overlay. Swapping a ProgressView in/out for the List made the
             // List lay out its rows on first appearance at a bad moment, so the
@@ -426,6 +434,56 @@ struct ProjectDetailView: View {
                 }
         }
         .background(FacetTheme.canvas)
+    }
+
+    private var allViewInfoBar: some View {
+        HStack(spacing: 12) {
+            summaryCluster
+
+            Spacer()
+
+            if hasActiveSearch {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("\(visibleItems.count) results")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.08))
+                )
+            }
+
+            if !showCompleted && completedReminderCount > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "eye.slash")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("\(completedReminderCount) hidden")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.orange.opacity(0.08))
+                )
+            }
+
+            actionCluster
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
     }
 
     private var allItemsList: some View {
