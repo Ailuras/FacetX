@@ -2,6 +2,10 @@ import AppKit
 import Combine
 import SwiftUI
 
+extension Notification.Name {
+    static let focusSearchField = Notification.Name("com.facetx.focusSearchField")
+}
+
 /// Commands emitted by the keyboard shortcut system.
 enum KeyboardCommand {
     // Navigation

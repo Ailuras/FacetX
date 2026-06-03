@@ -119,19 +119,7 @@ struct ProjectDetailView: View {
             case .toggleShowCompleted:
                 withAnimation(listAnimation) { showCompleted.toggle() }
             case .focusSearch:
-                DispatchQueue.main.async {
-                    guard let window = NSApp.keyWindow else { return }
-                    func findSearchField(in view: NSView) -> NSSearchField? {
-                        if let search = view as? NSSearchField { return search }
-                        for sub in view.subviews {
-                            if let found = findSearchField(in: sub) { return found }
-                        }
-                        return nil
-                    }
-                    if let field = findSearchField(in: window.contentView!) {
-                        window.makeFirstResponder(field)
-                    }
-                }
+                NotificationCenter.default.post(name: .focusSearchField, object: nil)
             case .toggleCompletion:
                 guard let item = selectedDetailItem else { return }
                 Task {
