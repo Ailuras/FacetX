@@ -1,8 +1,16 @@
 import SwiftUI
 import AppKit
 
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+}
+
 @main
 struct FacetXApp: App {
+    @NSApplicationDelegateAdaptor var appDelegate: AppDelegate
+
     @StateObject private var eventKit = EventKitService()
     @StateObject private var store = ProjectStore()
     @StateObject private var settings = AppSettings()
