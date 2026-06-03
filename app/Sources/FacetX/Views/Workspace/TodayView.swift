@@ -58,8 +58,6 @@ struct TodayView: View {
             if selectedItem != nil {
                 Divider()
                 timelineSidebar
-                    .frame(width: 360)
-                    .transition(.move(edge: .trailing))
             }
         }
         .animation(sidebarAnimation, value: selectedItem != nil)
@@ -74,8 +72,11 @@ struct TodayView: View {
                 refreshButton
             }
         }
-        .task { await reload() }
+        .onAppear { Task { await reload() } }
         .task(id: refreshTrigger) { await reload() }
+        .onChange(of: store.projects) { Task { await reload() } }
+        .onChange(of: ek.remindersAuthorized) { Task { await reload() } }
+        .onChange(of: ek.calendarAuthorized) { Task { await reload() } }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
     }
@@ -101,9 +102,6 @@ struct TodayView: View {
             List {
                 ForEach(filteredItems) { item in
                     todayItemRow(item)
-                        .listRowBackground(item.id == selectedItem?.id
-                                           ? Color.accentColor.opacity(0.08)
-                                           : Color.clear)
                 }
             }
             .listStyle(.plain)
@@ -134,6 +132,7 @@ struct TodayView: View {
         let project = projectsByPrefix[item.projectPrefix]
         return ItemRow(
             item: item,
+            isSelected: item.id == selectedItem?.id,
             projectBadge: project?.name ?? item.projectPrefix,
             onToggle: { completed in
                 Task {

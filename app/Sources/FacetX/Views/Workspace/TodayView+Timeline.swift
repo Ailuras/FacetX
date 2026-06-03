@@ -40,6 +40,20 @@ extension TodayView {
             }
         }
         .background(FacetTheme.canvas)
+        .frame(width: 360)
+        .frame(maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 8)
+        .padding(.vertical, 10)
+        .padding(.trailing, 10)
+        .transition(.asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .trailing).combined(with: .opacity)
+        ))
     }
 
     private var sidebarHeader: some View {
