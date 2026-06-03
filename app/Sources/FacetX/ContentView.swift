@@ -243,7 +243,6 @@ struct ProjectDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            projectHeader
             HStack(spacing: 0) {
                 Group {
                     switch mode {
@@ -263,6 +262,14 @@ struct ProjectDetailView: View {
         }
         .background(FacetTheme.canvas)
         .navigationTitle(project.name)
+        .toolbar {
+            ToolbarItem(placement: .status) {
+                modePicker(width: 200)
+            }
+            ToolbarItem(placement: .automatic) {
+                refreshButton
+            }
+        }
         .sheet(isPresented: $showCreate) {
             CreateItemView(project: project) { Task { await reload() } }
         }
@@ -301,40 +308,7 @@ struct ProjectDetailView: View {
         ))
     }
 
-    // ── Header controls (mode, search, actions) ──────────────────────────────
-
-    private var rightControls: some View {
-        ViewThatFits(in: .horizontal) {
-            fullRightControls
-            compactRightControls
-            minimalRightControls
-        }
-    }
-
-    private var fullRightControls: some View {
-        HStack(spacing: 10) {
-            searchField
-                .frame(width: 220)
-            summaryCluster
-            actionCluster
-        }
-    }
-
-    private var compactRightControls: some View {
-        HStack(spacing: 8) {
-            searchField
-                .frame(width: 180)
-            actionCluster
-        }
-    }
-
-    private var minimalRightControls: some View {
-        HStack(spacing: 8) {
-            searchField
-                .frame(width: 140)
-            actionCluster
-        }
-    }
+    // ── Toolbar controls (mode, search, actions) ─────────────────────────────
 
     private func modePicker(width: CGFloat) -> some View {
         Picker("", selection: $mode) {
@@ -346,28 +320,14 @@ struct ProjectDetailView: View {
         .frame(width: width)
     }
 
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
+    private var refreshButton: some View {
+        Button {
+            Task { await reload() }
+        } label: {
+            Image(systemName: "arrow.clockwise")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-            TextField("Search items…", text: $searchText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-            if hasActiveSearch {
-                Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .help("Clear search")
-            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Capsule().fill(FacetTheme.quietPanel))
-        .overlay(Capsule().stroke(FacetTheme.hairline, lineWidth: 1))
+        .help("Refresh")
     }
 
     private var actionCluster: some View {
@@ -376,9 +336,6 @@ struct ProjectDetailView: View {
                        help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
                        active: showCompleted) {
                 withAnimation(listAnimation) { showCompleted.toggle() }
-            }
-            pillButton(systemName: "arrow.clockwise", help: "Refresh") {
-                Task { await reload() }
             }
             pillButton(systemName: "plus", help: "Add an item to this project") {
                 showCreate = true
@@ -515,21 +472,6 @@ struct ProjectDetailView: View {
         return items.isEmpty ? "No items yet." : "Completed items are hidden."
     }
 
-    private var projectHeader: some View {
-        HStack(alignment: .center, spacing: 14) {
-            modePicker(width: 240)
-
-            Spacer(minLength: 14)
-
-            rightControls
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
-        }
-    }
 
     private var summaryCluster: some View {
         HStack(spacing: 6) {
