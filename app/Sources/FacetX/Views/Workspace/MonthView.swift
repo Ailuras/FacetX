@@ -163,23 +163,6 @@ struct MonthView: View {
 
             Spacer()
 
-            Button {
-                if let date = month.dateForDay(day) {
-                    createDate = DateWrapper(date: date)
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(isToday ? Color.accentColor : .secondary)
-                    .frame(width: 16, height: 16)
-                    .background(
-                        Circle()
-                            .fill(Color.accentColor.opacity(isToday ? 0.15 : 0.08))
-                    )
-            }
-            .buttonStyle(.plain)
-            .help("Create item for this day")
-
             Text("\(day)")
                 .font(.system(size: 12, weight: isToday ? .bold : .regular))
                 .foregroundStyle(isToday ? Color.accentColor : .primary)
