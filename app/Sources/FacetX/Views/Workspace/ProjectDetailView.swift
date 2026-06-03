@@ -194,6 +194,8 @@ struct ProjectDetailView: View {
         } label: {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 11, weight: .medium))
+                .rotationEffect(.degrees(loading ? 360 : 0))
+                .animation(loading ? .linear(duration: 0.8).repeatForever(autoreverses: false) : .default, value: loading)
         }
         .help("Refresh")
     }
@@ -533,7 +535,7 @@ struct ProjectDetailView: View {
     }
 
     private func reload() async {
-        loading = items.isEmpty
+        loading = true
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
                                      enabledCalendars: settings.effectiveCalendarNames)
@@ -541,6 +543,10 @@ struct ProjectDetailView: View {
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
         let selectedId = selectedDetailItem?.id
         let firstPopulation = items.isEmpty
+
+        // Ensure the spinner is visible for at least 300 ms so the user
+        // perceives the refresh even when the network is instant.
+        let start = Date()
 
         let apply = {
             items = sortedItems
@@ -555,6 +561,11 @@ struct ProjectDetailView: View {
             withTransaction(transaction, apply)
         } else {
             withAnimation(listAnimation, apply)
+        }
+
+        let elapsed = Date().timeIntervalSince(start)
+        if elapsed < 0.3 {
+            try? await Task.sleep(for: .seconds(0.3 - elapsed))
         }
         loading = false
     }
