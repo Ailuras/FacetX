@@ -35,6 +35,11 @@ struct AppCommands: Commands {
 
             Button("Git") { router.commandPublisher.send(.modeGit) }
                 .keyboardShortcut("4", modifiers: .command)
+
+            Divider()
+
+            Button("Search") { router.commandPublisher.send(.focusSearch) }
+                .keyboardShortcut("f", modifiers: .command)
         }
 
         CommandMenu("Item") {

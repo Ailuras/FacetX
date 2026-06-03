@@ -9,7 +9,7 @@ enum KeyboardCommand {
     // View mode
     case modeAll, modeWeek, modeMonth, modeGit
     // Window actions
-    case newItem, refresh, toggleShowCompleted
+    case newItem, refresh, toggleShowCompleted, focusSearch
     // Item actions
     case toggleCompletion, openDetail, closeDetail, deleteItem
 }
