@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var keyboard: KeyboardActionRouter
+    @EnvironmentObject private var toast: ToastController
 
     enum SidebarItem: Hashable { case today, project(Project.ID) }
 
@@ -12,14 +13,16 @@ struct ContentView: View {
     @State private var discovered: [String] = []
     @State private var draftProject: ProjectDraft?
     @State private var editingProject: Project?
+    @State private var projectToDelete: Project?
 
     var body: some View {
-        NavigationSplitView {
-            VStack(spacing: 0) {
-                if let persistenceWarning {
-                    persistenceWarningView(persistenceWarning)
-                }
-                List(selection: $selection) {
+        ZStack {
+            NavigationSplitView {
+                VStack(spacing: 0) {
+                    if let persistenceWarning {
+                        persistenceWarningView(persistenceWarning)
+                    }
+                    List(selection: $selection) {
                     Section {
                         Label("Today", systemImage: "sun.max.fill")
                             .tag(SidebarItem.today)
@@ -36,9 +39,10 @@ struct ContentView: View {
                                     Divider()
                                     Button("Archive") {
                                         store.archive(project)
+                                        toast.show("Project archived", type: .info)
                                     }
                                     Button("Delete", role: .destructive) {
-                                        store.delete(project)
+                                        projectToDelete = project
                                     }
                                 }
                         }
@@ -88,10 +92,35 @@ struct ContentView: View {
             keyboard.registerLocalShortcuts()
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
+                // Show banner if access was denied
+                if !ek.remindersAuthorized && !ek.calendarAuthorized {
+                    toast.showBanner(
+                        "Calendar and Reminders access is required to display items.",
+                        type: .warning,
+                        action: BannerAction(title: "Open Settings") {
+                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
+                        }
+                    )
+                }
             }
             await reloadDiscoveredProjects()
         }
         .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
+        .alert("Delete project?", isPresented: .init(
+            get: { projectToDelete != nil },
+            set: { if !$0 { projectToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { projectToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let project = projectToDelete {
+                    store.delete(project)
+                    toast.show("Project deleted", type: .success)
+                }
+                projectToDelete = nil
+            }
+        } message: {
+            Text("“\(projectToDelete?.name ?? "")” will be removed. Its items remain in Calendar/Reminders.")
+        }
         .sheet(item: $draftProject) { draft in
             NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, githubRepo in
                 let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
@@ -106,6 +135,23 @@ struct ContentView: View {
         }
         .sheet(item: $editingProject) { project in
             EditProjectView(project: project) { editingProject = nil }
+        }
+
+            // Banner overlay (top)
+            if let banner = toast.banner {
+                VStack {
+                    BannerView(banner: banner) {
+                        toast.dismissBanner()
+                    }
+                    Spacer()
+                }
+                .allowsHitTesting(true)
+            }
+
+            // Toast overlay (top-trailing)
+            ToastStack()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .allowsHitTesting(true)
         }
     }
 

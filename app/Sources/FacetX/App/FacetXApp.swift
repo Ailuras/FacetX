@@ -16,6 +16,7 @@ struct FacetXApp: App {
     @StateObject private var settings = AppSettings()
     @StateObject private var menuBarController = MenuBarController()
     @StateObject private var keyboard = KeyboardActionRouter()
+    @StateObject private var toast = ToastController()
 
     var body: some Scene {
         Window("FacetX", id: "main") {
@@ -24,12 +25,14 @@ struct FacetXApp: App {
                 .environmentObject(store)
                 .environmentObject(settings)
                 .environmentObject(keyboard)
+                .environmentObject(toast)
                 .background {
                     MenuBarInstaller(controller: menuBarController)
                         .environmentObject(eventKit)
                         .environmentObject(store)
                         .environmentObject(settings)
                         .environmentObject(keyboard)
+                        .environmentObject(toast)
                 }
                 .background {
                     WindowPositionRestorer()
@@ -52,6 +55,7 @@ struct FacetXApp: App {
                 .environmentObject(store)
                 .environmentObject(settings)
                 .environmentObject(keyboard)
+                .environmentObject(toast)
         }
     }
 }

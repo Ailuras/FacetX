@@ -113,7 +113,7 @@ extension WeekView {
         .contextMenu {
             Button("Edit...") { selectItem(item) }
             Button("Delete", role: .destructive) {
-                Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
+                itemToDelete = item
             }
         }
         .itemSelectionGestures(

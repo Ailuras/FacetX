@@ -4,6 +4,7 @@ struct EditProjectView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var toast: ToastController
 
     let project: Project
     let onClose: () -> Void
@@ -17,6 +18,7 @@ struct EditProjectView: View {
     @State private var githubRepo = ""
     @State private var reminderLists: [String] = []
     @State private var calendars: [String] = []
+    @State private var confirmDelete = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,7 +43,7 @@ struct EditProjectView: View {
                 } else {
                     Button("Archive") { archive() }
                 }
-                Button("Delete", role: .destructive) { delete() }
+                Button("Delete", role: .destructive) { confirmDelete = true }
                 Spacer()
                 Button("Cancel", action: onClose)
                 Button("Save") { save() }
@@ -56,6 +58,14 @@ struct EditProjectView: View {
         .background(FacetTheme.canvas)
         .frame(width: 500, height: 560)
         .onAppear(perform: loadFields)
+        .alert("Delete project?", isPresented: $confirmDelete) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                delete()
+            }
+        } message: {
+            Text("“\(project.name)” will be removed. Its items remain in Calendar/Reminders.")
+        }
     }
 
     private var identityCard: some View {
@@ -144,6 +154,7 @@ struct EditProjectView: View {
 
     private func archive() {
         store.archive(project)
+        toast.show("Project archived", type: .info)
         onClose()
     }
 
@@ -151,11 +162,13 @@ struct EditProjectView: View {
         var updated = project
         updated.archived = false
         store.update(updated)
+        toast.show("Project unarchived", type: .success)
         onClose()
     }
 
     private func delete() {
         store.delete(project)
+        toast.show("Project deleted", type: .success)
         onClose()
     }
 }

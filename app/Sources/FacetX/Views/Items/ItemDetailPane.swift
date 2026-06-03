@@ -4,6 +4,7 @@ import FacetXCore
 struct ItemDetailPane: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var toast: ToastController
 
     let item: ProjectItem
     let project: Project
@@ -470,7 +471,11 @@ struct ItemDetailPane: View {
                 endDate: item.kind == .event ? endDate : nil
             )
             saving = false
-            if ok { onUpdate() }
+            if ok {
+                onUpdate()
+            } else {
+                toast.show("Failed to save changes", type: .error)
+            }
         }
     }
 
@@ -482,6 +487,8 @@ struct ItemDetailPane: View {
             if ok {
                 onUpdate()
                 onClose()
+            } else {
+                toast.show("Failed to delete item", type: .error)
             }
         }
     }

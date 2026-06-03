@@ -21,6 +21,7 @@ struct WeekView: View {
     @State var goalError: String?
     @State var inlineEditingID: String?
     @State var inlineEditingText: String = ""
+    @State var itemToDelete: ProjectItem?
 
     var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -90,5 +91,19 @@ struct WeekView: View {
         .task(id: reloadKey) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
+        .alert("Delete item?", isPresented: .init(
+            get: { itemToDelete != nil },
+            set: { if !$0 { itemToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { itemToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let item = itemToDelete {
+                    Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
+                }
+                itemToDelete = nil
+            }
+        } message: {
+            Text(itemToDelete?.content ?? "")
+        }
     }
 }
