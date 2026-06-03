@@ -8,9 +8,6 @@ extension WeekView {
         } else if nonGoalItems.isEmpty && hasActiveSearch {
             Text("No items match this search.")
                 .font(.callout).foregroundStyle(.secondary)
-        } else if nonGoalItems.isEmpty && !hasActiveSearch {
-            Text("No items this week.")
-                .font(.callout).foregroundStyle(.secondary)
         } else {
             List {
                 ForEach(dayGroups) { group in
@@ -53,6 +50,15 @@ extension WeekView {
                             Text("\(group.items.count)")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.tertiary)
+                            Button {
+                                createDate = DateWrapper(date: group.date)
+                            } label: {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help("Add item for \(group.label)")
                         }
                         .textCase(nil)
                     }

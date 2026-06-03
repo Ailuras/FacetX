@@ -5,6 +5,7 @@ struct CommitsView: View {
     @EnvironmentObject private var settings: AppSettings
 
     let project: Project
+    let refreshTrigger: Int
 
     @State private var commits: [GitHubCommit] = []
     @State private var selectedCommit: GitHubCommit?
@@ -97,6 +98,7 @@ struct CommitsView: View {
         }
         .background(FacetTheme.canvas)
         .task(id: project.id) { await reload() }
+        .onChange(of: refreshTrigger) { Task { await reload() } }
     }
 
     // MARK: – Unified Header
@@ -146,17 +148,6 @@ struct CommitsView: View {
                     }
                     Task { await reload() }
                 }
-
-                Button {
-                    Task { await reload() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Refresh commits")
-                .disabled(loading)
             }
         }
         .frame(minHeight: 30, alignment: .center)

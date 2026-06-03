@@ -12,6 +12,7 @@ struct MonthView: View {
     let searchText: String
     let showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
+    let refreshTrigger: Int
 
     @State private var month = MonthYear.containing(Date())
     @State private var allItems: [ProjectItem] = []
@@ -44,6 +45,7 @@ struct MonthView: View {
         .task(id: reloadKey) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
+        .onChange(of: refreshTrigger) { Task { await reload() } }
         .sheet(item: $createDate) { wrapper in
             CreateItemView(project: project, initialDate: wrapper.date) {
                 createDate = nil
@@ -285,8 +287,4 @@ struct MonthView: View {
     }
 }
 
-private struct DateWrapper: Identifiable {
-    let date: Date
 
-    var id: TimeInterval { date.timeIntervalSinceReferenceDate }
-}
