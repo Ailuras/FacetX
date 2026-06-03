@@ -15,15 +15,16 @@ extension TodayView {
                     allDayStrip
                 }
 
-                // Timeline + Reminders split
-                HStack(spacing: 0) {
-                    timelineView
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Main scrollable area: timeline + reminders
+                ScrollView {
+                    VStack(spacing: 0) {
+                        timelineView
+                            .frame(minHeight: 400)
 
-                    if !unscheduledReminders.isEmpty {
-                        Divider()
-                        reminderSidebar
-                            .frame(width: 260)
+                        if !unscheduledReminders.isEmpty {
+                            Divider()
+                            reminderSection
+                        }
                     }
                 }
             }
@@ -58,9 +59,7 @@ extension TodayView {
 
     private func allDayPill(_ event: ProjectItem) -> some View {
         Button {
-            if let project = projectsByPrefix[event.projectPrefix] {
-                onOpenProject(project.id)
-            }
+            selectedItem = event
         } label: {
             Text(event.content)
                 .font(.system(size: 11, weight: .medium))
@@ -89,25 +88,23 @@ extension TodayView {
 
         let positioned = positionedEvents(from: events, startHour: startHour, hourHeight: hourHeight)
 
-        return ScrollView {
-            HStack(spacing: 0) {
-                // Time ruler
-                timeRuler(startHour: startHour, endHour: endHour, hourHeight: hourHeight)
-                    .frame(width: 52)
+        return HStack(spacing: 0) {
+            // Time ruler
+            timeRuler(startHour: startHour, endHour: endHour, hourHeight: hourHeight)
+                .frame(width: 52)
 
-                // Events area
-                ZStack(alignment: .topLeading) {
-                    // Grid lines
-                    hourGridLines(startHour: startHour, endHour: endHour, hourHeight: hourHeight)
+            // Events area
+            ZStack(alignment: .topLeading) {
+                // Grid lines
+                hourGridLines(startHour: startHour, endHour: endHour, hourHeight: hourHeight)
 
-                    // Events
-                    ForEach(positioned, id: \.item.id) { pos in
-                        timelineEventCard(pos)
-                    }
+                // Events
+                ForEach(positioned, id: \.item.id) { pos in
+                    timelineEventCard(pos)
                 }
-                .frame(height: totalHeight)
-                .frame(maxWidth: .infinity)
             }
+            .frame(height: totalHeight)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -188,9 +185,7 @@ extension TodayView {
         let project = projectsByPrefix[event.projectPrefix]
 
         return Button {
-            if let proj = project {
-                onOpenProject(proj.id)
-            }
+            selectedItem = event
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.content)
@@ -230,10 +225,10 @@ extension TodayView {
         return "\(fmt.string(from: start)) – \(fmt.string(from: end))"
     }
 
-    // MARK: – Reminder Sidebar
+    // MARK: – Reminder Section
 
-    private var reminderSidebar: some View {
-        VStack(spacing: 0) {
+    private var reminderSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Image(systemName: "checklist")
                     .font(.system(size: 10, weight: .semibold))
@@ -253,13 +248,14 @@ extension TodayView {
                 Rectangle().fill(FacetTheme.hairline).frame(height: 1)
             }
 
-            List {
+            LazyVStack(spacing: 0) {
                 ForEach(unscheduledReminders) { item in
                     todayItemRow(item)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 3)
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
+            .padding(.vertical, 6)
         }
         .background(FacetTheme.canvas)
     }
