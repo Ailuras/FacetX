@@ -54,6 +54,10 @@ struct MonthView: View {
         }
     }
 
+    private var hasActiveSearch: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     private var reloadKey: String {
         "\(project.id.uuidString)-\(month.id)"
     }
@@ -74,6 +78,23 @@ struct MonthView: View {
             Button("Current month") { month = MonthYear.containing(Date()) }
                 .font(.caption)
                 .help("Go to current month")
+
+            if hasActiveSearch {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("\(monthItems.count) results")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.08))
+                )
+            }
         }
         .frame(minHeight: 30, alignment: .center)
         .padding(.horizontal, 16)
