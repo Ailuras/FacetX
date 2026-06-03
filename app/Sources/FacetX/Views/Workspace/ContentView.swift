@@ -76,7 +76,14 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .onAppear { selection = .today }
-        .focusedSceneValue(\.facetXActions, contentActions)
+        .onReceive(keyboard.commandPublisher) { cmd in
+            switch cmd {
+            case .today:          selection = .today
+            case .prevProject:    navigateProject(by: -1)
+            case .nextProject:    navigateProject(by: 1)
+            default:              break
+            }
+        }
         .task {
             keyboard.registerLocalShortcuts()
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
@@ -100,38 +107,6 @@ struct ContentView: View {
         .sheet(item: $editingProject) { project in
             EditProjectView(project: project) { editingProject = nil }
         }
-    }
-
-    /// Actions exposed to the menu-bar commands when this view is focused.
-    private var contentActions: FacetXActions {
-        let projects = store.activeProjects
-        let canGoPrev: Bool
-        let canGoNext: Bool
-        if case .project(let id) = selection,
-           let idx = projects.firstIndex(where: { $0.id == id }) {
-            canGoPrev = idx > 0
-            canGoNext = idx < projects.count - 1
-        } else {
-            canGoPrev = false
-            canGoNext = !projects.isEmpty
-        }
-        return FacetXActions(
-            goToday: { selection = .today },
-            goPrevProject: canGoPrev ? { navigateProject(by: -1) } : nil,
-            goNextProject: canGoNext ? { navigateProject(by: 1) } : nil,
-            setModeAll: nil,
-            setModeWeek: nil,
-            setModeMonth: nil,
-            setModeGit: nil,
-            newItem: nil,
-            refresh: nil,
-            toggleShowCompleted: nil,
-            focusSearch: nil,
-            toggleCompletion: nil,
-            openDetail: nil,
-            closeDetail: nil,
-            deleteItem: nil
-        )
     }
 
     private func navigateProject(by delta: Int) {

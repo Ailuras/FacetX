@@ -198,6 +198,45 @@ final class AppSettings: ObservableObject {
         var githubToken: String?
         var globalShortcutEnabled: Bool
 
+        init(enabledReminderListNames: [String],
+             enabledCalendarNames: [String],
+             reminderListsDisabled: Bool,
+             calendarsDisabled: Bool,
+             defaultReminderListName: String,
+             defaultCalendarName: String,
+             weekGoalCalendarName: String,
+             menuBarEnabled: Bool,
+             defaultEventDurationMinutes: Int,
+             githubToken: String?,
+             globalShortcutEnabled: Bool) {
+            self.enabledReminderListNames = enabledReminderListNames
+            self.enabledCalendarNames = enabledCalendarNames
+            self.reminderListsDisabled = reminderListsDisabled
+            self.calendarsDisabled = calendarsDisabled
+            self.defaultReminderListName = defaultReminderListName
+            self.defaultCalendarName = defaultCalendarName
+            self.weekGoalCalendarName = weekGoalCalendarName
+            self.menuBarEnabled = menuBarEnabled
+            self.defaultEventDurationMinutes = defaultEventDurationMinutes
+            self.githubToken = githubToken
+            self.globalShortcutEnabled = globalShortcutEnabled
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            enabledReminderListNames = try c.decodeIfPresent([String].self, forKey: .enabledReminderListNames) ?? []
+            enabledCalendarNames     = try c.decodeIfPresent([String].self, forKey: .enabledCalendarNames)     ?? []
+            reminderListsDisabled    = try c.decodeIfPresent(Bool.self,      forKey: .reminderListsDisabled)    ?? false
+            calendarsDisabled        = try c.decodeIfPresent(Bool.self,      forKey: .calendarsDisabled)        ?? false
+            defaultReminderListName  = try c.decodeIfPresent(String.self,    forKey: .defaultReminderListName)  ?? ""
+            defaultCalendarName      = try c.decodeIfPresent(String.self,    forKey: .defaultCalendarName)      ?? ""
+            weekGoalCalendarName     = try c.decodeIfPresent(String.self,    forKey: .weekGoalCalendarName)     ?? ""
+            menuBarEnabled           = try c.decodeIfPresent(Bool.self,      forKey: .menuBarEnabled)           ?? true
+            defaultEventDurationMinutes = try c.decodeIfPresent(Int.self,    forKey: .defaultEventDurationMinutes) ?? 120
+            githubToken              = try c.decodeIfPresent(String.self,    forKey: .githubToken)
+            globalShortcutEnabled    = try c.decodeIfPresent(Bool.self,      forKey: .globalShortcutEnabled)    ?? false
+        }
+
         static let defaults = Stored(enabledReminderListNames: [],
                                      enabledCalendarNames: [],
                                      reminderListsDisabled: false,

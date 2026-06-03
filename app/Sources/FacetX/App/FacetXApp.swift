@@ -40,7 +40,7 @@ struct FacetXApp: App {
                 }
         }
         .commands {
-            AppCommands()
+            AppCommands(router: keyboard)
         }
         // Standard macOS Settings window (⌘,). App-wide container configuration
         // lives here; project management stays in the main window.

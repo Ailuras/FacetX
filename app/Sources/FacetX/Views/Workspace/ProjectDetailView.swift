@@ -108,7 +108,35 @@ struct ProjectDetailView: View {
                 selectedDetailItem = nil
             }
         }
-        .focusedSceneValue(\.facetXActions, detailActions)
+        .onReceive(keyboard.commandPublisher) { cmd in
+            switch cmd {
+            case .modeAll:     mode = .all
+            case .modeWeek:    mode = .week
+            case .modeMonth:   mode = .month
+            case .modeGit:     mode = .commits
+            case .newItem:     showCreate = true
+            case .refresh:     Task { await reload() }
+            case .toggleShowCompleted:
+                withAnimation(listAnimation) { showCompleted.toggle() }
+            case .toggleCompletion:
+                guard let item = selectedDetailItem else { return }
+                Task {
+                    await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
+                    await reload()
+                }
+            case .openDetail:
+                guard selectedDetailItem == nil, let first = visibleItems.first else { return }
+                withAnimation(detailPaneAnimation) { selectedDetailItem = first }
+            case .closeDetail:
+                guard selectedDetailItem != nil else { return }
+                withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
+            case .deleteItem:
+                guard selectedDetailItem != nil else { return }
+                itemToDelete = selectedDetailItem
+            default:
+                break
+            }
+        }
         .alert("Delete item?", isPresented: .init(
             get: { itemToDelete != nil },
             set: { if !$0 { itemToDelete = nil } }
@@ -123,41 +151,6 @@ struct ProjectDetailView: View {
         } message: {
             Text(itemToDelete?.content ?? "")
         }
-    }
-
-    /// Actions exposed to the menu-bar commands when this view is focused.
-    private var detailActions: FacetXActions {
-        let hasItems = !visibleItems.isEmpty
-        let hasSelected = selectedDetailItem != nil
-        return FacetXActions(
-            goToday: nil,
-            goPrevProject: nil,
-            goNextProject: nil,
-            setModeAll: { mode = .all },
-            setModeWeek: { mode = .week },
-            setModeMonth: { mode = .month },
-            setModeGit: { mode = .commits },
-            newItem: { showCreate = true },
-            refresh: { Task { await reload() } },
-            toggleShowCompleted: { withAnimation(listAnimation) { showCompleted.toggle() } },
-            focusSearch: nil,
-            toggleCompletion: hasSelected ? {
-                guard let item = selectedDetailItem else { return }
-                Task {
-                    await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
-                    await reload()
-                }
-            } : nil,
-            openDetail: !hasSelected && hasItems ? {
-                withAnimation(detailPaneAnimation) { selectedDetailItem = visibleItems.first }
-            } : nil,
-            closeDetail: hasSelected ? {
-                withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
-            } : nil,
-            deleteItem: hasSelected ? {
-                itemToDelete = selectedDetailItem
-            } : nil
-        )
     }
 
     private func detailPane(for selectedItem: ProjectItem) -> some View {
