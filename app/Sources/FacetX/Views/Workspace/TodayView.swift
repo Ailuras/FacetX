@@ -1,7 +1,8 @@
 import FacetXCore
 import SwiftUI
 
-/// Cross-project Today view with a resident timeline and detail pane.
+/// Cross-project Today view: item list on the left, compact timeline
+/// sidebar on the right when an item is selected.
 struct TodayView: View {
     @EnvironmentObject var ek: EventKitService
     @EnvironmentObject var store: ProjectStore
@@ -12,12 +13,11 @@ struct TodayView: View {
     @State private var searchText = ""
     @State private var refreshTrigger = 0
     @State var selectedItem: ProjectItem? = nil
-    @State private var createDate: DateWrapper? = nil
     @State private var inlineEditingID: String?
     @State private var inlineEditingText: String = ""
 
     var listAnimation: Animation { FacetTheme.listSpring }
-    private var detailPaneAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
+    var sidebarAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
 
     // MARK: – Derived data
 
@@ -31,6 +31,7 @@ struct TodayView: View {
             if item.kind == .reminder && item.isCompleted { return false }
             return Calendar.current.isDateInToday(date)
         }
+        .sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
     var filteredItems: [ProjectItem] {
@@ -39,44 +40,29 @@ struct TodayView: View {
         return allTodayItems.filter { $0.matches(searchQuery: q) }
     }
 
+    var timelinedItems: [ProjectItem] {
+        filteredItems.filter { $0.kind == .event }
+    }
+
     var hasActiveSearch: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
-    var allDayEvents: [ProjectItem] {
-        filteredItems.filter { $0.kind == .event && $0.isAllDay }
-    }
-
-    var timedEvents: [ProjectItem] {
-        filteredItems.filter { $0.kind == .event && !$0.isAllDay }
-    }
-
-    var reminders: [ProjectItem] {
-        filteredItems.filter { $0.kind == .reminder }
-    }
-
-    var unscheduledReminders: [ProjectItem] {
-        reminders.filter { $0.date == nil || Calendar.current.component(.hour, from: $0.date!) == 0 && Calendar.current.component(.minute, from: $0.date!) == 0 }
-    }
-
-    var scheduledReminders: [ProjectItem] {
-        reminders.filter { !unscheduledReminders.contains($0) }
     }
 
     // MARK: – Body
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: Timeline
-            timelineContent
+            listView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Right: Detail pane
-            if let item = selectedItem,
-               let project = projectsByPrefix[item.projectPrefix] {
-                detailPane(item: item, project: project)
+            if selectedItem != nil {
+                Divider()
+                timelineSidebar
+                    .frame(width: 360)
+                    .transition(.move(edge: .trailing))
             }
         }
+        .animation(sidebarAnimation, value: selectedItem != nil)
         .background(FacetTheme.canvas)
         .navigationTitle("Today")
         .toolbar {
@@ -92,20 +78,6 @@ struct TodayView: View {
         .task(id: refreshTrigger) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
-        .sheet(item: $createDate) { wrapper in
-            if let project = defaultProjectForCreation {
-                CreateItemView(project: project, initialDate: wrapper.date) {
-                    createDate = nil
-                    Task { await reload() }
-                }
-            }
-        }
-    }
-
-    private var defaultProjectForCreation: Project? {
-        let active = store.activeProjects
-        if active.count == 1 { return active.first }
-        return active.first
     }
 
     // MARK: – Toolbar
@@ -120,29 +92,24 @@ struct TodayView: View {
         .help("Refresh")
     }
 
-    // MARK: – Detail pane (mirrors ProjectDetailView)
+    // MARK: – List view
 
-    private func detailPane(item: ProjectItem, project: Project) -> some View {
-        ItemDetailPane(item: item, project: project, onClose: {
-            withAnimation(detailPaneAnimation) {
-                selectedItem = nil
+    @ViewBuilder private var listView: some View {
+        if filteredItems.isEmpty {
+            emptyStateView
+        } else {
+            List {
+                ForEach(filteredItems) { item in
+                    todayItemRow(item)
+                        .listRowBackground(item.id == selectedItem?.id
+                                           ? Color.accentColor.opacity(0.08)
+                                           : Color.clear)
+                }
             }
-        }, onUpdate: {
-            Task { await reload() }
-        })
-        .frame(width: 360)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 8)
-        .padding(.vertical, 10)
-        .padding(.trailing, 10)
-        .transition(.asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .trailing).combined(with: .opacity)
-        ))
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .animation(listAnimation, value: filteredItems.map { "\($0.id)-\($0.isCompleted)" })
+        }
     }
 
     // MARK: – Empty state
@@ -175,7 +142,7 @@ struct TodayView: View {
                 }
             },
             onEdit: {
-                selectedItem = item
+                selectedItem = selectedItem?.id == item.id ? nil : item
             },
             inlineEditingText: $inlineEditingText,
             isInlineEditing: item.id == inlineEditingID,
@@ -191,10 +158,9 @@ struct TodayView: View {
             startInlineEdit(for: item)
         }
         .onTapGesture {
-            selectedItem = item
+            selectedItem = selectedItem?.id == item.id ? nil : item
         }
         .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
     }
 

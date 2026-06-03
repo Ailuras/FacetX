@@ -3,124 +3,129 @@ import SwiftUI
 
 extension TodayView {
 
-    // MARK: – Timeline Content
-
-    @ViewBuilder var timelineContent: some View {
-        if filteredItems.isEmpty {
-            emptyStateView
-        } else {
-            VStack(spacing: 0) {
-                // All-day events strip
-                if !allDayEvents.isEmpty {
-                    allDayStrip
-                }
-
-                // Main scrollable area: timeline + reminders
-                ScrollView {
-                    VStack(spacing: 0) {
-                        timelineView
-                            .frame(minHeight: 400)
-
-                        if !unscheduledReminders.isEmpty {
-                            Divider()
-                            reminderSection
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var allDayStrip: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "sun.max")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.orange)
-            Text("All-day")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(allDayEvents) { event in
-                        allDayPill(event)
-                    }
-                }
-                .padding(.horizontal, 4)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
-        }
-    }
-
-    private func allDayPill(_ event: ProjectItem) -> some View {
-        Button {
-            selectedItem = event
-        } label: {
-            Text(event.content)
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color.orange.opacity(0.10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.orange.opacity(0.25), lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: – Timeline View
-
-    private var timelineView: some View {
-        let events = timedEvents
-        let startHour = settings.todayTimelineStartHour
-        let endHour = settings.todayTimelineEndHour
-        let hourHeight: CGFloat = 60
-        let totalHeight = CGFloat(max(endHour - startHour, 1)) * hourHeight
-
-        let positioned = positionedEvents(from: events, startHour: startHour, hourHeight: hourHeight)
-
-        return HStack(spacing: 0) {
-            // Time ruler
-            timeRuler(startHour: startHour, endHour: endHour, hourHeight: hourHeight)
-                .frame(width: 52)
-
-            // Events area
-            ZStack(alignment: .topLeading) {
-                // Grid lines
-                hourGridLines(startHour: startHour, endHour: endHour, hourHeight: hourHeight)
-
-                // Events
-                ForEach(positioned, id: \.item.id) { pos in
-                    timelineEventCard(pos)
-                }
-            }
-            .frame(height: totalHeight)
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    // MARK: – Layout Engine
-
     struct PositionedEvent {
         let item: ProjectItem
         let yOffset: CGFloat
         let height: CGFloat
     }
 
-    private func positionedEvents(from events: [ProjectItem], startHour: Int, hourHeight: CGFloat) -> [PositionedEvent] {
+    // MARK: – Timeline Sidebar
+
+    var timelineSidebar: some View {
+        VStack(spacing: 0) {
+            sidebarHeader
+            Divider()
+
+            if timelinedItems.isEmpty {
+                Text("No timed events today.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        compactTimelineView
+                    }
+                    .onAppear {
+                        if let item = selectedItem {
+                            proxy.scrollTo(item.id, anchor: .center)
+                        }
+                    }
+                    .onChange(of: selectedItem?.id) { _, newID in
+                        if let id = newID {
+                            proxy.scrollTo(id, anchor: .center)
+                        }
+                    }
+                }
+            }
+        }
+        .background(FacetTheme.canvas)
+    }
+
+    private var sidebarHeader: some View {
+        HStack {
+            Image(systemName: "clock")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text("Timeline")
+                .font(.system(size: 12, weight: .semibold))
+
+            Spacer()
+
+            if let item = selectedItem {
+                Text(item.content)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: 120, alignment: .trailing)
+            }
+
+            Button {
+                withAnimation(sidebarAnimation) {
+                    selectedItem = nil
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Close timeline")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+    }
+
+    // MARK: – Compact Timeline
+
+    private var compactTimelineView: some View {
+        let startHour = settings.todayTimelineStartHour
+        let endHour = settings.todayTimelineEndHour
+        let hourHeight: CGFloat = 52
+        let totalHeight = CGFloat(max(endHour - startHour, 1)) * hourHeight
+
+        let positioned = compactPositionedEvents(startHour: startHour, hourHeight: hourHeight)
+
+        return HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                ForEach(startHour..<endHour, id: \.self) { hour in
+                    Text(String(format: "%02d:00", hour))
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .frame(height: hourHeight, alignment: .top)
+                        .padding(.top, 2)
+                }
+            }
+            .frame(width: 42)
+
+            ZStack(alignment: .topLeading) {
+                VStack(spacing: 0) {
+                    ForEach(startHour...endHour, id: \.self) { _ in
+                        Rectangle()
+                            .fill(FacetTheme.hairline)
+                            .frame(height: 0.5)
+                            .frame(height: hourHeight, alignment: .top)
+                    }
+                }
+
+                ForEach(positioned.indices, id: \.self) { idx in
+                    compactEventCard(positioned[idx])
+                }
+            }
+            .frame(height: totalHeight)
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: – Layout Engine
+
+    private func compactPositionedEvents(startHour: Int, hourHeight: CGFloat) -> [PositionedEvent] {
         let cal = Calendar.current
         let startH = Double(startHour)
 
-        let sorted = events.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
+        let sorted = timelinedItems.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
             guard let date = item.date else { return nil }
             let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
             let dur: Double
@@ -139,13 +144,10 @@ extension TodayView {
             let h = event.duration * Double(hourHeight)
             var finalY = y
 
-            // Simple overlap handling: push down by 4pt per overlap layer
-            var overlapCount = 0
             for prev in result {
                 let prevBottom = prev.yOffset + prev.height
                 if finalY < prevBottom && prev.yOffset < finalY + CGFloat(h) {
-                    overlapCount += 1
-                    finalY = prevBottom + 4
+                    finalY = prevBottom + 3
                 }
             }
 
@@ -155,108 +157,57 @@ extension TodayView {
         return result
     }
 
-    // MARK: – Subviews
+    // MARK: – Event card
 
-    private func timeRuler(startHour: Int, endHour: Int, hourHeight: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            ForEach(startHour..<endHour, id: \.self) { hour in
-                Text(String(format: "%02d:00", hour))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(height: hourHeight, alignment: .top)
-                    .padding(.top, 3)
-            }
-        }
-    }
-
-    private func hourGridLines(startHour: Int, endHour: Int, hourHeight: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            ForEach(startHour...endHour, id: \.self) { _ in
-                Rectangle()
-                    .fill(FacetTheme.hairline)
-                    .frame(height: 0.5)
-                    .frame(height: hourHeight, alignment: .top)
-            }
-        }
-    }
-
-    private func timelineEventCard(_ pos: PositionedEvent) -> some View {
+    private func compactEventCard(_ pos: PositionedEvent) -> some View {
         let event = pos.item
+        let isSelected = event.id == selectedItem?.id
         let project = projectsByPrefix[event.projectPrefix]
+        let cardBg = isSelected ? Color.accentColor : Color.accentColor.opacity(0.06)
+        let cardStroke = isSelected ? Color.accentColor : Color.accentColor.opacity(0.18)
 
         return Button {
             selectedItem = event
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(event.content)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
                     .lineLimit(2)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
 
-                if let projectName = project?.name {
-                    Text(projectName)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
+                if let name = project?.name {
+                    Text(name)
+                        .font(.system(size: 8))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.8) : Color.secondary)
                 }
 
-                if let date = event.date, let endDate = event.endDate {
-                    Text(timeRangeString(start: date, end: endDate))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.tertiary)
+                if let date = event.date, let end = event.endDate {
+                    Text(timeRangeString(start: date, end: end))
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.7) : Color.secondary)
                 }
             }
-            .padding(6)
+            .padding(5)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color.accentColor.opacity(0.07))
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(cardBg)
+            )
             .overlay(
-                Rectangle()
-                    .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(cardStroke, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        .frame(height: max(pos.height, 28))
+        .id(event.id)
+        .frame(height: max(pos.height, 26))
         .offset(y: pos.yOffset)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 4)
     }
 
     private func timeRangeString(start: Date, end: Date) -> String {
         let fmt = DateFormatter()
         fmt.dateFormat = "HH:mm"
         return "\(fmt.string(from: start)) – \(fmt.string(from: end))"
-    }
-
-    // MARK: – Reminder Section
-
-    private var reminderSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "checklist")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.green)
-                Text("Tasks")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(unscheduledReminders.count)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(FacetTheme.canvas)
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(FacetTheme.hairline).frame(height: 1)
-            }
-
-            LazyVStack(spacing: 0) {
-                ForEach(unscheduledReminders) { item in
-                    todayItemRow(item)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 3)
-                }
-            }
-            .padding(.vertical, 6)
-        }
-        .background(FacetTheme.canvas)
     }
 }
