@@ -40,6 +40,15 @@ final class AppSettings: ObservableObject {
     @Published var defaultEventDurationMinutes: Int {
         didSet { settingsDidChange() }
     }
+    @Published var todayViewMode: String {
+        didSet { settingsDidChange() }
+    }
+    @Published var todayTimelineStartHour: Int {
+        didSet { settingsDidChange() }
+    }
+    @Published var todayTimelineEndHour: Int {
+        didSet { settingsDidChange() }
+    }
     @Published var githubToken: String {
         didSet { settingsDidChange() }
     }
@@ -72,6 +81,9 @@ final class AppSettings: ObservableObject {
         self.weekGoalCalendarName = stored.weekGoalCalendarName
         self.menuBarEnabled = stored.menuBarEnabled
         self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes
+        self.todayViewMode = stored.todayViewMode
+        self.todayTimelineStartHour = stored.todayTimelineStartHour
+        self.todayTimelineEndHour = stored.todayTimelineEndHour
         self.githubToken = stored.githubToken ?? ""
         self.persistenceError = persistenceError
     }
@@ -191,6 +203,9 @@ final class AppSettings: ObservableObject {
         var weekGoalCalendarName: String
         var menuBarEnabled: Bool
         var defaultEventDurationMinutes: Int
+        var todayViewMode: String
+        var todayTimelineStartHour: Int
+        var todayTimelineEndHour: Int
         var githubToken: String?
 
         static let defaults = Stored(enabledReminderListNames: [],
@@ -202,6 +217,9 @@ final class AppSettings: ObservableObject {
                                      weekGoalCalendarName: "",
                                      menuBarEnabled: true,
                                      defaultEventDurationMinutes: 120,
+                                     todayViewMode: "list",
+                                     todayTimelineStartHour: 6,
+                                     todayTimelineEndHour: 23,
                                      githubToken: nil)
     }
 
@@ -215,6 +233,9 @@ final class AppSettings: ObservableObject {
                             weekGoalCalendarName: weekGoalCalendarName,
                             menuBarEnabled: menuBarEnabled,
                             defaultEventDurationMinutes: defaultEventDurationMinutes,
+                            todayViewMode: todayViewMode,
+                            todayTimelineStartHour: todayTimelineStartHour,
+                            todayTimelineEndHour: todayTimelineEndHour,
                             githubToken: githubToken.isEmpty ? nil : githubToken)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
