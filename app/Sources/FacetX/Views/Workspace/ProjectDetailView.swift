@@ -115,7 +115,11 @@ struct ProjectDetailView: View {
             case .modeMonth:   mode = .month
             case .modeGit:     mode = .commits
             case .newItem:     showCreate = true
-            case .refresh:     Task { await reload() }
+            case .refresh:
+                Task {
+                    await reload()
+                    toast.show("Refreshed", type: .success, duration: 1.5)
+                }
             case .toggleShowCompleted:
                 withAnimation(listAnimation) { showCompleted.toggle() }
             case .focusSearch:
@@ -188,9 +192,14 @@ struct ProjectDetailView: View {
         .frame(width: width)
     }
 
+    @EnvironmentObject private var toast: ToastController
+
     private var refreshButton: some View {
         Button {
-            Task { await reload() }
+            Task {
+                await reload()
+                toast.show("Refreshed", type: .success, duration: 1.5)
+            }
         } label: {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 11, weight: .medium))

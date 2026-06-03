@@ -148,9 +148,9 @@ struct ContentView: View {
                 .allowsHitTesting(true)
             }
 
-            // Toast overlay (top-trailing)
+            // Toast overlay (bottom-trailing)
             ToastStack()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .allowsHitTesting(true)
         }
     }

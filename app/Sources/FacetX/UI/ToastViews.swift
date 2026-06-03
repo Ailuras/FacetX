@@ -61,7 +61,7 @@ struct ToastView: View {
     }
 }
 
-/// Stacks toast cards vertically in the top-trailing corner.
+/// Stacks toast cards vertically in the bottom-trailing corner.
 struct ToastStack: View {
     @EnvironmentObject private var toast: ToastController
 
@@ -73,7 +73,7 @@ struct ToastStack: View {
                 }
             }
         }
-        .padding(.top, 16)
+        .padding(.bottom, 16)
         .padding(.trailing, 16)
         .animation(.spring(response: 0.34, dampingFraction: 0.88), value: toast.toasts.map(\.id))
     }
