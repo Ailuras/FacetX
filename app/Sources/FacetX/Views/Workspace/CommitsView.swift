@@ -82,7 +82,6 @@ struct CommitsView: View {
     var body: some View {
         VStack(spacing: 0) {
             unifiedHeader
-            Divider()
 
             HStack(spacing: 0) {
                 commitsContent
@@ -160,8 +159,9 @@ struct CommitsView: View {
                 .disabled(loading)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
+        .frame(minHeight: 30, alignment: .center)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(FacetTheme.canvas)
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
@@ -217,7 +217,7 @@ struct CommitsView: View {
             isTodayDate ? Color.accentColor :
             Color.primary.opacity(0.8)
         )
-        .frame(width: 30, height: 34)
+        .frame(width: 30, height: 30)
         .background(
             isSelected ? Color.accentColor :
             isTodayDate && !isSelected ? Color.accentColor.opacity(0.1) :
