@@ -73,6 +73,7 @@ struct MonthView: View {
                 .font(.caption)
                 .help("Go to current month")
         }
+        .frame(minHeight: 30, alignment: .center)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(FacetTheme.canvas)

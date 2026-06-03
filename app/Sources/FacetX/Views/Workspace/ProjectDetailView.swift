@@ -239,6 +239,7 @@ struct ProjectDetailView: View {
 
             actionCluster
         }
+        .frame(minHeight: 30, alignment: .center)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(FacetTheme.canvas)
