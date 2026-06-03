@@ -14,6 +14,7 @@ struct CommitsView: View {
     @State private var selectedWeekDay: Date? = Calendar.current.startOfDay(for: Date())
 
     private var listAnimation: Animation { FacetTheme.listSpring }
+    private var detailPaneAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
 
     enum DateRange: String, CaseIterable, Identifiable {
         case none = "None"
@@ -80,21 +81,18 @@ struct CommitsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            unifiedHeader
-
-            HStack(spacing: 0) {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                unifiedHeader
                 commitsContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if let commit = selectedCommit {
-                    Divider()
-                    commitDetailPane(commit)
-                        .frame(width: 320)
-                        .transition(.move(edge: .trailing))
-                }
+            if let commit = selectedCommit {
+                commitDetailPane(commit)
             }
         }
+        .animation(detailPaneAnimation, value: selectedCommit != nil)
         .background(FacetTheme.canvas)
         .task(id: project.id) { await reload() }
     }
@@ -314,6 +312,7 @@ struct CommitsView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(selectedCommit?.id == commit.id
                     ? Color.accentColor.opacity(0.08)
                     : FacetTheme.quietPanel)
@@ -341,14 +340,15 @@ struct CommitsView: View {
 
     private func commitDetailPane(_ commit: GitHubCommit) -> some View {
         VStack(spacing: 0) {
-            // Close button
+            // Header row: title + close
             HStack {
+                Text("Commit Detail")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
                 Spacer()
-                Button {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        selectedCommit = nil
-                    }
-                } label: {
+
+                Button(action: { selectedCommit = nil }) {
                     Image(systemName: "sidebar.right")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -435,8 +435,21 @@ struct CommitsView: View {
                 .padding(.vertical, 16)
             }
         }
+        .frame(width: 360)
         .frame(maxHeight: .infinity)
         .background(FacetTheme.canvas)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 8)
+        .padding(.vertical, 10)
+        .padding(.trailing, 10)
+        .transition(.asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .trailing).combined(with: .opacity)
+        ))
     }
 
     private func authorColor(for name: String) -> Color {

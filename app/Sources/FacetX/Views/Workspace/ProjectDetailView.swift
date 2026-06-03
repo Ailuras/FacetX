@@ -101,6 +101,11 @@ struct ProjectDetailView: View {
                 }
             }
         }
+        .onChange(of: mode) {
+            withAnimation(detailPaneAnimation) {
+                selectedDetailItem = nil
+            }
+        }
     }
 
     private func detailPane(for selectedItem: ProjectItem) -> some View {
