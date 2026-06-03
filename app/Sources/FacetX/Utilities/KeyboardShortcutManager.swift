@@ -2,57 +2,138 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Central manager for keyboard shortcuts.
-///
-/// - Holds the global-hotkey monitor (⌃⌥Space → Quick Capture).
-/// - Provides a shared `isInputFocused` flag so that list-level shortcuts
-///   (Space, Return, Delete) can be suppressed while the user is typing.
-@MainActor
-final class KeyboardShortcutManager: ObservableObject {
-    /// Set to `true` whenever *any* text field in the app becomes first
-    /// responder. Views that contain text fields must bind their
-    /// `FocusState` to this property via `.onChange(of:)`.
-    @Published var isInputFocused = false
+/// Action closures published by the current focused scene.
+/// Each field is optional; `nil` means the action is currently unavailable.
+struct FacetXActions {
+    // Navigation (ContentView scope)
+    var goToday: (() -> Void)?
+    var goPrevProject: (() -> Void)?
+    var goNextProject: (() -> Void)?
 
-    /// Monitors global key events for the Quick-Capture shortcut.
+    // View mode (ProjectDetailView scope)
+    var setModeAll: (() -> Void)?
+    var setModeWeek: (() -> Void)?
+    var setModeMonth: (() -> Void)?
+    var setModeGit: (() -> Void)?
+
+    // Window actions (ProjectDetailView scope)
+    var newItem: (() -> Void)?
+    var refresh: (() -> Void)?
+    var toggleShowCompleted: (() -> Void)?
+    var focusSearch: (() -> Void)?
+
+    // Item actions (ProjectDetailView scope)
+    var toggleCompletion: (() -> Void)?
+    var openDetail: (() -> Void)?
+    var closeDetail: (() -> Void)?
+    var deleteItem: (() -> Void)?
+}
+
+private struct FacetXActionsKey: FocusedValueKey {
+    typealias Value = FacetXActions
+}
+
+extension FocusedValues {
+    var facetXActions: FacetXActions? {
+        get { self[FacetXActionsKey.self] }
+        set { self[FacetXActionsKey.self] = newValue }
+    }
+}
+
+/// Central router for keyboard shortcuts.
+///
+/// Uses three layers:
+/// 1. SwiftUI `Commands` (AppCommands.swift) for ⌘-modifier shortcuts.
+/// 2. NSEvent local monitor for unmodified keys (Space, Return, Esc).
+/// 3. NSEvent global monitor for the Quick-Capture hotkey (⌃⌥Space).
+///
+/// The router is a lightweight action dispatcher; it stores closures but
+/// never executes business logic itself.
+@MainActor
+final class KeyboardActionRouter: ObservableObject {
+    /// The current actions, mutated by whichever view is focused.
+    @Published var actions = FacetXActions()
+
+    /// Whether the global Quick-Capture shortcut is enabled.
+    @Published var globalShortcutEnabled = false
+
+    private var localMonitor: Any?
     private var globalMonitor: Any?
 
-    // MARK: – Focus helpers
+    // MARK: – Local shortcuts (Space / Return / Esc)
 
-    func textFieldGainedFocus() { isInputFocused = true }
-    func textFieldLostFocus()   { isInputFocused = false }
+    func registerLocalShortcuts() {
+        guard localMonitor == nil else { return }
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            let isTextInput = KeyboardActionRouter.firstResponderIsTextInput
 
-    /// Checks whether the current first responder is a text-input view
-    /// (NSTextField, NSTextView, NSSearchField, etc.).
-    /// Use this from `.onKeyPress` handlers when you do not have direct
-    /// access to SwiftUI `FocusState`.
-    static var firstResponderIsTextInput: Bool {
-        guard let responder = NSApp.keyWindow?.firstResponder else { return false }
-        let cls = String(describing: type(of: responder))
-        return cls.contains("TextField") || cls.contains("TextView") || cls.contains("SearchField")
-    }
-
-    // MARK: – Global shortcut
-
-    /// Registers a global key-down monitor for ⌃⌥Space.
-    /// Call once, ideally from `MenuBarController` after the menu-bar item
-    /// is installed.
-    func registerGlobalShortcuts(action: @escaping () -> Void) {
-        guard globalMonitor == nil else { return }
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
-            // ⌃⌥Space  → keyCode 49 (spacebar)
-            guard event.keyCode == 49,
-                  event.modifierFlags.contains(.control),
-                  event.modifierFlags.contains(.option) else { return }
-            Task { @MainActor in action() }
+            switch event.keyCode {
+            case 49 where !event.modifierFlags.contains(.command):
+                // Space — only when not typing
+                guard !isTextInput, self.actions.toggleCompletion != nil else { return event }
+                self.actions.toggleCompletion?()
+                return nil
+            case 36 where !event.modifierFlags.contains(.command):
+                // Return — only when not typing
+                guard !isTextInput, self.actions.openDetail != nil else { return event }
+                self.actions.openDetail?()
+                return nil
+            case 53:
+                // Escape
+                guard self.actions.closeDetail != nil else { return event }
+                self.actions.closeDetail?()
+                return nil
+            default:
+                return event
+            }
         }
     }
 
-    /// Clean up the global monitor. Call before discarding the manager.
-    func unregister() {
+    // MARK: – Global shortcut (⌃⌥Space)
+
+    /// Called when the user toggles the global shortcut in Settings.
+    func setGlobalShortcutEnabled(_ enabled: Bool) {
+        globalShortcutEnabled = enabled
+        if enabled {
+            registerGlobalShortcut()
+        } else {
+            unregisterGlobalShortcut()
+        }
+    }
+
+    private func registerGlobalShortcut() {
+        guard globalMonitor == nil else { return }
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let hasControl = event.modifierFlags.contains(.control)
+            let hasOption  = event.modifierFlags.contains(.option)
+            guard event.keyCode == 49, hasControl, hasOption else { return }
+            Task { @MainActor in self?.actions.goToday?() }
+        }
+    }
+
+    private func unregisterGlobalShortcut() {
         if let globalMonitor {
             NSEvent.removeMonitor(globalMonitor)
             self.globalMonitor = nil
         }
+    }
+
+    // MARK: – Cleanup
+
+    func unregisterAll() {
+        if let localMonitor {
+            NSEvent.removeMonitor(localMonitor)
+            self.localMonitor = nil
+        }
+        unregisterGlobalShortcut()
+    }
+
+    // MARK: – Focus helper
+
+    static var firstResponderIsTextInput: Bool {
+        guard let responder = NSApp.keyWindow?.firstResponder else { return false }
+        let cls = String(describing: type(of: responder))
+        return cls.contains("TextField") || cls.contains("TextView") || cls.contains("SearchField")
     }
 }

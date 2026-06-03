@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var keyboard: KeyboardActionRouter
 
     enum SidebarItem: Hashable { case today, project(Project.ID) }
 
@@ -75,24 +76,9 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .onAppear { selection = .today }
-        .onKeyPress(phases: .down) { event in
-            let hasCommand = event.modifiers.contains(.command)
-            let hasShift   = event.modifiers.contains(.shift)
-            switch event.key {
-            case .init("t") where hasCommand && !hasShift:
-                selection = .today
-                return .handled
-            case .upArrow where hasCommand && !hasShift:
-                navigateProject(by: -1)
-                return .handled
-            case .downArrow where hasCommand && !hasShift:
-                navigateProject(by: 1)
-                return .handled
-            default:
-                return .ignored
-            }
-        }
+        .focusedSceneValue(\.facetXActions, contentActions)
         .task {
+            keyboard.registerLocalShortcuts()
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
             }
@@ -114,6 +100,38 @@ struct ContentView: View {
         .sheet(item: $editingProject) { project in
             EditProjectView(project: project) { editingProject = nil }
         }
+    }
+
+    /// Actions exposed to the menu-bar commands when this view is focused.
+    private var contentActions: FacetXActions {
+        let projects = store.activeProjects
+        let canGoPrev: Bool
+        let canGoNext: Bool
+        if case .project(let id) = selection,
+           let idx = projects.firstIndex(where: { $0.id == id }) {
+            canGoPrev = idx > 0
+            canGoNext = idx < projects.count - 1
+        } else {
+            canGoPrev = false
+            canGoNext = !projects.isEmpty
+        }
+        return FacetXActions(
+            goToday: { selection = .today },
+            goPrevProject: canGoPrev ? { navigateProject(by: -1) } : nil,
+            goNextProject: canGoNext ? { navigateProject(by: 1) } : nil,
+            setModeAll: nil,
+            setModeWeek: nil,
+            setModeMonth: nil,
+            setModeGit: nil,
+            newItem: nil,
+            refresh: nil,
+            toggleShowCompleted: nil,
+            focusSearch: nil,
+            toggleCompletion: nil,
+            openDetail: nil,
+            closeDetail: nil,
+            deleteItem: nil
+        )
     }
 
     private func navigateProject(by delta: Int) {

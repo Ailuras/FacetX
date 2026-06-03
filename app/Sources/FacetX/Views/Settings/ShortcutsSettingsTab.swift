@@ -1,17 +1,33 @@
 import SwiftUI
 
 struct ShortcutsSettingsTab: View {
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var keyboard: KeyboardActionRouter
+
     var body: some View {
         SettingsPage(title: "Shortcuts",
                      subtitle: "Keyboard shortcuts for common actions",
                      systemImage: "keyboard",
                      warning: nil) {
             VStack(alignment: .leading, spacing: 16) {
-                shortcutGroup(title: "Global",
-                              systemImage: "globe",
-                              rows: [
-                                ("Quick Capture", "⌃⌥Space")
-                              ])
+                SettingsCard(title: "Global Shortcut", systemImage: "globe") {
+                    HStack {
+                        Text("Quick Capture (⌃⌥Space)")
+                            .font(SettingsUI.rowFont)
+                        Spacer()
+                        Toggle("", isOn: .init(
+                            get: { settings.globalShortcutEnabled },
+                            set: { newValue in
+                                settings.globalShortcutEnabled = newValue
+                                keyboard.setGlobalShortcutEnabled(newValue)
+                            }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                    }
+                    .padding(.vertical, 3)
+                }
 
                 shortcutGroup(title: "Navigation",
                               systemImage: "arrow.left.arrow.right",

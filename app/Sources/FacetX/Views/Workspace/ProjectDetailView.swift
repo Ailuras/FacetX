@@ -6,6 +6,7 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var keyboard: KeyboardActionRouter
     let project: Project
 
     enum Mode: String, CaseIterable, Identifiable {
@@ -107,75 +108,7 @@ struct ProjectDetailView: View {
                 selectedDetailItem = nil
             }
         }
-        .onKeyPress(.space) {
-            guard !KeyboardShortcutManager.firstResponderIsTextInput,
-                  let item = selectedDetailItem else {
-                return .ignored
-            }
-            Task {
-                await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
-                await reload()
-            }
-            return .handled
-        }
-        .onKeyPress(.return) {
-            guard !KeyboardShortcutManager.firstResponderIsTextInput,
-                  selectedDetailItem == nil,
-                  let first = visibleItems.first else {
-                return .ignored
-            }
-            withAnimation(detailPaneAnimation) {
-                selectedDetailItem = first
-            }
-            return .handled
-        }
-        .onKeyPress(.escape) {
-            guard selectedDetailItem != nil else { return .ignored }
-            withAnimation(detailPaneAnimation) {
-                selectedDetailItem = nil
-            }
-            return .handled
-        }
-        .onKeyPress(phases: .down) { event in
-            let hasCommand = event.modifiers.contains(.command)
-            let hasShift   = event.modifiers.contains(.shift)
-
-            switch event.key {
-            case .init("1") where hasCommand && !hasShift:
-                mode = .all
-                return .handled
-            case .init("2") where hasCommand && !hasShift:
-                mode = .week
-                return .handled
-            case .init("3") where hasCommand && !hasShift:
-                mode = .month
-                return .handled
-            case .init("4") where hasCommand && !hasShift:
-                mode = .commits
-                return .handled
-            case .init("n") where hasCommand && !hasShift:
-                showCreate = true
-                return .handled
-            case .init("r") where hasCommand && !hasShift:
-                Task { await reload() }
-                return .handled
-            case .init("h") where hasCommand && hasShift:
-                withAnimation(listAnimation) { showCompleted.toggle() }
-                return .handled
-            case .init("f") where hasCommand && !hasShift:
-                // Focus search is handled by the toolbar search field natively
-                return .ignored
-            case .delete where hasCommand && !hasShift:
-                guard !KeyboardShortcutManager.firstResponderIsTextInput,
-                      let item = selectedDetailItem else {
-                    return .ignored
-                }
-                itemToDelete = item
-                return .handled
-            default:
-                return .ignored
-            }
-        }
+        .focusedSceneValue(\.facetXActions, detailActions)
         .alert("Delete item?", isPresented: .init(
             get: { itemToDelete != nil },
             set: { if !$0 { itemToDelete = nil } }
@@ -190,6 +123,41 @@ struct ProjectDetailView: View {
         } message: {
             Text(itemToDelete?.content ?? "")
         }
+    }
+
+    /// Actions exposed to the menu-bar commands when this view is focused.
+    private var detailActions: FacetXActions {
+        let hasItems = !visibleItems.isEmpty
+        let hasSelected = selectedDetailItem != nil
+        return FacetXActions(
+            goToday: nil,
+            goPrevProject: nil,
+            goNextProject: nil,
+            setModeAll: { mode = .all },
+            setModeWeek: { mode = .week },
+            setModeMonth: { mode = .month },
+            setModeGit: { mode = .commits },
+            newItem: { showCreate = true },
+            refresh: { Task { await reload() } },
+            toggleShowCompleted: { withAnimation(listAnimation) { showCompleted.toggle() } },
+            focusSearch: nil,
+            toggleCompletion: hasSelected ? {
+                guard let item = selectedDetailItem else { return }
+                Task {
+                    await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
+                    await reload()
+                }
+            } : nil,
+            openDetail: !hasSelected && hasItems ? {
+                withAnimation(detailPaneAnimation) { selectedDetailItem = visibleItems.first }
+            } : nil,
+            closeDetail: hasSelected ? {
+                withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
+            } : nil,
+            deleteItem: hasSelected ? {
+                itemToDelete = selectedDetailItem
+            } : nil
+        )
     }
 
     private func detailPane(for selectedItem: ProjectItem) -> some View {

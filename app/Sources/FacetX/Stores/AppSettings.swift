@@ -43,6 +43,9 @@ final class AppSettings: ObservableObject {
     @Published var githubToken: String {
         didSet { settingsDidChange() }
     }
+    @Published var globalShortcutEnabled: Bool {
+        didSet { settingsDidChange() }
+    }
     @Published private(set) var changeToken = 0
     @Published private(set) var persistenceError: String?
 
@@ -73,6 +76,7 @@ final class AppSettings: ObservableObject {
         self.menuBarEnabled = stored.menuBarEnabled
         self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes
         self.githubToken = stored.githubToken ?? ""
+        self.globalShortcutEnabled = stored.globalShortcutEnabled
         self.persistenceError = persistenceError
     }
 
@@ -192,6 +196,7 @@ final class AppSettings: ObservableObject {
         var menuBarEnabled: Bool
         var defaultEventDurationMinutes: Int
         var githubToken: String?
+        var globalShortcutEnabled: Bool
 
         static let defaults = Stored(enabledReminderListNames: [],
                                      enabledCalendarNames: [],
@@ -202,7 +207,8 @@ final class AppSettings: ObservableObject {
                                      weekGoalCalendarName: "",
                                      menuBarEnabled: true,
                                      defaultEventDurationMinutes: 120,
-                                     githubToken: nil)
+                                     githubToken: nil,
+                                     globalShortcutEnabled: false)
     }
 
     private func save() {
@@ -213,9 +219,10 @@ final class AppSettings: ObservableObject {
                             defaultReminderListName: defaultReminderListName,
                             defaultCalendarName: defaultCalendarName,
                             weekGoalCalendarName: weekGoalCalendarName,
-                            menuBarEnabled: menuBarEnabled,
-                            defaultEventDurationMinutes: defaultEventDurationMinutes,
-                            githubToken: githubToken.isEmpty ? nil : githubToken)
+                             menuBarEnabled: menuBarEnabled,
+                             defaultEventDurationMinutes: defaultEventDurationMinutes,
+                             githubToken: githubToken.isEmpty ? nil : githubToken,
+                             globalShortcutEnabled: globalShortcutEnabled)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
             try enc.encode(stored).write(to: url, options: .atomic)

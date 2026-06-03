@@ -15,7 +15,7 @@ struct FacetXApp: App {
     @StateObject private var store = ProjectStore()
     @StateObject private var settings = AppSettings()
     @StateObject private var menuBarController = MenuBarController()
-    @StateObject private var shortcuts = KeyboardShortcutManager()
+    @StateObject private var keyboard = KeyboardActionRouter()
 
     var body: some Scene {
         Window("FacetX", id: "main") {
@@ -23,18 +23,24 @@ struct FacetXApp: App {
                 .environmentObject(eventKit)
                 .environmentObject(store)
                 .environmentObject(settings)
-                .environmentObject(shortcuts)
+                .environmentObject(keyboard)
                 .background {
                     MenuBarInstaller(controller: menuBarController)
                         .environmentObject(eventKit)
                         .environmentObject(store)
                         .environmentObject(settings)
-                        .environmentObject(shortcuts)
+                        .environmentObject(keyboard)
                 }
                 .background {
                     WindowPositionRestorer()
                 }
                 .frame(minWidth: 760, minHeight: 480)
+                .onAppear {
+                    keyboard.setGlobalShortcutEnabled(settings.globalShortcutEnabled)
+                }
+        }
+        .commands {
+            AppCommands()
         }
         // Standard macOS Settings window (⌘,). App-wide container configuration
         // lives here; project management stays in the main window.
@@ -45,7 +51,7 @@ struct FacetXApp: App {
                 .environmentObject(eventKit)
                 .environmentObject(store)
                 .environmentObject(settings)
-                .environmentObject(shortcuts)
+                .environmentObject(keyboard)
         }
     }
 }
