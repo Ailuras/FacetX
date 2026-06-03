@@ -7,12 +7,13 @@ struct MenuBarInstaller: View {
     @EnvironmentObject private var eventKit: EventKitService
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var shortcuts: KeyboardShortcutManager
 
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
             .onAppear {
-                controller.configure(eventKit: eventKit, store: store, settings: settings)
+                controller.configure(eventKit: eventKit, store: store, settings: settings, shortcuts: shortcuts)
             }
     }
 }
@@ -24,9 +25,14 @@ final class MenuBarController: NSObject, ObservableObject {
     private var cancellable: AnyCancellable?
     private var configured = false
 
-    func configure(eventKit: EventKitService, store: ProjectStore, settings: AppSettings) {
+    func configure(eventKit: EventKitService, store: ProjectStore, settings: AppSettings, shortcuts: KeyboardShortcutManager) {
         guard !configured else { return }
         configured = true
+
+        shortcuts.registerGlobalShortcuts { [weak self] in
+            guard let self, let button = self.statusItem?.button else { return }
+            self.togglePopover(button)
+        }
 
         cancellable = settings.$menuBarEnabled
             .removeDuplicates()

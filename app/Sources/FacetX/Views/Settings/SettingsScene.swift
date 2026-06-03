@@ -11,6 +11,8 @@ struct SettingsRootView: View {
                 .tabItem { Label("Sources", systemImage: "square.stack.3d.up") }
             IntegrationsSettingsTab()
                 .tabItem { Label("Integrations", systemImage: "curlybraces") }
+            ShortcutsSettingsTab()
+                .tabItem { Label("Shortcuts", systemImage: "keyboard") }
         }
         .frame(width: 720, height: 600)
     }

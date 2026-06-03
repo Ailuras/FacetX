@@ -26,6 +26,7 @@ struct ProjectDetailView: View {
     @State private var selectedDetailItem: ProjectItem? = nil
     @State private var showCompleted = true
     @State private var searchText = ""
+    @State private var itemToDelete: ProjectItem? = nil
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
@@ -105,6 +106,89 @@ struct ProjectDetailView: View {
             withAnimation(detailPaneAnimation) {
                 selectedDetailItem = nil
             }
+        }
+        .onKeyPress(.space) {
+            guard !KeyboardShortcutManager.firstResponderIsTextInput,
+                  let item = selectedDetailItem else {
+                return .ignored
+            }
+            Task {
+                await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
+                await reload()
+            }
+            return .handled
+        }
+        .onKeyPress(.return) {
+            guard !KeyboardShortcutManager.firstResponderIsTextInput,
+                  selectedDetailItem == nil,
+                  let first = visibleItems.first else {
+                return .ignored
+            }
+            withAnimation(detailPaneAnimation) {
+                selectedDetailItem = first
+            }
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            guard selectedDetailItem != nil else { return .ignored }
+            withAnimation(detailPaneAnimation) {
+                selectedDetailItem = nil
+            }
+            return .handled
+        }
+        .onKeyPress(phases: .down) { event in
+            let hasCommand = event.modifiers.contains(.command)
+            let hasShift   = event.modifiers.contains(.shift)
+
+            switch event.key {
+            case .init("1") where hasCommand && !hasShift:
+                mode = .all
+                return .handled
+            case .init("2") where hasCommand && !hasShift:
+                mode = .week
+                return .handled
+            case .init("3") where hasCommand && !hasShift:
+                mode = .month
+                return .handled
+            case .init("4") where hasCommand && !hasShift:
+                mode = .commits
+                return .handled
+            case .init("n") where hasCommand && !hasShift:
+                showCreate = true
+                return .handled
+            case .init("r") where hasCommand && !hasShift:
+                Task { await reload() }
+                return .handled
+            case .init("h") where hasCommand && hasShift:
+                withAnimation(listAnimation) { showCompleted.toggle() }
+                return .handled
+            case .init("f") where hasCommand && !hasShift:
+                // Focus search is handled by the toolbar search field natively
+                return .ignored
+            case .delete where hasCommand && !hasShift:
+                guard !KeyboardShortcutManager.firstResponderIsTextInput,
+                      let item = selectedDetailItem else {
+                    return .ignored
+                }
+                itemToDelete = item
+                return .handled
+            default:
+                return .ignored
+            }
+        }
+        .alert("Delete item?", isPresented: .init(
+            get: { itemToDelete != nil },
+            set: { if !$0 { itemToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { itemToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let item = itemToDelete {
+                    Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
+                }
+                itemToDelete = nil
+            }
+        } message: {
+            Text(itemToDelete?.content ?? "")
         }
     }
 

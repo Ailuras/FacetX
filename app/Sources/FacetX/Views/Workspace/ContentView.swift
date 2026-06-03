@@ -75,6 +75,23 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .onAppear { selection = .today }
+        .onKeyPress(phases: .down) { event in
+            let hasCommand = event.modifiers.contains(.command)
+            let hasShift   = event.modifiers.contains(.shift)
+            switch event.key {
+            case .init("t") where hasCommand && !hasShift:
+                selection = .today
+                return .handled
+            case .upArrow where hasCommand && !hasShift:
+                navigateProject(by: -1)
+                return .handled
+            case .downArrow where hasCommand && !hasShift:
+                navigateProject(by: 1)
+                return .handled
+            default:
+                return .ignored
+            }
+        }
         .task {
             if !ek.remindersAuthorized && !ek.calendarAuthorized {
                 await ek.requestAccess()
@@ -97,6 +114,22 @@ struct ContentView: View {
         .sheet(item: $editingProject) { project in
             EditProjectView(project: project) { editingProject = nil }
         }
+    }
+
+    private func navigateProject(by delta: Int) {
+        let projects = store.activeProjects
+        guard !projects.isEmpty else { return }
+        let currentIndex: Int
+        if case .project(let id) = selection,
+           let idx = projects.firstIndex(where: { $0.id == id }) {
+            currentIndex = idx
+        } else {
+            currentIndex = -1
+        }
+        var newIndex = currentIndex + delta
+        newIndex = max(0, min(newIndex, projects.count - 1))
+        guard newIndex != currentIndex else { return }
+        selection = .project(projects[newIndex].id)
     }
 
     private func startNewProject() {
