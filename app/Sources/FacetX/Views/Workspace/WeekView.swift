@@ -10,6 +10,7 @@ struct WeekView: View {
     let searchText: String
     let showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
+    let refreshTrigger: Int
 
     @State var week = ISOWeek.containing(Date())
     @State var allItems: [ProjectItem] = []
@@ -22,6 +23,7 @@ struct WeekView: View {
     @State var inlineEditingID: String?
     @State var inlineEditingText: String = ""
     @State var itemToDelete: ProjectItem?
+    @State var createDate: DateWrapper? = nil
 
     var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -91,6 +93,13 @@ struct WeekView: View {
         .task(id: reloadKey) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
+        .onChange(of: refreshTrigger) { Task { await reload() } }
+        .sheet(item: $createDate) { wrapper in
+            CreateItemView(project: project, initialDate: wrapper.date) {
+                createDate = nil
+                Task { await reload() }
+            }
+        }
         .alert("Delete item?", isPresented: .init(
             get: { itemToDelete != nil },
             set: { if !$0 { itemToDelete = nil } }

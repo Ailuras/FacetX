@@ -1,32 +1,31 @@
 import FacetXCore
 import SwiftUI
 
-/// Cross-project Today view: a single flat list of everything across all
-/// projects whose date is today. Reads straight from EventKit (no new storage)
-/// and tags each row with its owning project; tapping a row jumps to that
-/// project so it can be edited there.
+/// Cross-project Today view: item list on the left, compact timeline
+/// sidebar on the right when an item is selected.
 struct TodayView: View {
-    @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var store: ProjectStore
-    @EnvironmentObject private var settings: AppSettings
-
-    /// Jump to a project in the sidebar when a row is tapped.
-    let onOpenProject: (Project.ID) -> Void
+    @EnvironmentObject var ek: EventKitService
+    @EnvironmentObject var store: ProjectStore
+    @EnvironmentObject var settings: AppSettings
 
     @State private var items: [ProjectItem] = []
     @State private var loading = false
+    @State private var searchText = ""
+    @State private var refreshTrigger = 0
+    @State var selectedItem: ProjectItem? = nil
     @State private var inlineEditingID: String?
     @State private var inlineEditingText: String = ""
 
-    private var listAnimation: Animation { FacetTheme.listSpring }
+    var listAnimation: Animation { FacetTheme.listSpring }
+    var sidebarAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
 
-    /// Map a claimed prefix to its project, for the row badge and tap target.
-    private var projectsByPrefix: [String: Project] {
+    // MARK: – Derived data
+
+    var projectsByPrefix: [String: Project] {
         Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
     }
 
-    /// Items dated today, across projects. Completed reminders drop out.
-    private var todayItems: [ProjectItem] {
+    var allTodayItems: [ProjectItem] {
         items.filter { item in
             guard let date = item.date else { return false }
             if item.kind == .reminder && item.isCompleted { return false }
@@ -35,42 +34,105 @@ struct TodayView: View {
         .sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
+    var filteredItems: [ProjectItem] {
+        let q = searchText.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return allTodayItems }
+        return allTodayItems.filter { $0.matches(searchQuery: q) }
+    }
+
+    var timelinedItems: [ProjectItem] {
+        filteredItems.filter { $0.kind == .event }
+    }
+
+    var hasActiveSearch: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    // MARK: – Body
+
     var body: some View {
-        content
+        HStack(spacing: 0) {
+            listView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if selectedItem != nil {
+                Divider()
+                timelineSidebar
+            }
+        }
+        .animation(sidebarAnimation, value: selectedItem != nil)
         .background(FacetTheme.canvas)
         .navigationTitle("Today")
-        .task { await reload() }
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                ToolbarSearchField(text: $searchText, placeholder: "Search today…")
+                    .frame(width: 200, height: 24)
+            }
+            ToolbarItem(placement: .automatic) {
+                refreshButton
+            }
+        }
+        .onAppear { Task { await reload() } }
+        .task(id: refreshTrigger) { await reload() }
+        .onChange(of: store.projects) { Task { await reload() } }
+        .onChange(of: ek.remindersAuthorized) { Task { await reload() } }
+        .onChange(of: ek.calendarAuthorized) { Task { await reload() } }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
     }
 
-    @ViewBuilder private var content: some View {
-        if todayItems.isEmpty {
-            ContentUnavailableView {
-                Label("Nothing today", systemImage: "checkmark.circle")
-            } description: {
-                Text(store.activeProjects.isEmpty
-                     ? "Create a project to start gathering its items here."
-                     : "No items are dated today across your projects.")
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay {
-                if loading && items.isEmpty { ProgressView().controlSize(.large) }
-            }
+    // MARK: – Toolbar
+
+    private var refreshButton: some View {
+        Button {
+            refreshTrigger &+= 1
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 11, weight: .medium))
+        }
+        .help("Refresh")
+    }
+
+    // MARK: – List view
+
+    @ViewBuilder private var listView: some View {
+        if filteredItems.isEmpty {
+            emptyStateView
         } else {
             List {
-                ForEach(todayItems) { item in row(item) }
+                ForEach(filteredItems) { item in
+                    todayItemRow(item)
+                }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .animation(listAnimation, value: todayItems.map { "\($0.id)-\($0.isCompleted)" })
+            .animation(listAnimation, value: filteredItems.map { "\($0.id)-\($0.isCompleted)" })
         }
     }
 
-    private func row(_ item: ProjectItem) -> some View {
+    // MARK: – Empty state
+
+    var emptyStateView: some View {
+        ContentUnavailableView {
+            Label("Nothing today", systemImage: "checkmark.circle")
+        } description: {
+            Text(store.activeProjects.isEmpty
+                 ? "Create a project to start gathering its items here."
+                 : "No items are dated today across your projects.")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay {
+            if loading && items.isEmpty { ProgressView().controlSize(.large) }
+        }
+    }
+
+    // MARK: – Shared row
+
+    func todayItemRow(_ item: ProjectItem) -> some View {
         let project = projectsByPrefix[item.projectPrefix]
         return ItemRow(
             item: item,
+            isSelected: item.id == selectedItem?.id,
             projectBadge: project?.name ?? item.projectPrefix,
             onToggle: { completed in
                 Task {
@@ -78,7 +140,9 @@ struct TodayView: View {
                     await reload()
                 }
             },
-            onEdit: { if let project { onOpenProject(project.id) } },
+            onEdit: {
+                selectedItem = selectedItem?.id == item.id ? nil : item
+            },
             inlineEditingText: $inlineEditingText,
             isInlineEditing: item.id == inlineEditingID,
             onInlineCommit: {
@@ -92,17 +156,20 @@ struct TodayView: View {
         .onTapGesture(count: 2) {
             startInlineEdit(for: item)
         }
-        .onTapGesture { if let project { onOpenProject(project.id) } }
+        .onTapGesture {
+            selectedItem = selectedItem?.id == item.id ? nil : item
+        }
         .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
     }
 
-    private func startInlineEdit(for item: ProjectItem) {
+    // MARK: – Inline editing
+
+    func startInlineEdit(for item: ProjectItem) {
         ItemEditHelpers.startTitleEdit(for: item, editingID: &inlineEditingID, editingText: &inlineEditingText)
     }
 
-    private func commitInlineEdit(for item: ProjectItem) {
+    func commitInlineEdit(for item: ProjectItem) {
         Task {
             _ = await ItemEditHelpers.commitTitleEdit(
                 editingID: inlineEditingID,
@@ -116,11 +183,13 @@ struct TodayView: View {
         }
     }
 
-    private func cancelInlineEdit(for item: ProjectItem) {
+    func cancelInlineEdit(for item: ProjectItem) {
         ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
     }
 
-    private func reload() async {
+    // MARK: – Reload
+
+    func reload() async {
         loading = items.isEmpty
         let prefixes = Set(store.activeProjects.map(\.prefix))
         let fetched = await ek.items(forProjects: prefixes,

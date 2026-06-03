@@ -12,6 +12,7 @@ struct MonthView: View {
     let searchText: String
     let showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
+    let refreshTrigger: Int
 
     @State private var month = MonthYear.containing(Date())
     @State private var allItems: [ProjectItem] = []
@@ -44,12 +45,17 @@ struct MonthView: View {
         .task(id: reloadKey) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
+        .onChange(of: refreshTrigger) { Task { await reload() } }
         .sheet(item: $createDate) { wrapper in
             CreateItemView(project: project, initialDate: wrapper.date) {
                 createDate = nil
                 Task { await reload() }
             }
         }
+    }
+
+    private var hasActiveSearch: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private var reloadKey: String {
@@ -72,6 +78,23 @@ struct MonthView: View {
             Button("Current month") { month = MonthYear.containing(Date()) }
                 .font(.caption)
                 .help("Go to current month")
+
+            if hasActiveSearch {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("\(monthItems.count) results")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.08))
+                )
+            }
         }
         .frame(minHeight: 30, alignment: .center)
         .padding(.horizontal, 16)
@@ -138,15 +161,15 @@ struct MonthView: View {
                                     emphasized: isToday)
                 }
 
-                Spacer()
+            Spacer()
 
-                Text("\(day)")
-                    .font(.system(size: 12, weight: isToday ? .bold : .regular))
-                    .foregroundStyle(isToday ? Color.accentColor : .primary)
-                    .padding(.horizontal, isToday ? 6 : 0)
-                    .padding(.vertical, isToday ? 2 : 0)
-                    .background(isToday ? Color.accentColor.opacity(0.12) : Color.clear)
-                    .clipShape(Capsule())
+            Text("\(day)")
+                .font(.system(size: 12, weight: isToday ? .bold : .regular))
+                .foregroundStyle(isToday ? Color.accentColor : .primary)
+                .padding(.horizontal, isToday ? 6 : 0)
+                .padding(.vertical, isToday ? 2 : 0)
+                .background(isToday ? Color.accentColor.opacity(0.12) : Color.clear)
+                .clipShape(Capsule())
             }
             .padding(.top, 5)
             .padding(.horizontal, 6)
@@ -285,8 +308,4 @@ struct MonthView: View {
     }
 }
 
-private struct DateWrapper: Identifiable {
-    let date: Date
 
-    var id: TimeInterval { date.timeIntervalSinceReferenceDate }
-}

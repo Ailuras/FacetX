@@ -17,6 +17,23 @@ extension WeekView {
             Button("Current week") { week = ISOWeek.containing(Date()) }
                 .font(.caption)
                 .help("Go to current week")
+
+            if hasActiveSearch {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("\(weekItems.count) results")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.08))
+                )
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

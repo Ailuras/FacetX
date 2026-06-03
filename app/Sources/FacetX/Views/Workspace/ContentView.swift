@@ -67,7 +67,7 @@ struct ContentView: View {
         } detail: {
             switch selection {
             case .today, nil:
-                TodayView(onOpenProject: { selection = .project($0) })
+                TodayView()
             case .project(let id):
                 if let project = store.activeProjects.first(where: { $0.id == id }) {
                     ProjectDetailView(project: project)

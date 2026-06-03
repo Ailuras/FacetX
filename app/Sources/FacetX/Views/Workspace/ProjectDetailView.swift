@@ -28,6 +28,7 @@ struct ProjectDetailView: View {
     @State private var showCompleted = true
     @State private var searchText = ""
     @State private var itemToDelete: ProjectItem? = nil
+    @State private var refreshTrigger = 0
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
@@ -63,9 +64,9 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all: allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem)
-                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem)
-                    case .commits: CommitsView(project: project)
+                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger)
+                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger)
+                    case .commits: CommitsView(project: project, refreshTrigger: refreshTrigger)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -116,10 +117,8 @@ struct ProjectDetailView: View {
             case .modeGit:     mode = .commits
             case .newItem:     showCreate = true
             case .refresh:
-                Task {
-                    await reload()
-                    toast.show("Refreshed", type: .success, duration: 1.5)
-                }
+                refreshTrigger += 1
+                toast.show("Refreshed", type: .success, duration: 1.5)
             case .toggleShowCompleted:
                 withAnimation(listAnimation) { showCompleted.toggle() }
             case .focusSearch:
@@ -196,10 +195,8 @@ struct ProjectDetailView: View {
 
     private var refreshButton: some View {
         Button {
-            Task {
-                await reload()
-                toast.show("Refreshed", type: .success, duration: 1.5)
-            }
+            refreshTrigger += 1
+            toast.show("Refreshed", type: .success, duration: 1.5)
         } label: {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 11, weight: .medium))
@@ -256,6 +253,7 @@ struct ProjectDetailView: View {
                 }
         }
         .background(FacetTheme.canvas)
+        .onChange(of: refreshTrigger) { Task { await reload() } }
     }
 
     private var allViewInfoBar: some View {

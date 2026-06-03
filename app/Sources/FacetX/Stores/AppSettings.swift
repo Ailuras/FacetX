@@ -40,6 +40,15 @@ final class AppSettings: ObservableObject {
     @Published var defaultEventDurationMinutes: Int {
         didSet { settingsDidChange() }
     }
+    @Published var todayViewMode: String {
+        didSet { settingsDidChange() }
+    }
+    @Published var todayTimelineStartHour: Int {
+        didSet { settingsDidChange() }
+    }
+    @Published var todayTimelineEndHour: Int {
+        didSet { settingsDidChange() }
+    }
     @Published var githubToken: String {
         didSet { settingsDidChange() }
     }
@@ -75,6 +84,9 @@ final class AppSettings: ObservableObject {
         self.weekGoalCalendarName = stored.weekGoalCalendarName
         self.menuBarEnabled = stored.menuBarEnabled
         self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes
+        self.todayViewMode = stored.todayViewMode
+        self.todayTimelineStartHour = stored.todayTimelineStartHour
+        self.todayTimelineEndHour = stored.todayTimelineEndHour
         self.githubToken = stored.githubToken ?? ""
         self.globalShortcutEnabled = stored.globalShortcutEnabled
         self.persistenceError = persistenceError
@@ -195,6 +207,9 @@ final class AppSettings: ObservableObject {
         var weekGoalCalendarName: String
         var menuBarEnabled: Bool
         var defaultEventDurationMinutes: Int
+        var todayViewMode: String
+        var todayTimelineStartHour: Int
+        var todayTimelineEndHour: Int
         var githubToken: String?
         var globalShortcutEnabled: Bool
 
@@ -207,6 +222,9 @@ final class AppSettings: ObservableObject {
              weekGoalCalendarName: String,
              menuBarEnabled: Bool,
              defaultEventDurationMinutes: Int,
+             todayViewMode: String,
+             todayTimelineStartHour: Int,
+             todayTimelineEndHour: Int,
              githubToken: String?,
              globalShortcutEnabled: Bool) {
             self.enabledReminderListNames = enabledReminderListNames
@@ -218,6 +236,9 @@ final class AppSettings: ObservableObject {
             self.weekGoalCalendarName = weekGoalCalendarName
             self.menuBarEnabled = menuBarEnabled
             self.defaultEventDurationMinutes = defaultEventDurationMinutes
+            self.todayViewMode = todayViewMode
+            self.todayTimelineStartHour = todayTimelineStartHour
+            self.todayTimelineEndHour = todayTimelineEndHour
             self.githubToken = githubToken
             self.globalShortcutEnabled = globalShortcutEnabled
         }
@@ -233,6 +254,9 @@ final class AppSettings: ObservableObject {
             weekGoalCalendarName     = try c.decodeIfPresent(String.self,    forKey: .weekGoalCalendarName)     ?? ""
             menuBarEnabled           = try c.decodeIfPresent(Bool.self,      forKey: .menuBarEnabled)           ?? true
             defaultEventDurationMinutes = try c.decodeIfPresent(Int.self,    forKey: .defaultEventDurationMinutes) ?? 120
+            todayViewMode            = try c.decodeIfPresent(String.self,    forKey: .todayViewMode)            ?? "list"
+            todayTimelineStartHour   = try c.decodeIfPresent(Int.self,       forKey: .todayTimelineStartHour)   ?? 6
+            todayTimelineEndHour     = try c.decodeIfPresent(Int.self,       forKey: .todayTimelineEndHour)     ?? 23
             githubToken              = try c.decodeIfPresent(String.self,    forKey: .githubToken)
             globalShortcutEnabled    = try c.decodeIfPresent(Bool.self,      forKey: .globalShortcutEnabled)    ?? false
         }
@@ -246,6 +270,9 @@ final class AppSettings: ObservableObject {
                                      weekGoalCalendarName: "",
                                      menuBarEnabled: true,
                                      defaultEventDurationMinutes: 120,
+                                     todayViewMode: "list",
+                                     todayTimelineStartHour: 6,
+                                     todayTimelineEndHour: 23,
                                      githubToken: nil,
                                      globalShortcutEnabled: false)
     }
@@ -258,10 +285,13 @@ final class AppSettings: ObservableObject {
                             defaultReminderListName: defaultReminderListName,
                             defaultCalendarName: defaultCalendarName,
                             weekGoalCalendarName: weekGoalCalendarName,
-                             menuBarEnabled: menuBarEnabled,
-                             defaultEventDurationMinutes: defaultEventDurationMinutes,
-                             githubToken: githubToken.isEmpty ? nil : githubToken,
-                             globalShortcutEnabled: globalShortcutEnabled)
+                            menuBarEnabled: menuBarEnabled,
+                            defaultEventDurationMinutes: defaultEventDurationMinutes,
+                            todayViewMode: todayViewMode,
+                            todayTimelineStartHour: todayTimelineStartHour,
+                            todayTimelineEndHour: todayTimelineEndHour,
+                            githubToken: githubToken.isEmpty ? nil : githubToken,
+                            globalShortcutEnabled: globalShortcutEnabled)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
             try enc.encode(stored).write(to: url, options: .atomic)
