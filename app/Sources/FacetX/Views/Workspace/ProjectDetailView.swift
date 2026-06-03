@@ -1,240 +1,7 @@
-import FacetXCore
 import AppKit
+import FacetXCore
 import SwiftUI
 
-struct ContentView: View {
-    @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var store: ProjectStore
-    @EnvironmentObject private var settings: AppSettings
-
-    /// Sidebar selection: the cross-project Today view, or one project.
-    enum SidebarItem: Hashable { case today, project(Project.ID) }
-
-    @State private var selection: SidebarItem? = .today
-    @State private var discovered: [String] = []
-    @State private var draftProject: ProjectDraft?
-    @State private var editingProject: Project?
-
-    var body: some View {
-        NavigationSplitView {
-            VStack(spacing: 0) {
-                if let persistenceWarning {
-                    persistenceWarningView(persistenceWarning)
-                }
-                List(selection: $selection) {
-                    Section {
-                        Label("Today", systemImage: "sun.max.fill")
-                            .tag(SidebarItem.today)
-                    }
-                    Section("Projects") {
-                        ForEach(store.activeProjects) { project in
-                            ProjectSidebarRow(project: project)
-                                .tag(SidebarItem.project(project.id))
-                                .contextMenu {
-                                    Button("Edit Project") {
-                                        selection = .project(project.id)
-                                        editingProject = project
-                                    }
-                                    Divider()
-                                    Button("Archive") {
-                                        store.archive(project)
-                                    }
-                                    Button("Delete", role: .destructive) {
-                                        store.delete(project)
-                                    }
-                                }
-                        }
-                        .onMove { indices, newOffset in
-                            store.reorderProjects(from: indices, to: newOffset)
-                        }
-                    }
-                }
-                .listStyle(.sidebar)
-                Divider()
-                Button { startNewProject() } label: {
-                    Label("New Project", systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 5)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.primary.opacity(0.82))
-                .padding(8)
-            }
-            .navigationTitle("FacetX")
-        } detail: {
-            switch selection {
-            case .today, nil:
-                TodayView(onOpenProject: { selection = .project($0) })
-            case .project(let id):
-                if let project = store.activeProjects.first(where: { $0.id == id }) {
-                    ProjectDetailView(project: project)
-                } else {
-                    ContentUnavailableView("Select a project",
-                        systemImage: "folder",
-                        description: Text("Pick a project from the sidebar."))
-                }
-            }
-        }
-        .navigationSplitViewStyle(.balanced)
-        .onAppear { selection = .today }
-        .task {
-            if !ek.remindersAuthorized && !ek.calendarAuthorized {
-                await ek.requestAccess()
-            }
-            await reloadDiscoveredProjects()
-        }
-        .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
-        .sheet(item: $draftProject) { draft in
-            NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, githubRepo in
-                let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
-                                              reminderListName: reminderList, calendarName: calendar,
-                                              weekGoalCalendarName: goalCalendar,
-                                              githubRepo: githubRepo)
-                selection = .project(id)
-                draftProject = nil
-            } onCancel: {
-                draftProject = nil
-            }
-        }
-        .sheet(item: $editingProject) { project in
-            EditProjectView(project: project) { editingProject = nil }
-        }
-    }
-
-    private func startNewProject() {
-        let existing = Set(store.projects.map(\.name))
-        let suggestion = discovered.first { !existing.contains($0) } ?? uniqueProjectName(in: existing)
-        let reminderLists = ek.reminderListNames(enabled: settings.effectiveReminderListNames)
-        let calendars = ek.calendarNames(enabled: settings.effectiveCalendarNames)
-        draftProject = ProjectDraft(
-            name: suggestion,
-            prefix: suggestion,
-            reminderListName: defaultName(settings.defaultReminderListName, in: reminderLists),
-            calendarName: defaultName(settings.defaultCalendarName, in: calendars),
-            weekGoalCalendarName: defaultName(settings.weekGoalCalendarName, in: calendars),
-            reminderLists: reminderLists,
-            calendars: calendars
-        )
-    }
-
-    private func uniqueProjectName(in existing: Set<String>) -> String {
-        let base = "New Project"
-        guard existing.contains(base) else { return base }
-        var index = 2
-        while existing.contains("\(base) \(index)") { index += 1 }
-        return "\(base) \(index)"
-    }
-
-    private func defaultName(_ name: String, in options: [String]) -> String {
-        options.contains(name) ? name : (options.first ?? "")
-    }
-
-    private func reloadDiscoveredProjects() async {
-        discovered = await ek.discoverProjectNames(
-            enabledReminderLists: settings.effectiveReminderListNames,
-            enabledCalendars: settings.effectiveCalendarNames
-        )
-    }
-
-    private var persistenceWarning: String? {
-        store.persistenceError ?? settings.persistenceError
-    }
-
-    private func persistenceWarningView(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle")
-            .font(.caption2)
-            .foregroundStyle(.orange)
-            .lineLimit(3)
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.orange.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(8)
-    }
-}
-
-private struct ProjectSidebarRow: View {
-    let project: Project
-
-    var body: some View {
-        HStack(spacing: 9) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.14))
-                Text(initial)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-            }
-            .frame(width: 24, height: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(project.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                Text(project.tagline.isEmpty ? project.prefix : project.tagline)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.vertical, 3)
-    }
-
-    private var initial: String {
-        project.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            .first
-            .map { String($0).uppercased() } ?? "F"
-    }
-}
-
-private struct ToolbarSearchField: NSViewRepresentable {
-    @Binding var text: String
-    let placeholder: String
-
-    func makeNSView(context: Context) -> NSSearchField {
-        let field = NSSearchField(frame: .zero)
-        field.placeholderString = placeholder
-        field.controlSize = .small
-        field.font = .systemFont(ofSize: 12)
-        field.sendsSearchStringImmediately = true
-        field.sendsWholeSearchString = false
-        field.delegate = context.coordinator
-        field.target = context.coordinator
-        field.action = #selector(Coordinator.searchChanged(_:))
-        return field
-    }
-
-    func updateNSView(_ field: NSSearchField, context: Context) {
-        if field.stringValue != text {
-            field.stringValue = text
-        }
-        field.placeholderString = placeholder
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
-    }
-
-    @MainActor final class Coordinator: NSObject, NSSearchFieldDelegate {
-        @Binding private var text: String
-
-        init(text: Binding<String>) {
-            _text = text
-        }
-
-        @objc func searchChanged(_ sender: NSSearchField) {
-            text = sender.stringValue
-        }
-
-        func controlTextDidChange(_ notification: Notification) {
-            guard let field = notification.object as? NSSearchField else { return }
-            text = field.stringValue
-        }
-    }
-}
-
-/// Detail pane: a project's items, grouped by container (functional zone).
 struct ProjectDetailView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var store: ProjectStore
@@ -293,7 +60,7 @@ struct ProjectDetailView: View {
             HStack(spacing: 0) {
                 Group {
                     switch mode {
-                    case .all:  allItemsView
+                    case .all: allItemsView
                     case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem)
                     case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem)
                     case .commits: CommitsView(project: project)
@@ -359,8 +126,6 @@ struct ProjectDetailView: View {
         ))
     }
 
-    // ── Toolbar controls (mode, search, actions) ─────────────────────────────
-
     private func modePicker(width: CGFloat) -> some View {
         Picker("", selection: $mode) {
             ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
@@ -422,10 +187,6 @@ struct ProjectDetailView: View {
         VStack(spacing: 0) {
             allViewInfoBar
 
-            // Keep the List in the tree from the first render and show loading as
-            // an overlay. Swapping a ProgressView in/out for the List made the
-            // List lay out its rows on first appearance at a bad moment, so the
-            // initial open showed crammed rows until a project switch rebuilt it.
             allItemsList
                 .overlay {
                     if loading && items.isEmpty {
@@ -498,10 +259,6 @@ struct ProjectDetailView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             } else {
-                // Render zone headers as plain rows rather than List Sections.
-                // macOS plain-List section headers draw a stubborn separator
-                // line (under the first group) that listRowSeparator /
-                // listSectionSeparator won't hide; flat rows avoid it entirely.
                 itemKindSection(title: "Tasks", systemImage: "checklist",
                                 count: taskItems.count, color: .green, groups: taskGroups)
                 itemKindSection(title: "Schedule", systemImage: "calendar",
@@ -581,7 +338,6 @@ struct ProjectDetailView: View {
         return items.isEmpty ? "No items yet." : "Completed items are hidden."
     }
 
-
     private var summaryCluster: some View {
         HStack(spacing: 6) {
             SummaryChip(value: openTaskCount, label: "Tasks", systemImage: "circle")
@@ -617,10 +373,6 @@ struct ProjectDetailView: View {
                     if !isLeftPressed {
                         timer.invalidate()
                         Task { @MainActor in
-                            // A valid drop runs ItemDropDelegate.performDrop on
-                            // mouse-up, which clears draggedItem. Wait a beat so
-                            // we don't race it and revert a legitimate reorder;
-                            // only a still-set drag means the drop missed.
                             try? await Task.sleep(for: .milliseconds(80))
                             if self.draggedItem != nil {
                                 self.cancelDrag()
@@ -740,15 +492,11 @@ struct ProjectDetailView: View {
         let apply = {
             items = sortedItems
             if let selectedId {
-                // Keep the selection only if it's still visible under the
-                // current completed/search filters; otherwise drop the pane.
                 selectedDetailItem = visibleItems.first { $0.id == selectedId }
             }
         }
 
         if firstPopulation {
-            // First population: skip the row insertion animation so the rows
-            // don't fly in from the top and momentarily pile up.
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction, apply)
@@ -763,7 +511,7 @@ struct ProjectDetailView: View {
               let toIndex = items.firstIndex(where: { $0.id == destination.id }) else {
             return
         }
-        
+
         if fromIndex != toIndex {
             withAnimation(.default) {
                 let movedItem = items.remove(at: fromIndex)
@@ -772,8 +520,6 @@ struct ProjectDetailView: View {
         }
     }
 
-    /// Persist the current in-memory item order. Called once when the drag is
-    /// released, not on every drag-over (which would write to disk repeatedly).
     private func commitItemOrder() {
         store.setItemOrder(projectID: project.id, orderedIDs: items.map(\.id))
     }
