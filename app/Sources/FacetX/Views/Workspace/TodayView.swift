@@ -15,6 +15,10 @@ struct TodayView: View {
     @State var selectedItem: ProjectItem? = nil
     @State private var inlineEditingID: String?
     @State private var inlineEditingText: String = ""
+    @State private var inlineEditingNotesID: String?
+    @State private var inlineEditingNotesText: String = ""
+    @State private var draggedItem: ProjectItem?
+    @State private var dragSnapshot: [ProjectItem]?
 
     var listAnimation: Animation { FacetTheme.listSpring }
     var sidebarAnimation: Animation { FacetTheme.detailSpring }
@@ -31,7 +35,6 @@ struct TodayView: View {
             if item.kind == .reminder && item.isCompleted { return false }
             return Calendar.current.isDateInToday(date)
         }
-        .sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
     var filteredItems: [ProjectItem] {
@@ -131,6 +134,18 @@ struct TodayView: View {
         ItemRow(
             item: item,
             isSelected: item.id == selectedItem?.id,
+            showDragGrip: true,
+            onDragStart: {
+                ItemDragHelpers.startDrag(
+                    item: item,
+                    items: items,
+                    draggedItem: &draggedItem,
+                    dragSnapshot: &dragSnapshot,
+                    cancelDrag: {
+                        if draggedItem != nil { cancelDrag() }
+                    }
+                )
+            },
             onToggle: { completed in
                 Task {
                     await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
@@ -147,17 +162,43 @@ struct TodayView: View {
             },
             onInlineCancel: {
                 cancelInlineEdit(for: item)
+            },
+            inlineEditingNotesText: $inlineEditingNotesText,
+            isInlineEditingNotes: item.id == inlineEditingNotesID,
+            onInlineNotesCommit: {
+                commitInlineNotesEdit(for: item)
+            },
+            onInlineNotesCancel: {
+                cancelInlineNotesEdit(for: item)
+            },
+            onStartNotesEdit: {
+                startInlineNotesEdit(for: item)
             }
         )
+        .contextMenu {
+            Button("Edit...") {
+                ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedItem)
+            }
+            Button("Delete", role: .destructive) {
+                Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
+            }
+        }
         .itemSelectionGestures(
             item: item,
             selectedItem: $selectedItem,
             onDoubleTap: { startInlineEdit(for: item) }
         )
+        .onDrop(of: [.text], delegate: ItemDropDelegate(
+            item: item,
+            draggedItem: $draggedItem,
+            onMove: { dragged, target in moveItem(from: dragged, to: target) },
+            onDrop: { commitTodayItemOrder(); dragSnapshot = nil }
+        ))
         .transition(.asymmetric(
             insertion: .opacity.combined(with: .move(edge: .top)),
             removal: .opacity.combined(with: .scale(scale: 0.98))
         ))
+        .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
@@ -187,6 +228,28 @@ struct TodayView: View {
         ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
     }
 
+    func startInlineNotesEdit(for item: ProjectItem) {
+        ItemEditHelpers.startNotesEdit(for: item, editingID: &inlineEditingNotesID, editingText: &inlineEditingNotesText)
+    }
+
+    func commitInlineNotesEdit(for item: ProjectItem) {
+        Task {
+            _ = await ItemEditHelpers.commitNotesEdit(
+                editingID: inlineEditingNotesID,
+                editingText: inlineEditingNotesText,
+                for: item,
+                projectPrefix: item.projectPrefix,
+                ek: ek
+            )
+            inlineEditingNotesID = nil
+            await reload()
+        }
+    }
+
+    func cancelInlineNotesEdit(for item: ProjectItem) {
+        ItemEditHelpers.cancelNotesEdit(editingID: &inlineEditingNotesID)
+    }
+
     // MARK: – Reload
 
     func reload() async {
@@ -203,5 +266,37 @@ struct TodayView: View {
             withAnimation(listAnimation) { items = fetched }
         }
         loading = false
+    }
+
+    private func moveItem(from source: ProjectItem, to destination: ProjectItem) {
+        guard let fromIndex = items.firstIndex(where: { $0.id == source.id }),
+              let toIndex = items.firstIndex(where: { $0.id == destination.id }) else {
+            return
+        }
+
+        if fromIndex != toIndex {
+            withAnimation(.default) {
+                let movedItem = items.remove(at: fromIndex)
+                items.insert(movedItem, at: toIndex)
+            }
+        }
+    }
+
+    private func commitTodayItemOrder() {
+        for project in store.activeProjects {
+            let orderedIDs = items
+                .filter { $0.projectPrefix == project.prefix }
+                .map(\.id)
+            guard !orderedIDs.isEmpty else { continue }
+            store.setItemOrder(projectID: project.id, orderedIDs: orderedIDs)
+        }
+    }
+
+    private func cancelDrag() {
+        if let snapshot = dragSnapshot {
+            withAnimation(listAnimation) { items = snapshot }
+        }
+        dragSnapshot = nil
+        draggedItem = nil
     }
 }

@@ -422,25 +422,15 @@ struct ProjectDetailView: View {
             isSelected: item.id == selectedDetailItem?.id,
             showDragGrip: true,
             onDragStart: {
-                self.dragSnapshot = items
-                self.draggedItem = item
-
-                let timer = Timer(timeInterval: 0.05, repeats: true) { timer in
-                    let pressedButtons = NSEvent.pressedMouseButtons
-                    let isLeftPressed = (pressedButtons & (1 << 0)) != 0
-                    if !isLeftPressed {
-                        timer.invalidate()
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(80))
-                            if self.draggedItem != nil {
-                                self.cancelDrag()
-                            }
-                        }
+                ItemDragHelpers.startDrag(
+                    item: item,
+                    items: items,
+                    draggedItem: &draggedItem,
+                    dragSnapshot: &dragSnapshot,
+                    cancelDrag: {
+                        if draggedItem != nil { cancelDrag() }
                     }
-                }
-                RunLoop.main.add(timer, forMode: .common)
-
-                return NSItemProvider(object: item.id as NSString)
+                )
             },
             onToggle: { completed in
                 Task {

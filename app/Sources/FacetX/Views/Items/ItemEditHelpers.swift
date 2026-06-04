@@ -1,3 +1,4 @@
+import AppKit
 import FacetXCore
 import SwiftUI
 
@@ -99,6 +100,34 @@ enum ItemSelectionHelpers {
         withAnimation(.easeOut(duration: 0.15)) {
             selectedItem = (selectedItem?.id == item.id) ? nil : item
         }
+    }
+}
+
+enum ItemDragHelpers {
+    static func startDrag(
+        item: ProjectItem,
+        items: [ProjectItem],
+        draggedItem: inout ProjectItem?,
+        dragSnapshot: inout [ProjectItem]?,
+        cancelDrag: @escaping @MainActor () -> Void
+    ) -> NSItemProvider {
+        dragSnapshot = items
+        draggedItem = item
+
+        let timer = Timer(timeInterval: 0.05, repeats: true) { timer in
+            let pressedButtons = NSEvent.pressedMouseButtons
+            let isLeftPressed = (pressedButtons & (1 << 0)) != 0
+            if !isLeftPressed {
+                timer.invalidate()
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(80))
+                    cancelDrag()
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+
+        return NSItemProvider(object: item.id as NSString)
     }
 }
 
