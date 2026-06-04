@@ -17,6 +17,8 @@ struct Project: Identifiable, Codable, Hashable {
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
     var itemOrder: [String] = []
+    var colorName: String?
+    var iconName: String?
     /// Manual sort index for sidebar ordering (lower = higher).
     var sortOrder: Int = 0
     /// GitHub repository in "owner/repo" format (optional).
@@ -24,6 +26,7 @@ struct Project: Identifiable, Codable, Hashable {
 
     init(name: String, prefix: String? = nil, tagline: String = "",
          reminderListName: String? = nil, calendarName: String? = nil, weekGoalCalendarName: String? = nil,
+         colorName: String? = nil, iconName: String? = nil,
          githubRepo: String? = nil) {
         self.name = name
         self.prefix = prefix ?? name
@@ -31,6 +34,8 @@ struct Project: Identifiable, Codable, Hashable {
         self.reminderListName = reminderListName
         self.calendarName = calendarName
         self.weekGoalCalendarName = weekGoalCalendarName
+        self.colorName = colorName
+        self.iconName = iconName
         self.githubRepo = githubRepo
     }
 
@@ -77,11 +82,13 @@ final class ProjectStore: ObservableObject {
     func createProject(name: String, prefix: String? = nil, tagline: String = "",
                        reminderListName: String? = nil, calendarName: String? = nil,
                        weekGoalCalendarName: String? = nil,
+                       colorName: String? = nil, iconName: String? = nil,
                        githubRepo: String? = nil) -> Project.ID {
         let maxOrder = projects.map(\.sortOrder).max() ?? -1
         var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
                               weekGoalCalendarName: weekGoalCalendarName,
+                              colorName: colorName, iconName: iconName,
                               githubRepo: githubRepo)
         project.sortOrder = maxOrder + 1
         projects.append(project)

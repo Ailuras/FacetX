@@ -127,10 +127,12 @@ struct ContentView: View {
                 Text("“\(projectToDelete?.name ?? "")” will be removed. Its items remain in Calendar/Reminders.")
             }
             .sheet(item: $draftProject) { draft in
-                NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, githubRepo in
+                NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, colorName, iconName, githubRepo in
                     let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
                                                   reminderListName: reminderList, calendarName: calendar,
                                                   weekGoalCalendarName: goalCalendar,
+                                                  colorName: colorName,
+                                                  iconName: iconName,
                                                   githubRepo: githubRepo)
                     selection = .project(id)
                     draftProject = nil

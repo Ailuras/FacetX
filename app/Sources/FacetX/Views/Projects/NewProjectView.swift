@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NewProjectView: View {
     let draft: ProjectDraft
-    let onCreate: (String, String?, String, String?, String?, String?, String?) -> Void
+    let onCreate: (String, String?, String, String?, String?, String?, String, String, String?) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
@@ -12,9 +12,11 @@ struct NewProjectView: View {
     @State private var calendarName: String
     @State private var weekGoalCalendarName: String
     @State private var githubRepo: String
+    @State private var colorName: String
+    @State private var iconName: String
 
     init(draft: ProjectDraft,
-         onCreate: @escaping (String, String?, String, String?, String?, String?, String?) -> Void,
+         onCreate: @escaping (String, String?, String, String?, String?, String?, String, String, String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.draft = draft
         self.onCreate = onCreate
@@ -26,18 +28,23 @@ struct NewProjectView: View {
         _calendarName = State(initialValue: draft.calendarName)
         _weekGoalCalendarName = State(initialValue: draft.weekGoalCalendarName)
         _githubRepo = State(initialValue: draft.githubRepo)
+        _colorName = State(initialValue: draft.colorName)
+        _iconName = State(initialValue: draft.iconName)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             ProjectEditorHeader(title: "New Project",
                                 subtitle: "Create a facet over Calendar and Reminders",
-                                initial: projectInitial)
+                                initial: projectInitial,
+                                tint: ProjectAppearance.color(for: colorName),
+                                systemImage: ProjectAppearance.iconName(for: iconName))
             Divider().opacity(0.7)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     identityCard
+                    appearanceCard
                     saveLocationsCard
                     integrationsCard
                 }
@@ -59,7 +66,7 @@ struct NewProjectView: View {
             .padding(.vertical, 12)
         }
         .background(FacetTheme.canvas)
-        .frame(width: 500, height: 560)
+        .frame(width: 500, height: 650)
     }
 
     private var identityCard: some View {
@@ -68,6 +75,12 @@ struct NewProjectView: View {
             ProjectEditorTextField(title: "Prefix", text: $prefix, placeholder: "Prefix")
             ProjectEditorHelp("Items whose title starts with “\(effectivePrefix):” belong to this project.")
             ProjectEditorTextField(title: "Tagline", text: $tagline, placeholder: "Short description")
+        }
+    }
+
+    private var appearanceCard: some View {
+        ProjectEditorCard(title: "Appearance", systemImage: "paintpalette") {
+            ProjectEditorAppearancePicker(colorName: $colorName, iconName: $iconName, initial: projectInitial)
         }
     }
 
@@ -108,6 +121,8 @@ struct NewProjectView: View {
                  reminderListName.isEmpty ? nil : reminderListName,
                  calendarName.isEmpty ? nil : calendarName,
                  weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName,
+                 colorName,
+                 iconName,
                  repo.isEmpty ? nil : repo)
     }
 }

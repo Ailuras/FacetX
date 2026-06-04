@@ -53,14 +53,8 @@ struct ProjectSidebarRow: View {
         WorkspaceSidebarRow(
             title: project.name,
             subtitle: project.tagline.isEmpty ? project.prefix : project.tagline,
-            badge: .text(initial),
-            tint: Color.accentColor
+            badge: .symbol(project.appearanceIconName),
+            tint: project.appearanceColor
         )
-    }
-
-    private var initial: String {
-        project.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            .first
-            .map { String($0).uppercased() } ?? "F"
     }
 }

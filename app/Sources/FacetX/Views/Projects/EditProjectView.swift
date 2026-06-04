@@ -16,6 +16,8 @@ struct EditProjectView: View {
     @State private var calendarName = ""
     @State private var weekGoalCalendarName = ""
     @State private var githubRepo = ""
+    @State private var colorName = ProjectAppearance.defaultColorName
+    @State private var iconName = ProjectAppearance.defaultIconName
     @State private var reminderLists: [String] = []
     @State private var calendars: [String] = []
     @State private var confirmDelete = false
@@ -24,12 +26,15 @@ struct EditProjectView: View {
         VStack(spacing: 0) {
             ProjectEditorHeader(title: "Edit Project",
                                 subtitle: project.archived ? "Archived project" : "Project settings",
-                                initial: projectInitial)
+                                initial: projectInitial,
+                                tint: ProjectAppearance.color(for: colorName),
+                                systemImage: ProjectAppearance.iconName(for: iconName))
             Divider().opacity(0.7)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     identityCard
+                    appearanceCard
                     saveLocationsCard
                     integrationsCard
                 }
@@ -56,7 +61,7 @@ struct EditProjectView: View {
             .padding(.vertical, 12)
         }
         .background(FacetTheme.canvas)
-        .frame(width: 500, height: 560)
+        .frame(width: 500, height: 650)
         .onAppear(perform: loadFields)
         .alert("Delete project?", isPresented: $confirmDelete) {
             Button("Cancel", role: .cancel) { }
@@ -77,6 +82,12 @@ struct EditProjectView: View {
                 ProjectEditorWarning("Existing Calendar and Reminder items will keep the old “\(project.prefix):” prefix and will no longer appear here unless renamed.")
             }
             ProjectEditorTextField(title: "Tagline", text: $tagline, placeholder: "Short description")
+        }
+    }
+
+    private var appearanceCard: some View {
+        ProjectEditorCard(title: "Appearance", systemImage: "paintpalette") {
+            ProjectEditorAppearancePicker(colorName: $colorName, iconName: $iconName, initial: projectInitial)
         }
     }
 
@@ -121,6 +132,8 @@ struct EditProjectView: View {
         prefix = project.prefix
         tagline = project.tagline
         githubRepo = project.githubRepo ?? ""
+        colorName = project.colorName ?? ProjectAppearance.defaultColorName
+        iconName = project.iconName ?? ProjectAppearance.defaultIconName
         reminderListName = firstAvailable(project.reminderListName,
                                           settings.defaultReminderListName,
                                           in: reminderLists)
@@ -140,6 +153,8 @@ struct EditProjectView: View {
         updated.reminderListName = reminderListName.isEmpty ? nil : reminderListName
         updated.calendarName = calendarName.isEmpty ? nil : calendarName
         updated.weekGoalCalendarName = weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName
+        updated.colorName = colorName
+        updated.iconName = iconName
         let repo = githubRepo.trimmingCharacters(in: .whitespaces)
         updated.githubRepo = repo.isEmpty ? nil : repo
         store.update(updated)

@@ -9,6 +9,8 @@ struct ProjectDraft: Identifiable {
     var calendarName: String
     var weekGoalCalendarName: String
     var githubRepo: String = ""
+    var colorName: String = ProjectAppearance.defaultColorName
+    var iconName: String = ProjectAppearance.defaultIconName
     var reminderLists: [String]
     var calendars: [String]
 }
