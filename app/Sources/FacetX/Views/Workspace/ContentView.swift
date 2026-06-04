@@ -23,119 +23,124 @@ struct ContentView: View {
                         persistenceWarningView(persistenceWarning)
                     }
                     List(selection: $selection) {
-                    Section {
-                        Label("Today", systemImage: "sun.max.fill")
-                            .tag(SidebarItem.today)
-                    }
-                    Section("Projects") {
-                        ForEach(store.activeProjects) { project in
-                            ProjectSidebarRow(project: project)
-                                .tag(SidebarItem.project(project.id))
-                                .contextMenu {
-                                    Button("Edit Project") {
-                                        selection = .project(project.id)
-                                        editingProject = project
-                                    }
-                                    Divider()
-                                    Button("Archive") {
-                                        store.archive(project)
-                                        toast.show("Project archived", type: .info)
-                                    }
-                                    Button("Delete", role: .destructive) {
-                                        projectToDelete = project
-                                    }
-                                }
+                        Section {
+                            WorkspaceSidebarRow(
+                                title: "Today",
+                                subtitle: todaySidebarSubtitle,
+                                badge: .symbol("sun.max.fill"),
+                                tint: .orange
+                            )
+                                .tag(SidebarItem.today)
                         }
-                        .onMove { indices, newOffset in
-                            store.reorderProjects(from: indices, to: newOffset)
+                        Section("Projects") {
+                            ForEach(store.activeProjects) { project in
+                                ProjectSidebarRow(project: project)
+                                    .tag(SidebarItem.project(project.id))
+                                    .contextMenu {
+                                        Button("Edit Project") {
+                                            selection = .project(project.id)
+                                            editingProject = project
+                                        }
+                                        Divider()
+                                        Button("Archive") {
+                                            store.archive(project)
+                                            toast.show("Project archived", type: .info)
+                                        }
+                                        Button("Delete", role: .destructive) {
+                                            projectToDelete = project
+                                        }
+                                    }
+                            }
+                            .onMove { indices, newOffset in
+                                store.reorderProjects(from: indices, to: newOffset)
+                            }
                         }
                     }
+                    .listStyle(.sidebar)
+                    Divider()
+                    Button { startNewProject() } label: {
+                        Label("New Project", systemImage: "plus.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 5)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary.opacity(0.82))
+                    .padding(8)
                 }
-                .listStyle(.sidebar)
-                Divider()
-                Button { startNewProject() } label: {
-                    Label("New Project", systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 5)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.primary.opacity(0.82))
-                .padding(8)
-            }
-            .navigationTitle("FacetX")
-        } detail: {
-            switch selection {
-            case .today, nil:
-                TodayView()
-            case .project(let id):
-                if let project = store.activeProjects.first(where: { $0.id == id }) {
-                    ProjectDetailView(project: project)
-                } else {
-                    ContentUnavailableView("Select a project",
-                        systemImage: "folder",
-                        description: Text("Pick a project from the sidebar."))
+                .navigationTitle("FacetX")
+            } detail: {
+                switch selection {
+                case .today, nil:
+                    TodayView()
+                case .project(let id):
+                    if let project = store.activeProjects.first(where: { $0.id == id }) {
+                        ProjectDetailView(project: project)
+                    } else {
+                        ContentUnavailableView("Select a project",
+                            systemImage: "folder",
+                            description: Text("Pick a project from the sidebar."))
+                    }
                 }
             }
-        }
-        .navigationSplitViewStyle(.balanced)
-        .onAppear { selection = .today }
-        .onReceive(keyboard.commandPublisher) { cmd in
-            switch cmd {
-            case .today:          selection = .today
-            case .prevProject:    navigateProject(by: -1)
-            case .nextProject:    navigateProject(by: 1)
-            default:              break
+            .navigationSplitViewStyle(.balanced)
+            .onAppear { selection = .today }
+            .onReceive(keyboard.commandPublisher) { cmd in
+                switch cmd {
+                case .today:          selection = .today
+                case .prevProject:    navigateProject(by: -1)
+                case .nextProject:    navigateProject(by: 1)
+                default:              break
+                }
             }
-        }
-        .task {
-            keyboard.registerLocalShortcuts()
-            if !ek.remindersAuthorized && !ek.calendarAuthorized {
-                await ek.requestAccess()
-                // Show banner if access was denied
+            .task {
+                keyboard.registerLocalShortcuts()
                 if !ek.remindersAuthorized && !ek.calendarAuthorized {
-                    toast.showBanner(
-                        "Calendar and Reminders access is required to display items.",
-                        type: .warning,
-                        action: BannerAction(title: "Open Settings") {
-                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
-                        }
-                    )
+                    await ek.requestAccess()
+                    // Show banner if access was denied
+                    if !ek.remindersAuthorized && !ek.calendarAuthorized {
+                        toast.showBanner(
+                            "Calendar and Reminders access is required to display items.",
+                            type: .warning,
+                            action: BannerAction(title: "Open Settings") {
+                                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
+                            }
+                        )
+                    }
+                }
+                await reloadDiscoveredProjects()
+            }
+            .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
+            .alert("Delete project?", isPresented: .init(
+                get: { projectToDelete != nil },
+                set: { if !$0 { projectToDelete = nil } }
+            )) {
+                Button("Cancel", role: .cancel) { projectToDelete = nil }
+                Button("Delete", role: .destructive) {
+                    if let project = projectToDelete {
+                        store.delete(project)
+                        toast.show("Project deleted", type: .success)
+                    }
+                    projectToDelete = nil
+                }
+            } message: {
+                Text("“\(projectToDelete?.name ?? "")” will be removed. Its items remain in Calendar/Reminders.")
+            }
+            .sheet(item: $draftProject) { draft in
+                NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, githubRepo in
+                    let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
+                                                  reminderListName: reminderList, calendarName: calendar,
+                                                  weekGoalCalendarName: goalCalendar,
+                                                  githubRepo: githubRepo)
+                    selection = .project(id)
+                    draftProject = nil
+                } onCancel: {
+                    draftProject = nil
                 }
             }
-            await reloadDiscoveredProjects()
-        }
-        .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
-        .alert("Delete project?", isPresented: .init(
-            get: { projectToDelete != nil },
-            set: { if !$0 { projectToDelete = nil } }
-        )) {
-            Button("Cancel", role: .cancel) { projectToDelete = nil }
-            Button("Delete", role: .destructive) {
-                if let project = projectToDelete {
-                    store.delete(project)
-                    toast.show("Project deleted", type: .success)
-                }
-                projectToDelete = nil
+            .sheet(item: $editingProject) { project in
+                EditProjectView(project: project) { editingProject = nil }
             }
-        } message: {
-            Text("“\(projectToDelete?.name ?? "")” will be removed. Its items remain in Calendar/Reminders.")
-        }
-        .sheet(item: $draftProject) { draft in
-            NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, githubRepo in
-                let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
-                                              reminderListName: reminderList, calendarName: calendar,
-                                              weekGoalCalendarName: goalCalendar,
-                                              githubRepo: githubRepo)
-                selection = .project(id)
-                draftProject = nil
-            } onCancel: {
-                draftProject = nil
-            }
-        }
-        .sheet(item: $editingProject) { project in
-            EditProjectView(project: project) { editingProject = nil }
-        }
 
             // Banner overlay (top)
             if let banner = toast.banner {
@@ -169,6 +174,14 @@ struct ContentView: View {
         newIndex = max(0, min(newIndex, projects.count - 1))
         guard newIndex != currentIndex else { return }
         selection = .project(projects[newIndex].id)
+    }
+
+    private var todaySidebarSubtitle: String {
+        let count = store.activeProjects.count
+        if count == 0 {
+            return "No active projects"
+        }
+        return count == 1 ? "Across 1 project" : "Across \(count) projects"
     }
 
     private func startNewProject() {
