@@ -273,9 +273,16 @@ struct CommitsView: View {
 
     private func commitRow(_ commit: GitHubCommit) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(commit.message)
+            Text(commit.summary)
                 .font(.system(size: 13, weight: .medium))
                 .lineLimit(2)
+
+            if let body = commit.body {
+                Text(body)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
             HStack(spacing: 8) {
                 Text(commit.authorName)
@@ -338,8 +345,7 @@ struct CommitsView: View {
         ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Commit message (main title)
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 8) {
                             Circle()
                                 .fill(authorColor(for: commit.authorName))
@@ -350,11 +356,35 @@ struct CommitsView: View {
                                 .monospaced()
                         }
 
-                        Text(commit.message)
+                        Text(commit.summary)
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(.primary)
-                            .lineLimit(nil)
+                            .lineLimit(4)
                             .fixedSize(horizontal: false, vertical: true)
+
+                        if let body = commit.body {
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text("Body")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+
+                                Text(body)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .lineSpacing(2)
+                                    .textSelection(.enabled)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(10)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(FacetTheme.quietPanel)
+                                    .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                                    )
+                            }
+                            .padding(.top, 2)
+                        }
                     }
 
                     // Metadata rows

@@ -8,6 +8,27 @@ public struct GitHubCommit: Identifiable, Sendable {
     public let authorName: String
     public let date: Date
     public let htmlURL: URL
+
+    public var summary: String {
+        let firstLine = message.split(separator: "\n", omittingEmptySubsequences: false)
+            .first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let firstLine, !firstLine.isEmpty {
+            return firstLine
+        }
+        return shortSHA
+    }
+
+    public var body: String? {
+        let lines = message.split(separator: "\n", omittingEmptySubsequences: false)
+        guard lines.count > 1 else { return nil }
+        let text = lines.dropFirst()
+            .map(String.init)
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
 }
 
 /// A repository visible to the configured GitHub token.
