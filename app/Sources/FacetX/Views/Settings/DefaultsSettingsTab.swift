@@ -51,48 +51,45 @@ struct DefaultsSettingsTab: View {
                             .frame(width: 64, alignment: .trailing)
                         Stepper("", value: $settings.defaultEventDurationMinutes, in: 5...1440, step: 15)
                             .labelsHidden()
+                            .controlSize(.small)
                     }
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)
                 }
             }
 
             SettingsCard(title: "Today View", systemImage: "calendar.day.timeline.left") {
-                HStack(spacing: 16) {
-                    Label("Timeline range", systemImage: "clock")
-                        .font(SettingsUI.rowFont)
-                        .foregroundStyle(.secondary)
+                SettingsRow(title: "Timeline range", systemImage: "clock") {
+                    HStack(spacing: 16) {
+                        // From
+                        HStack(spacing: 6) {
+                            Text("From")
+                                .font(SettingsUI.secondaryFont)
+                                .foregroundStyle(.secondary)
+                            Text("\(settings.todayTimelineStartHour):00")
+                                .font(SettingsUI.rowFont)
+                                .monospacedDigit()
+                                .frame(width: 42, alignment: .trailing)
+                            Stepper("", value: $settings.todayTimelineStartHour, in: 0...22)
+                                .labelsHidden()
+                                .controlSize(.small)
+                        }
 
-                    Spacer()
-
-                    // From
-                    HStack(spacing: 6) {
-                        Text("From")
-                            .font(SettingsUI.secondaryFont)
-                            .foregroundStyle(.secondary)
-                        Text("\(settings.todayTimelineStartHour):00")
-                            .font(SettingsUI.rowFont)
-                            .monospacedDigit()
-                            .frame(width: 42, alignment: .trailing)
-                        Stepper("", value: $settings.todayTimelineStartHour, in: 0...22)
-                            .labelsHidden()
-                            .controlSize(.small)
+                        // To
+                        HStack(spacing: 6) {
+                            Text("To")
+                                .font(SettingsUI.secondaryFont)
+                                .foregroundStyle(.secondary)
+                            Text("\(settings.todayTimelineEndHour):00")
+                                .font(SettingsUI.rowFont)
+                                .monospacedDigit()
+                                .frame(width: 42, alignment: .trailing)
+                            Stepper("", value: $settings.todayTimelineEndHour, in: 1...23)
+                                .labelsHidden()
+                                .controlSize(.small)
+                        }
                     }
-
-                    // To
-                    HStack(spacing: 6) {
-                        Text("To")
-                            .font(SettingsUI.secondaryFont)
-                            .foregroundStyle(.secondary)
-                        Text("\(settings.todayTimelineEndHour):00")
-                            .font(SettingsUI.rowFont)
-                            .monospacedDigit()
-                            .frame(width: 42, alignment: .trailing)
-                        Stepper("", value: $settings.todayTimelineEndHour, in: 1...23)
-                            .labelsHidden()
-                            .controlSize(.small)
-                    }
+                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
                 }
-                .padding(.vertical, 3)
 
                 Text("Defines the visible hours on the Today timeline sidebar.")
                     .font(SettingsUI.secondaryFont)
