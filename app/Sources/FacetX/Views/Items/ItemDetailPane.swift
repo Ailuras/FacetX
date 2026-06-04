@@ -252,18 +252,10 @@ struct ItemDetailPane: View {
     private func scheduleDateRow(label: String, icon: String, selection: Binding<Date>) -> some View {
         propertyRow(label: label, icon: icon) {
             HStack(spacing: 6) {
-                DatePicker("", selection: selection, displayedComponents: [.date])
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                dateField(selection, components: [.date], width: isAllDay ? nil : 126)
 
                 if !isAllDay {
-                    DatePicker("", selection: selection, displayedComponents: [.hourAndMinute])
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                        .controlSize(.small)
-                        .frame(width: 78, alignment: .trailing)
+                    dateField(selection, components: [.hourAndMinute], width: 84)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -273,11 +265,7 @@ struct ItemDetailPane: View {
     private var reminderDateControl: some View {
         HStack(spacing: 12) {
             if useDate {
-                DatePicker("", selection: $date, displayedComponents: [.date])
-                    .labelsHidden()
-                    .datePickerStyle(.field)
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                dateField($date, components: [.date], width: 148)
             } else {
                 Text("—")
                     .font(.system(size: 13, weight: .medium))
@@ -291,6 +279,16 @@ struct ItemDetailPane: View {
                 .toggleStyle(.switch)
                 .controlSize(.mini)
         }
+    }
+
+    private func dateField(_ selection: Binding<Date>, components: DatePickerComponents,
+                           width: CGFloat? = nil) -> some View {
+        DatePicker("", selection: selection, displayedComponents: components)
+            .labelsHidden()
+            .datePickerStyle(.field)
+            .controlSize(.small)
+            .frame(width: width, alignment: .leading)
+            .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
     }
 
     private var allDayToggle: some View {
