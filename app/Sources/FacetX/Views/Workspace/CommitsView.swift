@@ -103,21 +103,10 @@ struct CommitsView: View {
 
     private var unifiedHeader: some View {
         HStack(spacing: 14) {
-            // Left: title + stats
-            HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "curlybraces")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text("GitHub Activity")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-
-                if !commits.isEmpty {
-                    HStack(spacing: 8) {
-                        statBadge(icon: "number", value: "\(commits.count)", label: "commits")
-                        statBadge(icon: "person.2", value: "\(uniqueAuthors.count)", label: "contributors")
-                    }
+            if !commits.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    statBadge(icon: "number", value: "\(commits.count)", label: "commits")
+                    statBadge(icon: "person.2", value: "\(uniqueAuthors.count)", label: "contributors")
                 }
             }
 
@@ -276,13 +265,6 @@ struct CommitsView: View {
             Text(commit.summary)
                 .font(.system(size: 13, weight: .medium))
                 .lineLimit(2)
-
-            if let body = commit.body {
-                Text(body)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
 
             HStack(spacing: 8) {
                 Text(commit.authorName)
