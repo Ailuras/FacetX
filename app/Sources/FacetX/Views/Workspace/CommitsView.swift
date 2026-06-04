@@ -191,7 +191,7 @@ struct CommitsView: View {
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 9)
-            .frame(height: 26)
+            .frame(height: 34)
             .background(FacetTheme.panel.opacity(0.70))
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay(
