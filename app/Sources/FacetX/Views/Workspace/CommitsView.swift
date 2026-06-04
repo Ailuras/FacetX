@@ -26,6 +26,16 @@ struct CommitsView: View {
 
         var id: String { rawValue }
 
+        var systemImage: String {
+            switch self {
+            case .none: "calendar.day.timeline.left"
+            case .week: "calendar.badge.clock"
+            case .month: "calendar"
+            case .quarter: "calendar.badge.exclamationmark"
+            case .all: "clock.arrow.circlepath"
+            }
+        }
+
         var sinceDate: Date? {
             let calendar = Calendar.current
             let now = Date()
@@ -102,54 +112,111 @@ struct CommitsView: View {
     // MARK: – Unified Header
 
     private var unifiedHeader: some View {
-        HStack(spacing: 14) {
-            if !commits.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    statBadge(icon: "number", value: "\(commits.count)", label: "commits")
-                    statBadge(icon: "person.2", value: "\(uniqueAuthors.count)", label: "contributors")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) {
+                if !commits.isEmpty {
+                    statsCluster
                 }
+
+                Spacer(minLength: 10)
+
+                filterCluster
             }
 
-            Spacer()
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    if !commits.isEmpty {
+                        statsCluster
+                    }
 
-            // Right: week selector + date range + refresh
-            HStack(spacing: 10) {
+                    Spacer()
+
+                    dateRangeMenu
+                }
+
                 weekSelector
-
-                Divider().frame(height: 20)
-
-                Picker("", selection: $dateRange) {
-                    ForEach(DateRange.allCases) { range in
-                        Text(range.rawValue).tag(range)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .controlSize(.small)
-                .frame(width: 100)
-                .onChange(of: dateRange) {
-                    if dateRange != .none {
-                        selectedWeekDay = nil
-                    } else if selectedWeekDay == nil {
-                        selectedWeekDay = Calendar.current.startOfDay(for: Date())
-                    }
-                    Task { await reload() }
-                }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .frame(minHeight: 30, alignment: .center)
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 11)
         .background(FacetTheme.canvas)
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
     }
 
+    private var statsCluster: some View {
+        HStack(spacing: 6) {
+            statBadge(icon: "number", value: "\(commits.count)", label: "commits")
+            statBadge(icon: "person.2", value: "\(uniqueAuthors.count)", label: "contributors")
+        }
+    }
+
+    private var filterCluster: some View {
+        HStack(spacing: 8) {
+            weekSelector
+
+            Divider()
+                .frame(height: 22)
+
+            dateRangeMenu
+        }
+    }
+
+    private var dateRangeMenu: some View {
+        Menu {
+            ForEach(DateRange.allCases) { range in
+                Button {
+                    setDateRange(range)
+                } label: {
+                    Label(range.rawValue, systemImage: range == dateRange ? "checkmark" : range.systemImage)
+                }
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: dateRange.systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+
+                Text(dateRange.rawValue)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 9)
+            .frame(height: 26)
+            .background(FacetTheme.panel.opacity(0.70))
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+    }
+
+    private func setDateRange(_ range: DateRange) {
+        dateRange = range
+        if range != .none {
+            selectedWeekDay = nil
+        } else if selectedWeekDay == nil {
+            selectedWeekDay = Calendar.current.startOfDay(for: Date())
+        }
+        Task { await reload() }
+    }
+
     private func statBadge(icon: String, value: String, label: String) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 9))
+                .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.system(size: 10, weight: .semibold))
@@ -158,12 +225,12 @@ struct CommitsView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
     }
@@ -174,6 +241,13 @@ struct CommitsView: View {
                 weekDayCell(date)
             }
         }
+        .padding(2)
+        .background(FacetTheme.panel.opacity(0.54))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
     }
 
     private func weekDayCell(_ date: Date) -> some View {
