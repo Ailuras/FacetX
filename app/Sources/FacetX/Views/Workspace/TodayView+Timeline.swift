@@ -12,10 +12,17 @@ extension TodayView {
     // MARK: – Timeline Sidebar
 
     var timelineSidebar: some View {
-        VStack(spacing: 0) {
-            sidebarHeader
-            Divider()
-
+        FacetSidebarPane(
+            title: "Timeline",
+            systemImage: "clock",
+            subtitle: selectedItem?.content,
+            closeHelp: "Close timeline",
+            onClose: {
+                withAnimation(sidebarAnimation) {
+                    selectedItem = nil
+                }
+            }
+        ) {
             if timelinedItems.isEmpty {
                 Text("No timed events today.")
                     .font(.callout)
@@ -39,60 +46,6 @@ extension TodayView {
                 }
             }
         }
-        .background(FacetTheme.canvas)
-        .frame(width: 340)
-        .frame(maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-        .padding(.vertical, 8)
-        .padding(.trailing, 8)
-        .transition(.asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .trailing).combined(with: .opacity)
-        ))
-    }
-
-    private var sidebarHeader: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "clock")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text("Timeline")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            if let item = selectedItem {
-                Text(item.content)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .frame(maxWidth: 100, alignment: .trailing)
-            }
-
-            Button {
-                withAnimation(sidebarAnimation) {
-                    selectedItem = nil
-                }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Close timeline")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
     }
 
     // MARK: – Compact Timeline
@@ -186,7 +139,7 @@ extension TodayView {
         let cardStroke = isSelected ? Color.accentColor : Color.accentColor.opacity(0.18)
 
         return Button {
-            selectedItem = event
+            selectedItem = selectedItem?.id == event.id ? nil : event
         } label: {
             VStack(alignment: .leading, spacing: 1) {
                 Text(event.content)

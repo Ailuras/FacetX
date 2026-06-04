@@ -17,7 +17,7 @@ struct TodayView: View {
     @State private var inlineEditingText: String = ""
 
     var listAnimation: Animation { FacetTheme.listSpring }
-    var sidebarAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
+    var sidebarAnimation: Animation { FacetTheme.detailSpring }
 
     // MARK: – Derived data
 
@@ -56,7 +56,6 @@ struct TodayView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if selectedItem != nil {
-                Divider()
                 timelineSidebar
             }
         }

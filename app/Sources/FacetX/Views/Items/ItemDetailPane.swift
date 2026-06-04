@@ -50,9 +50,6 @@ struct ItemDetailPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            paneHeader
-            Divider()
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     titleCard
@@ -79,32 +76,6 @@ struct ItemDetailPane: View {
         .onChange(of: isAllDay) {
             alignEventEndAfterAllDayToggle()
         }
-    }
-
-    private var paneHeader: some View {
-        HStack(spacing: 10) {
-            Label {
-                Text(item.kind == .reminder ? "Reminder" : "Event")
-            } icon: {
-                Image(systemName: item.kind == .reminder ? "checklist" : "calendar")
-            }
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Close sidebar")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
     }
 
     private var titleCard: some View {

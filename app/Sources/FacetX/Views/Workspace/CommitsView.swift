@@ -15,7 +15,7 @@ struct CommitsView: View {
     @State private var selectedWeekDay: Date? = Calendar.current.startOfDay(for: Date())
 
     private var listAnimation: Animation { FacetTheme.listSpring }
-    private var detailPaneAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
+    private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
 
     enum DateRange: String, CaseIterable, Identifiable {
         case none = "None"
@@ -330,35 +330,12 @@ struct CommitsView: View {
     // MARK: – Commit Detail Pane
 
     private func commitDetailPane(_ commit: GitHubCommit) -> some View {
-        VStack(spacing: 0) {
-            // Header row: title + close
-            HStack(spacing: 10) {
-                Label {
-                    Text("Commit Detail")
-                        .font(.system(size: 12, weight: .semibold))
-                } icon: {
-                    Image(systemName: "curlybraces")
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Button(action: { selectedCommit = nil }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Close sidebar")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-
-            Divider()
-
+        FacetSidebarPane(
+            title: "Commit Detail",
+            systemImage: "curlybraces",
+            subtitle: commit.shortSHA,
+            onClose: { selectedCommit = nil }
+        ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     // Commit message (main title)
@@ -433,21 +410,6 @@ struct CommitsView: View {
                 .padding(.vertical, 14)
             }
         }
-        .frame(width: 340)
-        .frame(maxHeight: .infinity)
-        .background(FacetTheme.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-        .padding(.vertical, 8)
-        .padding(.trailing, 8)
-        .transition(.asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .trailing).combined(with: .opacity)
-        ))
     }
 
     private func authorColor(for name: String) -> Color {

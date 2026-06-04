@@ -31,7 +31,7 @@ struct ProjectDetailView: View {
     @State private var refreshTrigger = 0
 
     private var listAnimation: Animation { FacetTheme.listSpring }
-    private var detailPaneAnimation: Animation { .spring(response: 0.34, dampingFraction: 0.88) }
+    private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
 
     private var visibleItems: [ProjectItem] {
         let base = showCompleted ? items : items.filter { !$0.isCompleted }
@@ -159,27 +159,24 @@ struct ProjectDetailView: View {
     }
 
     private func detailPane(for selectedItem: ProjectItem) -> some View {
-        ItemDetailPane(item: selectedItem, project: project, onClose: {
-            withAnimation(detailPaneAnimation) {
-                selectedDetailItem = nil
+        FacetSidebarPane(
+            title: selectedItem.kind == .reminder ? "Reminder" : "Event",
+            systemImage: selectedItem.kind == .reminder ? "checklist" : "calendar",
+            subtitle: selectedItem.content,
+            onClose: {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                }
             }
-        }, onUpdate: {
-            Task { await reload() }
-        })
-        .frame(width: 340)
-        .frame(maxHeight: .infinity)
-        .background(FacetTheme.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-        .padding(8)
-        .transition(.asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .trailing).combined(with: .opacity)
-        ))
+        ) {
+            ItemDetailPane(item: selectedItem, project: project, onClose: {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                }
+            }, onUpdate: {
+                Task { await reload() }
+            })
+        }
     }
 
     private func modePicker(width: CGFloat) -> some View {
@@ -452,7 +449,7 @@ struct ProjectDetailView: View {
                 }
             },
             onEdit: {
-                withAnimation(.easeOut(duration: 0.15)) { selectedDetailItem = item }
+                ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedDetailItem)
             },
             inlineEditingText: $inlineEditingText,
             isInlineEditing: item.id == inlineEditingID,
@@ -476,7 +473,7 @@ struct ProjectDetailView: View {
         )
         .contextMenu {
             Button("Edit...") {
-                withAnimation(.easeOut(duration: 0.15)) { selectedDetailItem = item }
+                ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedDetailItem)
             }
             Button("Delete", role: .destructive) {
                 Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
