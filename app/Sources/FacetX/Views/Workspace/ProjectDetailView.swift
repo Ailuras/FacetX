@@ -166,15 +166,16 @@ struct ProjectDetailView: View {
         }, onUpdate: {
             Task { await reload() }
         })
-        .frame(width: 360)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(width: 340)
+        .frame(maxHeight: .infinity)
+        .background(FacetTheme.canvas)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 8)
-        .padding(.vertical, 10)
-        .padding(.trailing, 10)
+        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+        .padding(8)
         .transition(.asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),
             removal: .move(edge: .trailing).combined(with: .opacity)

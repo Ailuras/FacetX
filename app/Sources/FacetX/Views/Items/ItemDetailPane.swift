@@ -67,17 +67,8 @@ struct ItemDetailPane: View {
             Divider()
             footer
         }
-        .frame(width: 340)
         .frame(maxHeight: .infinity)
         .background(FacetTheme.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-        .padding(.vertical, 8)
-        .padding(.trailing, 8)
         .onAppear(perform: loadFields)
         .onChange(of: item) {
             loadFields()
