@@ -322,7 +322,6 @@ struct CommitsView: View {
         FacetSidebarPane(
             title: "Commit Detail",
             systemImage: "curlybraces",
-            subtitle: commit.shortSHA,
             onClose: { selectedCommit = nil }
         ) {
             ScrollView {
@@ -333,42 +332,8 @@ struct CommitsView: View {
                         commitBodyCard(body)
                     }
 
-                    // Metadata rows
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "person")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 14)
+                    commitMetadataCard(commit)
 
-                            Text("Author")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 50, alignment: .leading)
-
-                            Text(commit.authorName)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.primary)
-                        }
-
-                        HStack(spacing: 8) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 14)
-
-                            Text("Date")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 50, alignment: .leading)
-
-                            Text(formattedDate(commit.date))
-                                .font(.system(size: 12))
-                                .foregroundStyle(.primary)
-                        }
-                    }
-
-                    // Action link
                     Button {
                         NSWorkspace.shared.open(commit.htmlURL)
                     } label: {
@@ -406,7 +371,7 @@ struct CommitsView: View {
                     .lineLimit(4)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("\(project.githubRepo ?? project.name) · \(commit.shortSHA) · \(commit.authorName)")
+                Text(project.githubRepo ?? project.name)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -419,6 +384,68 @@ struct CommitsView: View {
             RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
+    }
+
+    private func commitMetadataCard(_ commit: GitHubCommit) -> some View {
+        VStack(spacing: 0) {
+            metadataRow(label: "SHA", systemImage: "number") {
+                Text(commit.id)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
+
+            metadataDivider
+
+            metadataRow(label: "Author", systemImage: "person") {
+                Text(commit.authorName)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+            }
+
+            metadataDivider
+
+            metadataRow(label: "Date", systemImage: "calendar") {
+                Text(formattedDate(commit.date))
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func metadataRow<Value: View>(label: String, systemImage: String,
+                                          @ViewBuilder value: () -> Value) -> some View {
+        HStack(spacing: 8) {
+            Label {
+                Text(label)
+            } icon: {
+                Image(systemName: systemImage)
+                    .frame(width: 13)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .frame(width: 76, alignment: .leading)
+
+            value()
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 9)
+    }
+
+    private var metadataDivider: some View {
+        Divider()
+            .padding(.leading, 88)
+            .opacity(0.38)
     }
 
     private func commitBodyCard(_ body: String) -> some View {
