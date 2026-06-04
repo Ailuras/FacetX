@@ -40,16 +40,16 @@ extension TodayView {
             }
         }
         .background(FacetTheme.canvas)
-        .frame(width: 360)
+        .frame(width: 340)
         .frame(maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 8)
-        .padding(.vertical, 10)
-        .padding(.trailing, 10)
+        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+        .padding(.vertical, 8)
+        .padding(.trailing, 8)
         .transition(.asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),
             removal: .move(edge: .trailing).combined(with: .opacity)
@@ -57,12 +57,15 @@ extension TodayView {
     }
 
     private var sidebarHeader: some View {
-        HStack {
-            Image(systemName: "clock")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-            Text("Timeline")
-                .font(.system(size: 12, weight: .semibold))
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "clock")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("Timeline")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
 
@@ -71,7 +74,7 @@ extension TodayView {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .frame(maxWidth: 120, alignment: .trailing)
+                    .frame(maxWidth: 100, alignment: .trailing)
             }
 
             Button {
@@ -80,14 +83,16 @@ extension TodayView {
                 }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Close timeline")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 
     // MARK: – Compact Timeline
@@ -129,8 +134,8 @@ extension TodayView {
             .frame(height: totalHeight)
             .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 
     // MARK: – Layout Engine
