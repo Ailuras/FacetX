@@ -18,12 +18,14 @@ struct ItemDetailPane: View {
     @State private var useDate = false
     @State private var date = Date()
     @State private var endDate = Date()
+    @State private var durationMinutes = 60
     @State private var isAllDay = false
     @State private var urlString = ""
     @State private var containerName = ""
     @State private var saving = false
 
     private let labelWidth: CGFloat = 76
+    private let durationPresets = [30, 60, 120, 180, 240]
 
     private var hasChanges: Bool {
         if content.trimmingCharacters(in: .whitespaces) != item.content { return true }
@@ -71,6 +73,9 @@ struct ItemDetailPane: View {
         }
         .onChange(of: date) {
             alignEventEndAfterStartChange()
+        }
+        .onChange(of: durationMinutes) {
+            alignEventEndAfterDurationChange()
         }
         .onChange(of: isAllDay) {
             alignEventEndAfterAllDayToggle()
@@ -245,7 +250,13 @@ struct ItemDetailPane: View {
 
             propertyDivider
 
-            scheduleDateRow(label: "Ends", icon: "arrow.right", selection: $endDate)
+            if isAllDay {
+                scheduleDateRow(label: "Ends", icon: "arrow.right", selection: $endDate)
+            } else {
+                propertyRow(label: "Duration", icon: "timer") {
+                    durationControl
+                }
+            }
         }
     }
 
@@ -278,6 +289,47 @@ struct ItemDetailPane: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.mini)
+        }
+    }
+
+    private var durationControl: some View {
+        VStack(alignment: .trailing, spacing: 7) {
+            HStack(spacing: 4) {
+                ForEach(durationPresets, id: \.self) { preset in
+                    Button {
+                        durationMinutes = preset
+                    } label: {
+                        Text(durationLabel(preset))
+                            .font(.system(size: 10, weight: durationMinutes == preset ? .semibold : .medium))
+                            .foregroundStyle(durationMinutes == preset ? Color.white : Color.primary.opacity(0.78))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(durationMinutes == preset ? Color.accentColor : Color.clear)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(2)
+            .background(FacetTheme.panel.opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+
+            HStack(spacing: 8) {
+                Text(durationLabel(durationMinutes))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 48, alignment: .trailing)
+
+                Stepper("", value: $durationMinutes, in: 5...1440, step: 15)
+                    .labelsHidden()
+                    .controlSize(.small)
+            }
         }
     }
 
@@ -381,16 +433,19 @@ struct ItemDetailPane: View {
             } else {
                 endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? date
             }
+            durationMinutes = durationMinutesBetween(start: date, end: endDate)
         } else if let d = item.date {
             useDate = true
             date = d
             isAllDay = false
             endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? d
+            durationMinutes = clampedDurationMinutes(settings.defaultEventDurationMinutes)
         } else {
             useDate = false
             date = Date()
             isAllDay = false
             endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? date
+            durationMinutes = clampedDurationMinutes(settings.defaultEventDurationMinutes)
         }
     }
 
@@ -398,14 +453,19 @@ struct ItemDetailPane: View {
         guard item.kind == .event else { return }
         if isAllDay {
             endDate = oneDayAfterStart()
-        } else if endDate <= date {
-            endDate = defaultTimedEndDate()
+        } else {
+            endDate = timedEndDate()
         }
+    }
+
+    private func alignEventEndAfterDurationChange() {
+        guard item.kind == .event, !isAllDay else { return }
+        endDate = timedEndDate()
     }
 
     private func alignEventEndAfterAllDayToggle() {
         guard item.kind == .event else { return }
-        endDate = isAllDay ? oneDayAfterStart() : defaultTimedEndDate()
+        endDate = isAllDay ? oneDayAfterStart() : timedEndDate()
     }
 
     private func oneDayAfterStart() -> Date {
@@ -413,10 +473,31 @@ struct ItemDetailPane: View {
         return Calendar.current.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
     }
 
-    private func defaultTimedEndDate() -> Date {
-        let minutes = max(settings.defaultEventDurationMinutes, 5)
+    private func timedEndDate() -> Date {
+        let minutes = clampedDurationMinutes(durationMinutes)
         return Calendar.current.date(byAdding: .minute, value: minutes, to: date)
             ?? date.addingTimeInterval(3600)
+    }
+
+    private func durationMinutesBetween(start: Date, end: Date) -> Int {
+        let minutes = Int((end.timeIntervalSince(start) / 60).rounded())
+        return clampedDurationMinutes(minutes)
+    }
+
+    private func clampedDurationMinutes(_ minutes: Int) -> Int {
+        min(max(minutes, 5), 1440)
+    }
+
+    private func durationLabel(_ minutes: Int) -> String {
+        if minutes < 60 {
+            return "\(minutes)m"
+        }
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        if remainder == 0 {
+            return "\(hours)h"
+        }
+        return "\(hours)h \(remainder)m"
     }
 
     private func saveChanges() {
