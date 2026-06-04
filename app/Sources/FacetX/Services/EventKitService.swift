@@ -408,7 +408,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     private func removeDuplicateGoalEvents(project: String, week: ISOWeek, keeping keptEvent: EKEvent,
                                            enabledCalendars calendars: [EKCalendar]) {
         let duplicates = goalEvents(project: project, week: week, enabledCalendars: calendars).filter { event in
-            event !== keptEvent
+            event.calendarItemIdentifier != keptEvent.calendarItemIdentifier
         }
         for event in duplicates {
             try? store.remove(event, span: .thisEvent, commit: true)
