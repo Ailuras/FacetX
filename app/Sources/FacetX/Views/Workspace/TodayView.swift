@@ -128,11 +128,9 @@ struct TodayView: View {
     // MARK: – Shared row
 
     func todayItemRow(_ item: ProjectItem) -> some View {
-        let project = projectsByPrefix[item.projectPrefix]
-        return ItemRow(
+        ItemRow(
             item: item,
             isSelected: item.id == selectedItem?.id,
-            projectBadge: project?.name ?? item.projectPrefix,
             onToggle: { completed in
                 Task {
                     await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
@@ -140,7 +138,7 @@ struct TodayView: View {
                 }
             },
             onEdit: {
-                selectedItem = selectedItem?.id == item.id ? nil : item
+                ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedItem)
             },
             inlineEditingText: $inlineEditingText,
             isInlineEditing: item.id == inlineEditingID,
@@ -151,14 +149,17 @@ struct TodayView: View {
                 cancelInlineEdit(for: item)
             }
         )
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            startInlineEdit(for: item)
-        }
-        .onTapGesture {
-            selectedItem = selectedItem?.id == item.id ? nil : item
-        }
+        .itemSelectionGestures(
+            item: item,
+            selectedItem: $selectedItem,
+            onDoubleTap: { startInlineEdit(for: item) }
+        )
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .move(edge: .top)),
+            removal: .opacity.combined(with: .scale(scale: 0.98))
+        ))
         .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
     }
 
