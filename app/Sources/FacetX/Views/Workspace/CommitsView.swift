@@ -326,47 +326,11 @@ struct CommitsView: View {
             onClose: { selectedCommit = nil }
         ) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(authorColor(for: commit.authorName))
-                                .frame(width: 8, height: 8)
-                            Text(commit.shortSHA)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .monospaced()
-                        }
+                VStack(alignment: .leading, spacing: 14) {
+                    commitTitleCard(commit)
 
-                        Text(commit.summary)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(4)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        if let body = commit.body {
-                            VStack(alignment: .leading, spacing: 7) {
-                                Text("Body")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-
-                                Text(body)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                                    .lineSpacing(2)
-                                    .textSelection(.enabled)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(10)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(FacetTheme.quietPanel)
-                                    .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                                            .stroke(FacetTheme.hairline, lineWidth: 1)
-                                    )
-                            }
-                            .padding(.top, 2)
-                        }
+                    if let body = commit.body {
+                        commitBodyCard(body)
                     }
 
                     // Metadata rows
@@ -421,6 +385,63 @@ struct CommitsView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
             }
+        }
+    }
+
+    private func commitTitleCard(_ commit: GitHubCommit) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(authorColor(for: commit.authorName).opacity(0.14))
+                Image(systemName: "curlybraces")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(authorColor(for: commit.authorName))
+            }
+            .frame(width: 30, height: 30)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(commit.summary)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("\(project.githubRepo ?? project.name) · \(commit.shortSHA) · \(commit.authorName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(14)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func commitBodyCard(_ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Body", systemImage: "doc.text")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 2)
+
+            Text(body)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineSpacing(2)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(FacetTheme.quietPanel)
+                .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                        .stroke(FacetTheme.hairline, lineWidth: 1)
+                )
         }
     }
 
