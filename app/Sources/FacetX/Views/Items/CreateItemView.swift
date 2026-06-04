@@ -201,12 +201,12 @@ struct CreateItemView: View {
                     if isAllDay {
                         DatePicker("", selection: $date, displayedComponents: [.date])
                             .labelsHidden()
-                            .datePickerStyle(.compact)
+                            .datePickerStyle(.field)
                             .controlSize(.small)
                     } else {
                         DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute])
                             .labelsHidden()
-                            .datePickerStyle(.compact)
+                            .datePickerStyle(.field)
                             .controlSize(.small)
                     }
                     Toggle("All day", isOn: $isAllDay)
@@ -215,16 +215,16 @@ struct CreateItemView: View {
                 } else {
                     Toggle("", isOn: $useDate)
                         .labelsHidden()
-                        .toggleStyle(.checkbox)
-                        .controlSize(.small)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
                     if useDate {
                         DatePicker("", selection: $date, displayedComponents: [.date])
                             .labelsHidden()
-                            .datePickerStyle(.compact)
+                            .datePickerStyle(.field)
                             .controlSize(.small)
                     } else {
-                        Text("No date")
-                            .font(.system(size: 12, weight: .medium))
+                        Text("—")
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.tertiary)
                     }
                 }

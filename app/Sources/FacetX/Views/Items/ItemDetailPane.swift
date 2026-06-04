@@ -24,7 +24,7 @@ struct ItemDetailPane: View {
     @State private var saving = false
 
     private let labelWidth: CGFloat = 78
-    private let controlWidth: CGFloat = 202
+    private let controlWidth: CGFloat = 240
 
     private var hasChanges: Bool {
         if content.trimmingCharacters(in: .whitespaces) != item.content { return true }
@@ -296,24 +296,25 @@ struct ItemDetailPane: View {
     }
 
     private var reminderDateControl: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             if useDate {
                 DatePicker("", selection: $date, displayedComponents: [.date])
                     .labelsHidden()
-                    .datePickerStyle(.compact)
+                    .datePickerStyle(.field)
                     .controlSize(.small)
-                    .frame(width: 120)
+                    .frame(width: 140, alignment: .leading)
             } else {
-                Text("No due date")
-                    .font(.system(size: 12, weight: .medium))
+                Text("—")
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.tertiary)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
-            Toggle("Set date", isOn: $useDate)
-                .toggleStyle(.checkbox)
-                .controlSize(.small)
+            Toggle("", isOn: $useDate)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
         }
     }
 
