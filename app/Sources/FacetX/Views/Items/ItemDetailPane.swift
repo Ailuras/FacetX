@@ -23,8 +23,7 @@ struct ItemDetailPane: View {
     @State private var containerName = ""
     @State private var saving = false
 
-    private let labelWidth: CGFloat = 78
-    private let controlWidth: CGFloat = 240
+    private let labelWidth: CGFloat = 76
 
     private var hasChanges: Bool {
         if content.trimmingCharacters(in: .whitespaces) != item.content { return true }
@@ -57,7 +56,7 @@ struct ItemDetailPane: View {
                     tagsCard
                     notesCard
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 14)
             }
 
@@ -122,6 +121,7 @@ struct ItemDetailPane: View {
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .controlSize(.small)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             if item.kind == .reminder {
@@ -154,6 +154,7 @@ struct ItemDetailPane: View {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .stroke(FacetTheme.hairline, lineWidth: 1)
                         )
+                        .frame(minWidth: 0)
 
                     if let parsedURL = URL(string: urlString.trimmingCharacters(in: .whitespaces)),
                        !urlString.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -168,7 +169,7 @@ struct ItemDetailPane: View {
                 }
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
         .padding(.vertical, 4)
         .background(FacetTheme.quietPanel)
         .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
@@ -255,16 +256,17 @@ struct ItemDetailPane: View {
                     .labelsHidden()
                     .datePickerStyle(.compact)
                     .controlSize(.small)
-                    .frame(width: 118)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !isAllDay {
                     DatePicker("", selection: selection, displayedComponents: [.hourAndMinute])
                         .labelsHidden()
                         .datePickerStyle(.compact)
                         .controlSize(.small)
-                        .frame(width: 76)
+                        .frame(width: 78, alignment: .trailing)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
@@ -275,7 +277,7 @@ struct ItemDetailPane: View {
                     .labelsHidden()
                     .datePickerStyle(.field)
                     .controlSize(.small)
-                    .frame(width: 140, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text("—")
                     .font(.system(size: 13, weight: .medium))
@@ -338,7 +340,7 @@ struct ItemDetailPane: View {
 
     private func propertyRow<Control: View>(label: String, icon: String,
                                             @ViewBuilder control: () -> Control) -> some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: 8) {
             Label {
                 Text(label)
             } icon: {
@@ -350,7 +352,8 @@ struct ItemDetailPane: View {
             .frame(width: labelWidth, alignment: .leading)
 
             control()
-                .frame(width: controlWidth, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .clipped()
         }
         .padding(.vertical, 9)
     }
