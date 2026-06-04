@@ -56,6 +56,50 @@ struct DefaultsSettingsTab: View {
                 }
             }
 
+            SettingsCard(title: "Today View", systemImage: "calendar.day.timeline.left") {
+                HStack(spacing: 16) {
+                    Label("Timeline range", systemImage: "clock")
+                        .font(SettingsUI.rowFont)
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    // From
+                    HStack(spacing: 6) {
+                        Text("From")
+                            .font(SettingsUI.secondaryFont)
+                            .foregroundStyle(.secondary)
+                        Text("\(settings.todayTimelineStartHour):00")
+                            .font(SettingsUI.rowFont)
+                            .monospacedDigit()
+                            .frame(width: 42, alignment: .trailing)
+                        Stepper("", value: $settings.todayTimelineStartHour, in: 0...22)
+                            .labelsHidden()
+                            .controlSize(.small)
+                    }
+
+                    // To
+                    HStack(spacing: 6) {
+                        Text("To")
+                            .font(SettingsUI.secondaryFont)
+                            .foregroundStyle(.secondary)
+                        Text("\(settings.todayTimelineEndHour):00")
+                            .font(SettingsUI.rowFont)
+                            .monospacedDigit()
+                            .frame(width: 42, alignment: .trailing)
+                        Stepper("", value: $settings.todayTimelineEndHour, in: 1...23)
+                            .labelsHidden()
+                            .controlSize(.small)
+                    }
+                }
+                .padding(.vertical, 3)
+
+                Text("Defines the visible hours on the Today timeline sidebar.")
+                    .font(SettingsUI.secondaryFont)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             SettingsCard(title: "Week Goals", systemImage: "target") {
                 SettingsRow(title: "Calendar", systemImage: "calendar.badge.clock") {
                     Picker("", selection: $settings.weekGoalCalendarName) {
@@ -73,8 +117,21 @@ struct DefaultsSettingsTab: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .onAppear(perform: ensureDefaults)
+        .onAppear {
+            ensureDefaults()
+            ensureTimelineRange()
+        }
         .onChange(of: settings.changeToken) { ensureDefaults() }
+        .onChange(of: settings.todayTimelineStartHour) {
+            if settings.todayTimelineStartHour >= settings.todayTimelineEndHour {
+                settings.todayTimelineEndHour = min(settings.todayTimelineStartHour + 1, 23)
+            }
+        }
+        .onChange(of: settings.todayTimelineEndHour) {
+            if settings.todayTimelineEndHour <= settings.todayTimelineStartHour {
+                settings.todayTimelineStartHour = max(settings.todayTimelineEndHour - 1, 0)
+            }
+        }
     }
 
     private var persistenceWarning: String? {
@@ -100,6 +157,12 @@ struct DefaultsSettingsTab: View {
             settings.defaultEventDurationMinutes = 5
         } else if settings.defaultEventDurationMinutes > 1440 {
             settings.defaultEventDurationMinutes = 1440
+        }
+    }
+
+    private func ensureTimelineRange() {
+        if settings.todayTimelineStartHour >= settings.todayTimelineEndHour {
+            settings.todayTimelineEndHour = min(settings.todayTimelineStartHour + 1, 23)
         }
     }
 }

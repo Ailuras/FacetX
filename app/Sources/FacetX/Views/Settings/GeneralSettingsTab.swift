@@ -18,45 +18,6 @@ struct GeneralSettingsTab: View {
                 }
             }
 
-            SettingsCard(title: "Today View", systemImage: "calendar.day.timeline.left") {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Timeline range")
-                            .font(SettingsUI.rowFont)
-                        Spacer()
-                    }
-
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("From")
-                                .font(SettingsUI.secondaryFont)
-                                .foregroundStyle(.secondary)
-                            Stepper(value: $settings.todayTimelineStartHour, in: 0...22) {
-                                Text("\(settings.todayTimelineStartHour):00")
-                                    .font(SettingsUI.rowFont)
-                                    .monospacedDigit()
-                                    .frame(width: 50, alignment: .leading)
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("To")
-                                .font(SettingsUI.secondaryFont)
-                                .foregroundStyle(.secondary)
-                            Stepper(value: $settings.todayTimelineEndHour, in: 1...23) {
-                                Text("\(settings.todayTimelineEndHour):00")
-                                    .font(SettingsUI.rowFont)
-                                    .monospacedDigit()
-                                    .frame(width: 50, alignment: .leading)
-                            }
-                        }
-
-                        Spacer()
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
             SettingsCard(title: "Storage", systemImage: "externaldrive") {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Application Support")
