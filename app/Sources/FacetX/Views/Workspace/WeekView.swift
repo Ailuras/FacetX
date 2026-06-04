@@ -22,8 +22,13 @@ struct WeekView: View {
     @State var goalError: String?
     @State var inlineEditingID: String?
     @State var inlineEditingText: String = ""
+    @State var inlineEditingNotesID: String?
+    @State var inlineEditingNotesText: String = ""
     @State var itemToDelete: ProjectItem?
     @State var createDate: DateWrapper? = nil
+    @State var draggedItem: ProjectItem?
+    @State var dragSnapshot: [ProjectItem]?
+    @State var dropTargetDate: Date?
 
     var listAnimation: Animation { FacetTheme.listSpring }
 

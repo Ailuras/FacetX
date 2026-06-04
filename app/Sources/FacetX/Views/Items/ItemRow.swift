@@ -167,30 +167,36 @@ struct ItemRow: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .center, spacing: 10) {
                 if showDragGrip {
-                    dragGripDots
-                        .frame(width: 16, height: 28)
-                        .contentShape(Rectangle())
-                        .onDrag {
-                            onDragStart?() ?? NSItemProvider()
-                        } preview: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "line.3.horizontal")
-                                    .font(.system(size: 13, weight: .semibold))
-                                Text(item.content)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .lineLimit(1)
+                    if let onDragStart = onDragStart {
+                        dragGripDots
+                            .frame(width: 16, height: 28)
+                            .contentShape(Rectangle())
+                            .onDrag {
+                                onDragStart()
+                            } preview: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "line.3.horizontal")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(item.content)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .lineLimit(1)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(FacetTheme.quietPanel)
+                                .foregroundColor(.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(FacetTheme.quietPanel)
-                            .foregroundColor(.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
-                            )
-                            .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
-                        }
+                    } else {
+                        dragGripDots
+                            .frame(width: 16, height: 28)
+                            .contentShape(Rectangle())
+                    }
                 }
 
                 if item.kind == .reminder {

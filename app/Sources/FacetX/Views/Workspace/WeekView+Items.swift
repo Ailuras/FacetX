@@ -1,5 +1,6 @@
 import FacetXCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 extension WeekView {
     @ViewBuilder var itemsSection: some View {
@@ -11,57 +12,7 @@ extension WeekView {
         } else {
             List {
                 ForEach(dayGroups) { group in
-                    Section {
-                        if group.items.isEmpty {
-                            Text("No items")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                                .padding(.vertical, 4)
-                        } else {
-                            if !group.scheduleItems.isEmpty {
-                                dayKindHeader("Schedule", systemImage: "calendar", count: group.scheduleItems.count, color: .blue)
-                                ForEach(group.scheduleItems) { item in
-                                    weekItemRow(item)
-                                }
-                            }
-
-                            if !group.taskItems.isEmpty {
-                                dayKindHeader("Tasks", systemImage: "checklist", count: group.taskItems.count, color: .green)
-                                ForEach(group.taskItems) { item in
-                                    weekItemRow(item)
-                                }
-                            }
-                        }
-                    } header: {
-                        HStack(spacing: 6) {
-                            Text(group.label)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(group.isToday ? Color.accentColor : .secondary)
-                            if group.isToday {
-                                Text("Today")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
-                                    .background(Color.accentColor)
-                                    .clipShape(Capsule())
-                            }
-                            Spacer()
-                            Text("\(group.items.count)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.tertiary)
-                            Button {
-                                createDate = DateWrapper(date: group.date)
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 10, weight: .medium))
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                            .help("Add item for \(group.label)")
-                        }
-                        .textCase(nil)
-                    }
+                    daySection(group: group)
                 }
             }
             .listStyle(.plain)
@@ -70,34 +21,97 @@ extension WeekView {
         }
     }
 
-    func dayKindHeader(_ title: String, systemImage: String, count: Int, color: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(color)
-            Text(title)
-                .font(.system(size: 10, weight: .semibold))
+    private func daySection(group: DayGroup) -> some View {
+        let cal = Calendar.current
+        let isDropTarget = dropTargetDate.map { cal.isDate($0, inSameDayAs: group.date) } ?? false
+
+        return VStack(alignment: .leading, spacing: 0) {
+            // ── Header ──
+            HStack(spacing: 6) {
+                Text(group.label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(group.isToday ? Color.accentColor : .secondary)
+                if group.isToday {
+                    Text("Today")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.accentColor)
+                        .clipShape(Capsule())
+                }
+                Spacer()
+                Text("\(group.items.count)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                Button {
+                    createDate = DateWrapper(date: group.date)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-            Text("\(count)")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(color)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(color.opacity(0.10))
-                .clipShape(Capsule())
-            Spacer()
+                .help("Add item for \(group.label)")
+            }
+            .padding(.vertical, 4)
+
+            // ── Content ──
+            if group.items.isEmpty {
+                Text("No items")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(group.items) { item in
+                    weekItemRow(item)
+                }
+            }
         }
-        .padding(.top, 5)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isDropTarget ? Color.accentColor.opacity(0.08) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isDropTarget ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1.5)
+        )
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 1, trailing: 0))
+        .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+        .onDrop(of: [.text], delegate: WeekDayDropDelegate(
+            date: group.date,
+            draggedItem: $draggedItem,
+            onEntered: { date in
+                withAnimation(.easeOut(duration: 0.12)) {
+                    dropTargetDate = date
+                }
+            },
+            onExited: { date in
+                withAnimation(.easeOut(duration: 0.12)) {
+                    if dropTargetDate.map({ cal.isDate($0, inSameDayAs: date) }) == true {
+                        dropTargetDate = nil
+                    }
+                }
+            },
+            onDrop: { item, date in
+                moveItemToDay(item: item, date: date)
+            }
+        ))
     }
 
     func weekItemRow(_ item: ProjectItem) -> some View {
         ItemRow(
             item: item,
             isSelected: item.id == selectedItem?.id,
-            showDragGrip: false,
+            showDragGrip: true,
+            onDragStart: {
+                dragSnapshot = allItems
+                draggedItem = item
+                return NSItemProvider(object: item.id as NSString)
+            },
             onToggle: { completed in
                 Task {
                     await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
@@ -114,6 +128,17 @@ extension WeekView {
             },
             onInlineCancel: {
                 cancelInlineEdit(for: item)
+            },
+            inlineEditingNotesText: $inlineEditingNotesText,
+            isInlineEditingNotes: item.id == inlineEditingNotesID,
+            onInlineNotesCommit: {
+                commitInlineNotesEdit(for: item)
+            },
+            onInlineNotesCancel: {
+                cancelInlineNotesEdit(for: item)
+            },
+            onStartNotesEdit: {
+                startInlineNotesEdit(for: item)
             }
         )
         .contextMenu {
@@ -133,7 +158,76 @@ extension WeekView {
         ))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+        .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+        .onDrop(of: [.text], delegate: SameDayItemDropDelegate(
+            item: item,
+            draggedItem: $draggedItem,
+            onDrop: {
+                guard let dragged = draggedItem else { return false }
+                guard sameDay(dragged, item) else { return false }
+                moveItem(from: dragged, to: item)
+                commitItemOrder()
+                return true
+            }
+        ))
+    }
+
+    private func sameDay(_ a: ProjectItem, _ b: ProjectItem) -> Bool {
+        guard let da = a.date, let db = b.date else { return false }
+        return Calendar.current.isDate(da, inSameDayAs: db)
+    }
+
+    private func moveItem(from source: ProjectItem, to destination: ProjectItem) {
+        guard let fromIndex = allItems.firstIndex(where: { $0.id == source.id }),
+              let toIndex = allItems.firstIndex(where: { $0.id == destination.id }) else {
+            return
+        }
+        if fromIndex != toIndex {
+            withAnimation(.default) {
+                let movedItem = allItems.remove(at: fromIndex)
+                allItems.insert(movedItem, at: toIndex)
+            }
+        }
+    }
+
+    private func commitItemOrder() {
+        store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
+    }
+
+    func moveItemToDay(item: ProjectItem, date: Date) {
+        let cal = Calendar.current
+        guard let oldDate = item.date else { return }
+        guard !cal.isDate(oldDate, inSameDayAs: date) else { return }
+
+        Task {
+            let newDate: Date
+            if item.kind == .event, !item.isAllDay {
+                let hour = cal.component(.hour, from: oldDate)
+                let minute = cal.component(.minute, from: oldDate)
+                newDate = cal.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+            } else {
+                newDate = date
+            }
+
+            let success = await ek.updateItem(
+                id: item.id,
+                project: item.projectPrefix,
+                content: item.content,
+                date: newDate,
+                useDate: true,
+                containerName: item.containerName,
+                notes: item.notes,
+                tags: item.tags,
+                priority: item.priority,
+                url: item.url,
+                updateURL: false,
+                isAllDay: nil,
+                endDate: nil
+            )
+            if success {
+                await reload()
+            }
+        }
     }
 
     func startInlineEdit(for item: ProjectItem) {
@@ -158,6 +252,28 @@ extension WeekView {
         ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
     }
 
+    func startInlineNotesEdit(for item: ProjectItem) {
+        ItemEditHelpers.startNotesEdit(for: item, editingID: &inlineEditingNotesID, editingText: &inlineEditingNotesText)
+    }
+
+    func commitInlineNotesEdit(for item: ProjectItem) {
+        Task {
+            _ = await ItemEditHelpers.commitNotesEdit(
+                editingID: inlineEditingNotesID,
+                editingText: inlineEditingNotesText,
+                for: item,
+                projectPrefix: project.prefix,
+                ek: ek
+            )
+            inlineEditingNotesID = nil
+            await reload()
+        }
+    }
+
+    func cancelInlineNotesEdit(for item: ProjectItem) {
+        ItemEditHelpers.cancelNotesEdit(editingID: &inlineEditingNotesID)
+    }
+
     func selectItem(_ item: ProjectItem) {
         withAnimation(.easeOut(duration: 0.15)) {
             if selectedItem?.id == item.id {
@@ -166,5 +282,53 @@ extension WeekView {
                 selectedItem = item
             }
         }
+    }
+}
+
+// MARK: – Drop delegate for dragging items onto a day block
+
+struct SameDayItemDropDelegate: DropDelegate {
+    let item: ProjectItem
+    @Binding var draggedItem: ProjectItem?
+    var onDrop: () -> Bool
+
+    func performDrop(info: DropInfo) -> Bool {
+        let handled = onDrop()
+        if handled {
+            self.draggedItem = nil
+        }
+        return handled
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+}
+
+struct WeekDayDropDelegate: DropDelegate {
+    let date: Date
+    @Binding var draggedItem: ProjectItem?
+    var onEntered: (Date) -> Void
+    var onExited: (Date) -> Void
+    var onDrop: (ProjectItem, Date) -> Void
+
+    func dropEntered(info: DropInfo) {
+        onEntered(date)
+    }
+
+    func dropExited(info: DropInfo) {
+        onExited(date)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggedItem = draggedItem else { return false }
+        onDrop(draggedItem, date)
+        onExited(date)
+        self.draggedItem = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
     }
 }
