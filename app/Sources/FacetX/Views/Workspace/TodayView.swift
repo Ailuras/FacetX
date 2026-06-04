@@ -47,6 +47,18 @@ struct TodayView: View {
         filteredItems.filter { $0.kind == .event }
     }
 
+    var todayTaskCount: Int {
+        allTodayItems.filter { $0.kind == .reminder }.count
+    }
+
+    var todayEventCount: Int {
+        allTodayItems.filter { $0.kind == .event }.count
+    }
+
+    var todayProjectCount: Int {
+        Set(allTodayItems.map(\.projectPrefix)).count
+    }
+
     var hasActiveSearch: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -55,7 +67,10 @@ struct TodayView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            listView
+            VStack(spacing: 0) {
+                todayInfoBar
+                listView
+            }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if selectedItem != nil {
@@ -96,6 +111,97 @@ struct TodayView: View {
     }
 
     // MARK: – List view
+
+    private var todayInfoBar: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                todaySummaryCluster
+
+                Spacer()
+
+                todayContextCluster
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                todaySummaryCluster
+
+                todayContextCluster
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .frame(minHeight: 30, alignment: .center)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    private var todayContextCluster: some View {
+        HStack(spacing: 8) {
+            if hasActiveSearch {
+                searchResultBadge
+            }
+
+            timelineRangeBadge
+        }
+    }
+
+    private var searchResultBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Text("\(filteredItems.count) results")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+        )
+    }
+
+    private var timelineRangeBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Text(timelineRangeLabel)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(FacetTheme.quietPanel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+        .help("Today timeline range")
+    }
+
+    private var todaySummaryCluster: some View {
+        HStack(spacing: 6) {
+            SummaryChip(value: todayTaskCount, label: "Tasks", systemImage: "circle")
+            SummaryChip(value: todayEventCount, label: "Events", systemImage: "calendar")
+            SummaryChip(value: todayProjectCount, label: "Projects", systemImage: "folder")
+        }
+    }
+
+    private var timelineRangeLabel: String {
+        "\(hourLabel(settings.todayTimelineStartHour))-\(hourLabel(settings.todayTimelineEndHour))"
+    }
+
+    private func hourLabel(_ hour: Int) -> String {
+        String(format: "%02d:00", hour)
+    }
 
     @ViewBuilder private var listView: some View {
         if filteredItems.isEmpty {
