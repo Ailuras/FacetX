@@ -28,7 +28,6 @@ struct ItemDetailPane: View {
     @State private var savedEditSignature = ""
 
     private let labelWidth: CGFloat = 76
-    private let detailContentInset: CGFloat = 16
     private let scheduleBoxHorizontalPadding: CGFloat = 8
     private let durationPresets = [30, 60, 120, 180, 240]
 
@@ -36,25 +35,15 @@ struct ItemDetailPane: View {
         editSignature != savedEditSignature
     }
 
-    private var detailContentWidth: CGFloat {
-        FacetSidebarStyle.width - detailContentInset * 2
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    titleCard
-                    scheduleCard
-                    linkCard
-                    tagsCard
-                    notesCard
-                }
-                .frame(width: detailContentWidth, alignment: .topLeading)
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity, alignment: .top)
+            FacetSidebarContent {
+                titleCard
+                scheduleCard
+                linkCard
+                tagsCard
+                notesCard
             }
-            .frame(maxWidth: .infinity)
 
             Divider()
             footer
@@ -128,8 +117,8 @@ struct ItemDetailPane: View {
     }
 
     private var scheduleCard: some View {
-        detailSection(title: item.kind == .event ? "Schedule" : "Task",
-                      systemImage: item.kind == .event ? "calendar" : "checklist") {
+        FacetDetailSection(title: item.kind == .event ? "Schedule" : "Task",
+                           systemImage: item.kind == .event ? "calendar" : "checklist") {
             VStack(spacing: 0) {
                 if item.kind == .reminder {
                     propertyRow(label: "Priority", icon: "exclamationmark.circle") {
@@ -149,7 +138,7 @@ struct ItemDetailPane: View {
     }
 
     private var linkCard: some View {
-        detailSection(title: "Link", systemImage: "link") {
+        FacetDetailSection(title: "Link", systemImage: "link") {
             HStack(spacing: 6) {
                 TextField("Link associated...", text: $urlString)
                     .textFieldStyle(.plain)
@@ -173,7 +162,7 @@ struct ItemDetailPane: View {
     }
 
     private var tagsCard: some View {
-        detailSection(title: "Tags", systemImage: "tag") {
+        FacetDetailSection(title: "Tags", systemImage: "tag") {
             TextField("deep, waiting, writing", text: $tagsText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
@@ -184,7 +173,7 @@ struct ItemDetailPane: View {
     }
 
     private var notesCard: some View {
-        detailSection(title: "Notes", systemImage: "doc.text") {
+        FacetDetailSection(title: "Notes", systemImage: "doc.text") {
             ZStack(alignment: .topLeading) {
                 if notes.isEmpty {
                     Text("Add notes and details here...")
@@ -204,32 +193,6 @@ struct ItemDetailPane: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-    }
-
-    private func detailSection<Content: View>(title: String, systemImage: String,
-                                              @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
-
-            detailBox {
-                content()
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func detailBox<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .frame(width: detailContentWidth, alignment: .leading)
-            .background(FacetTheme.quietPanel)
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
     }
 
     private var eventScheduleSection: some View {

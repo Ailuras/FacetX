@@ -2,8 +2,12 @@ import SwiftUI
 
 enum FacetSidebarStyle {
     static let width: CGFloat = 340
+    static let contentInset: CGFloat = 16
     static let cornerRadius: CGFloat = 12
     static let padding = EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
+    static var contentWidth: CGFloat {
+        width - contentInset * 2
+    }
     static var transition: AnyTransition {
         .asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),
