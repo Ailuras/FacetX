@@ -27,6 +27,7 @@ struct CreateItemView: View {
     @State private var priority: Int = 0
     @State private var useDate: Bool
     @State private var date: Date
+    @State private var reminderHasTime = false
     @State private var isAllDay = false
     @State private var durationMinutes: Int
     @State private var saving = false
@@ -36,7 +37,7 @@ struct CreateItemView: View {
         self.project = project
         self.initialDate = initialDate
         self.onCreated = onCreated
-        _date = State(initialValue: initialDate ?? Date())
+        _date = State(initialValue: initialDate ?? FacetDateDefaults.nextWholeHour())
         _useDate = State(initialValue: initialDate != nil)
         _durationMinutes = State(initialValue: 120) // Default 2 hours
     }
@@ -60,6 +61,34 @@ struct CreateItemView: View {
         .frame(width: 500)
         .onAppear {
             durationMinutes = settings.defaultEventDurationMinutes
+        }
+        .onChange(of: useDate) {
+            if !useDate {
+                reminderHasTime = false
+            } else if kind == .reminder {
+                date = reminderHasTime ? defaultTimedDate() : defaultDayDate()
+            }
+        }
+        .onChange(of: reminderHasTime) {
+            if reminderHasTime {
+                date = defaultTimedDate()
+            } else if kind == .reminder && useDate {
+                date = defaultDayDate()
+            }
+        }
+        .onChange(of: kind) {
+            switch kind {
+            case .reminder:
+                if useDate {
+                    date = reminderHasTime ? defaultTimedDate() : defaultDayDate()
+                }
+            case .event:
+                date = isAllDay ? defaultDayDate() : defaultTimedDate()
+            }
+        }
+        .onChange(of: isAllDay) {
+            guard kind == .event else { return }
+            date = isAllDay ? defaultDayDate() : defaultTimedDate()
         }
     }
 
@@ -145,6 +174,13 @@ struct CreateItemView: View {
                 dateControl
             }
 
+            if kind == .reminder && useDate {
+                cardDivider
+                settingRow(title: "Time", systemImage: "clock") {
+                    reminderTimeControl
+                }
+            }
+
             cardDivider
 
             VStack(alignment: .leading, spacing: 7) {
@@ -213,10 +249,6 @@ struct CreateItemView: View {
                         .toggleStyle(.checkbox)
                         .controlSize(.small)
                 } else {
-                    Toggle("", isOn: $useDate)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
                     if useDate {
                         DatePicker("", selection: $date, displayedComponents: [.date])
                             .labelsHidden()
@@ -227,6 +259,13 @@ struct CreateItemView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.tertiary)
                     }
+
+                    Spacer(minLength: 8)
+
+                    Toggle("", isOn: $useDate)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
                 }
             }
 
@@ -248,6 +287,28 @@ struct CreateItemView: View {
                         .controlSize(.small)
                 }
             }
+        }
+    }
+
+    private var reminderTimeControl: some View {
+        HStack(spacing: 8) {
+            if reminderHasTime {
+                DatePicker("", selection: $date, displayedComponents: [.hourAndMinute])
+                    .labelsHidden()
+                    .datePickerStyle(.field)
+                    .controlSize(.small)
+            } else {
+                Text("—")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer(minLength: 8)
+
+            Toggle("", isOn: $reminderHasTime)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
         }
     }
 
@@ -309,6 +370,17 @@ struct CreateItemView: View {
         }
     }
 
+    private func defaultDayDate() -> Date {
+        FacetDateDefaults.dayDefault(reference: initialDate ?? Date())
+    }
+
+    private func defaultTimedDate() -> Date {
+        guard let initialDate, !Calendar.current.isDateInToday(initialDate) else {
+            return FacetDateDefaults.nextWholeHour()
+        }
+        return FacetDateDefaults.nextWholeHour(on: initialDate)
+    }
+
     private func save() {
         let text = content.trimmingCharacters(in: .whitespaces)
         let container = targetContainer
@@ -323,6 +395,7 @@ struct CreateItemView: View {
             case .reminder:
                 ok = await ek.createReminder(project: project.prefix, content: text,
                                               listName: container, dueDate: useDate ? date : nil,
+                                              dueIncludesTime: useDate && reminderHasTime,
                                               notes: nativeNotes,
                                               priority: priority,
                                               enabledLists: settings.effectiveReminderListNames) != nil

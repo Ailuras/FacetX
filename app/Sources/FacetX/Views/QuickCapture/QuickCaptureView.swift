@@ -119,6 +119,7 @@ struct QuickCaptureView: View {
         Task {
             let ok = await ek.createReminder(project: project.prefix, content: content,
                                              listName: listName, dueDate: nil,
+                                             dueIncludesTime: false,
                                              enabledLists: settings.effectiveReminderListNames)
             if ok != nil {
                 text = ""

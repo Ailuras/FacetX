@@ -361,7 +361,7 @@ struct ItemRow: View {
         let calendar = Calendar.current
         let formatter = DateFormatter()
 
-        let hasTime = item.kind == .event || calendar.component(.hour, from: date) != 0 || calendar.component(.minute, from: date) != 0
+        let hasTime = item.kind == .event ? !item.isAllDay : item.hasTime
 
         if calendar.isDateInToday(date) {
             if hasTime {

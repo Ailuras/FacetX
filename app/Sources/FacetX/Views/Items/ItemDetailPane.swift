@@ -17,6 +17,7 @@ struct ItemDetailPane: View {
     @State private var priority = 0
     @State private var useDate = false
     @State private var date = Date()
+    @State private var reminderHasTime = false
     @State private var endDate = Date()
     @State private var durationMinutes = 60
     @State private var isAllDay = false
@@ -58,7 +59,22 @@ struct ItemDetailPane: View {
         .onChange(of: notes) { scheduleAutosave() }
         .onChange(of: tagsText) { scheduleAutosave() }
         .onChange(of: priority) { scheduleAutosave() }
-        .onChange(of: useDate) { scheduleAutosave() }
+        .onChange(of: useDate) {
+            guard !loadingFields else { return }
+            if useDate, item.kind == .reminder {
+                date = reminderHasTime ? defaultTimedDate() : defaultDayDate()
+            } else if !useDate {
+                reminderHasTime = false
+            }
+            scheduleAutosave()
+        }
+        .onChange(of: reminderHasTime) {
+            guard !loadingFields else { return }
+            if item.kind == .reminder, useDate {
+                date = reminderHasTime ? defaultTimedDate() : defaultDayDate()
+            }
+            scheduleAutosave()
+        }
         .onChange(of: endDate) { scheduleAutosave() }
         .onChange(of: urlString) { scheduleAutosave() }
         .onChange(of: date) {
@@ -70,6 +86,10 @@ struct ItemDetailPane: View {
             scheduleAutosave()
         }
         .onChange(of: isAllDay) {
+            guard !loadingFields else { return }
+            if item.kind == .event {
+                date = isAllDay ? defaultDayDate() : defaultTimedDate()
+            }
             alignEventEndAfterAllDayToggle()
             scheduleAutosave()
         }
@@ -125,9 +145,7 @@ struct ItemDetailPane: View {
                         PriorityPillPicker(selection: $priority)
                     }
                     propertyDivider
-                    propertyRow(label: "Due Date", icon: "calendar") {
-                        reminderDateControl
-                    }
+                    reminderScheduleSection
                 } else {
                     eventScheduleSection
                 }
@@ -210,6 +228,21 @@ struct ItemDetailPane: View {
         }
     }
 
+    private var reminderScheduleSection: some View {
+        VStack(spacing: 0) {
+            propertyRow(label: "Due Date", icon: "calendar") {
+                reminderDueDateControl
+            }
+
+            if useDate {
+                propertyDivider
+                propertyRow(label: "Time", icon: "clock") {
+                    reminderTimeControl
+                }
+            }
+        }
+    }
+
     private var eventDateControl: some View {
         HStack(spacing: 8) {
             dateField($date, components: [.date], width: 116)
@@ -244,7 +277,7 @@ struct ItemDetailPane: View {
         dateField($date, components: [.hourAndMinute], width: 74)
     }
 
-    private var reminderDateControl: some View {
+    private var reminderDueDateControl: some View {
         HStack(spacing: 12) {
             if useDate {
                 dateField($date, components: [.date], width: 128)
@@ -257,6 +290,25 @@ struct ItemDetailPane: View {
             Spacer(minLength: 8)
 
             Toggle("", isOn: $useDate)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+        }
+    }
+
+    private var reminderTimeControl: some View {
+        HStack(spacing: 12) {
+            if reminderHasTime {
+                dateField($date, components: [.hourAndMinute], width: 74)
+            } else {
+                Text("—")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer(minLength: 8)
+
+            Toggle("", isOn: $reminderHasTime)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.mini)
@@ -364,7 +416,8 @@ struct ItemDetailPane: View {
         urlString = item.url?.absoluteString ?? ""
         if item.kind == .event {
             useDate = true
-            date = item.date ?? Date()
+            date = item.date ?? defaultTimedDate()
+            reminderHasTime = false
             isAllDay = item.isAllDay
             if let end = item.endDate {
                 endDate = end
@@ -375,12 +428,14 @@ struct ItemDetailPane: View {
         } else if let d = item.date {
             useDate = true
             date = d
+            reminderHasTime = item.hasTime
             isAllDay = false
             endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? d
             durationMinutes = clampedDurationMinutes(settings.defaultEventDurationMinutes)
         } else {
             useDate = false
-            date = Date()
+            date = defaultDayDate()
+            reminderHasTime = false
             isAllDay = false
             endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? date
             durationMinutes = clampedDurationMinutes(settings.defaultEventDurationMinutes)
@@ -394,8 +449,16 @@ struct ItemDetailPane: View {
 
     private var editSignature: String {
         let shouldUseDate = item.kind == .event || useDate
-        let datePart = shouldUseDate ? minuteSignature(date) : "none"
+        let datePart: String
+        if item.kind == .event {
+            datePart = shouldUseDate ? minuteSignature(date) : "none"
+        } else if shouldUseDate {
+            datePart = reminderHasTime ? minuteSignature(date) : daySignature(date)
+        } else {
+            datePart = "none"
+        }
         let endPart = item.kind == .event ? (isAllDay ? daySignature(endDate) : minuteSignature(endDate)) : "none"
+        let reminderTimePart = item.kind == .reminder && useDate ? "\(reminderHasTime)" : "false"
         return [
             content.trimmingCharacters(in: .whitespaces),
             notes.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -403,6 +466,7 @@ struct ItemDetailPane: View {
             "\(priority)",
             "\(useDate)",
             datePart,
+            reminderTimePart,
             "\(isAllDay)",
             endPart,
             urlString.trimmingCharacters(in: .whitespaces)
@@ -483,6 +547,14 @@ struct ItemDetailPane: View {
         return "\(hours)h \(remainder)m"
     }
 
+    private func defaultDayDate() -> Date {
+        FacetDateDefaults.dayDefault()
+    }
+
+    private func defaultTimedDate() -> Date {
+        FacetDateDefaults.nextWholeHour()
+    }
+
     private func saveChanges() {
         let text = content.trimmingCharacters(in: .whitespaces)
         let targetContainer = containerName.isEmpty ? item.containerName : containerName
@@ -502,6 +574,7 @@ struct ItemDetailPane: View {
                 content: text,
                 date: shouldUseDate ? date : nil,
                 useDate: shouldUseDate,
+                dateIncludesTime: item.kind == .reminder && reminderHasTime,
                 containerName: targetContainer,
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
                 tags: tags,

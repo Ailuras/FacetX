@@ -27,9 +27,9 @@ extension TodayView {
         ) {
             if timelinedItems.isEmpty {
                 ContentUnavailableView {
-                    Label("No timed events", systemImage: "clock")
+                    Label("No timed items", systemImage: "clock")
                 } description: {
-                    Text("Timed events for today will appear here.")
+                    Text("Timed tasks and events for today will appear here.")
                 }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -107,6 +107,8 @@ extension TodayView {
             let dur: Double
             if let end = item.endDate {
                 dur = end.timeIntervalSince(date) / 3600.0
+            } else if item.kind == .reminder {
+                dur = 0.5
             } else {
                 dur = 1.0
             }
@@ -139,17 +141,24 @@ extension TodayView {
         let event = pos.item
         let isSelected = event.id == selectedItem?.id
         let project = projectsByPrefix[event.projectPrefix]
-        let cardBg = isSelected ? FacetTheme.softAccent : Color.accentColor.opacity(0.06)
-        let cardStroke = isSelected ? Color.accentColor.opacity(0.68) : Color.accentColor.opacity(0.18)
+        let tint: Color = event.kind == .reminder ? .green : .blue
+        let cardBg = isSelected ? tint.opacity(0.16) : tint.opacity(0.07)
+        let cardStroke = isSelected ? tint.opacity(0.68) : tint.opacity(0.22)
 
         return Button {
             selectedItem = selectedItem?.id == event.id ? nil : event
         } label: {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(event.content)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
-                    .lineLimit(2)
-                    .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Image(systemName: event.kind == .reminder ? "checkmark.circle" : "calendar")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(tint)
+
+                    Text(event.content)
+                        .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
+                        .lineLimit(2)
+                        .foregroundStyle(.primary)
+                }
 
                 if let name = project?.name {
                     Text(name)
@@ -157,8 +166,8 @@ extension TodayView {
                         .foregroundStyle(.secondary)
                 }
 
-                if let date = event.date, let end = event.endDate {
-                    Text(timeRangeString(start: date, end: end))
+                if let date = event.date {
+                    Text(timeString(for: event, start: date))
                         .font(.system(size: 8, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
@@ -185,5 +194,14 @@ extension TodayView {
         let fmt = DateFormatter()
         fmt.dateFormat = "HH:mm"
         return "\(fmt.string(from: start)) – \(fmt.string(from: end))"
+    }
+
+    private func timeString(for item: ProjectItem, start: Date) -> String {
+        guard let end = item.endDate else {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "HH:mm"
+            return fmt.string(from: start)
+        }
+        return timeRangeString(start: start, end: end)
     }
 }

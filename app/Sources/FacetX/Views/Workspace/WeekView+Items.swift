@@ -213,6 +213,7 @@ extension WeekView {
                 content: current.content,
                 date: newDate,
                 useDate: true,
+                dateIncludesTime: current.hasTime,
                 containerName: current.containerName,
                 notes: current.notes,
                 tags: current.tags,
@@ -245,7 +246,7 @@ extension WeekView {
     private func movedStartDate(for item: ProjectItem, toDay day: Date) -> Date {
         let cal = Calendar.current
         guard let oldDate = item.date else { return day }
-        if item.kind == .event, !item.isAllDay {
+        if (item.kind == .event && !item.isAllDay) || item.hasTime {
             let hour = cal.component(.hour, from: oldDate)
             let minute = cal.component(.minute, from: oldDate)
             return cal.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day

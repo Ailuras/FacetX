@@ -37,7 +37,7 @@ struct TodayView: View {
     }
 
     var timelinedItems: [ProjectItem] {
-        filteredItems.filter { $0.kind == .event }
+        filteredItems.filter { $0.kind == .event || ($0.kind == .reminder && $0.hasTime) }
     }
 
     var todayTaskCount: Int {

@@ -20,12 +20,14 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let tags: [String]      // FacetX tags parsed from the native notes metadata block
     public let priority: Int       // priority value (0 = none, 1-4 = high, 5 = med, 9 = low)
     public let url: URL?           // URL associated with the item
+    public let hasTime: Bool       // true when the date carries an explicit time component
     public let isAllDay: Bool      // true for all-day events (events only; always false for reminders)
     public let endDate: Date?      // end date for events (nil for reminders)
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
                  content: String, containerName: String, isCompleted: Bool, date: Date?,
                  notes: String?, tags: [String] = [], priority: Int, url: URL?,
+                 hasTime: Bool = false,
                  isAllDay: Bool = false, endDate: Date? = nil) {
         self.id = id
         self.kind = kind
@@ -39,11 +41,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.tags = tags
         self.priority = priority
         self.url = url
+        self.hasTime = hasTime
         self.isAllDay = isAllDay
         self.endDate = endDate
     }
 
-    public func replacingDate(_ date: Date, endDate: Date? = nil) -> ProjectItem {
+    public func replacingDate(_ date: Date, endDate: Date? = nil, hasTime: Bool? = nil) -> ProjectItem {
         ProjectItem(
             id: id,
             kind: kind,
@@ -57,6 +60,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             tags: tags,
             priority: priority,
             url: url,
+            hasTime: hasTime ?? self.hasTime,
             isAllDay: isAllDay,
             endDate: endDate ?? self.endDate
         )

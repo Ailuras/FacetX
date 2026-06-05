@@ -140,6 +140,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                         tags: metadata.tags,
                         priority: r.priority,
                         url: r.url,
+                        hasTime: Self.hasReminderTime(r.dueDateComponents),
                         isAllDay: false,
                         endDate: nil
                     )
@@ -187,6 +188,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                 tags: metadata.tags,
                 priority: 0,
                 url: e.url,
+                hasTime: !e.isAllDay,
                 isAllDay: e.isAllDay,
                 endDate: e.endDate
             )
@@ -254,7 +256,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// `dueDate` is optional. Returns the reminder's identifier on success, or nil.
     @discardableResult
     func createReminder(project: String, content: String,
-                        listName: String, dueDate: Date?, notes: String? = nil,
+                        listName: String, dueDate: Date?, dueIncludesTime: Bool,
+                        notes: String? = nil,
                         priority: Int = 0, enabledLists: Set<String>? = nil) async -> String? {
         let lists = filtered(store.calendars(for: .reminder), by: enabledLists)
         guard let list = lists.first(where: { $0.title == listName })
@@ -265,8 +268,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         r.notes = notes
         r.priority = priority
         if let due = dueDate {
-            r.dueDateComponents = Calendar.current.dateComponents(
-                [.year, .month, .day], from: due)
+            r.dueDateComponents = Self.reminderDueComponents(from: due, includesTime: dueIncludesTime)
         }
         do {
             try store.save(r, commit: true)
@@ -433,7 +435,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// URL (inline title/notes edits, the edit sheet) leave it untouched — passing
     /// the default would otherwise silently erase an item's existing link.
     func updateItem(id: String, project: String, content: String,
-                    date: Date?, useDate: Bool, containerName: String, notes: String?, tags: [String]? = nil, priority: Int,
+                    date: Date?, useDate: Bool, dateIncludesTime: Bool,
+                    containerName: String, notes: String?, tags: [String]? = nil, priority: Int,
                     url: URL? = nil, updateURL: Bool = false,
                     isAllDay: Bool? = nil, endDate: Date? = nil) async -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
@@ -461,7 +464,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         
         if let reminder = item as? EKReminder {
             if useDate, let due = date {
-                reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day], from: due)
+                reminder.dueDateComponents = Self.reminderDueComponents(from: due, includesTime: dateIncludesTime)
             } else {
                 reminder.dueDateComponents = nil
             }
@@ -497,5 +500,21 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             do { try store.save(event, span: .thisEvent, commit: true); return true } catch { return false }
         }
         return false
+    }
+
+    private static func hasReminderTime(_ components: DateComponents?) -> Bool {
+        guard let components else { return false }
+        return components.hour != nil || components.minute != nil || components.second != nil
+    }
+
+    private static func reminderDueComponents(from date: Date, includesTime: Bool) -> DateComponents {
+        let calendar = Calendar.current
+        var components = calendar.dateComponents(
+            includesTime ? [.year, .month, .day, .hour, .minute] : [.year, .month, .day],
+            from: date
+        )
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
+        return components
     }
 }

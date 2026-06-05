@@ -140,6 +140,10 @@ let replacedSearchItem = searchItem.replacingDate(replacementDate)
 check(replacedSearchItem.date == replacementDate, "replacingDate should update the item date")
 check(replacedSearchItem.id == searchItem.id && replacedSearchItem.content == searchItem.content,
       "replacingDate should preserve item identity and content")
+let timedSearchItem = searchItem.replacingDate(replacementDate, hasTime: true)
+check(timedSearchItem.hasTime, "replacingDate should allow marking a date as timed")
+check(timedSearchItem.replacingDate(replacementDate).hasTime,
+      "replacingDate should preserve timed-date state by default")
 
 // ── ItemQuery ────────────────────────────────────────────────────────────────
 
