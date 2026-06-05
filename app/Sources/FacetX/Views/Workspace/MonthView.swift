@@ -63,11 +63,16 @@ struct MonthView: View {
 
     // ── Month navigation ─────────────────────────────────────────────────────
     private var monthNav: some View {
-        HStack(spacing: 12) {
-            monthNavCluster
-
-            Spacer()
-
+        PeriodNavigationBar(
+            title: month.label,
+            subtitle: "Month \(month.id)",
+            previousHelp: "Previous month",
+            nextHelp: "Next month",
+            currentHelp: "Go to current month",
+            onPrevious: { month = month.shifted(by: -1) },
+            onNext: { month = month.shifted(by: 1) },
+            onCurrent: { month = MonthYear.containing(Date()) }
+        ) {
             if hasActiveSearch {
                 FacetInfoBadge(
                     text: "\(monthItems.count) results",
@@ -77,71 +82,6 @@ struct MonthView: View {
                 )
             }
         }
-        .frame(minHeight: 30, alignment: .center)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
-        }
-        .overlay(alignment: .center) {
-            VStack(spacing: 2) {
-                Text(month.label)
-                    .font(.system(size: 13, weight: .semibold))
-                Text("Month \(month.id)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var monthNavCluster: some View {
-        HStack(spacing: 2) {
-            pillIconButton(systemName: "chevron.left", help: "Previous month") {
-                month = month.shifted(by: -1)
-            }
-            pillIconButton(systemName: "chevron.right", help: "Next month") {
-                month = month.shifted(by: 1)
-            }
-            pillTextButton("Current", help: "Go to current month") {
-                month = MonthYear.containing(Date())
-            }
-        }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-        )
-    }
-
-    private func pillIconButton(systemName: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 26, height: 24)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(help)
-    }
-
-    private func pillTextButton(_ title: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(height: 24)
-                .padding(.horizontal, 6)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(help)
     }
 
     // ── Weekday header ───────────────────────────────────────────────────────
