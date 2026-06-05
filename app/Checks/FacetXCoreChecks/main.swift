@@ -136,6 +136,63 @@ check(searchItem.matches(searchQuery: "deep"), "matches should search tags")
 check(searchItem.matches(searchQuery: "build"), "matches should search container name")
 check(!searchItem.matches(searchQuery: "missing"), "non-matching query should not match")
 
+// ── ItemQuery ────────────────────────────────────────────────────────────────
+
+let queryEvent = ProjectItem(id: "event", kind: .event, rawTitle: "Regulus: Demo",
+                             projectPrefix: "Regulus", content: "Demo", containerName: "Calendar",
+                             isCompleted: false, date: nil, notes: nil, priority: 0, url: nil)
+let queryDone = ProjectItem(id: "done", kind: .reminder, rawTitle: "Regulus: Done",
+                            projectPrefix: "Regulus", content: "Done", containerName: "Build",
+                            isCompleted: true, date: nil, notes: "archived", tags: ["Done"],
+                            priority: 0, url: nil)
+let queryOpen = ProjectItem(id: "open", kind: .reminder, rawTitle: "Nova: Ship",
+                            projectPrefix: "Nova", content: "Ship", containerName: "Inbox",
+                            isCompleted: false, date: nil, notes: "needs review", tags: ["Deep"],
+                            priority: 0, url: nil)
+
+let queryItems = [queryEvent, queryDone, queryOpen]
+check(ItemQuery.searched(queryItems, query: "").map(\.id) == ["event", "done", "open"],
+      "searched should keep everything for an empty query")
+check(ItemQuery.searched(queryItems, query: "SHIP").map(\.id) == ["open"],
+      "searched should match content case-insensitively")
+check(ItemQuery.searched(queryItems, query: "review").map(\.id) == ["open"],
+      "searched should match notes")
+check(ItemQuery.searched(queryItems, query: "deep").map(\.id) == ["open"],
+      "searched should match tags")
+check(ItemQuery.searched(queryItems, query: "calendar").map(\.id) == ["event"],
+      "searched should match container names")
+
+check(ItemQuery.completedVisibility(queryItems, showCompleted: false).map(\.id) == ["event", "open"],
+      "completedVisibility should hide completed reminders but keep events")
+check(ItemQuery.completedVisibility(queryItems, showCompleted: true).map(\.id) == ["event", "done", "open"],
+      "completedVisibility should keep all items when requested")
+
+let now = Date()
+let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(86_400)
+let todayOpen = ProjectItem(id: "today-open", kind: .reminder, rawTitle: "Regulus: Today",
+                            projectPrefix: "Regulus", content: "Today", containerName: "Inbox",
+                            isCompleted: false, date: now, notes: nil, priority: 0, url: nil)
+let todayDone = ProjectItem(id: "today-done", kind: .reminder, rawTitle: "Regulus: Done Today",
+                            projectPrefix: "Regulus", content: "Done Today", containerName: "Inbox",
+                            isCompleted: true, date: now, notes: nil, priority: 0, url: nil)
+let todayEvent = ProjectItem(id: "today-event", kind: .event, rawTitle: "Nova: Demo",
+                             projectPrefix: "Nova", content: "Demo", containerName: "Calendar",
+                             isCompleted: false, date: now, notes: nil, priority: 0, url: nil)
+let tomorrowOpen = ProjectItem(id: "tomorrow-open", kind: .reminder, rawTitle: "Regulus: Tomorrow",
+                               projectPrefix: "Regulus", content: "Tomorrow", containerName: "Inbox",
+                               isCompleted: false, date: tomorrow, notes: nil, priority: 0, url: nil)
+check(ItemQuery.todayItems([todayOpen, todayDone, todayEvent, tomorrowOpen]).map(\.id) == ["today-open", "today-event"],
+      "todayItems should include today's dated items and exclude completed reminders by default")
+check(ItemQuery.todayItems([todayOpen, todayDone, todayEvent], includeCompletedReminders: true).map(\.id) == ["today-open", "today-done", "today-event"],
+      "todayItems should include completed reminders when requested")
+
+let counts = ItemQuery.counts(for: queryItems)
+check(counts.openReminderCount == 1, "counts should include open reminders")
+check(counts.completedReminderCount == 1, "counts should include completed reminders")
+check(counts.eventCount == 1, "counts should include events")
+check(ItemQuery.projectPrefixCount(for: [todayOpen, todayEvent, tomorrowOpen]) == 2,
+      "projectPrefixCount should count distinct project prefixes")
+
 // ── FacetAssociation ─────────────────────────────────────────────────────────
 
 check(FacetAssociation.classify(title: "Regulus: fix bug") == .item(projectPrefix: "Regulus", content: "fix bug"),

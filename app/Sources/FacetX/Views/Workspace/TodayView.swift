@@ -13,12 +13,10 @@ struct TodayView: View {
     @State private var searchText = ""
     @State private var refreshTrigger = 0
     @State var selectedItem: ProjectItem? = nil
-    @State private var inlineEditingID: String?
-    @State private var inlineEditingText: String = ""
-    @State private var inlineEditingNotesID: String?
-    @State private var inlineEditingNotesText: String = ""
+    @State private var inlineEdit = ItemInlineEditState()
     @State private var draggedItem: ProjectItem?
     @State private var dragSnapshot: [ProjectItem]?
+    @State private var itemToDelete: ProjectItem?
 
     var listAnimation: Animation { FacetTheme.listSpring }
     var sidebarAnimation: Animation { FacetTheme.detailSpring }
@@ -30,17 +28,11 @@ struct TodayView: View {
     }
 
     var allTodayItems: [ProjectItem] {
-        items.filter { item in
-            guard let date = item.date else { return false }
-            if item.kind == .reminder && item.isCompleted { return false }
-            return Calendar.current.isDateInToday(date)
-        }
+        ItemQuery.todayItems(items)
     }
 
     var filteredItems: [ProjectItem] {
-        let q = searchText.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return allTodayItems }
-        return allTodayItems.filter { $0.matches(searchQuery: q) }
+        ItemQuery.searched(allTodayItems, query: searchText)
     }
 
     var timelinedItems: [ProjectItem] {
@@ -48,15 +40,19 @@ struct TodayView: View {
     }
 
     var todayTaskCount: Int {
-        allTodayItems.filter { $0.kind == .reminder }.count
+        todayCounts.openReminderCount
     }
 
     var todayEventCount: Int {
-        allTodayItems.filter { $0.kind == .event }.count
+        todayCounts.eventCount
     }
 
     var todayProjectCount: Int {
-        Set(allTodayItems.map(\.projectPrefix)).count
+        ItemQuery.projectPrefixCount(for: allTodayItems)
+    }
+
+    var todayCounts: ItemCounts {
+        ItemQuery.counts(for: allTodayItems)
     }
 
     var hasActiveSearch: Bool {
@@ -96,6 +92,20 @@ struct TodayView: View {
         .onChange(of: ek.calendarAuthorized) { Task { await reload() } }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
+        .alert("Delete item?", isPresented: .init(
+            get: { itemToDelete != nil },
+            set: { if !$0 { itemToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { itemToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let item = itemToDelete {
+                    Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
+                }
+                itemToDelete = nil
+            }
+        } message: {
+            Text(itemToDelete?.content ?? "")
+        }
     }
 
     // MARK: – Toolbar
@@ -149,41 +159,16 @@ struct TodayView: View {
     }
 
     private var searchResultBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-            Text("\(filteredItems.count) results")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
+        FacetInfoBadge(
+            text: "\(filteredItems.count) results",
+            systemImage: "magnifyingglass",
+            tint: .secondary,
+            fill: Color.accentColor.opacity(0.08)
         )
     }
 
     private var timelineRangeBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "clock")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-            Text(timelineRangeLabel)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(FacetTheme.quietPanel)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
+        FacetInfoBadge(text: timelineRangeLabel, systemImage: "clock")
         .help("Today timeline range")
     }
 
@@ -237,10 +222,12 @@ struct TodayView: View {
     // MARK: – Shared row
 
     func todayItemRow(_ item: ProjectItem) -> some View {
-        ItemRow(
+        StandardItemRow(
             item: item,
-            isSelected: item.id == selectedItem?.id,
-            showDragGrip: true,
+            projectPrefix: item.projectPrefix,
+            selectedItem: $selectedItem,
+            inlineEdit: $inlineEdit,
+            projectBadge: projectBadge(for: item),
             onDragStart: {
                 ItemDragHelpers.startDrag(
                     item: item,
@@ -252,47 +239,12 @@ struct TodayView: View {
                     }
                 )
             },
-            onToggle: { completed in
-                Task {
-                    await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
-                    await reload()
-                }
+            onReload: {
+                await reload()
             },
-            onEdit: {
-                ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedItem)
-            },
-            inlineEditingText: $inlineEditingText,
-            isInlineEditing: item.id == inlineEditingID,
-            onInlineCommit: {
-                commitInlineEdit(for: item)
-            },
-            onInlineCancel: {
-                cancelInlineEdit(for: item)
-            },
-            inlineEditingNotesText: $inlineEditingNotesText,
-            isInlineEditingNotes: item.id == inlineEditingNotesID,
-            onInlineNotesCommit: {
-                commitInlineNotesEdit(for: item)
-            },
-            onInlineNotesCancel: {
-                cancelInlineNotesEdit(for: item)
-            },
-            onStartNotesEdit: {
-                startInlineNotesEdit(for: item)
+            onDeleteRequest: { item in
+                itemToDelete = item
             }
-        )
-        .contextMenu {
-            Button("Edit...") {
-                ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedItem)
-            }
-            Button("Delete", role: .destructive) {
-                Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
-            }
-        }
-        .itemSelectionGestures(
-            item: item,
-            selectedItem: $selectedItem,
-            onDoubleTap: { startInlineEdit(for: item) }
         )
         .onDrop(of: [.text], delegate: ItemDropDelegate(
             item: item,
@@ -310,50 +262,8 @@ struct TodayView: View {
         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
     }
 
-    // MARK: – Inline editing
-
-    func startInlineEdit(for item: ProjectItem) {
-        ItemEditHelpers.startTitleEdit(for: item, editingID: &inlineEditingID, editingText: &inlineEditingText)
-    }
-
-    func commitInlineEdit(for item: ProjectItem) {
-        Task {
-            _ = await ItemEditHelpers.commitTitleEdit(
-                editingID: inlineEditingID,
-                editingText: inlineEditingText,
-                for: item,
-                projectPrefix: item.projectPrefix,
-                ek: ek
-            )
-            inlineEditingID = nil
-            await reload()
-        }
-    }
-
-    func cancelInlineEdit(for item: ProjectItem) {
-        ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
-    }
-
-    func startInlineNotesEdit(for item: ProjectItem) {
-        ItemEditHelpers.startNotesEdit(for: item, editingID: &inlineEditingNotesID, editingText: &inlineEditingNotesText)
-    }
-
-    func commitInlineNotesEdit(for item: ProjectItem) {
-        Task {
-            _ = await ItemEditHelpers.commitNotesEdit(
-                editingID: inlineEditingNotesID,
-                editingText: inlineEditingNotesText,
-                for: item,
-                projectPrefix: item.projectPrefix,
-                ek: ek
-            )
-            inlineEditingNotesID = nil
-            await reload()
-        }
-    }
-
-    func cancelInlineNotesEdit(for item: ProjectItem) {
-        ItemEditHelpers.cancelNotesEdit(editingID: &inlineEditingNotesID)
+    private func projectBadge(for item: ProjectItem) -> String {
+        projectsByPrefix[item.projectPrefix]?.name ?? item.projectPrefix
     }
 
     // MARK: – Reload

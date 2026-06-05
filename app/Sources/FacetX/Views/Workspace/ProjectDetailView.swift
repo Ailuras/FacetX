@@ -18,10 +18,7 @@ struct ProjectDetailView: View {
     @State private var items: [ProjectItem] = []
     @State private var loading = false
     @State private var showCreate = false
-    @State private var inlineEditingID: String?
-    @State private var inlineEditingText: String = ""
-    @State private var inlineEditingNotesID: String?
-    @State private var inlineEditingNotesText: String = ""
+    @State private var inlineEdit = ItemInlineEditState()
     @State private var draggedItem: ProjectItem? = nil
     @State private var dragSnapshot: [ProjectItem]? = nil
     @State private var selectedDetailItem: ProjectItem? = nil
@@ -34,8 +31,10 @@ struct ProjectDetailView: View {
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
 
     private var visibleItems: [ProjectItem] {
-        let base = showCompleted ? items : items.filter { !$0.isCompleted }
-        return base.filter { $0.matches(searchQuery: searchText) }
+        ItemQuery.searched(
+            ItemQuery.completedVisibility(items, showCompleted: showCompleted),
+            query: searchText
+        )
     }
 
     private var hasActiveSearch: Bool {
@@ -56,6 +55,10 @@ struct ProjectDetailView: View {
 
     private var scheduleGroups: [ItemArrangement.ZoneGroup] {
         ItemArrangement.groupedByZone(scheduleItems)
+    }
+
+    private var itemCounts: ItemCounts {
+        ItemQuery.counts(for: items)
     }
 
     var body: some View {
@@ -261,36 +264,20 @@ struct ProjectDetailView: View {
             Spacer()
 
             if hasActiveSearch {
-                HStack(spacing: 4) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text("\(visibleItems.count) results")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.08))
+                FacetInfoBadge(
+                    text: "\(visibleItems.count) results",
+                    systemImage: "magnifyingglass",
+                    tint: .secondary,
+                    fill: Color.accentColor.opacity(0.08)
                 )
             }
 
             if !showCompleted && completedReminderCount > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "eye.slash")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text("\(completedReminderCount) hidden")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.orange.opacity(0.08))
+                FacetInfoBadge(
+                    text: "\(completedReminderCount) hidden",
+                    systemImage: "eye.slash",
+                    tint: .secondary,
+                    fill: Color.orange.opacity(0.08)
                 )
             }
 
@@ -306,26 +293,35 @@ struct ProjectDetailView: View {
     }
 
     private var allItemsList: some View {
-        List {
+        Group {
             if visibleItems.isEmpty && !(loading && items.isEmpty) {
-                Section {
-                    Text(emptyMessage)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 10)
-                }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+                emptyAllItemsView
             } else {
-                itemKindSection(title: "Tasks", systemImage: "checklist",
-                                count: taskItems.count, color: .green, groups: taskGroups)
-                itemKindSection(title: "Schedule", systemImage: "calendar",
-                                count: scheduleItems.count, color: .blue, groups: scheduleGroups)
+                List {
+                    itemKindSection(title: "Tasks", systemImage: "checklist",
+                                    count: taskItems.count, color: .green, groups: taskGroups)
+                    itemKindSection(title: "Schedule", systemImage: "calendar",
+                                    count: scheduleItems.count, color: .blue, groups: scheduleGroups)
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
         .animation(listAnimation, value: visibleItems.map { "\($0.id)-\($0.isCompleted)" })
+    }
+
+    private var emptyAllItemsView: some View {
+        ContentUnavailableView {
+            Label(emptyTitle, systemImage: hasActiveSearch ? "magnifyingglass" : "checkmark.circle")
+        } description: {
+            Text(emptyMessage)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyTitle: String {
+        if hasActiveSearch { return "No results" }
+        return items.isEmpty ? "No items yet" : "Completed items hidden"
     }
 
     @ViewBuilder private func itemKindSection(title: String, systemImage: String,
@@ -405,22 +401,23 @@ struct ProjectDetailView: View {
     }
 
     private var openTaskCount: Int {
-        items.filter { $0.kind == .reminder && !$0.isCompleted }.count
+        itemCounts.openReminderCount
     }
 
     private var eventCount: Int {
-        items.filter { $0.kind == .event }.count
+        itemCounts.eventCount
     }
 
     private var completedReminderCount: Int {
-        items.filter { $0.kind == .reminder && $0.isCompleted }.count
+        itemCounts.completedReminderCount
     }
 
     private func projectItemRow(_ item: ProjectItem) -> some View {
-        ItemRow(
+        StandardItemRow(
             item: item,
-            isSelected: item.id == selectedDetailItem?.id,
-            showDragGrip: true,
+            projectPrefix: project.prefix,
+            selectedItem: $selectedDetailItem,
+            inlineEdit: $inlineEdit,
             onDragStart: {
                 ItemDragHelpers.startDrag(
                     item: item,
@@ -432,47 +429,12 @@ struct ProjectDetailView: View {
                     }
                 )
             },
-            onToggle: { completed in
-                Task {
-                    await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
-                    await reload()
-                }
+            onReload: {
+                await reload()
             },
-            onEdit: {
-                ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedDetailItem)
-            },
-            inlineEditingText: $inlineEditingText,
-            isInlineEditing: item.id == inlineEditingID,
-            onInlineCommit: {
-                commitInlineEdit(for: item)
-            },
-            onInlineCancel: {
-                cancelInlineEdit(for: item)
-            },
-            inlineEditingNotesText: $inlineEditingNotesText,
-            isInlineEditingNotes: item.id == inlineEditingNotesID,
-            onInlineNotesCommit: {
-                commitInlineNotesEdit(for: item)
-            },
-            onInlineNotesCancel: {
-                cancelInlineNotesEdit(for: item)
-            },
-            onStartNotesEdit: {
-                startInlineNotesEdit(for: item)
+            onDeleteRequest: { item in
+                itemToDelete = item
             }
-        )
-        .contextMenu {
-            Button("Edit...") {
-                ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedDetailItem)
-            }
-            Button("Delete", role: .destructive) {
-                Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
-            }
-        }
-        .itemSelectionGestures(
-            item: item,
-            selectedItem: $selectedDetailItem,
-            onDoubleTap: { startInlineEdit(for: item) }
         )
         .onDrop(of: [.text], delegate: ItemDropDelegate(
             item: item,
@@ -481,50 +443,6 @@ struct ProjectDetailView: View {
             onDrop: { commitItemOrder(); dragSnapshot = nil }
         ))
         .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
-    }
-
-    private func startInlineEdit(for item: ProjectItem) {
-        ItemEditHelpers.startTitleEdit(for: item, editingID: &inlineEditingID, editingText: &inlineEditingText)
-    }
-
-    private func commitInlineEdit(for item: ProjectItem) {
-        Task {
-            _ = await ItemEditHelpers.commitTitleEdit(
-                editingID: inlineEditingID,
-                editingText: inlineEditingText,
-                for: item,
-                projectPrefix: project.prefix,
-                ek: ek
-            )
-            inlineEditingID = nil
-            await reload()
-        }
-    }
-
-    private func cancelInlineEdit(for item: ProjectItem) {
-        ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
-    }
-
-    private func startInlineNotesEdit(for item: ProjectItem) {
-        ItemEditHelpers.startNotesEdit(for: item, editingID: &inlineEditingNotesID, editingText: &inlineEditingNotesText)
-    }
-
-    private func commitInlineNotesEdit(for item: ProjectItem) {
-        Task {
-            _ = await ItemEditHelpers.commitNotesEdit(
-                editingID: inlineEditingNotesID,
-                editingText: inlineEditingNotesText,
-                for: item,
-                projectPrefix: project.prefix,
-                ek: ek
-            )
-            inlineEditingNotesID = nil
-            await reload()
-        }
-    }
-
-    private func cancelInlineNotesEdit(for item: ProjectItem) {
-        ItemEditHelpers.cancelNotesEdit(editingID: &inlineEditingNotesID)
     }
 
     private func reload() async {

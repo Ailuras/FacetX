@@ -20,10 +20,7 @@ struct WeekView: View {
     @State var goalBody = ""
     @State var savingGoal = false
     @State var goalError: String?
-    @State var inlineEditingID: String?
-    @State var inlineEditingText: String = ""
-    @State var inlineEditingNotesID: String?
-    @State var inlineEditingNotesText: String = ""
+    @State var inlineEdit = ItemInlineEditState()
     @State var itemToDelete: ProjectItem?
     @State var createDate: DateWrapper? = nil
     @State var draggedItem: ProjectItem?
@@ -33,11 +30,10 @@ struct WeekView: View {
     var listAnimation: Animation { FacetTheme.listSpring }
 
     var weekItems: [ProjectItem] {
-        var items = ItemArrangement.inWeek(allItems, week)
-        if !showCompleted {
-            items = items.filter { !$0.isCompleted }
-        }
-        return items.filter { $0.matches(searchQuery: searchText) }
+        ItemQuery.searched(
+            ItemQuery.completedVisibility(ItemArrangement.inWeek(allItems, week), showCompleted: showCompleted),
+            query: searchText
+        )
     }
 
     var nonGoalItems: [ProjectItem] { weekItems }

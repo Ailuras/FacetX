@@ -232,6 +232,7 @@ struct ItemRow: View {
                                 Text(projectBadge)
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(Color.accentColor)
+                                    .lineLimit(1)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
                                     .background(Color.accentColor.opacity(0.12))

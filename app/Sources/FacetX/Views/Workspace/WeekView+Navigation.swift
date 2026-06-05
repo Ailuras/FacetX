@@ -9,19 +9,11 @@ extension WeekView {
             Spacer()
 
             if hasActiveSearch {
-                HStack(spacing: 4) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text("\(weekItems.count) results")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.08))
+                FacetInfoBadge(
+                    text: "\(weekItems.count) results",
+                    systemImage: "magnifyingglass",
+                    tint: .secondary,
+                    fill: Color.accentColor.opacity(0.08)
                 )
             }
         }

@@ -103,54 +103,22 @@ extension WeekView {
     }
 
     func weekItemRow(_ item: ProjectItem) -> some View {
-        ItemRow(
+        StandardItemRow(
             item: item,
-            isSelected: item.id == selectedItem?.id,
-            showDragGrip: true,
+            projectPrefix: project.prefix,
+            selectedItem: $selectedItem,
+            inlineEdit: $inlineEdit,
             onDragStart: {
                 dragSnapshot = allItems
                 draggedItem = item
                 return NSItemProvider(object: item.id as NSString)
             },
-            onToggle: { completed in
-                Task {
-                    await ItemActionHelpers.toggleCompletion(item, completed: completed, ek: ek)
-                    await reload()
-                }
+            onReload: {
+                await reload()
             },
-            onEdit: {
-                selectItem(item)
-            },
-            inlineEditingText: $inlineEditingText,
-            isInlineEditing: item.id == inlineEditingID,
-            onInlineCommit: {
-                commitInlineEdit(for: item)
-            },
-            onInlineCancel: {
-                cancelInlineEdit(for: item)
-            },
-            inlineEditingNotesText: $inlineEditingNotesText,
-            isInlineEditingNotes: item.id == inlineEditingNotesID,
-            onInlineNotesCommit: {
-                commitInlineNotesEdit(for: item)
-            },
-            onInlineNotesCancel: {
-                cancelInlineNotesEdit(for: item)
-            },
-            onStartNotesEdit: {
-                startInlineNotesEdit(for: item)
-            }
-        )
-        .contextMenu {
-            Button("Edit...") { selectItem(item) }
-            Button("Delete", role: .destructive) {
+            onDeleteRequest: { item in
                 itemToDelete = item
             }
-        }
-        .itemSelectionGestures(
-            item: item,
-            selectedItem: $selectedItem,
-            onDoubleTap: { startInlineEdit(for: item) }
         )
         .transition(.asymmetric(
             insertion: .opacity.combined(with: .move(edge: .top)),
@@ -230,59 +198,6 @@ extension WeekView {
         }
     }
 
-    func startInlineEdit(for item: ProjectItem) {
-        ItemEditHelpers.startTitleEdit(for: item, editingID: &inlineEditingID, editingText: &inlineEditingText)
-    }
-
-    func commitInlineEdit(for item: ProjectItem) {
-        Task {
-            _ = await ItemEditHelpers.commitTitleEdit(
-                editingID: inlineEditingID,
-                editingText: inlineEditingText,
-                for: item,
-                projectPrefix: project.prefix,
-                ek: ek
-            )
-            inlineEditingID = nil
-            await reload()
-        }
-    }
-
-    func cancelInlineEdit(for item: ProjectItem) {
-        ItemEditHelpers.cancelTitleEdit(editingID: &inlineEditingID)
-    }
-
-    func startInlineNotesEdit(for item: ProjectItem) {
-        ItemEditHelpers.startNotesEdit(for: item, editingID: &inlineEditingNotesID, editingText: &inlineEditingNotesText)
-    }
-
-    func commitInlineNotesEdit(for item: ProjectItem) {
-        Task {
-            _ = await ItemEditHelpers.commitNotesEdit(
-                editingID: inlineEditingNotesID,
-                editingText: inlineEditingNotesText,
-                for: item,
-                projectPrefix: project.prefix,
-                ek: ek
-            )
-            inlineEditingNotesID = nil
-            await reload()
-        }
-    }
-
-    func cancelInlineNotesEdit(for item: ProjectItem) {
-        ItemEditHelpers.cancelNotesEdit(editingID: &inlineEditingNotesID)
-    }
-
-    func selectItem(_ item: ProjectItem) {
-        withAnimation(.easeOut(duration: 0.15)) {
-            if selectedItem?.id == item.id {
-                selectedItem = nil
-            } else {
-                selectedItem = item
-            }
-        }
-    }
 }
 
 // MARK: – Drop delegate for dragging items onto a day block

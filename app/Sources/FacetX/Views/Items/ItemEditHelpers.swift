@@ -8,24 +8,6 @@ import SwiftUI
 /// the same logic across ContentView, TodayView, WeekView, etc.
 enum ItemEditHelpers {
 
-    static func startTitleEdit(for item: ProjectItem, editingID: inout String?, editingText: inout String) {
-        editingText = item.content
-        editingID = item.id
-    }
-
-    static func cancelTitleEdit(editingID: inout String?) {
-        editingID = nil
-    }
-
-    static func startNotesEdit(for item: ProjectItem, editingID: inout String?, editingText: inout String) {
-        editingText = item.notes ?? ""
-        editingID = item.id
-    }
-
-    static func cancelNotesEdit(editingID: inout String?) {
-        editingID = nil
-    }
-
     /// Commit a title edit. Returns `true` if a mutation (or deletion) occurred.
     @discardableResult
     static func commitTitleEdit(
