@@ -5,6 +5,7 @@ struct CommitsView: View {
     @EnvironmentObject private var settings: AppSettings
 
     let project: Project
+    let searchText: String
     let refreshTrigger: Int
 
     @State private var commits: [GitHubCommit] = []
@@ -16,6 +17,20 @@ struct CommitsView: View {
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
+
+    private var searchQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasActiveSearch: Bool {
+        !searchQuery.isEmpty
+    }
+
+    private var visibleCommits: [GitHubCommit] {
+        let query = searchQuery
+        guard !query.isEmpty else { return commits }
+        return commits.filter { commitMatchesSearch($0, query: query) }
+    }
 
     enum DateRange: String, CaseIterable, Identifiable {
         case none = "None"
@@ -85,7 +100,7 @@ struct CommitsView: View {
     // MARK: – Derived stats
 
     private var uniqueAuthors: [(name: String, count: Int)] {
-        let counts = Dictionary(grouping: commits, by: \.authorName)
+        let counts = Dictionary(grouping: visibleCommits, by: \.authorName)
             .mapValues { $0.count }
         return counts.map { (name: $0.key, count: $0.value) }
             .sorted { $0.count > $1.count }
@@ -107,6 +122,13 @@ struct CommitsView: View {
         .background(FacetTheme.canvas)
         .task(id: project.id) { await reload() }
         .onChange(of: refreshTrigger) { Task { await reload() } }
+        .onChange(of: searchText) {
+            guard let selectedCommit,
+                  !visibleCommits.contains(where: { $0.id == selectedCommit.id }) else { return }
+            withAnimation(detailPaneAnimation) {
+                self.selectedCommit = nil
+            }
+        }
     }
 
     // MARK: – Unified Header
@@ -149,7 +171,9 @@ struct CommitsView: View {
 
     private var statsCluster: some View {
         HStack(spacing: 6) {
-            statBadge(icon: "number", value: "\(commits.count)", label: "commits")
+            statBadge(icon: hasActiveSearch ? "magnifyingglass" : "number",
+                      value: "\(visibleCommits.count)",
+                      label: hasActiveSearch ? "results" : "commits")
             statBadge(icon: "person.2", value: "\(uniqueAuthors.count)", label: "contributors")
         }
     }
@@ -312,9 +336,15 @@ struct CommitsView: View {
                 } description: {
                     Text("No recent commits found in \(repo).")
                 }
+            } else if visibleCommits.isEmpty {
+                ContentUnavailableView {
+                    Label("No results", systemImage: "magnifyingglass")
+                } description: {
+                    Text("No commits match “\(searchQuery)”.")
+                }
             } else {
                 List {
-                    ForEach(commits) { commit in
+                    ForEach(visibleCommits) { commit in
                         commitRow(commit)
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -323,7 +353,7 @@ struct CommitsView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                .animation(listAnimation, value: commits.map(\.id))
+                .animation(listAnimation, value: visibleCommits.map(\.id))
             }
         } else {
             ContentUnavailableView {
@@ -548,6 +578,18 @@ struct CommitsView: View {
             hash = Int(byte) + ((hash << 5) - hash)
         }
         return colors[abs(hash) % colors.count]
+    }
+
+    private func commitMatchesSearch(_ commit: GitHubCommit, query: String) -> Bool {
+        containsSearch(commit.summary, query: query)
+            || containsSearch(commit.message, query: query)
+            || containsSearch(commit.authorName, query: query)
+            || containsSearch(commit.shortSHA, query: query)
+            || containsSearch(commit.id, query: query)
+    }
+
+    private func containsSearch(_ value: String, query: String) -> Bool {
+        value.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
     }
 
     // MARK: – Helpers

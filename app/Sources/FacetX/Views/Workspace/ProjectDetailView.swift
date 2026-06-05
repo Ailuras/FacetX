@@ -61,7 +61,7 @@ struct ProjectDetailView: View {
                     case .all: allItemsView
                     case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger)
                     case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger)
-                    case .commits: CommitsView(project: project, refreshTrigger: refreshTrigger)
+                    case .commits: CommitsView(project: project, searchText: searchText, refreshTrigger: refreshTrigger)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -79,7 +79,7 @@ struct ProjectDetailView: View {
                 modePicker(width: 200)
             }
             ToolbarItem(placement: .automatic) {
-                ToolbarSearchField(text: $searchText, placeholder: "Search items…")
+                ToolbarSearchField(text: $searchText, placeholder: mode == .commits ? "Search commits…" : "Search items…")
                     .frame(width: 220, height: 24)
             }
             ToolbarItem(placement: .automatic) {
