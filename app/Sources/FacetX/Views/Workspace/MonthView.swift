@@ -307,8 +307,7 @@ struct MonthView: View {
         .contentShape(Rectangle())
         .itemSelectionGestures(
             item: item,
-            selectedItem: $selectedItem,
-            onDoubleTap: { selectItem(item) }
+            selectedItem: $selectedItem
         )
         .help(item.content)
     }
@@ -346,4 +345,3 @@ struct MonthView: View {
         }
     }
 }
-

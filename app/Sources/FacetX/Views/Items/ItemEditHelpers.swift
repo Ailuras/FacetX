@@ -116,15 +116,12 @@ enum ItemDragHelpers {
 // MARK: - Row Modifiers
 
 extension View {
-    /// Attaches the standard tap-to-toggle and double-tap-to-edit gestures
-    /// used by the All / Week / Month item rows.
+    /// Attaches the standard immediate tap-to-toggle gesture used by item rows.
     func itemSelectionGestures(
         item: ProjectItem,
-        selectedItem: Binding<ProjectItem?>,
-        onDoubleTap: @escaping () -> Void
+        selectedItem: Binding<ProjectItem?>
     ) -> some View {
         self
-            .onTapGesture(count: 2, perform: onDoubleTap)
             .onTapGesture {
                 ItemSelectionHelpers.toggleSelection(item, selectedItem: &selectedItem.wrappedValue)
             }

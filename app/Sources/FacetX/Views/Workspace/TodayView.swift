@@ -7,6 +7,7 @@ struct TodayView: View {
     @EnvironmentObject var ek: EventKitService
     @EnvironmentObject var store: ProjectStore
     @EnvironmentObject var settings: AppSettings
+    @EnvironmentObject var keyboard: KeyboardActionRouter
 
     @State private var items: [ProjectItem] = []
     @State private var loading = false
@@ -92,6 +93,15 @@ struct TodayView: View {
         .onChange(of: ek.calendarAuthorized) { Task { await reload() } }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
+        .onReceive(keyboard.commandPublisher) { cmd in
+            switch cmd {
+            case .editSelectedItemTitle:
+                guard let item = selectedItem else { return }
+                inlineEdit.startTitleEdit(for: item)
+            default:
+                break
+            }
+        }
         .alert("Delete item?", isPresented: .init(
             get: { itemToDelete != nil },
             set: { if !$0 { itemToDelete = nil } }

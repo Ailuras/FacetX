@@ -138,6 +138,9 @@ struct ProjectDetailView: View {
             case .closeDetail:
                 guard selectedDetailItem != nil else { return }
                 withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
+            case .editSelectedItemTitle:
+                guard mode == .all, let item = selectedDetailItem else { return }
+                inlineEdit.startTitleEdit(for: item)
             case .deleteItem:
                 guard selectedDetailItem != nil else { return }
                 itemToDelete = selectedDetailItem

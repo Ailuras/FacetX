@@ -5,6 +5,7 @@ struct WeekView: View {
     @EnvironmentObject var ek: EventKitService
     @EnvironmentObject var store: ProjectStore
     @EnvironmentObject var settings: AppSettings
+    @EnvironmentObject var keyboard: KeyboardActionRouter
 
     let project: Project
     let searchText: String
@@ -99,6 +100,15 @@ struct WeekView: View {
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
         .onChange(of: refreshTrigger) { Task { await reload() } }
+        .onReceive(keyboard.commandPublisher) { cmd in
+            switch cmd {
+            case .editSelectedItemTitle:
+                guard let item = selectedItem else { return }
+                inlineEdit.startTitleEdit(for: item)
+            default:
+                break
+            }
+        }
         .sheet(item: $createDate) { wrapper in
             CreateItemView(project: project, initialDate: wrapper.date) {
                 createDate = nil

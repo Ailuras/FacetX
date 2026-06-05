@@ -15,7 +15,7 @@ enum KeyboardCommand {
     // Window actions
     case newItem, refresh, toggleShowCompleted, focusSearch
     // Item actions
-    case toggleCompletion, openDetail, closeDetail, deleteItem
+    case toggleCompletion, openDetail, closeDetail, editSelectedItemTitle, deleteItem
 }
 
 /// Central router for keyboard shortcuts.

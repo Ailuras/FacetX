@@ -54,6 +54,9 @@ struct AppCommands: Commands {
 
             Divider()
 
+            Button("Edit Title") { router.commandPublisher.send(.editSelectedItemTitle) }
+                .keyboardShortcut("e", modifiers: .command)
+
             Button("Delete") { router.commandPublisher.send(.deleteItem) }
                 .keyboardShortcut(.delete, modifiers: .command)
         }

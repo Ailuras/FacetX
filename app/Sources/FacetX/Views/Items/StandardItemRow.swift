@@ -80,10 +80,7 @@ struct StandardItemRow: View {
         }
         .itemSelectionGestures(
             item: item,
-            selectedItem: $selectedItem,
-            onDoubleTap: {
-                inlineEdit.startTitleEdit(for: item)
-            }
+            selectedItem: $selectedItem
         )
     }
 
