@@ -291,7 +291,7 @@ struct TodayView: View {
         }
 
         if fromIndex != toIndex {
-            withAnimation(.default) {
+            withAnimation(FacetTheme.dragPreviewAnimation) {
                 let movedItem = items.remove(at: fromIndex)
                 items.insert(movedItem, at: toIndex)
             }

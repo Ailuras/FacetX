@@ -5,6 +5,7 @@ enum FacetTheme {
 
     /// Shared spring used for soft item-list transitions (insert/complete/move).
     static let listSpring: Animation = .spring(response: 0.34, dampingFraction: 0.88)
+    static let dragPreviewAnimation: Animation = .spring(response: 0.22, dampingFraction: 0.86)
     static let detailSpring: Animation = .spring(response: 0.34, dampingFraction: 0.88)
 
     static var canvas: Color {

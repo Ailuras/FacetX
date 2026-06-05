@@ -91,6 +91,9 @@ extension WeekView {
                 withAnimation(.easeOut(duration: 0.12)) {
                     dropTargetDate = date
                 }
+                if let draggedItem {
+                    previewMove(item: draggedItem, toDay: date, before: nil)
+                }
             },
             onExited: { date in
                 withAnimation(.easeOut(duration: 0.12)) {
@@ -99,8 +102,8 @@ extension WeekView {
                     }
                 }
             },
-            onDrop: { item, date in
-                moveItemToDay(item: item, date: date)
+            onDrop: {
+                finishDrag()
             }
         ))
     }
@@ -112,9 +115,15 @@ extension WeekView {
             selectedItem: $selectedItem,
             inlineEdit: $inlineEdit,
             onDragStart: {
-                dragSnapshot = allItems
-                draggedItem = item
-                return NSItemProvider(object: item.id as NSString)
+                ItemDragHelpers.startDrag(
+                    item: item,
+                    items: allItems,
+                    draggedItem: &draggedItem,
+                    dragSnapshot: &dragSnapshot,
+                    cancelDrag: {
+                        if draggedItem != nil { cancelDrag() }
+                    }
+                )
             },
             onReload: {
                 await reload()
@@ -127,33 +136,37 @@ extension WeekView {
             insertion: .opacity.combined(with: .move(edge: .top)),
             removal: .opacity.combined(with: .scale(scale: 0.98))
         ))
-        .onDrop(of: [.text], delegate: SameDayItemDropDelegate(
+        .onDrop(of: [.text], delegate: WeekItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
+            onEntered: { dragged, target in
+                guard let targetDate = target.date else { return }
+                previewMove(item: dragged, toDay: targetDate, before: target)
+            },
             onDrop: {
-                guard let dragged = draggedItem else { return false }
-                guard sameDay(dragged, item) else { return false }
-                moveItem(from: dragged, to: item)
-                commitItemOrder()
-                return true
+                finishDrag()
             }
         ))
     }
 
-    private func sameDay(_ a: ProjectItem, _ b: ProjectItem) -> Bool {
-        guard let da = a.date, let db = b.date else { return false }
-        return Calendar.current.isDate(da, inSameDayAs: db)
-    }
-
-    private func moveItem(from source: ProjectItem, to destination: ProjectItem) {
-        guard let fromIndex = allItems.firstIndex(where: { $0.id == source.id }),
-              let toIndex = allItems.firstIndex(where: { $0.id == destination.id }) else {
+    private func previewMove(item source: ProjectItem, toDay destinationDay: Date, before target: ProjectItem?) {
+        guard let fromIndex = allItems.firstIndex(where: { $0.id == source.id }) else {
             return
         }
-        if fromIndex != toIndex {
-            withAnimation(.default) {
-                let movedItem = allItems.remove(at: fromIndex)
-                allItems.insert(movedItem, at: toIndex)
+
+        let movedItem = previewItem(source, movedToDay: destinationDay)
+        withAnimation(FacetTheme.dragPreviewAnimation) {
+            allItems.remove(at: fromIndex)
+
+            if let target, target.id != source.id,
+               let targetIndex = allItems.firstIndex(where: { $0.id == target.id }) {
+                allItems.insert(movedItem, at: targetIndex)
+            } else {
+                let insertionIndex = endIndexForDay(destinationDay)
+                allItems.insert(movedItem, at: insertionIndex)
+            }
+            if selectedItem?.id == movedItem.id {
+                selectedItem = movedItem
             }
         }
     }
@@ -162,57 +175,139 @@ extension WeekView {
         store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
     }
 
-    func moveItemToDay(item: ProjectItem, date: Date) {
-        let cal = Calendar.current
-        guard let oldDate = item.date else { return }
-        guard !cal.isDate(oldDate, inSameDayAs: date) else { return }
+    private func finishDrag() {
+        guard let draggedItem else { return }
+        let snapshot = dragSnapshot
+        let originalItem = snapshot?.first(where: { $0.id == draggedItem.id }) ?? draggedItem
+        guard let currentItem = allItems.first(where: { $0.id == draggedItem.id }) else {
+            cancelDrag()
+            return
+        }
+
+        let originalDate = originalItem.date
+        let currentDate = currentItem.date
+        let dateChanged = !sameDate(originalDate, currentDate)
+
+        if dateChanged {
+            self.draggedItem = nil
+            dropTargetDate = nil
+            persistMovedItem(original: originalItem, current: currentItem, snapshot: snapshot)
+        } else {
+            commitItemOrder()
+            dragSnapshot = nil
+            self.draggedItem = nil
+            dropTargetDate = nil
+        }
+    }
+
+    private func persistMovedItem(original: ProjectItem, current: ProjectItem, snapshot: [ProjectItem]?) {
+        guard let newDate = current.date else {
+            cancelDrag()
+            return
+        }
 
         Task {
-            let newDate: Date
-            if item.kind == .event, !item.isAllDay {
-                let hour = cal.component(.hour, from: oldDate)
-                let minute = cal.component(.minute, from: oldDate)
-                newDate = cal.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
-            } else {
-                newDate = date
-            }
-
             let success = await ek.updateItem(
-                id: item.id,
-                project: item.projectPrefix,
-                content: item.content,
+                id: current.id,
+                project: current.projectPrefix,
+                content: current.content,
                 date: newDate,
                 useDate: true,
-                containerName: item.containerName,
-                notes: item.notes,
-                tags: item.tags,
-                priority: item.priority,
-                url: item.url,
+                containerName: current.containerName,
+                notes: current.notes,
+                tags: current.tags,
+                priority: current.priority,
+                url: current.url,
                 updateURL: false,
                 isAllDay: nil,
-                endDate: nil
+                endDate: movedEndDate(original: original, currentStart: newDate)
             )
+
             if success {
-                await reload()
+                commitItemOrder()
+                dragSnapshot = nil
+            } else {
+                if let snapshot {
+                    withAnimation(listAnimation) {
+                        allItems = snapshot
+                    }
+                }
+                dragSnapshot = nil
             }
         }
+    }
+
+    private func previewItem(_ item: ProjectItem, movedToDay day: Date) -> ProjectItem {
+        let newDate = movedStartDate(for: item, toDay: day)
+        return item.replacingDate(newDate, endDate: movedEndDate(original: item, currentStart: newDate))
+    }
+
+    private func movedStartDate(for item: ProjectItem, toDay day: Date) -> Date {
+        let cal = Calendar.current
+        guard let oldDate = item.date else { return day }
+        if item.kind == .event, !item.isAllDay {
+            let hour = cal.component(.hour, from: oldDate)
+            let minute = cal.component(.minute, from: oldDate)
+            return cal.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+        }
+        return day
+    }
+
+    private func movedEndDate(original item: ProjectItem, currentStart: Date) -> Date? {
+        guard item.kind == .event else { return nil }
+        let cal = Calendar.current
+        if item.isAllDay {
+            return cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: currentStart))
+        }
+        guard let oldStart = item.date, let oldEnd = item.endDate else { return nil }
+        let duration = oldEnd.timeIntervalSince(oldStart)
+        return currentStart.addingTimeInterval(duration > 0 ? duration : 3600)
+    }
+
+    private func endIndexForDay(_ day: Date) -> Int {
+        let cal = Calendar.current
+        if let lastIndex = allItems.lastIndex(where: { item in
+            guard let date = item.date else { return false }
+            return cal.isDate(date, inSameDayAs: day)
+        }) {
+            return allItems.index(after: lastIndex)
+        }
+        return allItems.count
+    }
+
+    private func sameDate(_ a: Date?, _ b: Date?) -> Bool {
+        guard let a, let b else { return a == nil && b == nil }
+        return Calendar.current.compare(a, to: b, toGranularity: .minute) == .orderedSame
+    }
+
+    private func cancelDrag() {
+        if let snapshot = dragSnapshot {
+            withAnimation(listAnimation) { allItems = snapshot }
+        }
+        dragSnapshot = nil
+        draggedItem = nil
+        dropTargetDate = nil
     }
 
 }
 
 // MARK: – Drop delegate for dragging items onto a day block
 
-struct SameDayItemDropDelegate: DropDelegate {
+struct WeekItemDropDelegate: DropDelegate {
     let item: ProjectItem
     @Binding var draggedItem: ProjectItem?
-    var onDrop: () -> Bool
+    var onEntered: (ProjectItem, ProjectItem) -> Void
+    var onDrop: () -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedItem, draggedItem.id != item.id else { return }
+        onEntered(draggedItem, item)
+    }
 
     func performDrop(info: DropInfo) -> Bool {
-        let handled = onDrop()
-        if handled {
-            self.draggedItem = nil
-        }
-        return handled
+        guard draggedItem != nil else { return false }
+        onDrop()
+        return true
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -225,7 +320,7 @@ struct WeekDayDropDelegate: DropDelegate {
     @Binding var draggedItem: ProjectItem?
     var onEntered: (Date) -> Void
     var onExited: (Date) -> Void
-    var onDrop: (ProjectItem, Date) -> Void
+    var onDrop: () -> Void
 
     func dropEntered(info: DropInfo) {
         onEntered(date)
@@ -236,10 +331,9 @@ struct WeekDayDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        guard let draggedItem = draggedItem else { return false }
-        onDrop(draggedItem, date)
+        guard draggedItem != nil else { return false }
+        onDrop()
         onExited(date)
-        self.draggedItem = nil
         return true
     }
 

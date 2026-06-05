@@ -30,8 +30,12 @@ struct WeekView: View {
     var listAnimation: Animation { FacetTheme.listSpring }
 
     var weekItems: [ProjectItem] {
-        ItemQuery.searched(
-            ItemQuery.completedVisibility(ItemArrangement.inWeek(allItems, week), showCompleted: showCompleted),
+        let weekItems = allItems.filter { item in
+            guard let date = item.date else { return false }
+            return week.contains(date)
+        }
+        return ItemQuery.searched(
+            ItemQuery.completedVisibility(weekItems, showCompleted: showCompleted),
             query: searchText
         )
     }

@@ -32,13 +32,14 @@ extension WeekView {
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
                                      enabledCalendars: settings.effectiveCalendarNames)
+        let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
         await syncGoalWithCalendar(for: requestedWeek)
         guard !Task.isCancelled, requestedWeek == week else { return }
         if allItems.isEmpty {
-            allItems = fetched
+            allItems = sortedItems
         } else {
             withAnimation(listAnimation) {
-                allItems = fetched
+                allItems = sortedItems
             }
         }
         loading = false

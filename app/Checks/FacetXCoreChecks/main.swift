@@ -135,6 +135,11 @@ check(searchItem.matches(searchQuery: "review"), "matches should search notes")
 check(searchItem.matches(searchQuery: "deep"), "matches should search tags")
 check(searchItem.matches(searchQuery: "build"), "matches should search container name")
 check(!searchItem.matches(searchQuery: "missing"), "non-matching query should not match")
+let replacementDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 4))!
+let replacedSearchItem = searchItem.replacingDate(replacementDate)
+check(replacedSearchItem.date == replacementDate, "replacingDate should update the item date")
+check(replacedSearchItem.id == searchItem.id && replacedSearchItem.content == searchItem.content,
+      "replacingDate should preserve item identity and content")
 
 // ── ItemQuery ────────────────────────────────────────────────────────────────
 

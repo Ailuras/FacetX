@@ -43,6 +43,25 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.endDate = endDate
     }
 
+    public func replacingDate(_ date: Date, endDate: Date? = nil) -> ProjectItem {
+        ProjectItem(
+            id: id,
+            kind: kind,
+            rawTitle: rawTitle,
+            projectPrefix: projectPrefix,
+            content: content,
+            containerName: containerName,
+            isCompleted: isCompleted,
+            date: date,
+            notes: notes,
+            tags: tags,
+            priority: priority,
+            url: url,
+            isAllDay: isAllDay,
+            endDate: endDate ?? self.endDate
+        )
+    }
+
     /// Whether this item matches a free-text search over its content, notes and
     /// container name. An empty/whitespace query matches everything, so callers
     /// can filter unconditionally.
