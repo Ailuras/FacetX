@@ -23,30 +23,21 @@ struct ItemDetailPane: View {
     @State private var urlString = ""
     @State private var containerName = ""
     @State private var saving = false
+    @State private var loadingFields = false
+    @State private var autoSaveTask: Task<Void, Never>? = nil
+    @State private var savedEditSignature = ""
 
     private let labelWidth: CGFloat = 76
+    private let detailContentInset: CGFloat = 16
+    private let scheduleBoxHorizontalPadding: CGFloat = 8
     private let durationPresets = [30, 60, 120, 180, 240]
 
     private var hasChanges: Bool {
-        if content.trimmingCharacters(in: .whitespaces) != item.content { return true }
-        if notes.trimmingCharacters(in: .whitespacesAndNewlines) != (item.notes ?? "") { return true }
-        if FacetMetadata.tags(from: tagsText) != item.tags { return true }
-        if priority != item.priority { return true }
-        let itemHasDate = item.date != nil
-        if item.kind == .reminder, useDate != itemHasDate { return true }
-        if (item.kind == .event || useDate),
-           let d = item.date,
-           Calendar.current.compare(date, to: d, toGranularity: .minute) != .orderedSame { return true }
-        if item.kind == .event {
-            if isAllDay != item.isAllDay { return true }
-            if let e = item.endDate {
-                let granularity: Calendar.Component = isAllDay ? .day : .minute
-                if Calendar.current.compare(endDate, to: e, toGranularity: granularity) != .orderedSame { return true }
-            }
-        }
-        if containerName != item.containerName { return true }
-        if urlString.trimmingCharacters(in: .whitespaces) != (item.url?.absoluteString ?? "") { return true }
-        return false
+        editSignature != savedEditSignature
+    }
+
+    private var detailContentWidth: CGFloat {
+        FacetSidebarStyle.width - detailContentInset * 2
     }
 
     var body: some View {
@@ -54,31 +45,50 @@ struct ItemDetailPane: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     titleCard
-                    propertyCard
+                    scheduleCard
+                    linkCard
                     tagsCard
                     notesCard
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 14)
+                .frame(width: detailContentWidth, alignment: .topLeading)
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity, alignment: .top)
             }
+            .frame(maxWidth: .infinity)
 
             Divider()
             footer
         }
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FacetTheme.canvas)
         .onAppear(perform: loadFields)
         .onChange(of: item) {
             loadFields()
         }
+        .onChange(of: content) { scheduleAutosave() }
+        .onChange(of: notes) { scheduleAutosave() }
+        .onChange(of: tagsText) { scheduleAutosave() }
+        .onChange(of: priority) { scheduleAutosave() }
+        .onChange(of: useDate) { scheduleAutosave() }
+        .onChange(of: endDate) { scheduleAutosave() }
+        .onChange(of: urlString) { scheduleAutosave() }
         .onChange(of: date) {
             alignEventEndAfterStartChange()
+            scheduleAutosave()
         }
         .onChange(of: durationMinutes) {
             alignEventEndAfterDurationChange()
+            scheduleAutosave()
         }
         .onChange(of: isAllDay) {
             alignEventEndAfterAllDayToggle()
+            scheduleAutosave()
+        }
+        .onDisappear {
+            autoSaveTask?.cancel()
+            if hasChanges {
+                saveChanges()
+            }
         }
     }
 
@@ -100,7 +110,7 @@ struct ItemDetailPane: View {
                         .font(.system(size: 17, weight: .semibold))
                         .lineLimit(1...4)
 
-                    Text("\(project.name) · \(containerName.isEmpty ? item.containerName : containerName)")
+                    Text(project.name)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -108,6 +118,7 @@ struct ItemDetailPane: View {
             }
         }
         .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(FacetTheme.quietPanel)
         .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
         .overlay(
@@ -116,81 +127,64 @@ struct ItemDetailPane: View {
         )
     }
 
-    private var propertyCard: some View {
-        VStack(spacing: 0) {
-            propertyRow(label: item.kind == .reminder ? "List" : "Calendar",
-                        icon: item.kind == .reminder ? "list.bullet" : "calendar") {
-                Picker("", selection: $containerName) {
-                    ForEach(containerOptions, id: \.self) { Text($0).tag($0) }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .controlSize(.small)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-
-            if item.kind == .reminder {
-                propertyDivider
-                propertyRow(label: "Priority", icon: "exclamationmark.circle") {
-                    PriorityPillPicker(selection: $priority)
-                }
-            }
-
-            propertyDivider
-            if item.kind == .event {
-                eventScheduleSection
-            } else {
-                propertyRow(label: "Due Date", icon: "calendar") {
-                    reminderDateControl
-                }
-            }
-
-            propertyDivider
-            propertyRow(label: "URL", icon: "link") {
-                HStack(spacing: 6) {
-                    TextField("Link associated...", text: $urlString)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 11))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(FacetTheme.panel.opacity(0.72))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(FacetTheme.hairline, lineWidth: 1)
-                        )
-                        .frame(minWidth: 0)
-
-                    if let parsedURL = URL(string: urlString.trimmingCharacters(in: .whitespaces)),
-                       !urlString.trimmingCharacters(in: .whitespaces).isEmpty {
-                        Link(destination: parsedURL) {
-                            Image(systemName: "arrow.up.right")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.blue)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Open link")
+    private var scheduleCard: some View {
+        detailSection(title: item.kind == .event ? "Schedule" : "Task",
+                      systemImage: item.kind == .event ? "calendar" : "checklist") {
+            VStack(spacing: 0) {
+                if item.kind == .reminder {
+                    propertyRow(label: "Priority", icon: "exclamationmark.circle") {
+                        PriorityPillPicker(selection: $priority)
                     }
+                    propertyDivider
+                    propertyRow(label: "Due Date", icon: "calendar") {
+                        reminderDateControl
+                    }
+                } else {
+                    eventScheduleSection
                 }
             }
+            .padding(.horizontal, scheduleBoxHorizontalPadding)
+            .padding(.vertical, 4)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
+    }
+
+    private var linkCard: some View {
+        detailSection(title: "Link", systemImage: "link") {
+            HStack(spacing: 6) {
+                TextField("Link associated...", text: $urlString)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .frame(minWidth: 0)
+
+                if let parsedURL = URL(string: urlString.trimmingCharacters(in: .whitespaces)),
+                   !urlString.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Link(destination: parsedURL) {
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open link")
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private var tagsCard: some View {
+        detailSection(title: "Tags", systemImage: "tag") {
+            TextField("deep, waiting, writing", text: $tagsText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var notesCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Notes", systemImage: "doc.text")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
-
+        detailSection(title: "Notes", systemImage: "doc.text") {
             ZStack(alignment: .topLeading) {
                 if notes.isEmpty {
                     Text("Add notes and details here...")
@@ -206,77 +200,91 @@ struct ItemDetailPane: View {
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 5)
-                    .frame(minHeight: 210)
+                    .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
             }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private func detailSection<Content: View>(title: String, systemImage: String,
+                                              @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 2)
+
+            detailBox {
+                content()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func detailBox<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .frame(width: detailContentWidth, alignment: .leading)
             .background(FacetTheme.quietPanel)
             .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
                     .stroke(FacetTheme.hairline, lineWidth: 1)
             )
-        }
-    }
-
-    private var tagsCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Tags", systemImage: "tag")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
-
-            TextField("deep, waiting, writing", text: $tagsText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(FacetTheme.quietPanel)
-                .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                        .stroke(FacetTheme.hairline, lineWidth: 1)
-                )
-        }
     }
 
     private var eventScheduleSection: some View {
         VStack(spacing: 0) {
-            propertyRow(label: "All day", icon: "clock") {
-                allDayToggle
+            propertyRow(label: "Date", icon: "calendar") {
+                eventDateControl
             }
 
-            propertyDivider
-
-            scheduleDateRow(label: "Starts", icon: "calendar", selection: $date)
-
-            propertyDivider
-
-            if isAllDay {
-                scheduleDateRow(label: "Ends", icon: "arrow.right", selection: $endDate)
-            } else {
-                propertyRow(label: "Duration", icon: "timer") {
-                    durationControl
+            if !isAllDay {
+                propertyDivider
+                propertyRow(label: "Time", icon: "clock") {
+                    eventTimeControl
                 }
             }
         }
     }
 
-    private func scheduleDateRow(label: String, icon: String, selection: Binding<Date>) -> some View {
-        propertyRow(label: label, icon: icon) {
-            HStack(spacing: 6) {
-                dateField(selection, components: [.date], width: isAllDay ? nil : 126)
+    private var eventDateControl: some View {
+        HStack(spacing: 8) {
+            dateField($date, components: [.date], width: 116)
 
-                if !isAllDay {
-                    dateField(selection, components: [.hourAndMinute], width: 84)
-                }
+            Spacer(minLength: 6)
+
+            Toggle(isOn: $isAllDay) {
+                Text("All day")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .toggleStyle(.checkbox)
+            .controlSize(.small)
+            .fixedSize()
         }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private var eventTimeControl: some View {
+        HStack(spacing: 8) {
+            timeField
+
+            Spacer(minLength: 6)
+
+            durationPresetMenu
+            durationStepper
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private var timeField: some View {
+        dateField($date, components: [.hourAndMinute], width: 74)
     }
 
     private var reminderDateControl: some View {
         HStack(spacing: 12) {
             if useDate {
-                dateField($date, components: [.date], width: 148)
+                dateField($date, components: [.date], width: 128)
             } else {
                 Text("—")
                     .font(.system(size: 13, weight: .medium))
@@ -292,45 +300,27 @@ struct ItemDetailPane: View {
         }
     }
 
-    private var durationControl: some View {
-        VStack(alignment: .trailing, spacing: 7) {
-            HStack(spacing: 4) {
-                ForEach(durationPresets, id: \.self) { preset in
-                    Button {
-                        durationMinutes = preset
-                    } label: {
-                        Text(durationLabel(preset))
-                            .font(.system(size: 10, weight: durationMinutes == preset ? .semibold : .medium))
-                            .foregroundStyle(durationMinutes == preset ? Color.white : Color.primary.opacity(0.78))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .fill(durationMinutes == preset ? Color.accentColor : Color.clear)
-                            )
-                    }
-                    .buttonStyle(.plain)
+    private var durationPresetMenu: some View {
+        Menu {
+            ForEach(durationPresets, id: \.self) { preset in
+                Button(durationLabel(preset)) {
+                    durationMinutes = preset
                 }
             }
-            .padding(2)
-            .background(FacetTheme.panel.opacity(0.72))
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
-
-            HStack(spacing: 8) {
-                Text(durationLabel(durationMinutes))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(minWidth: 48, alignment: .trailing)
-
-                Stepper("", value: $durationMinutes, in: 5...1440, step: 15)
-                    .labelsHidden()
-                    .controlSize(.small)
-            }
+        } label: {
+            Text(durationLabel(durationMinutes))
+                .font(.system(size: 11, weight: .medium))
+                .frame(width: 58, alignment: .center)
         }
+        .menuStyle(.button)
+        .controlSize(.small)
+    }
+
+    private var durationStepper: some View {
+        Stepper("", value: $durationMinutes, in: 5...1440, step: 15)
+            .labelsHidden()
+            .controlSize(.small)
+            .fixedSize()
     }
 
     private func dateField(_ selection: Binding<Date>, components: DatePickerComponents,
@@ -341,13 +331,6 @@ struct ItemDetailPane: View {
             .controlSize(.small)
             .frame(width: width, alignment: .leading)
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
-    }
-
-    private var allDayToggle: some View {
-        Toggle("", isOn: $isAllDay)
-            .labelsHidden()
-            .toggleStyle(.checkbox)
-            .controlSize(.small)
     }
 
     private var propertyDivider: some View {
@@ -373,19 +356,18 @@ struct ItemDetailPane: View {
 
             Spacer()
 
-            Button {
-                saveChanges()
-            } label: {
-                Label("Save", systemImage: "checkmark")
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .disabled(!hasChanges || content.trimmingCharacters(in: .whitespaces).isEmpty || saving)
+            saveStatus
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(FacetTheme.canvas)
+    }
+
+    private var saveStatus: some View {
+        Label(saving ? "Saving..." : (hasChanges ? "Autosaving..." : "Saved"),
+              systemImage: saving || hasChanges ? "clock" : "checkmark")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
     }
 
     private func propertyRow<Control: View>(label: String, icon: String,
@@ -408,16 +390,9 @@ struct ItemDetailPane: View {
         .padding(.vertical, 9)
     }
 
-    private var containerOptions: [String] {
-        switch item.kind {
-        case .reminder:
-            return ek.reminderListNames(enabled: settings.effectiveReminderListNames)
-        case .event:
-            return ek.calendarNames(enabled: settings.effectiveCalendarNames)
-        }
-    }
-
     private func loadFields() {
+        loadingFields = true
+        autoSaveTask?.cancel()
         content = item.content
         notes = item.notes ?? ""
         tagsText = item.tags.joined(separator: ", ")
@@ -446,6 +421,51 @@ struct ItemDetailPane: View {
             isAllDay = false
             endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? date
             durationMinutes = clampedDurationMinutes(settings.defaultEventDurationMinutes)
+        }
+
+        DispatchQueue.main.async {
+            savedEditSignature = editSignature
+            loadingFields = false
+        }
+    }
+
+    private var editSignature: String {
+        let shouldUseDate = item.kind == .event || useDate
+        let datePart = shouldUseDate ? minuteSignature(date) : "none"
+        let endPart = item.kind == .event ? (isAllDay ? daySignature(endDate) : minuteSignature(endDate)) : "none"
+        return [
+            content.trimmingCharacters(in: .whitespaces),
+            notes.trimmingCharacters(in: .whitespacesAndNewlines),
+            FacetMetadata.tags(from: tagsText).joined(separator: ","),
+            "\(priority)",
+            "\(useDate)",
+            datePart,
+            "\(isAllDay)",
+            endPart,
+            urlString.trimmingCharacters(in: .whitespaces)
+        ].joined(separator: "\n")
+    }
+
+    private func minuteSignature(_ value: Date) -> String {
+        String(Int((value.timeIntervalSinceReferenceDate / 60).rounded()))
+    }
+
+    private func daySignature(_ value: Date) -> String {
+        let startOfDay = Calendar.current.startOfDay(for: value)
+        return String(Int((startOfDay.timeIntervalSinceReferenceDate / 86_400).rounded()))
+    }
+
+    private func scheduleAutosave() {
+        guard !loadingFields else { return }
+        autoSaveTask?.cancel()
+        guard hasChanges, !content.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+
+        autoSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                saveChanges()
+            }
         }
     }
 
@@ -502,9 +522,11 @@ struct ItemDetailPane: View {
 
     private func saveChanges() {
         let text = content.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty, !containerName.isEmpty else { return }
+        let targetContainer = containerName.isEmpty ? item.containerName : containerName
+        guard !text.isEmpty, !targetContainer.isEmpty, hasChanges else { return }
 
         saving = true
+        let signature = editSignature
         let trimmedURL = urlString.trimmingCharacters(in: .whitespaces)
         let urlParam = trimmedURL.isEmpty ? nil : URL(string: trimmedURL)
         let shouldUseDate = item.kind == .event || useDate
@@ -517,7 +539,7 @@ struct ItemDetailPane: View {
                 content: text,
                 date: shouldUseDate ? date : nil,
                 useDate: shouldUseDate,
-                containerName: containerName,
+                containerName: targetContainer,
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
                 tags: tags,
                 priority: priority,
@@ -528,6 +550,7 @@ struct ItemDetailPane: View {
             )
             saving = false
             if ok {
+                savedEditSignature = signature
                 onUpdate()
             } else {
                 toast.show("Failed to save changes", type: .error)
