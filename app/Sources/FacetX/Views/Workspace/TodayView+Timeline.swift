@@ -9,6 +9,8 @@ extension TodayView {
         let height: CGFloat
     }
 
+    private var timelineContentInset: CGFloat { FacetSidebarStyle.contentInset }
+
     // MARK: – Timeline Sidebar
 
     var timelineSidebar: some View {
@@ -24,9 +26,11 @@ extension TodayView {
             }
         ) {
             if timelinedItems.isEmpty {
-                Text("No timed events today.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                ContentUnavailableView {
+                    Label("No timed events", systemImage: "clock")
+                } description: {
+                    Text("Timed events for today will appear here.")
+                }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
@@ -87,7 +91,7 @@ extension TodayView {
             .frame(height: totalHeight)
             .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, timelineContentInset)
         .padding(.vertical, 14)
     }
 
@@ -135,8 +139,8 @@ extension TodayView {
         let event = pos.item
         let isSelected = event.id == selectedItem?.id
         let project = projectsByPrefix[event.projectPrefix]
-        let cardBg = isSelected ? Color.accentColor : Color.accentColor.opacity(0.06)
-        let cardStroke = isSelected ? Color.accentColor : Color.accentColor.opacity(0.18)
+        let cardBg = isSelected ? FacetTheme.softAccent : Color.accentColor.opacity(0.06)
+        let cardStroke = isSelected ? Color.accentColor.opacity(0.68) : Color.accentColor.opacity(0.18)
 
         return Button {
             selectedItem = selectedItem?.id == event.id ? nil : event
@@ -145,18 +149,18 @@ extension TodayView {
                 Text(event.content)
                     .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
                     .lineLimit(2)
-                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                    .foregroundStyle(.primary)
 
                 if let name = project?.name {
                     Text(name)
                         .font(.system(size: 8))
-                        .foregroundStyle(isSelected ? Color.white.opacity(0.8) : Color.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 if let date = event.date, let end = event.endDate {
                     Text(timeRangeString(start: date, end: end))
                         .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(isSelected ? Color.white.opacity(0.7) : Color.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(5)
