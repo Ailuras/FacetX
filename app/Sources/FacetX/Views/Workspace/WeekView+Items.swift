@@ -63,9 +63,12 @@ extension WeekView {
                     .foregroundStyle(.tertiary)
                     .padding(.vertical, 4)
             } else {
-                ForEach(group.items) { item in
-                    weekItemRow(item)
+                VStack(spacing: 6) {
+                    ForEach(group.items) { item in
+                        weekItemRow(item)
+                    }
                 }
+                .padding(.top, 2)
             }
         }
         .padding(.horizontal, 4)
@@ -124,9 +127,6 @@ extension WeekView {
             insertion: .opacity.combined(with: .move(edge: .top)),
             removal: .opacity.combined(with: .scale(scale: 0.98))
         ))
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
         .onDrop(of: [.text], delegate: SameDayItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
