@@ -398,31 +398,16 @@ struct CommitsView: View {
             systemImage: "curlybraces",
             onClose: { selectedCommit = nil }
         ) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    commitTitleCard(commit)
+            FacetSidebarContent {
+                commitTitleCard(commit)
 
-                    if let body = commit.body {
-                        commitBodyCard(body)
-                    }
+                commitMetadataCard(commit)
 
-                    commitMetadataCard(commit)
-
-                    Button {
-                        NSWorkspace.shared.open(commit.htmlURL)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text("View on GitHub")
-                                .font(.system(size: 12, weight: .medium))
-                            Image(systemName: "arrow.up.right")
-                                .font(.system(size: 10, weight: .semibold))
-                        }
-                        .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
+                if let body = commit.body {
+                    commitBodyCard(body)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+
+                commitGitHubCard(commit)
             }
         }
     }
@@ -452,6 +437,7 @@ struct CommitsView: View {
             }
         }
         .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(FacetTheme.quietPanel)
         .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
         .overlay(
@@ -461,39 +447,35 @@ struct CommitsView: View {
     }
 
     private func commitMetadataCard(_ commit: GitHubCommit) -> some View {
-        VStack(spacing: 0) {
-            metadataRow(label: "SHA", systemImage: "number") {
-                Text(commit.id)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
+        FacetDetailSection(title: "Details", systemImage: "info.circle") {
+            VStack(spacing: 0) {
+                metadataRow(label: "SHA", systemImage: "number") {
+                    Text(commit.id)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+
+                metadataDivider
+
+                metadataRow(label: "Author", systemImage: "person") {
+                    Text(commit.authorName)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                }
+
+                metadataDivider
+
+                metadataRow(label: "Date", systemImage: "calendar") {
+                    Text(formattedDate(commit.date))
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                }
             }
-
-            metadataDivider
-
-            metadataRow(label: "Author", systemImage: "person") {
-                Text(commit.authorName)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-            }
-
-            metadataDivider
-
-            metadataRow(label: "Date", systemImage: "calendar") {
-                Text(formattedDate(commit.date))
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
     }
 
     private func metadataRow<Value: View>(label: String, systemImage: String,
@@ -523,12 +505,7 @@ struct CommitsView: View {
     }
 
     private func commitBodyCard(_ body: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Body", systemImage: "doc.text")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
-
+        FacetDetailSection(title: "Body", systemImage: "doc.text") {
             Text(body)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -537,12 +514,28 @@ struct CommitsView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(FacetTheme.quietPanel)
-                .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                        .stroke(FacetTheme.hairline, lineWidth: 1)
-                )
+        }
+    }
+
+    private func commitGitHubCard(_ commit: GitHubCommit) -> some View {
+        FacetDetailSection(title: "GitHub", systemImage: "arrow.up.right.square") {
+            Button {
+                NSWorkspace.shared.open(commit.htmlURL)
+            } label: {
+                HStack(spacing: 7) {
+                    Text("View on GitHub")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -563,11 +556,12 @@ struct CommitsView: View {
         guard let repo = project.githubRepo else { return }
         loading = commits.isEmpty
         errorMessage = nil
-        selectedCommit = nil
+        let selectedCommitId = selectedCommit?.id
 
         let token = settings.githubToken.trimmingCharacters(in: .whitespaces)
         guard !token.isEmpty else {
             loading = false
+            selectedCommit = nil
             errorMessage = "No GitHub token configured.\nAdd one in Settings → GitHub."
             return
         }
@@ -587,14 +581,21 @@ struct CommitsView: View {
             let fetched = try await GitHubService().fetchCommits(repo: repo, token: token, since: since, until: until)
             withAnimation(listAnimation) {
                 commits = fetched
+                selectedCommit = selectedCommitId.flatMap { id in
+                    fetched.first { $0.id == id }
+                }
             }
         } catch let error as GitHubService.APIError {
+            selectedCommit = nil
             errorMessage = error.message
         } catch let error as URLError {
+            selectedCommit = nil
             errorMessage = "Network error: \(error.localizedDescription)"
         } catch let error as DecodingError {
+            selectedCommit = nil
             errorMessage = "Data error: \(error.localizedDescription)"
         } catch {
+            selectedCommit = nil
             errorMessage = "Failed to load commits: \(error.localizedDescription)"
         }
         loading = false
