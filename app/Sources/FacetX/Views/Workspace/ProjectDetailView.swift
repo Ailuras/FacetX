@@ -49,14 +49,6 @@ struct ProjectDetailView: View {
         visibleItems.filter { $0.kind == .event }
     }
 
-    private var taskGroups: [ItemArrangement.ZoneGroup] {
-        ItemArrangement.groupedByZone(taskItems)
-    }
-
-    private var scheduleGroups: [ItemArrangement.ZoneGroup] {
-        ItemArrangement.groupedByZone(scheduleItems)
-    }
-
     private var itemCounts: ItemCounts {
         ItemQuery.counts(for: items)
     }
@@ -302,9 +294,9 @@ struct ProjectDetailView: View {
             } else {
                 List {
                     itemKindSection(title: "Tasks", systemImage: "checklist",
-                                    count: taskItems.count, color: .green, groups: taskGroups)
+                                    count: taskItems.count, color: .green, items: taskItems)
                     itemKindSection(title: "Schedule", systemImage: "calendar",
-                                    count: scheduleItems.count, color: .blue, groups: scheduleGroups)
+                                    count: scheduleItems.count, color: .blue, items: scheduleItems)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -329,29 +321,22 @@ struct ProjectDetailView: View {
 
     @ViewBuilder private func itemKindSection(title: String, systemImage: String,
                                               count: Int, color: Color,
-                                              groups: [ItemArrangement.ZoneGroup]) -> some View {
-        if !groups.isEmpty {
+                                              items: [ProjectItem]) -> some View {
+        if !items.isEmpty {
             itemKindHeader(title: title, systemImage: systemImage, count: count, color: color)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
 
-            ForEach(groups, id: \.zone) { group in
-                zoneHeader(group.zone, count: group.items.count)
+            ForEach(items) { item in
+                projectItemRow(item)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.98))
+                    ))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 2, trailing: 14))
-
-                ForEach(group.items) { item in
-                    projectItemRow(item)
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .top)),
-                            removal: .opacity.combined(with: .scale(scale: 0.98))
-                        ))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
-                }
+                    .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
             }
         }
     }
@@ -373,21 +358,6 @@ struct ProjectDetailView: View {
             Spacer()
         }
         .foregroundStyle(.primary.opacity(0.86))
-    }
-
-    private func zoneHeader(_ zone: String, count: Int? = nil) -> some View {
-        HStack(spacing: 6) {
-            Text(zone)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-            if let count {
-                Text("\(count)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var emptyMessage: String {
