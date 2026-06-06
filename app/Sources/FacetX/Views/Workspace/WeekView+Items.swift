@@ -17,7 +17,6 @@ extension WeekView {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .animation(listAnimation, value: nonGoalItems.map { "\($0.id)-\($0.isCompleted)" })
         }
     }
 
@@ -159,10 +158,6 @@ extension WeekView {
                 itemToDelete = item
             }
         )
-        .transition(.asymmetric(
-            insertion: .opacity.combined(with: .move(edge: .top)),
-            removal: .opacity.combined(with: .scale(scale: 0.98))
-        ))
         .onDrop(of: [.text], delegate: WeekItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
@@ -182,12 +177,19 @@ extension WeekView {
         }
 
         let movedItem = previewItem(source, movedToDay: destinationDay)
+        // Capture the target's index *before* removing the source. Inserting at
+        // this pre-removal index lands the item after the target when dragging
+        // down and before it when dragging up — matching the All view's reorder
+        // (computing it post-removal always inserted before, so dragging down
+        // only swapped once you passed below the target).
+        let targetIndex: Int? = target.flatMap { t in
+            t.id == source.id ? nil : allItems.firstIndex(where: { $0.id == t.id })
+        }
         withAnimation(FacetTheme.dragPreviewAnimation) {
             allItems.remove(at: fromIndex)
 
-            if let target, target.id != source.id,
-               let targetIndex = allItems.firstIndex(where: { $0.id == target.id }) {
-                allItems.insert(movedItem, at: targetIndex)
+            if let targetIndex {
+                allItems.insert(movedItem, at: min(targetIndex, allItems.count))
             } else {
                 let insertionIndex = endIndexForDay(destinationDay)
                 allItems.insert(movedItem, at: insertionIndex)
