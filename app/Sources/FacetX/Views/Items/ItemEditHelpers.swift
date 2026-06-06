@@ -140,4 +140,95 @@ enum ItemActionHelpers {
     static func deleteItem(_ item: ProjectItem, ek: EventKitService) async {
         _ = await ek.deleteItem(id: item.id)
     }
+
+    // MARK: Rescheduling
+
+    /// Start date for `item` moved onto `day`, preserving the original
+    /// time-of-day for timed items and snapping to the day start otherwise.
+    /// Mirrors WeekView's drag-move math so swipe / context-menu reschedules
+    /// behave identically to dragging an item across days.
+    static func startDate(for item: ProjectItem, toDay day: Date,
+                          calendar: Calendar = .current) -> Date {
+        guard let oldDate = item.date else { return calendar.startOfDay(for: day) }
+        if (item.kind == .event && !item.isAllDay) || item.hasTime {
+            let hour = calendar.component(.hour, from: oldDate)
+            let minute = calendar.component(.minute, from: oldDate)
+            return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+        }
+        return calendar.startOfDay(for: day)
+    }
+
+    /// End date for an event whose start moved to `newStart`, keeping the
+    /// original duration (or one day for all-day events). `nil` for reminders.
+    static func endDate(for item: ProjectItem, newStart: Date,
+                        calendar: Calendar = .current) -> Date? {
+        guard item.kind == .event else { return nil }
+        if item.isAllDay {
+            return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: newStart))
+        }
+        guard let oldStart = item.date, let oldEnd = item.endDate else { return nil }
+        let duration = oldEnd.timeIntervalSince(oldStart)
+        return newStart.addingTimeInterval(duration > 0 ? duration : 3600)
+    }
+
+    /// Move `item` to `day`, preserving time-of-day and (for events) duration.
+    static func reschedule(_ item: ProjectItem, toDay day: Date, ek: EventKitService) async {
+        let newStart = startDate(for: item, toDay: day)
+        _ = await ek.updateItem(
+            id: item.id,
+            project: item.projectPrefix,
+            content: item.content,
+            date: newStart,
+            useDate: true,
+            dateIncludesTime: item.hasTime,
+            containerName: item.containerName,
+            notes: item.notes,
+            tags: item.tags,
+            priority: item.priority,
+            url: item.url,
+            updateURL: false,
+            isAllDay: item.kind == .event ? item.isAllDay : nil,
+            endDate: endDate(for: item, newStart: newStart)
+        )
+    }
+
+    /// Clear an item's date (reminders only; events always carry a date).
+    static func clearDate(_ item: ProjectItem, ek: EventKitService) async {
+        _ = await ek.updateItem(
+            id: item.id,
+            project: item.projectPrefix,
+            content: item.content,
+            date: nil,
+            useDate: false,
+            dateIncludesTime: false,
+            containerName: item.containerName,
+            notes: item.notes,
+            tags: item.tags,
+            priority: item.priority,
+            url: item.url,
+            updateURL: false,
+            isAllDay: nil,
+            endDate: nil
+        )
+    }
+
+    /// Update a reminder's priority, leaving everything else untouched.
+    static func setPriority(_ item: ProjectItem, priority: Int, ek: EventKitService) async {
+        _ = await ek.updateItem(
+            id: item.id,
+            project: item.projectPrefix,
+            content: item.content,
+            date: item.date,
+            useDate: item.kind == .event || item.date != nil,
+            dateIncludesTime: item.hasTime,
+            containerName: item.containerName,
+            notes: item.notes,
+            tags: item.tags,
+            priority: priority,
+            url: item.url,
+            updateURL: false,
+            isAllDay: item.kind == .event ? item.isAllDay : nil,
+            endDate: item.kind == .event ? item.endDate : nil
+        )
+    }
 }
