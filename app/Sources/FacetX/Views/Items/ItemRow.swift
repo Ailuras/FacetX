@@ -171,6 +171,7 @@ struct ItemRow: View {
                         dragGripDots
                             .frame(width: 16, height: 28)
                             .contentShape(Rectangle())
+                            .hoverCursor(.openHand)
                             .onDrag {
                                 onDragStart()
                             } preview: {
