@@ -27,6 +27,9 @@ struct ItemDetailPane: View {
     @State private var loadingFields = false
     @State private var autoSaveTask: Task<Void, Never>? = nil
     @State private var savedEditSignature = ""
+    /// Stays false until the user actually edits a field, so a freshly opened
+    /// pane shows no save status (rather than an immediate "Saved").
+    @State private var didEdit = false
 
     private let labelWidth: CGFloat = 76
     private let scheduleBoxHorizontalPadding: CGFloat = 8
@@ -378,11 +381,13 @@ struct ItemDetailPane: View {
         .background(FacetTheme.canvas)
     }
 
-    private var saveStatus: some View {
-        Label(saving ? "Saving..." : (hasChanges ? "Autosaving..." : "Saved"),
-              systemImage: saving || hasChanges ? "clock" : "checkmark")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
+    @ViewBuilder private var saveStatus: some View {
+        if saving || hasChanges || didEdit {
+            Label(saving ? "Saving..." : (hasChanges ? "Autosaving..." : "Saved"),
+                  systemImage: saving || hasChanges ? "clock" : "checkmark")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func propertyRow<Control: View>(label: String, icon: String,
@@ -407,6 +412,7 @@ struct ItemDetailPane: View {
 
     private func loadFields() {
         loadingFields = true
+        didEdit = false
         autoSaveTask?.cancel()
         content = item.content
         notes = item.notes ?? ""
@@ -484,6 +490,7 @@ struct ItemDetailPane: View {
 
     private func scheduleAutosave() {
         guard !loadingFields else { return }
+        didEdit = true
         autoSaveTask?.cancel()
         guard hasChanges, !content.trimmingCharacters(in: .whitespaces).isEmpty else { return }
 
