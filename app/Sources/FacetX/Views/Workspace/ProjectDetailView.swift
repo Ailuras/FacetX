@@ -302,7 +302,6 @@ struct ProjectDetailView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .animation(listAnimation, value: visibleItems.map { "\($0.id)-\($0.isCompleted)" })
     }
 
     private var emptyAllItemsView: some View {
@@ -330,10 +329,6 @@ struct ProjectDetailView: View {
 
             ForEach(items) { item in
                 projectItemRow(item)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.98))
-                    ))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
