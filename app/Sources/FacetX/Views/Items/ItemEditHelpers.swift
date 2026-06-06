@@ -130,6 +130,61 @@ extension View {
     }
 }
 
+// MARK: - Swipe Actions
+
+/// A quick action bound to a left/right swipe on an item row. Persisted by
+/// raw value in `AppSettings` and rendered by `StandardItemRow`.
+enum SwipeAction: String, CaseIterable, Identifiable {
+    case none
+    case today
+    case tomorrow
+    case complete
+    case delete
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none: return "None"
+        case .today: return "Today"
+        case .tomorrow: return "Tomorrow"
+        case .complete: return "Complete"
+        case .delete: return "Delete"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .none: return "minus"
+        case .today: return "calendar"
+        case .tomorrow: return "sunrise"
+        case .complete: return "checkmark.circle"
+        case .delete: return "trash"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .none: return .gray
+        case .today: return .blue
+        case .tomorrow: return .orange
+        case .complete: return .green
+        case .delete: return .red
+        }
+    }
+
+    var isDestructive: Bool { self == .delete }
+
+    /// Completion only makes sense for reminders; `none` shows nothing.
+    func isApplicable(to item: ProjectItem) -> Bool {
+        switch self {
+        case .none: return false
+        case .complete: return item.kind == .reminder
+        default: return true
+        }
+    }
+}
+
 // MARK: - Action Helpers
 
 enum ItemActionHelpers {

@@ -29,6 +29,7 @@ struct ItemInlineEditState {
 
 struct StandardItemRow: View {
     @EnvironmentObject private var ek: EventKitService
+    @EnvironmentObject private var settings: AppSettings
 
     let item: ProjectItem
     let projectPrefix: String
@@ -71,38 +72,14 @@ struct StandardItemRow: View {
             }
         )
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            if item.kind == .reminder {
-                Button {
-                    toggleComplete()
-                } label: {
-                    Label(item.isCompleted ? "Uncomplete" : "Complete",
-                          systemImage: item.isCompleted ? "arrow.uturn.left" : "checkmark.circle")
-                }
-                .tint(.green)
-            }
+            swipeButton(SwipeAction(rawValue: settings.leadingSwipeAction) ?? .none)
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button {
-                reschedule(to: today)
-            } label: {
-                Label("Today", systemImage: "calendar")
-            }
-            .tint(.blue)
-            Button {
-                reschedule(to: tomorrow)
-            } label: {
-                Label("Tomorrow", systemImage: "arrow.right")
-            }
-            .tint(.orange)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            swipeButton(SwipeAction(rawValue: settings.trailingSwipeAction) ?? .none)
         }
         .contextMenu {
             Button("Edit...") {
                 select()
-            }
-            if item.kind == .reminder {
-                Button(item.isCompleted ? "Mark Incomplete" : "Mark Complete") {
-                    toggleComplete()
-                }
             }
             Divider()
             Menu("Set Date") {
@@ -133,6 +110,30 @@ struct StandardItemRow: View {
             item: item,
             selectedItem: $selectedItem
         )
+    }
+
+    // MARK: - Swipe
+
+    @ViewBuilder
+    private func swipeButton(_ action: SwipeAction) -> some View {
+        if action.isApplicable(to: item) {
+            Button(role: action.isDestructive ? .destructive : nil) {
+                perform(action)
+            } label: {
+                Image(systemName: action.systemImage)
+            }
+            .tint(action.tint)
+        }
+    }
+
+    private func perform(_ action: SwipeAction) {
+        switch action {
+        case .none: break
+        case .today: reschedule(to: today)
+        case .tomorrow: reschedule(to: tomorrow)
+        case .complete: toggleComplete()
+        case .delete: onDeleteRequest(item)
+        }
     }
 
     // MARK: - Quick actions (shared by swipe + context menu)

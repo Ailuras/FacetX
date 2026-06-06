@@ -55,6 +55,14 @@ final class AppSettings: ObservableObject {
     @Published var globalShortcutEnabled: Bool {
         didSet { settingsDidChange() }
     }
+    /// Raw `SwipeAction` value for a swipe-right (leading edge) on an item row.
+    @Published var leadingSwipeAction: String {
+        didSet { settingsDidChange() }
+    }
+    /// Raw `SwipeAction` value for a swipe-left (trailing edge) on an item row.
+    @Published var trailingSwipeAction: String {
+        didSet { settingsDidChange() }
+    }
     @Published private(set) var changeToken = 0
     @Published private(set) var persistenceError: String?
 
@@ -89,6 +97,8 @@ final class AppSettings: ObservableObject {
         self.todayTimelineEndHour = stored.todayTimelineEndHour
         self.githubToken = stored.githubToken ?? ""
         self.globalShortcutEnabled = stored.globalShortcutEnabled
+        self.leadingSwipeAction = stored.leadingSwipeAction ?? "tomorrow"
+        self.trailingSwipeAction = stored.trailingSwipeAction ?? "today"
         self.persistenceError = persistenceError
     }
 
@@ -212,6 +222,8 @@ final class AppSettings: ObservableObject {
         var todayTimelineEndHour: Int
         var githubToken: String?
         var globalShortcutEnabled: Bool
+        var leadingSwipeAction: String?
+        var trailingSwipeAction: String?
 
         static let defaults = Stored(enabledReminderListNames: [],
                                      enabledCalendarNames: [],
@@ -226,7 +238,9 @@ final class AppSettings: ObservableObject {
                                      todayTimelineStartHour: 6,
                                      todayTimelineEndHour: 23,
                                      githubToken: nil,
-                                     globalShortcutEnabled: false)
+                                     globalShortcutEnabled: false,
+                                     leadingSwipeAction: "tomorrow",
+                                     trailingSwipeAction: "today")
     }
 
     private func save() {
@@ -243,7 +257,9 @@ final class AppSettings: ObservableObject {
                             todayTimelineStartHour: todayTimelineStartHour,
                             todayTimelineEndHour: todayTimelineEndHour,
                             githubToken: githubToken.isEmpty ? nil : githubToken,
-                            globalShortcutEnabled: globalShortcutEnabled)
+                            globalShortcutEnabled: globalShortcutEnabled,
+                            leadingSwipeAction: leadingSwipeAction,
+                            trailingSwipeAction: trailingSwipeAction)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
             try enc.encode(stored).write(to: url, options: .atomic)

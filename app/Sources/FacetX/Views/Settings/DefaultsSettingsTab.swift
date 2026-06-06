@@ -57,6 +57,23 @@ struct DefaultsSettingsTab: View {
                 }
             }
 
+            SettingsCard(title: "Swipe Actions", systemImage: "hand.draw") {
+                SettingsRow(title: "Swipe right", systemImage: "arrow.right") {
+                    swipePicker(selection: $settings.leadingSwipeAction)
+                }
+
+                SettingsDivider()
+
+                SettingsRow(title: "Swipe left", systemImage: "arrow.left") {
+                    swipePicker(selection: $settings.trailingSwipeAction)
+                }
+
+                Text("Quick actions revealed by swiping an item left or right in the All, Today and Week lists. Complete applies to tasks only.")
+                    .font(SettingsUI.secondaryFont)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             SettingsCard(title: "Today View", systemImage: "calendar.day.timeline.left") {
                 SettingsRow(title: "Timeline range", systemImage: "clock") {
                     HStack(spacing: 16) {
@@ -129,6 +146,17 @@ struct DefaultsSettingsTab: View {
                 settings.todayTimelineStartHour = max(settings.todayTimelineEndHour - 1, 0)
             }
         }
+    }
+
+    private func swipePicker(selection: Binding<String>) -> some View {
+        Picker("", selection: selection) {
+            ForEach(SwipeAction.allCases) { action in
+                Text(action.title).tag(action.rawValue)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .frame(width: SettingsUI.controlWidth, alignment: .trailing)
     }
 
     private var persistenceWarning: String? {
