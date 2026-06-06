@@ -51,7 +51,7 @@ struct DefaultsSettingsTab: View {
                             .frame(width: 64, alignment: .trailing)
                         Stepper("", value: $settings.defaultEventDurationMinutes, in: 5...1440, step: 15)
                             .labelsHidden()
-                            .controlSize(.small)
+                            .controlSize(.mini)
                     }
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)
                 }
@@ -88,7 +88,7 @@ struct DefaultsSettingsTab: View {
                                 .frame(width: 42, alignment: .trailing)
                             Stepper("", value: $settings.todayTimelineStartHour, in: 0...22)
                                 .labelsHidden()
-                                .controlSize(.small)
+                                .controlSize(.mini)
                         }
 
                         // To
@@ -102,7 +102,7 @@ struct DefaultsSettingsTab: View {
                                 .frame(width: 42, alignment: .trailing)
                             Stepper("", value: $settings.todayTimelineEndHour, in: 1...23)
                                 .labelsHidden()
-                                .controlSize(.small)
+                                .controlSize(.mini)
                         }
                     }
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)

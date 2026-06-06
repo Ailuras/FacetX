@@ -284,7 +284,7 @@ struct CreateItemView: View {
                         .foregroundStyle(.secondary)
                     Stepper("", value: $durationMinutes, in: 5...1440, step: 15)
                         .labelsHidden()
-                        .controlSize(.small)
+                        .controlSize(.mini)
                 }
             }
         }
