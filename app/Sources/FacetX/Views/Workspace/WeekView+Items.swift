@@ -21,71 +21,98 @@ extension WeekView {
         }
     }
 
-    private func daySection(group: DayGroup) -> some View {
+    /// Emits a day's header followed by each item as its own List row. Keeping
+    /// the items as direct rows (rather than nesting them in a VStack) lets the
+    /// per-row `.swipeActions` work. The day-level drop target now lives on the
+    /// header and the empty placeholder row.
+    @ViewBuilder
+    func daySection(group: DayGroup) -> some View {
+        dayHeader(group)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 2, trailing: 14))
+
+        if group.items.isEmpty {
+            emptyDayRow(group)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 2, leading: 14, bottom: 6, trailing: 14))
+        } else {
+            ForEach(group.items) { item in
+                weekItemRow(item)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+            }
+        }
+    }
+
+    private func dayHeader(_ group: DayGroup) -> some View {
         let cal = Calendar.current
         let isDropTarget = dropTargetDate.map { cal.isDate($0, inSameDayAs: group.date) } ?? false
 
-        return VStack(alignment: .leading, spacing: 0) {
-            // ── Header ──
-            HStack(spacing: 6) {
-                Text(group.label)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(group.isToday ? Color.accentColor : .secondary)
-                if group.isToday {
-                    Text("Today")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Color.accentColor)
-                        .clipShape(Capsule())
-                }
-                Spacer()
-                Text("\(group.items.count)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.tertiary)
-                Button {
-                    createDate = DateWrapper(date: group.date)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Add item for \(group.label)")
+        return HStack(spacing: 6) {
+            Text(group.label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(group.isToday ? Color.accentColor : .secondary)
+            if group.isToday {
+                Text("Today")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Color.accentColor)
+                    .clipShape(Capsule())
             }
-            .padding(.vertical, 4)
-
-            // ── Content ──
-            if group.items.isEmpty {
-                Text("No items")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.vertical, 4)
-            } else {
-                VStack(spacing: 6) {
-                    ForEach(group.items) { item in
-                        weekItemRow(item)
-                    }
-                }
-                .padding(.top, 2)
+            Spacer()
+            Text("\(group.items.count)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.tertiary)
+            Button {
+                createDate = DateWrapper(date: group.date)
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .medium))
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Add item for \(group.label)")
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isDropTarget ? Color.accentColor.opacity(0.08) : Color.clear)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isDropTarget ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1.5)
-        )
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
-        .onDrop(of: [.text], delegate: WeekDayDropDelegate(
-            date: group.date,
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .background(dayDropHighlight(isDropTarget, fill: 0.10))
+        .onDrop(of: [.text], delegate: dayDropDelegate(for: group.date, calendar: cal))
+    }
+
+    private func emptyDayRow(_ group: DayGroup) -> some View {
+        let cal = Calendar.current
+        let isDropTarget = dropTargetDate.map { cal.isDate($0, inSameDayAs: group.date) } ?? false
+
+        return Text("No items")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(dayDropHighlight(isDropTarget, fill: 0.06))
+            .onDrop(of: [.text], delegate: dayDropDelegate(for: group.date, calendar: cal))
+    }
+
+    private func dayDropHighlight(_ active: Bool, fill: Double) -> some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(active ? Color.accentColor.opacity(fill) : Color.clear)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(active ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1.5)
+            )
+    }
+
+    private func dayDropDelegate(for date: Date, calendar cal: Calendar) -> WeekDayDropDelegate {
+        WeekDayDropDelegate(
+            date: date,
             draggedItem: $draggedItem,
             onEntered: { date in
                 withAnimation(.easeOut(duration: 0.12)) {
@@ -105,7 +132,7 @@ extension WeekView {
             onDrop: {
                 finishDrag()
             }
-        ))
+        )
     }
 
     func weekItemRow(_ item: ProjectItem) -> some View {
@@ -244,25 +271,11 @@ extension WeekView {
     }
 
     private func movedStartDate(for item: ProjectItem, toDay day: Date) -> Date {
-        let cal = Calendar.current
-        guard let oldDate = item.date else { return day }
-        if (item.kind == .event && !item.isAllDay) || item.hasTime {
-            let hour = cal.component(.hour, from: oldDate)
-            let minute = cal.component(.minute, from: oldDate)
-            return cal.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
-        }
-        return day
+        ItemActionHelpers.startDate(for: item, toDay: day)
     }
 
     private func movedEndDate(original item: ProjectItem, currentStart: Date) -> Date? {
-        guard item.kind == .event else { return nil }
-        let cal = Calendar.current
-        if item.isAllDay {
-            return cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: currentStart))
-        }
-        guard let oldStart = item.date, let oldEnd = item.endDate else { return nil }
-        let duration = oldEnd.timeIntervalSince(oldStart)
-        return currentStart.addingTimeInterval(duration > 0 ? duration : 3600)
+        ItemActionHelpers.endDate(for: item, newStart: currentStart)
     }
 
     private func endIndexForDay(_ day: Date) -> Int {
