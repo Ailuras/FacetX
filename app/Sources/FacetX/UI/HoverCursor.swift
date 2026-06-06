@@ -1,46 +1,40 @@
 import AppKit
 import SwiftUI
 
-/// Shows a given `NSCursor` while the pointer is over the modified view.
+/// Shows `cursor` while the pointer hovers the modified view, restoring the
+/// previous cursor on exit.
 ///
-/// Implemented with AppKit cursor rects (rather than `onHover` + `push/pop`)
-/// so the cursor is managed by the window and never gets stuck if a hover-exit
-/// event is missed.
-private struct CursorAreaView: NSViewRepresentable {
+/// Pure SwiftUI (`onHover` + the `NSCursor` stack) so it never competes with an
+/// attached `.onDrag`/tap gesture for hit testing. The `isInside` guard keeps
+/// pushes and pops balanced, and `onDisappear` pops a dangling cursor if the
+/// view is removed while still hovered (e.g. the row scrolls away).
+private struct HoverCursorModifier: ViewModifier {
     let cursor: NSCursor
+    @State private var isInside = false
 
-    func makeNSView(context: Context) -> NSView {
-        CursorTrackingView(cursor: cursor)
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        guard let view = nsView as? CursorTrackingView else { return }
-        view.cursor = cursor
-    }
-
-    private final class CursorTrackingView: NSView {
-        var cursor: NSCursor {
-            didSet { window?.invalidateCursorRects(for: self) }
-        }
-
-        init(cursor: NSCursor) {
-            self.cursor = cursor
-            super.init(frame: .zero)
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-        override func resetCursorRects() {
-            addCursorRect(bounds, cursor: cursor)
-        }
+    func body(content: Content) -> some View {
+        content
+            .onHover { hovering in
+                guard hovering != isInside else { return }
+                isInside = hovering
+                if hovering {
+                    cursor.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .onDisappear {
+                if isInside {
+                    NSCursor.pop()
+                    isInside = false
+                }
+            }
     }
 }
 
 extension View {
-    /// Displays `cursor` whenever the pointer hovers this view, without
-    /// intercepting clicks or drags (the overlay disables hit testing).
+    /// Displays `cursor` whenever the pointer hovers this view.
     func hoverCursor(_ cursor: NSCursor) -> some View {
-        overlay(CursorAreaView(cursor: cursor).allowsHitTesting(false))
+        modifier(HoverCursorModifier(cursor: cursor))
     }
 }
