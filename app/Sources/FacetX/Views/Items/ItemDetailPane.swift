@@ -334,7 +334,7 @@ struct ItemDetailPane: View {
     private var durationStepper: some View {
         Stepper("", value: $durationMinutes, in: 5...1440, step: 15)
             .labelsHidden()
-            .controlSize(.small)
+            .controlSize(.mini)
             .fixedSize()
     }
 
