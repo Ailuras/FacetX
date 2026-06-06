@@ -67,6 +67,7 @@ struct TodayView: View {
             VStack(spacing: 0) {
                 todayInfoBar
                 listView
+                    .padding(.top, 10)
             }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
