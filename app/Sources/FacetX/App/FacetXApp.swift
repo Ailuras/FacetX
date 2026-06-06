@@ -27,20 +27,15 @@ struct FacetXApp: App {
                 .environmentObject(keyboard)
                 .environmentObject(toast)
                 .background {
-                    MenuBarInstaller(controller: menuBarController)
-                        .environmentObject(eventKit)
-                        .environmentObject(store)
-                        .environmentObject(settings)
-                        .environmentObject(keyboard)
-                        .environmentObject(toast)
-                }
-                .background {
                     WindowPositionRestorer()
                 }
-                .frame(minWidth: 760, minHeight: 480)
+                .task {
+                    menuBarController.configure(eventKit: eventKit, store: store, settings: settings)
+                }
                 .onAppear {
                     keyboard.setGlobalShortcutEnabled(settings.globalShortcutEnabled)
                 }
+                .frame(minWidth: 760, minHeight: 480)
         }
         .commands {
             AppCommands(router: keyboard)

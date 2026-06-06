@@ -49,12 +49,12 @@ struct QuickCaptureView: View {
                 .padding(.trailing, 9)
                 .padding(.vertical, 6)
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(.regularMaterial.opacity(0.72))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.regularMaterial.opacity(0.60))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.12))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
                 )
 
                 if let error { Text(error).font(.caption).foregroundStyle(.red) }
@@ -96,7 +96,7 @@ struct QuickCaptureView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(14)
+        .padding(16)
         .frame(width: 340)
         .onAppear {
             fieldFocused = true

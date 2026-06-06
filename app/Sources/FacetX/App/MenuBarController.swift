@@ -2,25 +2,10 @@ import AppKit
 import Combine
 import SwiftUI
 
-struct MenuBarInstaller: View {
-    @ObservedObject var controller: MenuBarController
-    @EnvironmentObject private var eventKit: EventKitService
-    @EnvironmentObject private var store: ProjectStore
-    @EnvironmentObject private var settings: AppSettings
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onAppear {
-                controller.configure(eventKit: eventKit, store: store, settings: settings)
-            }
-    }
-}
-
 @MainActor
-final class MenuBarController: NSObject, ObservableObject {
+final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
-    private var panel: QuickCapturePanel?
+    private var popover: NSPopover?
     private var cancellable: AnyCancellable?
     private var configured = false
 
@@ -45,8 +30,8 @@ final class MenuBarController: NSObject, ObservableObject {
         if visible {
             install(eventKit: eventKit, store: store, settings: settings)
         } else {
-            panel?.close()
-            panel = nil
+            popover?.close()
+            popover = nil
             if let statusItem {
                 NSStatusBar.system.removeStatusItem(statusItem)
             }
@@ -61,68 +46,39 @@ final class MenuBarController: NSObject, ObservableObject {
         item.button?.image = Self.templateImage()
         item.button?.imagePosition = .imageOnly
         item.button?.target = self
-        item.button?.action = #selector(togglePanel(_:))
+        item.button?.action = #selector(togglePopover(_:))
         statusItem = item
 
-        let panel = QuickCapturePanel(
-            contentRect: NSRect(origin: .zero, size: NSSize(width: 340, height: 180)),
-            styleMask: [.titled, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        panel.contentViewController = NSHostingController(
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.delegate = self
+
+        let hostingController = NSHostingController(
             rootView: QuickCaptureView()
                 .environmentObject(eventKit)
                 .environmentObject(store)
                 .environmentObject(settings)
         )
-        panel.setContentSize(NSSize(width: 340, height: 180))
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.isMovable = false
-        panel.isMovableByWindowBackground = false
-        panel.isReleasedWhenClosed = false
-        panel.hidesOnDeactivate = true
-        panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
-        self.panel = panel
+        popover.contentViewController = hostingController
+        self.popover = popover
     }
 
-    @objc private func togglePanel(_ sender: NSStatusBarButton) {
-        guard let panel else { return }
-        if panel.isVisible {
-            panel.close()
-        } else {
-            position(panel, below: sender)
+    func popoverWillShow(_ notification: Notification) {
+        guard let popover = notification.object as? NSPopover,
+              let popoverWindow = popover.contentViewController?.view.window else { return }
+        popoverWindow.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
+        popoverWindow.level = .popUpMenu
+    }
+
+    @objc private func togglePopover(_ sender: NSStatusBarButton) {
+        guard let popover else { return }
+        if popover.isShown {
+            popover.close()
+        } else if let button = statusItem?.button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
-            panel.makeKeyAndOrderFront(sender)
-            panel.orderFrontRegardless()
         }
-    }
-
-    private func position(_ panel: NSPanel, below button: NSStatusBarButton) {
-        let buttonRect = button.convert(button.bounds, to: nil)
-        let screenRect = button.window?.convertToScreen(buttonRect)
-        let screen = button.window?.screen ?? NSScreen.main
-        let visibleFrame = screen?.visibleFrame ?? NSScreen.screens.first?.visibleFrame ?? .zero
-        let panelSize = panel.frame.size
-
-        let anchor = screenRect ?? NSRect(
-            x: visibleFrame.maxX - panelSize.width - 12,
-            y: visibleFrame.maxY,
-            width: panelSize.width,
-            height: 0
-        )
-        let proposedX = anchor.midX - panelSize.width / 2
-        let x = min(max(proposedX, visibleFrame.minX + 8), visibleFrame.maxX - panelSize.width - 8)
-        let y = max(visibleFrame.minY + 8, anchor.minY - panelSize.height - 8)
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
     static func templateImage() -> NSImage {
@@ -148,9 +104,4 @@ final class MenuBarController: NSObject, ObservableObject {
         image.isTemplate = true
         return image
     }
-}
-
-final class QuickCapturePanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
 }
