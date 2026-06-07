@@ -64,7 +64,7 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
         self.popover = popover
     }
 
-    func popoverWillShow(_ notification: Notification) {
+    func popoverDidShow(_ notification: Notification) {
         guard let popover = notification.object as? NSPopover,
               let popoverWindow = popover.contentViewController?.view.window else { return }
         popoverWindow.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
@@ -76,8 +76,8 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
         if popover.isShown {
             popover.close()
         } else if let button = statusItem?.button {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }
 
