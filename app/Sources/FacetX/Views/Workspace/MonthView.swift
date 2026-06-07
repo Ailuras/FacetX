@@ -2,11 +2,11 @@ import FacetXCore
 import SwiftUI
 
 /// Single-project month view: a calendar grid showing items whose due/start date
-/// falls within the selected month. Double-click a day cell to create a new item
-/// for that date.
+/// falls within the selected month. Tap a day to see its items in the list below.
 struct MonthView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var store: ProjectStore
 
     let project: Project
     let searchText: String
@@ -17,6 +17,9 @@ struct MonthView: View {
 
     @State private var month = MonthYear.containing(Date())
     @State private var allItems: [ProjectItem] = []
+    @State private var selectedDay: Int? = nil
+    @State private var inlineEdit = ItemInlineEditState()
+    @State private var itemToDelete: ProjectItem? = nil
 
     private var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -34,17 +37,67 @@ struct MonthView: View {
         }
     }
 
+    private var selectedDayItems: [ProjectItem] {
+        guard let day = selectedDay else { return [] }
+        return itemsByDay[day] ?? []
+    }
+
+    private var selectedDayScheduleItems: [ProjectItem] {
+        selectedDayItems.filter { $0.kind == .event }
+    }
+
+    private var selectedDayTaskItems: [ProjectItem] {
+        selectedDayItems.filter { $0.kind == .reminder }
+    }
+
+    private var gridHeight: CGFloat {
+        let offset = month.firstWeekdayOffset
+        let days = month.numberOfDays
+        let rows = (offset + days + 6) / 7
+        return CGFloat(rows) * 80
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             monthNav
             weekdayHeader
             calendarGrid
+                .frame(height: gridHeight)
+
+            if let day = selectedDay {
+                Divider()
+                    .padding(.top, 8)
+                dayDetailView(for: day)
+            } else {
+                Spacer()
+                Text("Tap a day to view its items")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 24)
+            }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(FacetTheme.canvas)
         .task(id: reloadKey) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
         .onChange(of: refreshTrigger) { Task { await reload() } }
+        .onChange(of: month) { _, _ in selectedDay = nil }
+        .alert("Delete item?", isPresented: .init(
+            get: { itemToDelete != nil },
+            set: { if !$0 { itemToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { itemToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let item = itemToDelete {
+                    Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
+                }
+                itemToDelete = nil
+            }
+        } message: {
+            Text(itemToDelete?.content ?? "")
+        }
     }
 
     private var hasActiveSearch: Bool {
@@ -181,11 +234,27 @@ struct MonthView: View {
                 )
         )
         .contentShape(Rectangle())
+        .highPriorityGesture(
+            TapGesture(count: 1)
+                .onEnded {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        if selectedDay == day {
+                            selectedDay = nil
+                        } else {
+                            selectedDay = day
+                        }
+                    }
+                }
+        )
         .onTapGesture(count: 2) {
             if let date = month.dateForDay(day) {
                 onCreateItem(date)
             }
         }
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(selectedDay == day ? Color.accentColor : Color.clear, lineWidth: 2)
+        )
     }
 
     private func monthCountPills(scheduleCount: Int, taskCount: Int, emphasized: Bool) -> some View {
@@ -220,6 +289,133 @@ struct MonthView: View {
             .overlay(Rectangle().stroke(FacetTheme.hairline, lineWidth: 0.5))
     }
 
+    // ── Selected day detail ───────────────────────────────────────────────────
+    @ViewBuilder
+    private func dayDetailView(for day: Int) -> some View {
+        let items = selectedDayItems
+        let scheduleItems = selectedDayScheduleItems
+        let taskItems = selectedDayTaskItems
+        let dayDate = month.dateForDay(day)
+
+        VStack(spacing: 0) {
+            dayDetailHeader(day: day, date: dayDate)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+
+            Divider()
+
+            if items.isEmpty {
+                VStack(spacing: 4) {
+                    Spacer()
+                    Image(systemName: "calendar.day.timeline.left")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.tertiary)
+                    Text("No items for this day")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                List {
+                    if !scheduleItems.isEmpty {
+                        Section {
+                            ForEach(scheduleItems) { item in
+                                dayDetailItemRow(item)
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                                    .listRowInsets(EdgeInsets(top: 2, leading: 14, bottom: 2, trailing: 14))
+                            }
+                        } header: {
+                            itemKindSectionHeader(title: "Schedule", systemImage: "calendar",
+                                                  count: scheduleItems.count, color: .blue)
+                        }
+                    }
+
+                    if !taskItems.isEmpty {
+                        Section {
+                            ForEach(taskItems) { item in
+                                dayDetailItemRow(item)
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                                    .listRowInsets(EdgeInsets(top: 2, leading: 14, bottom: 2, trailing: 14))
+                            }
+                        } header: {
+                            itemKindSectionHeader(title: "Tasks", systemImage: "checklist",
+                                                  count: taskItems.count, color: .green)
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+            }
+        }
+    }
+
+    private func dayDetailItemRow(_ item: ProjectItem) -> some View {
+        StandardItemRow(
+            item: item,
+            projectPrefix: project.prefix,
+            selectedItem: $selectedItem,
+            inlineEdit: $inlineEdit,
+            showDragGrip: false,
+            onDragStart: nil,
+            onReload: { await reload() },
+            onDeleteRequest: { item in
+                itemToDelete = item
+            }
+        )
+    }
+
+    private func dayDetailHeader(day: Int, date: Date?) -> some View {
+        HStack {
+            Text(dayHeaderLabel(for: date, day: day))
+                .font(.headline)
+            Spacer()
+            Button {
+                if let date = date {
+                    onCreateItem(date)
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 20)
+                    .background(Color.accentColor.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+            .help("Add item for this day")
+        }
+    }
+
+    private func dayHeaderLabel(for date: Date?, day: Int) -> String {
+        guard let date = date else { return "Day \(day)" }
+        let df = DateFormatter()
+        df.dateFormat = "EEEE, MMMM d"
+        return df.string(from: date)
+    }
+
+    private func itemKindSectionHeader(title: String, systemImage: String,
+                                       count: Int, color: Color) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(color)
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+            Text("\(count)")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(color)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(color.opacity(0.12))
+                .clipShape(Capsule())
+            Spacer()
+        }
+        .foregroundStyle(.primary.opacity(0.86))
+    }
+
     private func dayItemRow(item: ProjectItem) -> some View {
         let color = item.kind == .event ? Color.blue : FacetTheme.priorityColor(item.priority)
         return HStack(spacing: 3) {
@@ -250,16 +446,6 @@ struct MonthView: View {
         if isToday { return FacetTheme.softAccent }
         if hasItems { return Color.accentColor.opacity(0.035) }
         return Color.clear
-    }
-
-    private func selectItem(_ item: ProjectItem) {
-        withAnimation(.easeOut(duration: 0.15)) {
-            if selectedItem?.id == item.id {
-                selectedItem = nil
-            } else {
-                selectedItem = item
-            }
-        }
     }
 
     private func reload() async {
