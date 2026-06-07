@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for Codex agents working in this repository.
+Guidance for AI coding agents working in this repository.
 
 ## Default Rule: No Backward Compatibility
 
