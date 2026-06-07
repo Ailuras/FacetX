@@ -42,14 +42,6 @@ struct MonthView: View {
         return itemsByDay[day] ?? []
     }
 
-    private var selectedDayScheduleItems: [ProjectItem] {
-        selectedDayItems.filter { $0.kind == .event }
-    }
-
-    private var selectedDayTaskItems: [ProjectItem] {
-        selectedDayItems.filter { $0.kind == .reminder }
-    }
-
     private var gridHeight: CGFloat {
         let offset = month.firstWeekdayOffset
         let days = month.numberOfDays
@@ -293,8 +285,6 @@ struct MonthView: View {
     @ViewBuilder
     private func dayDetailView(for day: Int) -> some View {
         let items = selectedDayItems
-        let scheduleItems = selectedDayScheduleItems
-        let taskItems = selectedDayTaskItems
         let dayDate = month.dateForDay(day)
 
         VStack(spacing: 0) {
@@ -318,35 +308,15 @@ struct MonthView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 List {
-                    dayItemKindSection(title: "Tasks", systemImage: "checklist",
-                                       count: taskItems.count, color: .green,
-                                       items: taskItems)
-                    dayItemKindSection(title: "Schedule", systemImage: "calendar",
-                                       count: scheduleItems.count, color: .blue,
-                                       items: scheduleItems)
+                    ForEach(items) { item in
+                        dayDetailItemRow(item)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func dayItemKindSection(title: String, systemImage: String,
-                                    count: Int, color: Color,
-                                    items: [ProjectItem]) -> some View {
-        if !items.isEmpty {
-            itemKindSectionHeader(title: title, systemImage: systemImage,
-                                  count: count, color: color)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
-
-            ForEach(items) { item in
-                dayDetailItemRow(item)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
             }
         }
     }
@@ -393,26 +363,6 @@ struct MonthView: View {
         let df = DateFormatter()
         df.dateFormat = "EEEE, MMMM d"
         return df.string(from: date)
-    }
-
-    private func itemKindSectionHeader(title: String, systemImage: String,
-                                       count: Int, color: Color) -> some View {
-        HStack(spacing: 7) {
-            Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(color)
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-            Text("\(count)")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(color)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(color.opacity(0.12))
-                .clipShape(Capsule())
-            Spacer()
-        }
-        .foregroundStyle(.primary.opacity(0.86))
     }
 
     private func dayItemRow(item: ProjectItem) -> some View {
