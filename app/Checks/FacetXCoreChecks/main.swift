@@ -215,4 +215,34 @@ check(FacetAssociation.classify(title: "plain title") == .none,
 check(FacetAssociation.classify(title: "plain title\nRegulus: fix bug") == .none,
       "classify should ignore prefixes after the first line")
 
+// ── ItemArrangement.sorted + ItemQuery.filteredByTag/Kind ───────────────────
+
+let highTodo = ProjectItem(id: "high", kind: .reminder, rawTitle: "P: a",
+                           projectPrefix: "P", content: "Apple", containerName: "x",
+                           isCompleted: false, date: tomorrow, notes: nil, tags: ["alpha"],
+                           priority: 1, url: nil)
+let medTodo = ProjectItem(id: "med", kind: .reminder, rawTitle: "P: b",
+                          projectPrefix: "P", content: "banana", containerName: "x",
+                          isCompleted: false, date: now, notes: nil, tags: ["alpha", "beta"],
+                          priority: 5, url: nil)
+let noPriEvent = ProjectItem(id: "evt", kind: .event, rawTitle: "P: c",
+                             projectPrefix: "P", content: "Cherry", containerName: "x",
+                             isCompleted: false, date: now, notes: nil, tags: ["beta"],
+                             priority: 0, url: nil)
+let mixed = [medTodo, noPriEvent, highTodo]
+
+check(ItemArrangement.sorted(mixed, by: .priorityDesc).map(\.id) == ["high", "med", "evt"],
+      "priorityDesc should put highest priority first")
+check(ItemArrangement.sorted(mixed, by: .nameAsc).map(\.id) == ["high", "med", "evt"],
+      "nameAsc should sort by content alphabetically")
+check(ItemArrangement.sorted(mixed, by: .dateAsc).first?.id != "high",
+      "dateAsc should not put tomorrow's item first")
+
+check(ItemQuery.filteredByTag(mixed, tag: "alpha").map(\.id).sorted() == ["high", "med"],
+      "filteredByTag should match items containing the tag")
+check(ItemQuery.filteredByKind(mixed, kind: .event).map(\.id) == ["evt"],
+      "filteredByKind should restrict to one kind")
+check(ItemQuery.filteredByKind(mixed, kind: nil).count == mixed.count,
+      "filteredByKind with nil should pass through")
+
 print("FacetXCoreChecks OK")

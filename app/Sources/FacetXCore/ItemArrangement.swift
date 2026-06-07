@@ -42,9 +42,12 @@ public enum ItemArrangement {
         case .manual:
             return arranged(items, savedOrder: savedOrder)
         case .priorityDesc:
+            // Apple semantics: 1=high … 9=low, 0=none. Map 0 to a sentinel so it sinks last.
             return items.sorted { a, b in
                 if a.isCompleted != b.isCompleted { return !a.isCompleted }
-                if a.priority != b.priority { return a.priority > b.priority }
+                let pa = a.priority == 0 ? Int.max : a.priority
+                let pb = b.priority == 0 ? Int.max : b.priority
+                if pa != pb { return pa < pb }
                 return (a.date ?? .distantFuture) < (b.date ?? .distantFuture)
             }
         case .dateAsc:
