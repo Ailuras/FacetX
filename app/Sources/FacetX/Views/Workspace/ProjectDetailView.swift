@@ -82,7 +82,7 @@ struct ProjectDetailView: View {
                 ToolbarSearchField(text: $searchText, placeholder: mode == .commits ? "Search commits…" : "Search items…")
                     .frame(width: 220, height: 24)
             }
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(placement: .primaryAction) {
                 refreshButton
             }
         }

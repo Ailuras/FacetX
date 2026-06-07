@@ -83,7 +83,7 @@ struct TodayView: View {
                 ToolbarSearchField(text: $searchText, placeholder: "Search today…")
                     .frame(width: 200, height: 24)
             }
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(placement: .primaryAction) {
                 refreshButton
             }
         }
