@@ -206,9 +206,7 @@ struct ItemDetailPane: View {
 
     private var tagsCard: some View {
         FacetDetailSection(title: "Tags", systemImage: "tag") {
-            TextField("deep, waiting, writing", text: $tagsText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
+            TagChipEditor(tagsText: $tagsText, knownColors: settings)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
