@@ -11,6 +11,7 @@ struct ItemDetailPane: View {
     let project: Project
     let focusTitleOnAppear: Bool
     let onClose: () -> Void
+    let onReplacementStart: () -> Void
     let onUpdate: (String?) -> Void
 
     @State private var kind: ProjectItem.Kind
@@ -40,11 +41,13 @@ struct ItemDetailPane: View {
          project: Project,
          focusTitleOnAppear: Bool = false,
          onClose: @escaping () -> Void,
+         onReplacementStart: @escaping () -> Void = {},
          onUpdate: @escaping (String?) -> Void) {
         self.item = item
         self.project = project
         self.focusTitleOnAppear = focusTitleOnAppear
         self.onClose = onClose
+        self.onReplacementStart = onReplacementStart
         self.onUpdate = onUpdate
         _kind = State(initialValue: item.kind)
     }
@@ -674,6 +677,7 @@ struct ItemDetailPane: View {
     private func convertItem(to newKind: ProjectItem.Kind) {
         guard newKind != item.kind else { return }
         saving = true
+        onReplacementStart()
         Task {
             let newId: String?
             if item.kind == .reminder {

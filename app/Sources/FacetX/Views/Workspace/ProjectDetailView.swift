@@ -23,6 +23,7 @@ struct ProjectDetailView: View {
     @State private var dragSnapshot: [ProjectItem]? = nil
     @State private var selectedDetailItem: ProjectItem? = nil
     @State private var focusTitleItemID: String? = nil
+    @State private var preserveSelectionDuringReplacement = false
     @State private var showCompleted = true
     @State private var searchText = ""
     @State private var itemToDelete: ProjectItem? = nil
@@ -100,6 +101,7 @@ struct ProjectDetailView: View {
         .onChange(of: mode) {
             withAnimation(detailPaneAnimation) {
                 selectedDetailItem = nil
+                preserveSelectionDuringReplacement = false
             }
         }
         .onChange(of: selectedDetailItem) { _, newItem in
@@ -107,12 +109,14 @@ struct ProjectDetailView: View {
                 showTodayPanel.wrappedValue = false
             } else {
                 focusTitleItemID = nil
+                preserveSelectionDuringReplacement = false
             }
         }
         .onChange(of: showTodayPanel.wrappedValue) { _, newValue in
             if newValue, selectedDetailItem != nil {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
+                    preserveSelectionDuringReplacement = false
                 }
             }
         }
@@ -143,6 +147,7 @@ struct ProjectDetailView: View {
                 guard selectedDetailItem != nil else { return }
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
+                    preserveSelectionDuringReplacement = false
                 }
             case .editSelectedItemTitle:
                 guard mode == .all, let item = selectedDetailItem else { return }
@@ -178,6 +183,7 @@ struct ProjectDetailView: View {
             onClose: {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
+                    preserveSelectionDuringReplacement = false
                 }
             }
         ) {
@@ -188,12 +194,14 @@ struct ProjectDetailView: View {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
                 }
+            }, onReplacementStart: {
+                preserveSelectionDuringReplacement = true
             }, onUpdate: { selectionID in
                 Task {
                     if selectionID != nil {
                         refreshTrigger += 1
                     }
-                    await reload(selecting: selectionID)
+                    await reload(selecting: selectionID, endingReplacement: selectionID != nil)
                 }
             })
         }
@@ -453,7 +461,11 @@ struct ProjectDetailView: View {
         .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
     }
 
-    private func reload(selecting selectionID: String? = nil, focusTitle: Bool = false) async {
+    private func reload(
+        selecting selectionID: String? = nil,
+        focusTitle: Bool = false,
+        endingReplacement: Bool = false
+    ) async {
         loading = items.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
@@ -466,10 +478,17 @@ struct ProjectDetailView: View {
         let apply = {
             items = sortedItems
             if let selectedId {
-                selectedDetailItem = sortedItems.first { $0.id == selectedId }
-                if focusTitle, selectedDetailItem != nil {
+                if let refreshedSelection = sortedItems.first(where: { $0.id == selectedId }) {
+                    selectedDetailItem = refreshedSelection
+                } else if selectionID != nil || !preserveSelectionDuringReplacement {
+                    selectedDetailItem = nil
+                }
+                if focusTitle, selectedDetailItem?.id == selectedId {
                     focusTitleItemID = selectedId
                 }
+            }
+            if endingReplacement {
+                preserveSelectionDuringReplacement = false
             }
         }
 
