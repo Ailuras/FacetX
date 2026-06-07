@@ -10,6 +10,10 @@ fields, old paths, and compatibility bridges instead of preserving legacy
 entrypoints. Do not keep wrappers, aliases, migration shims, or fallback paths
 for removed interfaces unless the user specifically requests them.
 
+Applies to everything: Swift types, JSON keys, file paths, script flags,
+build targets, and AppKit/SwiftUI APIs. If the old interface is gone,
+remove it completely—no `// removed`, no re-export, no conditional shim.
+
 ## What This Is
 
 FacetX is a native macOS SwiftUI app (macOS 14+) that adds a project dimension
@@ -89,6 +93,20 @@ in ordinary item lists.
 - `FacetXCore` must remain pure SwiftPM logic with no SwiftUI or EventKit
   dependency.
 
+## AppKit Conventions
+
+**NSPopover delegate lifecycle**
+
+- Use `popoverDidShow` (not `popoverWillShow`) when accessing the popover's
+  underlying window via `contentViewController?.view.window`. During
+  `popoverWillShow` the hosting window has not yet been attached to the view
+  hierarchy, so `view.window` is `nil` and any window-level configuration
+  (e.g. `collectionBehavior`, `level`) is silently skipped.
+- Call `NSApp.activate(ignoringOtherApps: true)` **before** `popover.show()`
+  whenever keyboard focus is expected immediately after the popover appears.
+  Activating after show can leave the popover window non-key, causing
+  `@FocusState` bindings set in `onAppear` to have no effect.
+
 ## Source Layout
 
 App source lives under [app/Sources/FacetX](app/Sources/FacetX):
@@ -117,7 +135,10 @@ Lightweight executable checks live under
 
 ## Commit Style
 
-Commit complete features only; do not stack unrelated changes.
+One commit per functional unit. Each commit must compile, pass checks, and be
+coherent on its own. Do not combine a bug fix with a refactor, or a feature
+with style polish—split them into separate commits. Do not stage partial
+implementations or TODO placeholders.
 
 - `feat(...)` — new capability
 - `fix(...)` — bug fix
