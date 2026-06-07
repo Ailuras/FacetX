@@ -322,6 +322,10 @@ struct ProjectDetailView: View {
 
             kindFilterPicker
 
+            if let tag = selectedTag {
+                tagFilterChip(tag)
+            }
+
             Spacer()
 
             if hasActiveSearch {
@@ -353,6 +357,33 @@ struct ProjectDetailView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
+    }
+
+    private func tagFilterChip(_ tag: String) -> some View {
+        let color = settings.tagColor(for: tag)
+        return Button {
+            selectedTag = nil
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "tag.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(tag)
+                    .font(.system(size: 11, weight: .semibold))
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(color.opacity(0.30), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .help("Clear tag filter")
     }
 
     private var kindFilterPicker: some View {
