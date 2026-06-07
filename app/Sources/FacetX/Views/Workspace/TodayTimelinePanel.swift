@@ -18,10 +18,12 @@ struct TodayTimelinePanel: View {
         Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
     }
 
-    var timelinedItems: [ProjectItem] {
-        ItemQuery.todayItems(items).filter {
-            $0.kind == .event || ($0.kind == .reminder && $0.hasTime)
-        }
+    var todayReminderItems: [ProjectItem] {
+        ItemQuery.todayItems(items).filter { $0.kind == .reminder && !$0.isCompleted }
+    }
+
+    var todayEventItems: [ProjectItem] {
+        ItemQuery.todayItems(items).filter { $0.kind == .event }
     }
 
     var todayDateLabel: String {
@@ -40,7 +42,7 @@ struct TodayTimelinePanel: View {
             closeHelp: "Close Today panel",
             onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } }
         ) {
-            if timelinedItems.isEmpty {
+            if todayReminderItems.isEmpty && todayEventItems.isEmpty {
                 ContentUnavailableView {
                     Label("No timed items today", systemImage: "sun.max")
                 } description: {
@@ -67,7 +69,7 @@ struct TodayTimelinePanel: View {
 
     private func scrollToCurrentHour(proxy: ScrollViewProxy) {
         let hour = Calendar.current.component(.hour, from: Date())
-        if let item = timelinedItems.first(where: { item in
+        if let item = todayEventItems.first(where: { item in
             guard let d = item.date else { return false }
             return Calendar.current.component(.hour, from: d) >= hour
         }) {
@@ -96,71 +98,90 @@ struct TodayTimelinePanel: View {
         let endHour = settings.todayTimelineEndHour
         let hourHeight: CGFloat = 52
         let totalHeight = CGFloat(max(endHour - startHour, 1)) * hourHeight
-
         let eventPos = compactPositionedEvents(startHour: startHour, hourHeight: hourHeight)
-        let reminderPos = reminderPositions(startHour: startHour, hourHeight: hourHeight)
 
-        return HStack(spacing: 0) {
-            // Hour labels
-            VStack(spacing: 0) {
-                ForEach(startHour..<endHour, id: \.self) { hour in
-                    Text(String(format: "%02d:00", hour))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                        .frame(height: hourHeight, alignment: .top)
-                        .padding(.top, 2)
-                }
-            }
-            .frame(width: 42)
+        return VStack(alignment: .leading, spacing: 0) {
 
-            // Reminder marker column
-            ZStack(alignment: .topLeading) {
-                ForEach(reminderPos.indices, id: \.self) { idx in
-                    reminderMarker(reminderPos[idx])
-                }
-            }
-            .frame(width: 80, height: totalHeight)
-
-            // Event cards column (with grid)
-            ZStack(alignment: .topLeading) {
-                VStack(spacing: 0) {
-                    ForEach(startHour...endHour, id: \.self) { _ in
-                        Rectangle()
-                            .fill(FacetTheme.hairline)
-                            .frame(height: 0.5)
-                            .frame(height: hourHeight, alignment: .top)
+            // Tasks section — all today's reminders
+            if !todayReminderItems.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tasks")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 2)
+                    ForEach(todayReminderItems) { reminder in
+                        reminderPill(reminder)
                     }
                 }
-                ForEach(eventPos.indices, id: \.self) { idx in
-                    compactEventCard(eventPos[idx])
-                }
-                // Live drag time indicator
-                if let draggingID = draggingItemID,
-                   let draggingPos = eventPos.first(where: { $0.item.id == draggingID }),
-                   let originalDate = draggingPos.item.date {
-                    let hourHeight: CGFloat = 52
-                    let rawMinutes = (dragOffsetY / hourHeight) * 60
-                    let snappedMinutes = Int((rawMinutes / 15).rounded()) * 15
-                    let previewDate = Calendar.current.date(
-                        byAdding: .minute, value: snappedMinutes, to: originalDate
-                    ) ?? originalDate
-                    Text(dragTimeLabel(previewDate))
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.85))
-                        .clipShape(Capsule())
-                        .offset(y: draggingPos.yOffset + dragOffsetY - 20)
-                        .allowsHitTesting(false)
-                        .zIndex(200)
-                }
+                .padding(.horizontal, timelineContentInset)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
             }
-            .frame(height: totalHeight)
-            .frame(maxWidth: .infinity)
+
+            // Timeline section — events only
+            if !todayEventItems.isEmpty {
+                if !todayReminderItems.isEmpty {
+                    Divider().padding(.horizontal, timelineContentInset)
+                        .padding(.bottom, 8)
+                }
+                HStack(alignment: .top, spacing: 0) {
+                    // Hour labels
+                    VStack(spacing: 0) {
+                        ForEach(startHour..<endHour, id: \.self) { hour in
+                            Text(String(format: "%02d:00", hour))
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 2)
+                                .frame(height: hourHeight, alignment: .top)
+                        }
+                    }
+                    .frame(width: 42)
+
+                    // Event cards with grid
+                    ZStack(alignment: .topLeading) {
+                        // Grid lines
+                        VStack(spacing: 0) {
+                            ForEach(startHour..<endHour, id: \.self) { _ in
+                                Rectangle()
+                                    .fill(FacetTheme.hairline)
+                                    .frame(height: 0.5)
+                                    .frame(height: hourHeight, alignment: .top)
+                            }
+                        }
+
+                        // Event cards
+                        ForEach(eventPos.indices, id: \.self) { idx in
+                            compactEventCard(eventPos[idx])
+                        }
+
+                        // Live drag time indicator
+                        if let draggingID = draggingItemID,
+                           let draggingPos = eventPos.first(where: { $0.item.id == draggingID }),
+                           let originalDate = draggingPos.item.date {
+                            let rawMinutes = (dragOffsetY / hourHeight) * 60
+                            let snappedMinutes = Int((rawMinutes / 15).rounded()) * 15
+                            let previewDate = Calendar.current.date(
+                                byAdding: .minute, value: snappedMinutes, to: originalDate
+                            ) ?? originalDate
+                            Text(dragTimeLabel(previewDate))
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.85))
+                                .clipShape(Capsule())
+                                .offset(y: draggingPos.yOffset + dragOffsetY - 20)
+                                .allowsHitTesting(false)
+                                .zIndex(200)
+                        }
+                    }
+                    .frame(height: totalHeight)
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, timelineContentInset)
+                .padding(.vertical, 14)
+            }
         }
-        .padding(.horizontal, timelineContentInset)
-        .padding(.vertical, 14)
     }
 
     // MARK: – Layout engine
@@ -171,23 +192,12 @@ struct TodayTimelinePanel: View {
         let height: CGFloat
     }
 
-    private func reminderPositions(startHour: Int, hourHeight: CGFloat) -> [PositionedEvent] {
-        let cal = Calendar.current
-        let startH = Double(startHour)
-        return timelinedItems.compactMap { item -> PositionedEvent? in
-            guard item.kind == .reminder, let date = item.date else { return nil }
-            let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
-            let y = (h - startH) * Double(hourHeight)
-            return PositionedEvent(item: item, yOffset: CGFloat(y), height: 20)
-        }
-    }
-
     private func compactPositionedEvents(startHour: Int, hourHeight: CGFloat) -> [PositionedEvent] {
         let cal = Calendar.current
         let startH = Double(startHour)
 
-        let sorted = timelinedItems.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
-            guard item.kind == .event, let date = item.date else { return nil }
+        let sorted = todayEventItems.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
+            guard let date = item.date else { return nil }
             let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
             let dur: Double
             if let end = item.endDate {
@@ -286,6 +296,8 @@ struct TodayTimelinePanel: View {
                             value: snappedMinutes,
                             to: originalDate
                         ) ?? originalDate
+                        // Optimistic update — move card visually before EventKit confirms
+                        applyOptimisticReschedule(item: event, newDate: newDate)
                         Task { await rescheduleToTime(event, newDate: newDate) }
                     }
                     draggingItemID = nil
@@ -296,26 +308,39 @@ struct TodayTimelinePanel: View {
         .padding(.horizontal, 4)
     }
 
-    private func reminderMarker(_ pos: PositionedEvent) -> some View {
-        let isSelected = pos.item.id == selectedItem?.id
+    private func reminderPill(_ item: ProjectItem) -> some View {
+        let isSelected = item.id == selectedItem?.id
         return Button {
-            selectedItem = selectedItem?.id == pos.item.id ? nil : pos.item
+            selectedItem = selectedItem?.id == item.id ? nil : item
         } label: {
-            HStack(alignment: .center, spacing: 5) {
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(isSelected ? Color.green : Color.green.opacity(0.55))
-                    .frame(width: 3, height: 16)
-                Text(pos.item.content)
-                    .font(.system(size: 9, weight: isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? .primary : .secondary)
+            HStack(spacing: 7) {
+                Image(systemName: "circle")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.green)
+                Text(item.content)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
+                Spacer()
+                if let date = item.date, item.hasTime {
+                    Text(dragTimeLabel(date))
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
             }
-            .frame(height: 20, alignment: .topLeading)
-            .padding(.trailing, 4)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(isSelected ? Color.green.opacity(0.10) : Color.primary.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(isSelected ? Color.green.opacity(0.35) : Color.clear, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
-        .id(pos.item.id)
-        .offset(y: pos.yOffset)
+        .id(item.id)
     }
 
     private func timeRangeString(start: Date, end: Date) -> String {
@@ -339,6 +364,19 @@ struct TodayTimelinePanel: View {
         let fmt = DateFormatter()
         fmt.dateFormat = "HH:mm"
         return fmt.string(from: date)
+    }
+
+    private func applyOptimisticReschedule(item: ProjectItem, newDate: Date) {
+        guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
+        let newEndDate: Date?
+        if let origStart = item.date, let origEnd = item.endDate {
+            newEndDate = newDate.addingTimeInterval(origEnd.timeIntervalSince(origStart))
+        } else {
+            newEndDate = nil
+        }
+        var updated = items
+        updated[idx] = item.replacingDate(newDate, endDate: newEndDate, hasTime: true)
+        items = updated
     }
 
     private func rescheduleToTime(_ item: ProjectItem, newDate: Date) async {
