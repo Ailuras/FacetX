@@ -14,6 +14,20 @@ Applies to everything: Swift types, JSON keys, file paths, script flags,
 build targets, and AppKit/SwiftUI APIs. If the old interface is gone,
 remove it completely—no `// removed`, no re-export, no conditional shim.
 
+## Workflow: Commit and Restart After Every Functional Change
+
+After implementing a complete functional unit (feature, fix, or refactor), you
+must do **both** of the following before handing off to the user:
+
+1. **Commit** — one commit per functional unit, following the
+   [Commit Style](#commit-style) rules below. Each commit must compile and pass
+   checks.
+2. **Restart the app** — run `make run` so the change is live and ready to
+   verify. Never leave a change committed-but-not-running when the user expects
+   to test it.
+
+If the user asks you "为什么没有commit/重启", you missed this rule.
+
 ## What This Is
 
 FacetX is a native macOS SwiftUI app (macOS 14+) that adds a project dimension
