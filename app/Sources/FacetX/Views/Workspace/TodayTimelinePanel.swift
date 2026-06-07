@@ -9,6 +9,8 @@ struct TodayTimelinePanel: View {
 
     @State private var items: [ProjectItem] = []
     @State private var selectedItem: ProjectItem?
+    @State private var draggingItemID: String? = nil
+    @State private var dragOffsetY: CGFloat = 0
 
     // MARK: – Derived
 
@@ -132,6 +134,27 @@ struct TodayTimelinePanel: View {
                 ForEach(eventPos.indices, id: \.self) { idx in
                     compactEventCard(eventPos[idx])
                 }
+                // Live drag time indicator
+                if let draggingID = draggingItemID,
+                   let draggingPos = eventPos.first(where: { $0.item.id == draggingID }),
+                   let originalDate = draggingPos.item.date {
+                    let hourHeight: CGFloat = 52
+                    let rawMinutes = (dragOffsetY / hourHeight) * 60
+                    let snappedMinutes = Int((rawMinutes / 15).rounded()) * 15
+                    let previewDate = Calendar.current.date(
+                        byAdding: .minute, value: snappedMinutes, to: originalDate
+                    ) ?? originalDate
+                    Text(dragTimeLabel(previewDate))
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.85))
+                        .clipShape(Capsule())
+                        .offset(y: draggingPos.yOffset + dragOffsetY - 20)
+                        .allowsHitTesting(false)
+                        .zIndex(200)
+                }
             }
             .frame(height: totalHeight)
             .frame(maxWidth: .infinity)
@@ -246,7 +269,30 @@ struct TodayTimelinePanel: View {
         .buttonStyle(.plain)
         .id(event.id)
         .frame(height: max(pos.height, 26))
-        .offset(y: pos.yOffset)
+        .offset(y: pos.yOffset + (draggingItemID == event.id ? dragOffsetY : 0))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 6)
+                .onChanged { val in
+                    draggingItemID = event.id
+                    dragOffsetY = val.translation.height
+                }
+                .onEnded { val in
+                    let hourHeight: CGFloat = 52
+                    let rawMinutes = (val.translation.height / hourHeight) * 60
+                    let snappedMinutes = Int((rawMinutes / 15).rounded()) * 15
+                    if let originalDate = event.date, snappedMinutes != 0 {
+                        let newDate = Calendar.current.date(
+                            byAdding: .minute,
+                            value: snappedMinutes,
+                            to: originalDate
+                        ) ?? originalDate
+                        Task { await rescheduleToTime(event, newDate: newDate) }
+                    }
+                    draggingItemID = nil
+                    dragOffsetY = 0
+                }
+        )
+        .zIndex(draggingItemID == event.id ? 1 : 0)
         .padding(.horizontal, 4)
     }
 
@@ -285,5 +331,38 @@ struct TodayTimelinePanel: View {
             return fmt.string(from: start)
         }
         return timeRangeString(start: start, end: end)
+    }
+
+    // MARK: – Drag reschedule
+
+    private func dragTimeLabel(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "HH:mm"
+        return fmt.string(from: date)
+    }
+
+    private func rescheduleToTime(_ item: ProjectItem, newDate: Date) async {
+        let newEndDate: Date?
+        if let origStart = item.date, let origEnd = item.endDate {
+            let duration = origEnd.timeIntervalSince(origStart)
+            newEndDate = newDate.addingTimeInterval(duration)
+        } else {
+            newEndDate = nil
+        }
+        _ = await ek.updateItem(
+            id: item.id,
+            project: item.projectPrefix,
+            content: item.content,
+            date: newDate,
+            useDate: true,
+            dateIncludesTime: true,
+            containerName: item.containerName,
+            notes: item.notes,
+            tags: item.tags,
+            priority: item.priority,
+            isAllDay: false,
+            endDate: newEndDate
+        )
+        // ek.changeToken fires automatically → .onChange(of: ek.changeToken) in body triggers reload()
     }
 }
