@@ -251,25 +251,23 @@ struct ItemRow: View {
                     }
 
                     if !item.tags.isEmpty {
-                        HStack(spacing: 4) {
-                            ForEach(Array(item.tags.prefix(3)), id: \.self) { tag in
+                        FlowLayout(spacing: 4, lineSpacing: 4) {
+                            ForEach(item.tags, id: \.self) { tag in
                                 let tagColor = settings.tagColor(for: tag)
-                                Text("#\(tag)")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(tagColor)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(tagColor.opacity(0.10))
-                                    .clipShape(Capsule())
-                            }
-                            if item.tags.count > 3 {
-                                Text("+\(item.tags.count - 3)")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.secondary.opacity(0.10))
-                                    .clipShape(Capsule())
+                                HStack(spacing: 2) {
+                                    Text("#")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(tagColor.opacity(0.65))
+                                    Text(tag)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(tagColor)
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .fill(tagColor.opacity(0.12))
+                                )
                             }
                         }
                     }

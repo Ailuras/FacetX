@@ -50,9 +50,10 @@ struct ContentView: View {
                         }
                         if !sortedDiscoveredTags.isEmpty {
                             Section("Tags") {
-                                ForEach(sortedDiscoveredTags, id: \.self) { tag in
-                                    tagRow(tag)
-                                }
+                                tagCloud
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                                    .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 8, trailing: 10))
                             }
                         }
                     }
@@ -226,22 +227,46 @@ struct ContentView: View {
         )
     }
 
-    private func tagRow(_ tag: String) -> some View {
+    private var tagCloud: some View {
+        FlowLayout(spacing: 5, lineSpacing: 5) {
+            ForEach(sortedDiscoveredTags, id: \.self) { tag in
+                tagChip(tag)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func tagChip(_ tag: String) -> some View {
         let isSel = selectedTag == tag
         let color = settings.tagColor(for: tag)
-        return TagSidebarRow(
-            tag: tag,
-            count: store.discoveredTags[tag] ?? 0,
-            color: color,
-            isSelected: isSel
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
+        return Button {
             selectedTag = isSel ? nil : tag
+        } label: {
+            HStack(spacing: 3) {
+                Text("#")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(isSel ? Color.white.opacity(0.85) : color.opacity(0.70))
+                Text(tag)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isSel ? .white : .primary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSel ? color : color.opacity(0.14))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(isSel ? color : color.opacity(0.20), lineWidth: 0.5)
+            )
         }
+        .buttonStyle(.plain)
         .contextMenu {
             tagColorMenu(for: tag)
         }
+        .help("\(tag) · \(store.discoveredTags[tag] ?? 0) items")
     }
 
     private var sortedDiscoveredTags: [String] {

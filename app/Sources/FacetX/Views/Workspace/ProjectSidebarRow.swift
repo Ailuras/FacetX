@@ -46,37 +46,6 @@ struct WorkspaceSidebarRow: View {
     }
 }
 
-struct TagSidebarRow: View {
-    let tag: String
-    let count: Int
-    let color: Color
-    let isSelected: Bool
-
-    var body: some View {
-        HStack(spacing: 9) {
-            ZStack {
-                Circle()
-                    .fill(isSelected ? color : color.opacity(0.30))
-                    .frame(width: 10, height: 10)
-            }
-            .frame(width: 24, height: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(tag)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .lineLimit(1)
-                Text("\(count) items")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 3)
-    }
-}
-
 struct ProjectSidebarRow: View {
     let project: Project
 
