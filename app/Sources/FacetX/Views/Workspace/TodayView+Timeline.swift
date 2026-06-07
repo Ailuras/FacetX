@@ -60,9 +60,11 @@ extension TodayView {
         let hourHeight: CGFloat = 52
         let totalHeight = CGFloat(max(endHour - startHour, 1)) * hourHeight
 
-        let positioned = compactPositionedEvents(startHour: startHour, hourHeight: hourHeight)
+        let eventPos = compactPositionedEvents(startHour: startHour, hourHeight: hourHeight)
+        let reminderPos = reminderPositions(startHour: startHour, hourHeight: hourHeight)
 
         return HStack(spacing: 0) {
+            // Hour labels
             VStack(spacing: 0) {
                 ForEach(startHour..<endHour, id: \.self) { hour in
                     Text(String(format: "%02d:00", hour))
@@ -74,6 +76,15 @@ extension TodayView {
             }
             .frame(width: 42)
 
+            // Reminder marker column
+            ZStack(alignment: .topLeading) {
+                ForEach(reminderPos.indices, id: \.self) { idx in
+                    reminderMarker(reminderPos[idx])
+                }
+            }
+            .frame(width: 80, height: totalHeight)
+
+            // Event cards column (with grid)
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     ForEach(startHour...endHour, id: \.self) { _ in
@@ -83,9 +94,8 @@ extension TodayView {
                             .frame(height: hourHeight, alignment: .top)
                     }
                 }
-
-                ForEach(positioned.indices, id: \.self) { idx in
-                    compactEventCard(positioned[idx])
+                ForEach(eventPos.indices, id: \.self) { idx in
+                    compactEventCard(eventPos[idx])
                 }
             }
             .frame(height: totalHeight)
@@ -97,18 +107,27 @@ extension TodayView {
 
     // MARK: – Layout Engine
 
+    private func reminderPositions(startHour: Int, hourHeight: CGFloat) -> [PositionedEvent] {
+        let cal = Calendar.current
+        let startH = Double(startHour)
+        return timelinedItems.compactMap { item -> PositionedEvent? in
+            guard item.kind == .reminder, let date = item.date else { return nil }
+            let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
+            let y = (h - startH) * Double(hourHeight)
+            return PositionedEvent(item: item, yOffset: CGFloat(y), height: 20)
+        }
+    }
+
     private func compactPositionedEvents(startHour: Int, hourHeight: CGFloat) -> [PositionedEvent] {
         let cal = Calendar.current
         let startH = Double(startHour)
 
         let sorted = timelinedItems.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
-            guard let date = item.date else { return nil }
+            guard item.kind == .event, let date = item.date else { return nil }
             let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
             let dur: Double
             if let end = item.endDate {
                 dur = end.timeIntervalSince(date) / 3600.0
-            } else if item.kind == .reminder {
-                dur = 0.5
             } else {
                 dur = 1.0
             }
@@ -142,8 +161,8 @@ extension TodayView {
         let isSelected = event.id == selectedItem?.id
         let project = projectsByPrefix[event.projectPrefix]
         let tint: Color = event.kind == .reminder ? .green : .blue
-        let cardBg = isSelected ? tint.opacity(0.16) : tint.opacity(0.07)
-        let cardStroke = isSelected ? tint.opacity(0.68) : tint.opacity(0.22)
+        let cardBg = isSelected ? tint.opacity(0.16) : tint.opacity(0.12)
+        let cardStroke = isSelected ? tint.opacity(0.68) : tint.opacity(0.34)
 
         return Button {
             selectedItem = selectedItem?.id == event.id ? nil : event
@@ -188,6 +207,28 @@ extension TodayView {
         .frame(height: max(pos.height, 26))
         .offset(y: pos.yOffset)
         .padding(.horizontal, 4)
+    }
+
+    private func reminderMarker(_ pos: PositionedEvent) -> some View {
+        let isSelected = pos.item.id == selectedItem?.id
+        return Button {
+            selectedItem = selectedItem?.id == pos.item.id ? nil : pos.item
+        } label: {
+            HStack(alignment: .center, spacing: 5) {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(isSelected ? Color.green : Color.green.opacity(0.55))
+                    .frame(width: 3, height: 16)
+                Text(pos.item.content)
+                    .font(.system(size: 9, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
+            }
+            .frame(height: 20, alignment: .topLeading)
+            .padding(.trailing, 4)
+        }
+        .buttonStyle(.plain)
+        .id(pos.item.id)
+        .offset(y: pos.yOffset)
     }
 
     private func timeRangeString(start: Date, end: Date) -> String {
