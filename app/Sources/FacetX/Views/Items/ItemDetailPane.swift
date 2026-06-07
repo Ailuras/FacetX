@@ -163,8 +163,7 @@ struct ItemDetailPane: View {
     }
 
     private var scheduleCard: some View {
-        FacetDetailSection(title: kind == .event ? "Schedule" : "Task",
-                           systemImage: kind == .event ? "calendar" : "checklist") {
+        FacetDetailBox {
             VStack(spacing: 0) {
                 if kind == .reminder {
                     propertyRow(label: "Priority", icon: "exclamationmark.circle") {
