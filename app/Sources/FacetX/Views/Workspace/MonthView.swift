@@ -318,36 +318,35 @@ struct MonthView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 List {
-                    if !scheduleItems.isEmpty {
-                        Section {
-                            ForEach(scheduleItems) { item in
-                                dayDetailItemRow(item)
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(Color.clear)
-                                    .listRowInsets(EdgeInsets(top: 2, leading: 14, bottom: 2, trailing: 14))
-                            }
-                        } header: {
-                            itemKindSectionHeader(title: "Schedule", systemImage: "calendar",
-                                                  count: scheduleItems.count, color: .blue)
-                        }
-                    }
-
-                    if !taskItems.isEmpty {
-                        Section {
-                            ForEach(taskItems) { item in
-                                dayDetailItemRow(item)
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(Color.clear)
-                                    .listRowInsets(EdgeInsets(top: 2, leading: 14, bottom: 2, trailing: 14))
-                            }
-                        } header: {
-                            itemKindSectionHeader(title: "Tasks", systemImage: "checklist",
-                                                  count: taskItems.count, color: .green)
-                        }
-                    }
+                    dayItemKindSection(title: "Tasks", systemImage: "checklist",
+                                       count: taskItems.count, color: .green,
+                                       items: taskItems)
+                    dayItemKindSection(title: "Schedule", systemImage: "calendar",
+                                       count: scheduleItems.count, color: .blue,
+                                       items: scheduleItems)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dayItemKindSection(title: String, systemImage: String,
+                                    count: Int, color: Color,
+                                    items: [ProjectItem]) -> some View {
+        if !items.isEmpty {
+            itemKindSectionHeader(title: title, systemImage: systemImage,
+                                  count: count, color: color)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
+
+            ForEach(items) { item in
+                dayDetailItemRow(item)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
             }
         }
     }
