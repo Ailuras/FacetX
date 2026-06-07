@@ -30,6 +30,7 @@ struct ItemInlineEditState {
 struct StandardItemRow: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var store: ProjectStore
 
     let item: ProjectItem
     let projectPrefix: String
@@ -102,6 +103,10 @@ struct StandardItemRow: View {
             }
             Button("Copy Title") { copyTitle() }
             Divider()
+            Button(item.kind == .reminder ? "Convert to Event" : "Convert to Reminder") {
+                convertItemType()
+            }
+            Divider()
             Button("Delete", role: .destructive) {
                 onDeleteRequest(item)
             }
@@ -133,6 +138,7 @@ struct StandardItemRow: View {
         case .tomorrow: reschedule(to: tomorrow)
         case .complete: toggleComplete()
         case .delete: onDeleteRequest(item)
+        case .convert: convertItemType()
         }
     }
 
@@ -172,6 +178,40 @@ struct StandardItemRow: View {
         Task {
             await ItemActionHelpers.clearDate(item, ek: ek)
             await onReload()
+        }
+    }
+
+    private func convertItemType() {
+        let proj = store.activeProjects.first { $0.prefix == projectPrefix }
+        Task {
+            let ok: Bool
+            if item.kind == .reminder {
+                let calName = proj?.calendarName ?? ""
+                ok = await ek.convertReminderToEvent(
+                    reminderId: item.id,
+                    project: item.projectPrefix,
+                    content: item.content,
+                    notes: item.notes,
+                    tags: item.tags,
+                    dueDate: item.date,
+                    durationMinutes: settings.defaultEventDurationMinutes,
+                    calendarName: calName.isEmpty ? settings.defaultCalendarName : calName
+                )
+            } else {
+                let listName = proj?.reminderListName ?? ""
+                ok = await ek.convertEventToReminder(
+                    eventId: item.id,
+                    project: item.projectPrefix,
+                    content: item.content,
+                    notes: item.notes,
+                    tags: item.tags,
+                    priority: item.priority,
+                    startDate: item.date,
+                    hasTime: item.hasTime,
+                    listName: listName.isEmpty ? settings.defaultReminderListName : listName
+                )
+            }
+            if ok { await onReload() }
         }
     }
 

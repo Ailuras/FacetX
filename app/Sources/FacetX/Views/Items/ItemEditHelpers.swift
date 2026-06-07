@@ -140,6 +140,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
     case tomorrow
     case complete
     case delete
+    case convert
 
     var id: String { rawValue }
 
@@ -150,6 +151,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
         case .tomorrow: return "Tomorrow"
         case .complete: return "Complete"
         case .delete: return "Delete"
+        case .convert: return "Convert"
         }
     }
 
@@ -160,6 +162,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
         case .tomorrow: return "sunrise"
         case .complete: return "checkmark.circle"
         case .delete: return "trash"
+        case .convert: return "arrow.2.squarepath"
         }
     }
 
@@ -170,6 +173,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
         case .tomorrow: return .orange
         case .complete: return .green
         case .delete: return .red
+        case .convert: return .purple
         }
     }
 
@@ -180,6 +184,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
         switch self {
         case .none: return false
         case .complete: return item.kind == .reminder
+        case .convert: return true
         default: return true
         }
     }
