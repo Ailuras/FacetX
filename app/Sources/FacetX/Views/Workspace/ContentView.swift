@@ -7,9 +7,10 @@ struct ContentView: View {
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     @EnvironmentObject private var toast: ToastController
 
-    enum SidebarItem: Hashable { case today, project(Project.ID) }
+    enum SidebarItem: Hashable { case project(Project.ID) }
 
-    @State private var selection: SidebarItem? = .today
+    @State private var selection: SidebarItem? = nil
+    @State private var showTodayPanel = false
     @State private var discovered: [String] = []
     @State private var draftProject: ProjectDraft?
     @State private var editingProject: Project?
@@ -23,15 +24,6 @@ struct ContentView: View {
                         persistenceWarningView(persistenceWarning)
                     }
                     List(selection: $selection) {
-                        Section {
-                            WorkspaceSidebarRow(
-                                title: "Today",
-                                subtitle: todaySidebarSubtitle,
-                                badge: .symbol("sun.max.fill"),
-                                tint: .orange
-                            )
-                                .tag(SidebarItem.today)
-                        }
                         Section("Projects") {
                             ForEach(store.activeProjects) { project in
                                 ProjectSidebarRow(project: project)
@@ -70,24 +62,49 @@ struct ContentView: View {
                 }
                 .navigationTitle("FacetX")
             } detail: {
-                switch selection {
-                case .today, nil:
-                    TodayView()
-                case .project(let id):
-                    if let project = store.activeProjects.first(where: { $0.id == id }) {
-                        ProjectDetailView(project: project)
-                    } else {
-                        ContentUnavailableView("Select a project",
-                            systemImage: "folder",
-                            description: Text("Pick a project from the sidebar."))
+                HStack(spacing: 0) {
+                    Group {
+                        switch selection {
+                        case nil:
+                            ContentUnavailableView(
+                                "Select a project",
+                                systemImage: "folder",
+                                description: Text("Pick a project from the sidebar to get started.")
+                            )
+                        case .project(let id):
+                            if let project = store.activeProjects.first(where: { $0.id == id }) {
+                                ProjectDetailView(project: project, showTodayPanel: $showTodayPanel)
+                            } else {
+                                ContentUnavailableView("Project not found", systemImage: "folder")
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    if showTodayPanel {
+                        TodayTimelinePanel(isPresented: $showTodayPanel)
+                            .transition(FacetSidebarStyle.transition)
                     }
                 }
+                .animation(FacetTheme.detailSpring, value: showTodayPanel)
             }
             .navigationSplitViewStyle(.balanced)
-            .onAppear { selection = .today }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        withAnimation(FacetTheme.detailSpring) { showTodayPanel.toggle() }
+                    } label: {
+                        Image(systemName: showTodayPanel ? "sun.max.fill" : "sun.max")
+                            .symbolRenderingMode(.multicolor)
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .help(showTodayPanel ? "Hide Today panel" : "Show Today timeline")
+                }
+            }
             .onReceive(keyboard.commandPublisher) { cmd in
                 switch cmd {
-                case .today:          selection = .today
+                case .today:
+                    withAnimation(FacetTheme.detailSpring) { showTodayPanel.toggle() }
                 case .prevProject:    navigateProject(by: -1)
                 case .nextProject:    navigateProject(by: 1)
                 default:              break
@@ -176,14 +193,6 @@ struct ContentView: View {
         newIndex = max(0, min(newIndex, projects.count - 1))
         guard newIndex != currentIndex else { return }
         selection = .project(projects[newIndex].id)
-    }
-
-    private var todaySidebarSubtitle: String {
-        let count = store.activeProjects.count
-        if count == 0 {
-            return "No active projects"
-        }
-        return count == 1 ? "Across 1 project" : "Across \(count) projects"
     }
 
     private func startNewProject() {

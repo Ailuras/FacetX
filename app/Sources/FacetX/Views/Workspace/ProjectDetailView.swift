@@ -8,6 +8,7 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     let project: Project
+    let showTodayPanel: Binding<Bool>
 
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All", week = "Week", month = "Month", commits = "Git"
@@ -102,6 +103,16 @@ struct ProjectDetailView: View {
         .onChange(of: mode) {
             withAnimation(detailPaneAnimation) {
                 selectedDetailItem = nil
+            }
+        }
+        .onChange(of: selectedDetailItem) { _, newItem in
+            if newItem != nil {
+                showTodayPanel.wrappedValue = false
+            }
+        }
+        .onChange(of: showTodayPanel.wrappedValue) { _, newValue in
+            if newValue, selectedDetailItem != nil {
+                withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
             }
         }
         .onReceive(keyboard.commandPublisher) { cmd in

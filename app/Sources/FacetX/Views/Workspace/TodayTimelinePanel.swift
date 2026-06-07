@@ -1,58 +1,93 @@
 import FacetXCore
 import SwiftUI
 
-extension TodayView {
+struct TodayTimelinePanel: View {
+    @EnvironmentObject var ek: EventKitService
+    @EnvironmentObject var store: ProjectStore
+    @EnvironmentObject var settings: AppSettings
+    @Binding var isPresented: Bool
 
-    struct PositionedEvent {
-        let item: ProjectItem
-        let yOffset: CGFloat
-        let height: CGFloat
+    @State private var items: [ProjectItem] = []
+    @State private var selectedItem: ProjectItem?
+
+    // MARK: – Derived
+
+    var projectsByPrefix: [String: Project] {
+        Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
     }
 
-    private var timelineContentInset: CGFloat { FacetSidebarStyle.contentInset }
+    var timelinedItems: [ProjectItem] {
+        ItemQuery.todayItems(items).filter {
+            $0.kind == .event || ($0.kind == .reminder && $0.hasTime)
+        }
+    }
 
-    // MARK: – Timeline Sidebar
+    var todayDateLabel: String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMMM d"
+        return fmt.string(from: Date())
+    }
 
-    var timelineSidebar: some View {
+    // MARK: – Body
+
+    var body: some View {
         FacetSidebarPane(
-            title: "Timeline",
-            systemImage: "clock",
-            subtitle: selectedItem?.content,
-            closeHelp: "Close timeline",
-            onClose: {
-                withAnimation(sidebarAnimation) {
-                    selectedItem = nil
-                }
-            }
+            title: "Today",
+            systemImage: "sun.max.fill",
+            subtitle: todayDateLabel,
+            closeHelp: "Close Today panel",
+            onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } }
         ) {
             if timelinedItems.isEmpty {
                 ContentUnavailableView {
-                    Label("No timed items", systemImage: "clock")
+                    Label("No timed items today", systemImage: "sun.max")
                 } description: {
                     Text("Timed tasks and events for today will appear here.")
                 }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         compactTimelineView
                     }
                     .onAppear {
-                        if let item = selectedItem {
-                            proxy.scrollTo(item.id, anchor: .center)
-                        }
-                    }
-                    .onChange(of: selectedItem?.id) { _, newID in
-                        if let id = newID {
-                            proxy.scrollTo(id, anchor: .center)
-                        }
+                        scrollToCurrentHour(proxy: proxy)
                     }
                 }
             }
         }
+        .onAppear { Task { await reload() } }
+        .onChange(of: ek.changeToken) { Task { await reload() } }
+        .onChange(of: settings.changeToken) { Task { await reload() } }
     }
 
-    // MARK: – Compact Timeline
+    // MARK: – Scroll
+
+    private func scrollToCurrentHour(proxy: ScrollViewProxy) {
+        let hour = Calendar.current.component(.hour, from: Date())
+        if let item = timelinedItems.first(where: { item in
+            guard let d = item.date else { return false }
+            return Calendar.current.component(.hour, from: d) >= hour
+        }) {
+            proxy.scrollTo(item.id, anchor: .center)
+        }
+    }
+
+    // MARK: – Reload
+
+    private func reload() async {
+        let prefixes = Set(store.activeProjects.map(\.prefix))
+        let fetched = await ek.items(
+            forProjects: prefixes,
+            enabledReminderLists: settings.effectiveReminderListNames,
+            enabledCalendars: settings.effectiveCalendarNames
+        )
+        items = fetched
+    }
+
+    // MARK: – Timeline rendering
+
+    private var timelineContentInset: CGFloat { FacetSidebarStyle.contentInset }
 
     private var compactTimelineView: some View {
         let startHour = settings.todayTimelineStartHour
@@ -105,7 +140,13 @@ extension TodayView {
         .padding(.vertical, 14)
     }
 
-    // MARK: – Layout Engine
+    // MARK: – Layout engine
+
+    struct PositionedEvent {
+        let item: ProjectItem
+        let yOffset: CGFloat
+        let height: CGFloat
+    }
 
     private func reminderPositions(startHour: Int, hourHeight: CGFloat) -> [PositionedEvent] {
         let cal = Calendar.current
