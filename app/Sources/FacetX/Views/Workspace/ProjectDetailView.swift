@@ -262,6 +262,7 @@ struct ProjectDetailView: View {
 
     private var actionCluster: some View {
         HStack(spacing: 2) {
+            sortPill
             pillButton(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
                        help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
                        active: showCompleted) {
@@ -281,6 +282,36 @@ struct ProjectDetailView: View {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
         )
+    }
+
+    private var sortPill: some View {
+        Menu {
+            ForEach(SortOption.allCases) { option in
+                Button {
+                    sortOption = option
+                } label: {
+                    HStack {
+                        Image(systemName: option.systemImage)
+                        Text(option.rawValue)
+                        if sortOption == option {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: sortOption.systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(sortOption == .manual ? .secondary : Color.accentColor)
+                .frame(width: 26, height: 24)
+                .background(sortOption == .manual ? Color.clear : Color.accentColor.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Sort: \(sortOption.rawValue)")
     }
 
     private func pillButton(systemName: String, help: String, active: Bool = false,
@@ -340,8 +371,6 @@ struct ProjectDetailView: View {
                 )
             }
 
-            sortMenu
-
             actionCluster
         }
         .frame(minHeight: 30, alignment: .center)
@@ -378,33 +407,6 @@ struct ProjectDetailView: View {
         }
         .buttonStyle(.plain)
         .help("Clear tag filter")
-    }
-
-    private var sortMenu: some View {
-        Menu {
-            ForEach(SortOption.allCases) { option in
-                Button {
-                    sortOption = option
-                } label: {
-                    HStack {
-                        Text(option.rawValue)
-                        if sortOption == option {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: sortOption.systemImage)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 26, height: 24)
-                .background(Color.accentColor.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help("Sort: \(sortOption.rawValue)")
     }
 
     private var allItemsList: some View {
