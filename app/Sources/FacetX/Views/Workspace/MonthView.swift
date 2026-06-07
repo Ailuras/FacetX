@@ -13,10 +13,10 @@ struct MonthView: View {
     let showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
     let refreshTrigger: Int
+    let onCreateItem: (Date?) -> Void
 
     @State private var month = MonthYear.containing(Date())
     @State private var allItems: [ProjectItem] = []
-    @State private var createDate: DateWrapper? = nil
 
     private var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -45,12 +45,6 @@ struct MonthView: View {
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
         .onChange(of: refreshTrigger) { Task { await reload() } }
-        .sheet(item: $createDate) { wrapper in
-            CreateItemView(project: project, initialDate: wrapper.date) {
-                createDate = nil
-                Task { await reload() }
-            }
-        }
     }
 
     private var hasActiveSearch: Bool {
@@ -189,7 +183,7 @@ struct MonthView: View {
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
             if let date = month.dateForDay(day) {
-                createDate = DateWrapper(date: date)
+                onCreateItem(date)
             }
         }
     }

@@ -258,7 +258,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func createReminder(project: String, content: String,
                         listName: String, dueDate: Date?, dueIncludesTime: Bool,
                         notes: String? = nil,
-                        priority: Int = 0, enabledLists: Set<String>? = nil) async -> String? {
+                        priority: Int = 0, url: URL? = nil,
+                        enabledLists: Set<String>? = nil) async -> String? {
         let lists = filtered(store.calendars(for: .reminder), by: enabledLists)
         guard let list = lists.first(where: { $0.title == listName })
         else { return nil }
@@ -267,6 +268,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         r.calendar = list
         r.notes = notes
         r.priority = priority
+        r.url = url
         if let due = dueDate {
             r.dueDateComponents = Self.reminderDueComponents(from: due, includesTime: dueIncludesTime)
         }
@@ -284,14 +286,16 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func createEvent(project: String, content: String,
                      calendarName: String, startDate: Date,
                      durationMinutes: Int = 60, notes: String? = nil,
-                     isAllDay: Bool = false, enabledCalendars: Set<String>? = nil) async -> Bool {
+                     url: URL? = nil,
+                     isAllDay: Bool = false, enabledCalendars: Set<String>? = nil) async -> String? {
         let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
         guard let cal = calendars.first(where: { $0.title == calendarName })
-        else { return false }
+        else { return nil }
         let e = EKEvent(eventStore: store)
         e.title = ProjectPrefix.makeTitle(project: project, content: content)
         e.calendar = cal
         e.notes = notes
+        e.url = url
         e.isAllDay = isAllDay
         if isAllDay {
             // All-day events span exactly one day in EventKit (end = start + 1 day, exclusive)
@@ -301,7 +305,12 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             e.startDate = startDate
             e.endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate)
         }
-        do { try store.save(e, span: .thisEvent, commit: true); return true } catch { return false }
+        do {
+            try store.save(e, span: .thisEvent, commit: true)
+            return e.calendarItemIdentifier
+        } catch {
+            return nil
+        }
     }
 
     // ── Conversion helpers ───────────────────────────────────────────────────
@@ -315,7 +324,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     /// Delete a reminder and create a calendar event with the same content.
-    /// Returns true on success.
+    /// Returns the new event identifier on success.
     @discardableResult
     func convertReminderToEvent(
         reminderId: String,
@@ -327,10 +336,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         durationMinutes: Int,
         calendarName: String,
         enabledCalendars: Set<String>? = nil
-    ) async -> Bool {
+    ) async -> String? {
         let startDate = dueDate ?? Calendar.current.startOfDay(for: Date())
         let composedNotes = composeNotes(userNotes: notes, tags: tags)
-        let created = await createEvent(
+        let createdId = await createEvent(
             project: project,
             content: content,
             calendarName: calendarName,
@@ -339,12 +348,12 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             notes: composedNotes,
             enabledCalendars: enabledCalendars
         )
-        guard created else { return false }
-        return await deleteItem(id: reminderId)
+        guard let createdId else { return nil }
+        return await deleteItem(id: reminderId) ? createdId : nil
     }
 
     /// Delete a calendar event and create a reminder with the same content.
-    /// Returns true on success.
+    /// Returns the new reminder identifier on success.
     @discardableResult
     func convertEventToReminder(
         eventId: String,
@@ -357,7 +366,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         hasTime: Bool,
         listName: String,
         enabledLists: Set<String>? = nil
-    ) async -> Bool {
+    ) async -> String? {
         let composedNotes = composeNotes(userNotes: notes, tags: tags)
         let newId = await createReminder(
             project: project,
@@ -369,8 +378,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             priority: priority,
             enabledLists: enabledLists
         )
-        guard newId != nil else { return false }
-        return await deleteItem(id: eventId)
+        guard let newId else { return nil }
+        return await deleteItem(id: eventId) ? newId : nil
     }
 
     /// Delete an existing calendar item (reminder or event) by its identifier.

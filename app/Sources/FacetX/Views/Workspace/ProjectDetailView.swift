@@ -18,11 +18,11 @@ struct ProjectDetailView: View {
     @State private var mode: Mode = .all
     @State private var items: [ProjectItem] = []
     @State private var loading = false
-    @State private var showCreate = false
     @State private var inlineEdit = ItemInlineEditState()
     @State private var draggedItem: ProjectItem? = nil
     @State private var dragSnapshot: [ProjectItem]? = nil
     @State private var selectedDetailItem: ProjectItem? = nil
+    @State private var focusTitleItemID: String? = nil
     @State private var showCompleted = true
     @State private var searchText = ""
     @State private var itemToDelete: ProjectItem? = nil
@@ -60,8 +60,8 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all: allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger)
-                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger)
+                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
                     case .commits: CommitsView(project: project, searchText: searchText, refreshTrigger: refreshTrigger)
                     }
                 }
@@ -84,14 +84,8 @@ struct ProjectDetailView: View {
                     .frame(width: 220, height: 24)
             }
             ToolbarItem(placement: .primaryAction) {
-                todayButton
+                toolbarActions
             }
-            ToolbarItem(placement: .primaryAction) {
-                refreshButton
-            }
-        }
-        .sheet(isPresented: $showCreate) {
-            CreateItemView(project: project) { Task { await reload() } }
         }
         .task(id: project.id) { await reload() }
         .onChange(of: ek.changeToken) { Task { await reload() } }
@@ -111,11 +105,15 @@ struct ProjectDetailView: View {
         .onChange(of: selectedDetailItem) { _, newItem in
             if newItem != nil {
                 showTodayPanel.wrappedValue = false
+            } else {
+                focusTitleItemID = nil
             }
         }
         .onChange(of: showTodayPanel.wrappedValue) { _, newValue in
             if newValue, selectedDetailItem != nil {
-                withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                }
             }
         }
         .onReceive(keyboard.commandPublisher) { cmd in
@@ -124,7 +122,7 @@ struct ProjectDetailView: View {
             case .modeWeek:    mode = .week
             case .modeMonth:   mode = .month
             case .modeGit:     mode = .commits
-            case .newItem:     showCreate = true
+            case .newItem:     beginCreate()
             case .refresh:
                 refreshTrigger += 1
                 toast.show("Refreshed", type: .success, duration: 1.5)
@@ -143,7 +141,9 @@ struct ProjectDetailView: View {
                 withAnimation(detailPaneAnimation) { selectedDetailItem = first }
             case .closeDetail:
                 guard selectedDetailItem != nil else { return }
-                withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                }
             case .editSelectedItemTitle:
                 guard mode == .all, let item = selectedDetailItem else { return }
                 inlineEdit.startTitleEdit(for: item)
@@ -181,12 +181,20 @@ struct ProjectDetailView: View {
                 }
             }
         ) {
-            ItemDetailPane(item: selectedItem, project: project, onClose: {
+            ItemDetailPane(item: selectedItem,
+                           project: project,
+                           focusTitleOnAppear: selectedItem.id == focusTitleItemID,
+                           onClose: {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
                 }
-            }, onUpdate: {
-                Task { await reload() }
+            }, onUpdate: { selectionID in
+                Task {
+                    if selectionID != nil {
+                        refreshTrigger += 1
+                    }
+                    await reload(selecting: selectionID)
+                }
             })
         }
     }
@@ -225,6 +233,13 @@ struct ProjectDetailView: View {
         .help("Refresh")
     }
 
+    private var toolbarActions: some View {
+        HStack(spacing: 3) {
+            todayButton
+            refreshButton
+        }
+    }
+
     private var actionCluster: some View {
         HStack(spacing: 2) {
             pillButton(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
@@ -233,7 +248,7 @@ struct ProjectDetailView: View {
                 withAnimation(listAnimation) { showCompleted.toggle() }
             }
             pillButton(systemName: "plus", help: "Add an item to this project") {
-                showCreate = true
+                beginCreate()
             }
         }
         .padding(.horizontal, 4)
@@ -438,20 +453,23 @@ struct ProjectDetailView: View {
         .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
     }
 
-    private func reload() async {
+    private func reload(selecting selectionID: String? = nil, focusTitle: Bool = false) async {
         loading = items.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
                                      enabledCalendars: settings.effectiveCalendarNames)
         store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
-        let selectedId = selectedDetailItem?.id
+        let selectedId = selectionID ?? selectedDetailItem?.id
         let firstPopulation = items.isEmpty
 
         let apply = {
             items = sortedItems
             if let selectedId {
-                selectedDetailItem = visibleItems.first { $0.id == selectedId }
+                selectedDetailItem = sortedItems.first { $0.id == selectedId }
+                if focusTitle, selectedDetailItem != nil {
+                    focusTitleItemID = selectedId
+                }
             }
         }
 
@@ -463,6 +481,30 @@ struct ProjectDetailView: View {
             withAnimation(listAnimation, apply)
         }
         loading = false
+    }
+
+    private func beginCreate(initialDate: Date? = nil) {
+        let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
+        guard !listName.isEmpty else {
+            toast.show("Choose a reminder list first", type: .error)
+            return
+        }
+        Task {
+            let dueDate = initialDate.map { FacetDateDefaults.dayDefault(reference: $0) }
+            guard let id = await ek.createReminder(
+                project: project.prefix,
+                content: "New Todo",
+                listName: listName,
+                dueDate: dueDate,
+                dueIncludesTime: false,
+                enabledLists: settings.effectiveReminderListNames
+            ) else {
+                toast.show("Could not create item", type: .error)
+                return
+            }
+            refreshTrigger += 1
+            await reload(selecting: id, focusTitle: true)
+        }
     }
 
     private func moveItem(from source: ProjectItem, to destination: ProjectItem) {

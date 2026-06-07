@@ -13,12 +13,6 @@ struct DayGroup: Identifiable {
     var taskItems: [ProjectItem] { items.filter { $0.kind == .reminder } }
 }
 
-struct DateWrapper: Identifiable {
-    let date: Date
-
-    var id: TimeInterval { date.timeIntervalSinceReferenceDate }
-}
-
 extension View {
     func goalCard(accented: Bool) -> some View {
         self

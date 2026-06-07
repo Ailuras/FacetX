@@ -184,10 +184,10 @@ struct StandardItemRow: View {
     private func convertItemType() {
         let proj = store.activeProjects.first { $0.prefix == projectPrefix }
         Task {
-            let ok: Bool
+            let newId: String?
             if item.kind == .reminder {
                 let calName = proj?.calendarName ?? ""
-                ok = await ek.convertReminderToEvent(
+                newId = await ek.convertReminderToEvent(
                     reminderId: item.id,
                     project: item.projectPrefix,
                     content: item.content,
@@ -199,7 +199,7 @@ struct StandardItemRow: View {
                 )
             } else {
                 let listName = proj?.reminderListName ?? ""
-                ok = await ek.convertEventToReminder(
+                newId = await ek.convertEventToReminder(
                     eventId: item.id,
                     project: item.projectPrefix,
                     content: item.content,
@@ -211,7 +211,7 @@ struct StandardItemRow: View {
                     listName: listName.isEmpty ? settings.defaultReminderListName : listName
                 )
             }
-            if ok { await onReload() }
+            if newId != nil { await onReload() }
         }
     }
 

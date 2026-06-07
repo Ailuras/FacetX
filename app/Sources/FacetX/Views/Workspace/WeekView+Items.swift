@@ -68,7 +68,7 @@ extension WeekView {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.tertiary)
             Button {
-                createDate = DateWrapper(date: group.date)
+                onCreateItem(group.date)
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 10, weight: .medium))

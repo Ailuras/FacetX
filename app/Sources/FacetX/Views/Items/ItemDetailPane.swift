@@ -1,5 +1,6 @@
-import SwiftUI
+import AppKit
 import FacetXCore
+import SwiftUI
 
 struct ItemDetailPane: View {
     @EnvironmentObject private var ek: EventKitService
@@ -8,9 +9,11 @@ struct ItemDetailPane: View {
 
     let item: ProjectItem
     let project: Project
+    let focusTitleOnAppear: Bool
     let onClose: () -> Void
-    let onUpdate: () -> Void
+    let onUpdate: (String?) -> Void
 
+    @State private var kind: ProjectItem.Kind
     @State private var content = ""
     @State private var notes = ""
     @State private var tagsText = ""
@@ -24,20 +27,44 @@ struct ItemDetailPane: View {
     @State private var urlString = ""
     @State private var containerName = ""
     @State private var saving = false
-    @State private var showConvertConfirm = false
     @State private var loadingFields = false
     @State private var autoSaveTask: Task<Void, Never>? = nil
     @State private var savedEditSignature = ""
-    /// Stays false until the user actually edits a field, so a freshly opened
-    /// pane shows no save status (rather than an immediate "Saved").
     @State private var didEdit = false
 
     private let labelWidth: CGFloat = 76
     private let scheduleBoxHorizontalPadding: CGFloat = 8
     private let durationPresets = [30, 60, 120, 180, 240]
 
+    init(item: ProjectItem,
+         project: Project,
+         focusTitleOnAppear: Bool = false,
+         onClose: @escaping () -> Void,
+         onUpdate: @escaping (String?) -> Void) {
+        self.item = item
+        self.project = project
+        self.focusTitleOnAppear = focusTitleOnAppear
+        self.onClose = onClose
+        self.onUpdate = onUpdate
+        _kind = State(initialValue: item.kind)
+    }
+
+    private var modeIdentity: String {
+        item.id
+    }
+
     private var hasChanges: Bool {
         editSignature != savedEditSignature
+    }
+
+    private var kindSelection: Binding<ProjectItem.Kind> {
+        Binding(
+            get: { kind },
+            set: { newKind in
+                guard newKind != kind else { return }
+                convertItem(to: newKind)
+            }
+        )
     }
 
     var body: some View {
@@ -56,65 +83,25 @@ struct ItemDetailPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(FacetTheme.canvas)
         .onAppear(perform: loadFields)
-        .onChange(of: item) {
+        .onChange(of: modeIdentity) {
             loadFields()
         }
         .onChange(of: content) { scheduleAutosave() }
         .onChange(of: notes) { scheduleAutosave() }
         .onChange(of: tagsText) { scheduleAutosave() }
         .onChange(of: priority) { scheduleAutosave() }
-        .onChange(of: useDate) {
-            guard !loadingFields else { return }
-            if useDate, item.kind == .reminder {
-                date = reminderHasTime ? defaultTimedDate() : defaultDayDate()
-            } else if !useDate {
-                reminderHasTime = false
-            }
-            scheduleAutosave()
-        }
-        .onChange(of: reminderHasTime) {
-            guard !loadingFields else { return }
-            if item.kind == .reminder, useDate {
-                date = reminderHasTime ? defaultTimedDate() : defaultDayDate()
-            }
-            scheduleAutosave()
-        }
+        .onChange(of: useDate) { handleUseDateChanged() }
+        .onChange(of: reminderHasTime) { handleReminderHasTimeChanged() }
         .onChange(of: endDate) { scheduleAutosave() }
         .onChange(of: urlString) { scheduleAutosave() }
-        .onChange(of: date) {
-            alignEventEndAfterStartChange()
-            scheduleAutosave()
-        }
-        .onChange(of: durationMinutes) {
-            alignEventEndAfterDurationChange()
-            scheduleAutosave()
-        }
-        .onChange(of: isAllDay) {
-            guard !loadingFields else { return }
-            if item.kind == .event {
-                date = isAllDay ? defaultDayDate() : defaultTimedDate()
-            }
-            alignEventEndAfterAllDayToggle()
-            scheduleAutosave()
-        }
+        .onChange(of: date) { handleDateChanged() }
+        .onChange(of: durationMinutes) { handleDurationChanged() }
+        .onChange(of: isAllDay) { handleAllDayChanged() }
         .onDisappear {
             autoSaveTask?.cancel()
             if hasChanges {
                 saveChanges()
             }
-        }
-        .alert(
-            item.kind == .reminder ? "Convert to Event?" : "Convert to Reminder?",
-            isPresented: $showConvertConfirm
-        ) {
-            Button("Cancel", role: .cancel) {}
-            Button(item.kind == .reminder ? "Convert to Event" : "Convert to Reminder") {
-                convertItem()
-            }
-        } message: {
-            Text(item.kind == .reminder
-                ? "This reminder will be moved to your calendar as an event."
-                : "This event will be moved to your reminders.")
         }
     }
 
@@ -123,24 +110,30 @@ struct ItemDetailPane: View {
             HStack(alignment: .top, spacing: 10) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(item.kind == .reminder ? Color.green.opacity(0.14) : Color.blue.opacity(0.14))
-                    Image(systemName: item.kind == .reminder ? "checkmark.circle" : "calendar")
+                        .fill(kind == .reminder ? Color.green.opacity(0.14) : Color.blue.opacity(0.14))
+                    Image(systemName: kind == .reminder ? "checkmark.circle" : "calendar")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(item.kind == .reminder ? .green : .blue)
+                        .foregroundStyle(kind == .reminder ? .green : .blue)
                 }
                 .frame(width: 30, height: 30)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    TextField("What needs doing?", text: $content, axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 17, weight: .semibold))
-                        .lineLimit(1...4)
+                    TitleEditingField(
+                        text: $content,
+                        placeholder: kind == .reminder ? "What needs doing?" : "What is scheduled?",
+                        focusOnAppear: focusTitleOnAppear
+                    )
+                    .frame(height: 24)
 
                     Text(project.name)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+
+                Spacer(minLength: 8)
+
+                titleActions
             }
         }
         .padding(14)
@@ -153,11 +146,24 @@ struct ItemDetailPane: View {
         )
     }
 
+    @ViewBuilder private var titleActions: some View {
+        Picker("", selection: kindSelection) {
+            Text("Todo").tag(ProjectItem.Kind.reminder)
+            Text("Event").tag(ProjectItem.Kind.event)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .frame(width: 116)
+        .disabled(saving)
+        .help("Choose item type")
+    }
+
     private var scheduleCard: some View {
-        FacetDetailSection(title: item.kind == .event ? "Schedule" : "Task",
-                           systemImage: item.kind == .event ? "calendar" : "checklist") {
+        FacetDetailSection(title: kind == .event ? "Schedule" : "Task",
+                           systemImage: kind == .event ? "calendar" : "checklist") {
             VStack(spacing: 0) {
-                if item.kind == .reminder {
+                if kind == .reminder {
                     propertyRow(label: "Priority", icon: "exclamationmark.circle") {
                         PriorityPillPicker(selection: $priority)
                     }
@@ -299,7 +305,7 @@ struct ItemDetailPane: View {
             if useDate {
                 dateField($date, components: [.date], width: 128)
             } else {
-                Text("—")
+                Text("-")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.tertiary)
             }
@@ -318,7 +324,7 @@ struct ItemDetailPane: View {
             if reminderHasTime {
                 dateField($date, components: [.hourAndMinute], width: 74)
             } else {
-                Text("—")
+                Text("-")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.tertiary)
             }
@@ -373,35 +379,16 @@ struct ItemDetailPane: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
+            saveStatus
+            Spacer()
             Button(role: .destructive) {
                 deleteItem()
             } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.red.opacity(0.82))
-                    .frame(width: 32, height: 32)
-                    .background(Color.red.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Label("Delete", systemImage: "trash")
             }
-            .buttonStyle(.plain)
+            .controlSize(.small)
+            .disabled(saving)
             .help("Delete item")
-
-            Button {
-                showConvertConfirm = true
-            } label: {
-                Image(systemName: "arrow.2.squarepath")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.blue.opacity(0.82))
-                    .frame(width: 32, height: 32)
-                    .background(Color.blue.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .help(item.kind == .reminder ? "Convert to calendar event" : "Convert to reminder")
-
-            Spacer()
-
-            saveStatus
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -441,6 +428,8 @@ struct ItemDetailPane: View {
         loadingFields = true
         didEdit = false
         autoSaveTask?.cancel()
+
+        kind = item.kind
         content = item.content
         notes = item.notes ?? ""
         tagsText = item.tags.joined(separator: ", ")
@@ -465,6 +454,7 @@ struct ItemDetailPane: View {
             isAllDay = false
             endDate = Calendar.current.date(byAdding: .hour, value: 2, to: date) ?? d
             durationMinutes = clampedDurationMinutes(settings.defaultEventDurationMinutes)
+            isAllDay = false
         } else {
             useDate = false
             date = defaultDayDate()
@@ -481,17 +471,17 @@ struct ItemDetailPane: View {
     }
 
     private var editSignature: String {
-        let shouldUseDate = item.kind == .event || useDate
+        let shouldUseDate = kind == .event || useDate
         let datePart: String
-        if item.kind == .event {
+        if kind == .event {
             datePart = shouldUseDate ? minuteSignature(date) : "none"
         } else if shouldUseDate {
             datePart = reminderHasTime ? minuteSignature(date) : daySignature(date)
         } else {
             datePart = "none"
         }
-        let endPart = item.kind == .event ? (isAllDay ? daySignature(endDate) : minuteSignature(endDate)) : "none"
-        let reminderTimePart = item.kind == .reminder && useDate ? "\(reminderHasTime)" : "false"
+        let endPart = kind == .event ? (isAllDay ? daySignature(endDate) : minuteSignature(endDate)) : "none"
+        let reminderTimePart = kind == .reminder && useDate ? "\(reminderHasTime)" : "false"
         return [
             content.trimmingCharacters(in: .whitespaces),
             notes.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -502,7 +492,9 @@ struct ItemDetailPane: View {
             reminderTimePart,
             "\(isAllDay)",
             endPart,
-            urlString.trimmingCharacters(in: .whitespaces)
+            urlString.trimmingCharacters(in: .whitespaces),
+            containerName,
+            "\(kind)"
         ].joined(separator: "\n")
     }
 
@@ -530,8 +522,45 @@ struct ItemDetailPane: View {
         }
     }
 
+    private func handleUseDateChanged() {
+        guard !loadingFields else { return }
+        if useDate, kind == .reminder {
+            date = reminderHasTime ? defaultTimedDate() : defaultDayDate()
+        } else if !useDate {
+            reminderHasTime = false
+        }
+        scheduleAutosave()
+    }
+
+    private func handleReminderHasTimeChanged() {
+        guard !loadingFields else { return }
+        if kind == .reminder, useDate {
+            date = reminderHasTime ? defaultTimedDate() : defaultDayDate()
+        }
+        scheduleAutosave()
+    }
+
+    private func handleDateChanged() {
+        alignEventEndAfterStartChange()
+        scheduleAutosave()
+    }
+
+    private func handleDurationChanged() {
+        alignEventEndAfterDurationChange()
+        scheduleAutosave()
+    }
+
+    private func handleAllDayChanged() {
+        guard !loadingFields else { return }
+        if kind == .event {
+            date = isAllDay ? defaultDayDate() : defaultTimedDate()
+        }
+        alignEventEndAfterAllDayToggle()
+        scheduleAutosave()
+    }
+
     private func alignEventEndAfterStartChange() {
-        guard item.kind == .event else { return }
+        guard kind == .event else { return }
         if isAllDay {
             endDate = oneDayAfterStart()
         } else {
@@ -540,12 +569,12 @@ struct ItemDetailPane: View {
     }
 
     private func alignEventEndAfterDurationChange() {
-        guard item.kind == .event, !isAllDay else { return }
+        guard kind == .event, !isAllDay else { return }
         endDate = timedEndDate()
     }
 
     private func alignEventEndAfterAllDayToggle() {
-        guard item.kind == .event else { return }
+        guard kind == .event else { return }
         endDate = isAllDay ? oneDayAfterStart() : timedEndDate()
     }
 
@@ -582,11 +611,11 @@ struct ItemDetailPane: View {
     }
 
     private func defaultDayDate() -> Date {
-        FacetDateDefaults.dayDefault()
+        return FacetDateDefaults.dayDefault()
     }
 
     private func defaultTimedDate() -> Date {
-        FacetDateDefaults.nextWholeHour()
+        return FacetDateDefaults.nextWholeHour()
     }
 
     private func saveChanges() {
@@ -598,7 +627,7 @@ struct ItemDetailPane: View {
         let signature = editSignature
         let trimmedURL = urlString.trimmingCharacters(in: .whitespaces)
         let urlParam = trimmedURL.isEmpty ? nil : URL(string: trimmedURL)
-        let shouldUseDate = item.kind == .event || useDate
+        let shouldUseDate = kind == .event || useDate
         let tags = FacetMetadata.tags(from: tagsText)
 
         Task {
@@ -608,20 +637,20 @@ struct ItemDetailPane: View {
                 content: text,
                 date: shouldUseDate ? date : nil,
                 useDate: shouldUseDate,
-                dateIncludesTime: item.kind == .reminder && reminderHasTime,
+                dateIncludesTime: kind == .reminder && reminderHasTime,
                 containerName: targetContainer,
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
                 tags: tags,
                 priority: priority,
                 url: urlParam,
                 updateURL: true,
-                isAllDay: item.kind == .event ? isAllDay : nil,
-                endDate: item.kind == .event ? endDate : nil
+                isAllDay: kind == .event ? isAllDay : nil,
+                endDate: kind == .event ? endDate : nil
             )
             saving = false
             if ok {
                 savedEditSignature = signature
-                onUpdate()
+                onUpdate(nil)
             } else {
                 toast.show("Failed to save changes", type: .error)
             }
@@ -634,7 +663,7 @@ struct ItemDetailPane: View {
             let ok = await ek.deleteItem(id: item.id)
             saving = false
             if ok {
-                onUpdate()
+                onUpdate(nil)
                 onClose()
             } else {
                 toast.show("Failed to delete item", type: .error)
@@ -642,13 +671,14 @@ struct ItemDetailPane: View {
         }
     }
 
-    private func convertItem() {
+    private func convertItem(to newKind: ProjectItem.Kind) {
+        guard newKind != item.kind else { return }
         saving = true
         Task {
-            let ok: Bool
+            let newId: String?
             if item.kind == .reminder {
                 let calName = project.calendarName ?? ""
-                ok = await ek.convertReminderToEvent(
+                newId = await ek.convertReminderToEvent(
                     reminderId: item.id,
                     project: project.prefix,
                     content: item.content,
@@ -656,11 +686,12 @@ struct ItemDetailPane: View {
                     tags: item.tags,
                     dueDate: item.date,
                     durationMinutes: settings.defaultEventDurationMinutes,
-                    calendarName: calName.isEmpty ? settings.defaultCalendarName : calName
+                    calendarName: calName.isEmpty ? settings.defaultCalendarName : calName,
+                    enabledCalendars: settings.effectiveCalendarNames
                 )
             } else {
                 let listName = project.reminderListName ?? ""
-                ok = await ek.convertEventToReminder(
+                newId = await ek.convertEventToReminder(
                     eventId: item.id,
                     project: project.prefix,
                     content: item.content,
@@ -669,19 +700,93 @@ struct ItemDetailPane: View {
                     priority: item.priority,
                     startDate: item.date,
                     hasTime: item.hasTime,
-                    listName: listName.isEmpty ? settings.defaultReminderListName : listName
+                    listName: listName.isEmpty ? settings.defaultReminderListName : listName,
+                    enabledLists: settings.effectiveReminderListNames
                 )
             }
             saving = false
-            if ok {
+            if let newId {
                 toast.show(
                     item.kind == .reminder ? "Converted to event" : "Converted to reminder",
                     type: .success
                 )
-                onUpdate()
-                onClose()
+                onUpdate(newId)
             } else {
+                kind = item.kind
                 toast.show("Conversion failed", type: .error)
+            }
+        }
+    }
+
+    private func errorCard(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.triangle")
+            .font(.caption)
+            .foregroundStyle(.red)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.red.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+    }
+}
+
+private struct TitleEditingField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let focusOnAppear: Bool
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.placeholderString = placeholder
+        field.font = .systemFont(ofSize: 17, weight: .semibold)
+        field.lineBreakMode = .byTruncatingTail
+        field.usesSingleLineMode = true
+        field.delegate = context.coordinator
+        context.coordinator.field = field
+        return field
+    }
+
+    func updateNSView(_ field: NSTextField, context: Context) {
+        if field.stringValue != text {
+            field.stringValue = text
+        }
+        field.placeholderString = placeholder
+        if focusOnAppear && !context.coordinator.didFocus {
+            context.coordinator.focusWhenReady(field)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    @MainActor final class Coordinator: NSObject, NSTextFieldDelegate {
+        @Binding var text: String
+        weak var field: NSTextField?
+        var didFocus = false
+
+        init(text: Binding<String>) {
+            _text = text
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            text = field.stringValue
+        }
+
+        func focusWhenReady(_ field: NSTextField, attempts: Int = 0) {
+            guard !didFocus else { return }
+            DispatchQueue.main.async {
+                if field.window == nil, attempts < 4 {
+                    self.focusWhenReady(field, attempts: attempts + 1)
+                    return
+                }
+                guard field.window != nil else { return }
+                self.didFocus = true
+                field.window?.makeFirstResponder(field)
+                field.currentEditor()?.selectAll(nil)
             }
         }
     }
