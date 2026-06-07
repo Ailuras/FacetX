@@ -304,6 +304,75 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         do { try store.save(e, span: .thisEvent, commit: true); return true } catch { return false }
     }
 
+    // ── Conversion helpers ───────────────────────────────────────────────────
+
+    /// Compose a notes string that embeds tags as FacetMetadata, mirroring the
+    /// pattern used in `updateItem`. Returns nil when both notes and tags are empty.
+    private func composeNotes(userNotes: String?, tags: [String]) -> String? {
+        let notes = userNotes ?? ""
+        let metadata = FacetMetadata(userNotes: notes, tags: tags)
+        return FacetMetadata.compose(userNotes: notes, metadata: metadata)
+    }
+
+    /// Delete a reminder and create a calendar event with the same content.
+    /// Returns true on success.
+    @discardableResult
+    func convertReminderToEvent(
+        reminderId: String,
+        project: String,
+        content: String,
+        notes: String?,
+        tags: [String],
+        dueDate: Date?,
+        durationMinutes: Int,
+        calendarName: String,
+        enabledCalendars: Set<String>? = nil
+    ) async -> Bool {
+        let startDate = dueDate ?? Calendar.current.startOfDay(for: Date())
+        let composedNotes = composeNotes(userNotes: notes, tags: tags)
+        let created = await createEvent(
+            project: project,
+            content: content,
+            calendarName: calendarName,
+            startDate: startDate,
+            durationMinutes: max(durationMinutes, 15),
+            notes: composedNotes,
+            enabledCalendars: enabledCalendars
+        )
+        guard created else { return false }
+        return await deleteItem(id: reminderId)
+    }
+
+    /// Delete a calendar event and create a reminder with the same content.
+    /// Returns true on success.
+    @discardableResult
+    func convertEventToReminder(
+        eventId: String,
+        project: String,
+        content: String,
+        notes: String?,
+        tags: [String],
+        priority: Int,
+        startDate: Date?,
+        hasTime: Bool,
+        listName: String,
+        enabledLists: Set<String>? = nil
+    ) async -> Bool {
+        let composedNotes = composeNotes(userNotes: notes, tags: tags)
+        let newId = await createReminder(
+            project: project,
+            content: content,
+            listName: listName,
+            dueDate: startDate,
+            dueIncludesTime: hasTime,
+            notes: composedNotes,
+            priority: priority,
+            enabledLists: enabledLists
+        )
+        guard newId != nil else { return false }
+        return await deleteItem(id: eventId)
+    }
+
     /// Delete an existing calendar item (reminder or event) by its identifier.
     func deleteItem(id: String) async -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }

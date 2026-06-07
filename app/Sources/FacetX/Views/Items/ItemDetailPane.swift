@@ -24,6 +24,7 @@ struct ItemDetailPane: View {
     @State private var urlString = ""
     @State private var containerName = ""
     @State private var saving = false
+    @State private var showConvertConfirm = false
     @State private var loadingFields = false
     @State private var autoSaveTask: Task<Void, Never>? = nil
     @State private var savedEditSignature = ""
@@ -101,6 +102,19 @@ struct ItemDetailPane: View {
             if hasChanges {
                 saveChanges()
             }
+        }
+        .alert(
+            item.kind == .reminder ? "Convert to Event?" : "Convert to Reminder?",
+            isPresented: $showConvertConfirm
+        ) {
+            Button("Cancel", role: .cancel) {}
+            Button(item.kind == .reminder ? "Convert to Event" : "Convert to Reminder") {
+                convertItem()
+            }
+        } message: {
+            Text(item.kind == .reminder
+                ? "This reminder will be moved to your calendar as an event."
+                : "This event will be moved to your reminders.")
         }
     }
 
@@ -372,6 +386,19 @@ struct ItemDetailPane: View {
             .buttonStyle(.plain)
             .help("Delete item")
 
+            Button {
+                showConvertConfirm = true
+            } label: {
+                Image(systemName: "arrow.2.squarepath")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.blue.opacity(0.82))
+                    .frame(width: 32, height: 32)
+                    .background(Color.blue.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help(item.kind == .reminder ? "Convert to calendar event" : "Convert to reminder")
+
             Spacer()
 
             saveStatus
@@ -611,6 +638,50 @@ struct ItemDetailPane: View {
                 onClose()
             } else {
                 toast.show("Failed to delete item", type: .error)
+            }
+        }
+    }
+
+    private func convertItem() {
+        saving = true
+        Task {
+            let ok: Bool
+            if item.kind == .reminder {
+                let calName = project.calendarName ?? ""
+                ok = await ek.convertReminderToEvent(
+                    reminderId: item.id,
+                    project: project.prefix,
+                    content: item.content,
+                    notes: item.notes,
+                    tags: item.tags,
+                    dueDate: item.date,
+                    durationMinutes: settings.defaultEventDurationMinutes,
+                    calendarName: calName.isEmpty ? settings.defaultCalendarName : calName
+                )
+            } else {
+                let listName = project.reminderListName ?? ""
+                ok = await ek.convertEventToReminder(
+                    eventId: item.id,
+                    project: project.prefix,
+                    content: item.content,
+                    notes: item.notes,
+                    tags: item.tags,
+                    priority: item.priority,
+                    startDate: item.date,
+                    hasTime: item.hasTime,
+                    listName: listName.isEmpty ? settings.defaultReminderListName : listName
+                )
+            }
+            saving = false
+            if ok {
+                toast.show(
+                    item.kind == .reminder ? "Converted to event" : "Converted to reminder",
+                    type: .success
+                )
+                onUpdate()
+                onClose()
+            } else {
+                toast.show("Conversion failed", type: .error)
             }
         }
     }
