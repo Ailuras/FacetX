@@ -89,18 +89,6 @@ struct ContentView: View {
                 .animation(FacetTheme.detailSpring, value: showTodayPanel)
             }
             .navigationSplitViewStyle(.balanced)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        withAnimation(FacetTheme.detailSpring) { showTodayPanel.toggle() }
-                    } label: {
-                        Image(systemName: showTodayPanel ? "sun.max.fill" : "sun.max")
-                            .symbolRenderingMode(.multicolor)
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .help(showTodayPanel ? "Hide Today panel" : "Show Today timeline")
-                }
-            }
             .onReceive(keyboard.commandPublisher) { cmd in
                 switch cmd {
                 case .today:

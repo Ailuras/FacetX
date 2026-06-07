@@ -84,6 +84,9 @@ struct ProjectDetailView: View {
                     .frame(width: 220, height: 24)
             }
             ToolbarItem(placement: .primaryAction) {
+                todayButton
+            }
+            ToolbarItem(placement: .primaryAction) {
                 refreshButton
             }
         }
@@ -199,6 +202,17 @@ struct ProjectDetailView: View {
     }
 
     @EnvironmentObject private var toast: ToastController
+
+    private var todayButton: some View {
+        Button {
+            withAnimation(FacetTheme.detailSpring) { showTodayPanel.wrappedValue.toggle() }
+        } label: {
+            Image(systemName: showTodayPanel.wrappedValue ? "sun.max.fill" : "sun.max")
+                .symbolRenderingMode(.multicolor)
+                .font(.system(size: 13, weight: .medium))
+        }
+        .help(showTodayPanel.wrappedValue ? "Hide Today panel" : "Show Today timeline")
+    }
 
     private var refreshButton: some View {
         Button {
