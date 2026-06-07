@@ -65,6 +65,7 @@ struct InlineEditTextField: NSViewRepresentable {
 }
 
 struct ItemRow: View {
+    @EnvironmentObject private var settings: AppSettings
     let item: ProjectItem
     let isSelected: Bool
     /// When set (cross-project views like Today), shows the owning project as a
@@ -252,12 +253,13 @@ struct ItemRow: View {
                     if !item.tags.isEmpty {
                         HStack(spacing: 4) {
                             ForEach(Array(item.tags.prefix(3)), id: \.self) { tag in
+                                let tagColor = settings.tagColor(for: tag)
                                 Text("#\(tag)")
                                     .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(tagColor)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(Color.accentColor.opacity(0.10))
+                                    .background(tagColor.opacity(0.10))
                                     .clipShape(Capsule())
                             }
                             if item.tags.count > 3 {

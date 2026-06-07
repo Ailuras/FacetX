@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// User settings, persisted as JSON under Application Support.
 ///
@@ -63,6 +64,10 @@ final class AppSettings: ObservableObject {
     @Published var trailingSwipeAction: String {
         didSet { settingsDidChange() }
     }
+    /// Tag name → color name mapping. Uses the same color names as ProjectAppearance.
+    @Published var tagColors: [String: String] {
+        didSet { settingsDidChange() }
+    }
     @Published private(set) var changeToken = 0
     @Published private(set) var persistenceError: String?
 
@@ -99,6 +104,7 @@ final class AppSettings: ObservableObject {
         self.globalShortcutEnabled = stored.globalShortcutEnabled
         self.leadingSwipeAction = stored.leadingSwipeAction ?? "tomorrow"
         self.trailingSwipeAction = stored.trailingSwipeAction ?? "today"
+        self.tagColors = stored.tagColors ?? [:]
         self.persistenceError = persistenceError
     }
 
@@ -149,6 +155,27 @@ final class AppSettings: ObservableObject {
         guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines),
               !name.isEmpty else { return nil }
         return enabledNames.isEmpty || enabledNames.contains(name) ? name : nil
+    }
+
+    /// Resolve a tag's color. If explicitly set, returns that; otherwise picks a
+    /// deterministic color from the palette based on the tag name's hash so the
+    /// same tag always renders the same color across launches.
+    func tagColor(for tag: String) -> Color {
+        ProjectAppearance.color(for: tagColorName(for: tag))
+    }
+
+    func tagColorName(for tag: String) -> String {
+        if let name = tagColors[tag] { return name }
+        let palette = ProjectAppearance.colors
+        var hash = 5381
+        for byte in tag.utf8 { hash = ((hash << 5) &+ hash) &+ Int(byte) }
+        let index = abs(hash) % palette.count
+        return palette[index].id
+    }
+
+    func setTagColor(_ tag: String, colorName: String) {
+        tagColors[tag] = colorName
+        settingsDidChange()
     }
 
     func useAllContainers() {
@@ -224,6 +251,7 @@ final class AppSettings: ObservableObject {
         var globalShortcutEnabled: Bool
         var leadingSwipeAction: String?
         var trailingSwipeAction: String?
+        var tagColors: [String: String]?
 
         static let defaults = Stored(enabledReminderListNames: [],
                                      enabledCalendarNames: [],
@@ -240,7 +268,8 @@ final class AppSettings: ObservableObject {
                                      githubToken: nil,
                                      globalShortcutEnabled: false,
                                      leadingSwipeAction: "tomorrow",
-                                     trailingSwipeAction: "today")
+                                     trailingSwipeAction: "today",
+                                     tagColors: [:])
     }
 
     private func save() {
@@ -259,7 +288,8 @@ final class AppSettings: ObservableObject {
                             githubToken: githubToken.isEmpty ? nil : githubToken,
                             globalShortcutEnabled: globalShortcutEnabled,
                             leadingSwipeAction: leadingSwipeAction,
-                            trailingSwipeAction: trailingSwipeAction)
+                            trailingSwipeAction: trailingSwipeAction,
+                            tagColors: tagColors)
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
             try enc.encode(stored).write(to: url, options: .atomic)

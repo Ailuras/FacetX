@@ -11,6 +11,7 @@ struct WeekView: View {
     let searchText: String
     let showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
+    @Binding var selectedTag: String?
     let refreshTrigger: Int
     let onCreateItem: (Date?) -> Void
 
@@ -31,9 +32,12 @@ struct WeekView: View {
     var listAnimation: Animation { FacetTheme.listSpring }
 
     var weekItems: [ProjectItem] {
-        let weekItems = allItems.filter { item in
+        var weekItems = allItems.filter { item in
             guard let date = item.date else { return false }
             return week.contains(date)
+        }
+        if let tag = selectedTag {
+            weekItems = ItemQuery.filteredByTag(weekItems, tag: tag)
         }
         return ItemQuery.searched(
             ItemQuery.completedVisibility(weekItems, showCompleted: showCompleted),

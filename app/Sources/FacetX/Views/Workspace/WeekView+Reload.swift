@@ -33,6 +33,7 @@ extension WeekView {
                                      enabledReminderLists: settings.effectiveReminderListNames,
                                      enabledCalendars: settings.effectiveCalendarNames)
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
+        store.reportTags(projectID: project.id, items: sortedItems)
         await syncGoalWithCalendar(for: requestedWeek)
         guard !Task.isCancelled, requestedWeek == week else { return }
         if allItems.isEmpty {

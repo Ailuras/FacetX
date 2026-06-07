@@ -12,6 +12,7 @@ struct MonthView: View {
     let searchText: String
     let showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
+    @Binding var selectedTag: String?
     let refreshTrigger: Int
     let onCreateItem: (Date?) -> Void
 
@@ -24,8 +25,12 @@ struct MonthView: View {
     private var listAnimation: Animation { FacetTheme.listSpring }
 
     private var monthItems: [ProjectItem] {
-        ItemQuery.searched(
-            ItemQuery.completedVisibility(ItemArrangement.inMonth(allItems, month), showCompleted: showCompleted),
+        var result = ItemArrangement.inMonth(allItems, month)
+        if let tag = selectedTag {
+            result = ItemQuery.filteredByTag(result, tag: tag)
+        }
+        return ItemQuery.searched(
+            ItemQuery.completedVisibility(result, showCompleted: showCompleted),
             query: searchText
         )
     }
@@ -405,6 +410,7 @@ struct MonthView: View {
                                       eventStartDate: requestedMonth.startDate,
                                       eventEndDate: requestedMonth.endDate)
         guard !Task.isCancelled, requestedMonth == month else { return }
+        store.reportTags(projectID: project.id, items: fetched)
         if allItems.isEmpty {
             allItems = fetched
         } else {

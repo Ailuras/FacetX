@@ -1,4 +1,5 @@
 import Foundation
+import FacetXCore
 
 /// A saved project. Owns calendar/reminder items by title prefix; the items
 /// themselves live in EventKit, not here. This store holds only project-side
@@ -57,7 +58,18 @@ struct WeekGoal: Identifiable, Codable, Hashable {
 @MainActor
 final class ProjectStore: ObservableObject {
     @Published private(set) var projects: [Project] = []
+    @Published private(set) var tagsByProject: [Project.ID: [String: Int]] = [:]
     @Published private(set) var persistenceError: String?
+
+    var discoveredTags: [String: Int] {
+        var aggregate: [String: Int] = [:]
+        for (_, counts) in tagsByProject {
+            for (tag, count) in counts {
+                aggregate[tag, default: 0] += count
+            }
+        }
+        return aggregate
+    }
 
     private let url: URL
 
@@ -154,6 +166,22 @@ final class ProjectStore: ObservableObject {
             projects[p].weekGoals.append(goal)
         }
         save()
+    }
+
+    // ── Tag discovery ─────────────────────────────────────────────────────────
+
+    /// Replace this project's tag counts with the tags found in the given items.
+    /// Called from each project's reload — aggregated counts are recomputed lazily.
+    func reportTags(projectID: Project.ID, items: [ProjectItem]) {
+        var counts: [String: Int] = [:]
+        for item in items {
+            for tag in item.tags {
+                counts[tag, default: 0] += 1
+            }
+        }
+        if tagsByProject[projectID] != counts {
+            tagsByProject[projectID] = counts
+        }
     }
 
     // ── Item ordering ────────────────────────────────────────────────────────

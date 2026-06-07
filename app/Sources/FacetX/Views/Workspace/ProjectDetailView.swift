@@ -9,6 +9,7 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     let project: Project
     let showTodayPanel: Binding<Bool>
+    @Binding var selectedTag: String?
 
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All", week = "Week", month = "Month", commits = "Git"
@@ -28,15 +29,23 @@ struct ProjectDetailView: View {
     @State private var searchText = ""
     @State private var itemToDelete: ProjectItem? = nil
     @State private var refreshTrigger = 0
+    @State private var sortOption: SortOption = .manual
+    @State private var kindFilter: ProjectItem.Kind? = nil
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
 
     private var visibleItems: [ProjectItem] {
-        ItemQuery.searched(
-            ItemQuery.completedVisibility(items, showCompleted: showCompleted),
-            query: searchText
-        )
+        var result = items
+        if let tag = selectedTag {
+            result = ItemQuery.filteredByTag(result, tag: tag)
+        }
+        if let kind = kindFilter {
+            result = ItemQuery.filteredByKind(result, kind: kind)
+        }
+        result = ItemQuery.completedVisibility(result, showCompleted: showCompleted)
+        result = ItemQuery.searched(result, query: searchText)
+        return ItemArrangement.sorted(result, by: sortOption, savedOrder: project.itemOrder)
     }
 
     private var hasActiveSearch: Bool {
@@ -61,8 +70,8 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all: allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
-                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, selectedTag: $selectedTag, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, selectedTag: $selectedTag, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
                     case .commits: CommitsView(project: project, searchText: searchText, refreshTrigger: refreshTrigger)
                     }
                 }
@@ -102,6 +111,13 @@ struct ProjectDetailView: View {
             withAnimation(detailPaneAnimation) {
                 selectedDetailItem = nil
                 preserveSelectionDuringReplacement = false
+            }
+        }
+        .onChange(of: selectedTag) {
+            if let item = selectedDetailItem, !visibleItems.contains(where: { $0.id == item.id }) {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                }
             }
         }
         .onChange(of: selectedDetailItem) { _, newItem in
@@ -304,6 +320,8 @@ struct ProjectDetailView: View {
         HStack(spacing: 12) {
             summaryCluster
 
+            kindFilterPicker
+
             Spacer()
 
             if hasActiveSearch {
@@ -324,6 +342,8 @@ struct ProjectDetailView: View {
                 )
             }
 
+            sortMenu
+
             actionCluster
         }
         .frame(minHeight: 30, alignment: .center)
@@ -333,6 +353,44 @@ struct ProjectDetailView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
+    }
+
+    private var kindFilterPicker: some View {
+        Picker("", selection: $kindFilter) {
+            Text("All").tag(nil as ProjectItem.Kind?)
+            Text("Tasks").tag(ProjectItem.Kind.reminder as ProjectItem.Kind?)
+            Text("Events").tag(ProjectItem.Kind.event as ProjectItem.Kind?)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 160)
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            ForEach(SortOption.allCases) { option in
+                Button {
+                    sortOption = option
+                } label: {
+                    HStack {
+                        Text(option.rawValue)
+                        if sortOption == option {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: sortOption.systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 24)
+                .background(Color.accentColor.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Sort: \(sortOption.rawValue)")
     }
 
     private var allItemsList: some View {
@@ -477,6 +535,7 @@ struct ProjectDetailView: View {
 
         let apply = {
             items = sortedItems
+            store.reportTags(projectID: project.id, items: sortedItems)
             if let selectedId {
                 if let refreshedSelection = sortedItems.first(where: { $0.id == selectedId }) {
                     selectedDetailItem = refreshedSelection

@@ -10,6 +10,7 @@ struct ContentView: View {
     enum SidebarItem: Hashable { case project(Project.ID) }
 
     @State private var selection: SidebarItem? = nil
+    @State private var selectedTag: String? = nil
     @State private var showTodayPanel = false
     @State private var discovered: [String] = []
     @State private var draftProject: ProjectDraft?
@@ -47,6 +48,13 @@ struct ContentView: View {
                                 store.reorderProjects(from: indices, to: newOffset)
                             }
                         }
+                        if !sortedDiscoveredTags.isEmpty {
+                            Section("Tags") {
+                                ForEach(sortedDiscoveredTags, id: \.self) { tag in
+                                    tagRow(tag)
+                                }
+                            }
+                        }
                     }
                     .listStyle(.sidebar)
                     Divider()
@@ -73,7 +81,7 @@ struct ContentView: View {
                             )
                         case .project(let id):
                             if let project = store.activeProjects.first(where: { $0.id == id }) {
-                                ProjectDetailView(project: project, showTodayPanel: $showTodayPanel)
+                                ProjectDetailView(project: project, showTodayPanel: $showTodayPanel, selectedTag: $selectedTag)
                             } else {
                                 ContentUnavailableView("Project not found", systemImage: "folder")
                             }
@@ -216,6 +224,52 @@ struct ContentView: View {
             enabledReminderLists: settings.effectiveReminderListNames,
             enabledCalendars: settings.effectiveCalendarNames
         )
+    }
+
+    private func tagRow(_ tag: String) -> some View {
+        let isSel = selectedTag == tag
+        let color = settings.tagColor(for: tag)
+        return TagSidebarRow(
+            tag: tag,
+            count: store.discoveredTags[tag] ?? 0,
+            color: color,
+            isSelected: isSel
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedTag = isSel ? nil : tag
+        }
+        .contextMenu {
+            tagColorMenu(for: tag)
+        }
+    }
+
+    private var sortedDiscoveredTags: [String] {
+        store.discoveredTags.keys.sorted { a, b in
+            let ca = store.discoveredTags[a] ?? 0
+            let cb = store.discoveredTags[b] ?? 0
+            if ca != cb { return ca > cb }
+            return a.localizedStandardCompare(b) == .orderedAscending
+        }
+    }
+
+    @ViewBuilder
+    private func tagColorMenu(for tag: String) -> some View {
+        Menu("Color") {
+            ForEach(ProjectAppearance.colors) { option in
+                Button {
+                    settings.setTagColor(tag, colorName: option.id)
+                } label: {
+                    HStack {
+                        Circle().fill(option.color).frame(width: 10, height: 10)
+                        Text(option.title)
+                        if settings.tagColors[tag] == option.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var persistenceWarning: String? {
