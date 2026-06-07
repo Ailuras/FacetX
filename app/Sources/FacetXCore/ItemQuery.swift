@@ -26,11 +26,6 @@ public enum ItemQuery {
         items.filter { $0.tags.contains(tag) }
     }
 
-    public static func filteredByKind(_ items: [ProjectItem], kind: ProjectItem.Kind?) -> [ProjectItem] {
-        guard let kind else { return items }
-        return items.filter { $0.kind == kind }
-    }
-
     public static func todayItems(
         _ items: [ProjectItem],
         calendar: Calendar = .current,

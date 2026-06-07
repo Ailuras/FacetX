@@ -240,9 +240,5 @@ check(ItemArrangement.sorted(mixed, by: .dateAsc).first?.id != "high",
 
 check(ItemQuery.filteredByTag(mixed, tag: "alpha").map(\.id).sorted() == ["high", "med"],
       "filteredByTag should match items containing the tag")
-check(ItemQuery.filteredByKind(mixed, kind: .event).map(\.id) == ["evt"],
-      "filteredByKind should restrict to one kind")
-check(ItemQuery.filteredByKind(mixed, kind: nil).count == mixed.count,
-      "filteredByKind with nil should pass through")
 
 print("FacetXCoreChecks OK")

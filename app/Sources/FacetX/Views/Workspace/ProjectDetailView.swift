@@ -30,7 +30,6 @@ struct ProjectDetailView: View {
     @State private var itemToDelete: ProjectItem? = nil
     @State private var refreshTrigger = 0
     @State private var sortOption: SortOption = .manual
-    @State private var kindFilter: ProjectItem.Kind? = nil
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
@@ -39,9 +38,6 @@ struct ProjectDetailView: View {
         var result = items
         if let tag = selectedTag {
             result = ItemQuery.filteredByTag(result, tag: tag)
-        }
-        if let kind = kindFilter {
-            result = ItemQuery.filteredByKind(result, kind: kind)
         }
         result = ItemQuery.completedVisibility(result, showCompleted: showCompleted)
         result = ItemQuery.searched(result, query: searchText)
@@ -320,8 +316,6 @@ struct ProjectDetailView: View {
         HStack(spacing: 12) {
             summaryCluster
 
-            kindFilterPicker
-
             if let tag = selectedTag {
                 tagFilterChip(tag)
             }
@@ -384,17 +378,6 @@ struct ProjectDetailView: View {
         }
         .buttonStyle(.plain)
         .help("Clear tag filter")
-    }
-
-    private var kindFilterPicker: some View {
-        Picker("", selection: $kindFilter) {
-            Text("All").tag(nil as ProjectItem.Kind?)
-            Text("Tasks").tag(ProjectItem.Kind.reminder as ProjectItem.Kind?)
-            Text("Events").tag(ProjectItem.Kind.event as ProjectItem.Kind?)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(width: 160)
     }
 
     private var sortMenu: some View {
