@@ -234,10 +234,7 @@ struct ProjectDetailView: View {
     private var modePicker: some View {
         Picker("", selection: $mode) {
             ForEach(Mode.allCases) { option in
-                // The segmented style is an NSSegmentedControl that only reads
-                // each label's text and ignores padding/frame, so we pad the
-                // string itself to keep the end tabs off the container border.
-                Text("  \(option.rawValue)  ")
+                Text(option.rawValue)
                     .tag(option)
             }
         }
