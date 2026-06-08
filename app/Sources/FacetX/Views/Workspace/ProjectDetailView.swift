@@ -38,6 +38,9 @@ struct ProjectDetailView: View {
         var result = ItemQuery.filtered(items, by: tagFilter)
         result = ItemQuery.completedVisibility(result, showCompleted: showCompleted)
         result = ItemQuery.searched(result, query: searchText)
+        // Manual order is already applied in items by reload()/moveItem(); re-sorting
+        // here via arranged() would snap drag-reordered rows back to the saved rank.
+        guard sortOption != .manual else { return result }
         return ItemArrangement.sorted(result, by: sortOption, savedOrder: project.itemOrder)
     }
 
@@ -548,9 +551,51 @@ struct ProjectDetailView: View {
             item: item,
             draggedItem: $draggedItem,
             onMove: { dragged, target in moveItem(from: dragged, to: target) },
-            onDrop: { commitItemOrder(); dragSnapshot = nil }
+            onDrop: { commitItemOrder(); dragSnapshot = nil },
+            onConvert: { dragged, targetKind in convertItemKind(dragged, to: targetKind) }
         ))
         .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
+    }
+
+    private func convertItemKind(_ item: ProjectItem, to targetKind: ProjectItem.Kind) {
+        guard item.kind != targetKind else { return }
+        Task {
+            let newId: String?
+            if item.kind == .reminder {
+                let calName = project.calendarName ?? ""
+                newId = await ek.convertReminderToEvent(
+                    reminderId: item.id,
+                    project: project.prefix,
+                    content: item.content,
+                    notes: item.notes,
+                    tags: item.tags,
+                    dueDate: item.date,
+                    durationMinutes: settings.defaultEventDurationMinutes,
+                    calendarName: calName.isEmpty ? settings.defaultCalendarName : calName,
+                    enabledCalendars: settings.effectiveCalendarNames
+                )
+            } else {
+                let listName = project.reminderListName ?? ""
+                newId = await ek.convertEventToReminder(
+                    eventId: item.id,
+                    project: project.prefix,
+                    content: item.content,
+                    notes: item.notes,
+                    tags: item.tags,
+                    priority: item.priority,
+                    startDate: item.date,
+                    hasTime: item.hasTime,
+                    listName: listName.isEmpty ? settings.defaultReminderListName : listName,
+                    enabledLists: settings.effectiveReminderListNames
+                )
+            }
+            if newId != nil {
+                refreshTrigger += 1
+                await reload(selecting: newId)
+            } else {
+                toast.show("Could not convert item", type: .error)
+            }
+        }
     }
 
     private func reload(

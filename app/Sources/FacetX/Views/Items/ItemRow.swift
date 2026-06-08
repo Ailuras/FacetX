@@ -396,16 +396,28 @@ struct ItemDropDelegate: DropDelegate {
     @Binding var draggedItem: ProjectItem?
     var onMove: (ProjectItem, ProjectItem) -> Void
     var onDrop: () -> Void
+    /// Called on drop when the dragged item's kind differs from the target's.
+    /// Receives the dragged item and the target kind to convert to.
+    var onConvert: ((ProjectItem, ProjectItem.Kind) -> Void)? = nil
 
     func performDrop(info: DropInfo) -> Bool {
-        self.draggedItem = nil
-        onDrop()
+        defer {
+            self.draggedItem = nil
+            onDrop()
+        }
+        guard let dragged = draggedItem else { return true }
+        if dragged.id != item.id, dragged.kind != item.kind {
+            onConvert?(dragged, item.kind)
+        }
         return true
     }
 
     func dropEntered(info: DropInfo) {
         guard let draggedItem = draggedItem else { return }
-        if draggedItem.id != item.id {
+        guard draggedItem.id != item.id else { return }
+        // Only live-reorder within the same kind; cross-kind drags are committed
+        // as a kind conversion on drop, no preview movement.
+        if draggedItem.kind == item.kind {
             onMove(draggedItem, item)
         }
     }
