@@ -1,19 +1,50 @@
 # FacetX
 
-FacetX is a native macOS project lens for Apple Calendar and Reminders.
+![FacetX showcase](assets/facetx-showcase.png)
 
-Your tasks and events still live in Apple's apps and sync through iCloud.
-FacetX adds the missing project dimension by gathering calendar and reminder
-items whose titles begin with a project prefix, then presenting them as one
-project workspace.
+FacetX is a native macOS project workspace for Apple Calendar and Reminders.
 
-## Highlights
+Tasks and events continue to live in Apple's apps and sync through iCloud.
+FacetX adds the project layer: it gathers Calendar and Reminders items whose
+titles start with a project prefix, then presents each project as a focused
+workspace for planning, capture, review, and delivery.
 
-- Project workspace for calendar events and reminders in one panel.
-- Cross-project Today view.
-- Per-project week planning with synced calendar-backed goals.
-- Menu bar quick capture for project-prefixed reminders.
-- EventKit-first data model with no separate task database.
+Current release: **v0.9 local beta**.
+
+## What It Does
+
+- Project workspaces combine reminders, scheduled events, and project metadata.
+- Today timeline shows cross-project work without moving data out of EventKit.
+- Week and month views support planning by project, day, and priority.
+- Week goals are backed by calendar events, so planning remains visible outside
+  FacetX.
+- Menu bar quick capture creates prefixed reminders or events without opening
+  the main window.
+- Tags, manual ordering, completed-item filters, and project appearance metadata
+  keep active work scannable.
+- GitHub integration links projects to repositories and surfaces recent commit
+  activity.
+- Settings control source containers, save defaults, integrations, general
+  behavior, and keyboard shortcuts.
+
+## Data Model
+
+EventKit remains the source of truth. FacetX stores only project-side metadata
+under Application Support, such as project names, editable prefixes, week goals,
+sidebar ordering, item ordering, visual appearance, and optional GitHub repo
+links. Reminder and calendar item content is not copied into a FacetX database.
+
+An item belongs to a project when the first line of its title starts with that
+project's prefix:
+
+```text
+Regulus: Fix launch authorization flow    -> project "Regulus"
+调研：整理论文列表                         -> project "调研"
+Inbox item without a known prefix          -> ignored by FacetX
+```
+
+Reads accept both ASCII `:` and fullwidth `：`; writes always use ASCII `:`.
+Items without a recognized project prefix are ignored and never modified.
 
 ## Build And Run
 
@@ -26,26 +57,29 @@ make clean    # remove local build and packaging artifacts
 make logs     # stream FacetX OS logs
 ```
 
-FacetX must run as a bundled, signed `.app`; a bare SwiftPM binary is denied
-EventKit access by macOS.
+FacetX must run as a bundled, signed `.app`; a bare SwiftPM executable is denied
+EventKit access by macOS. Development builds reuse Calendar and Reminders
+authorization when the bundle ID and signing identity stay stable.
 
-Development rebuilds reuse Calendar and Reminders authorization when the bundle
-ID and signing identity stay stable. Branch and worktree variants use separate
-bundle IDs, so each variant needs Calendar and Reminders authorization once.
-If macOS asks for the login keychain password while building, that is `codesign`
-requesting access to the local Apple Development private key; choose Always
-Allow for `codesign` to avoid repeated build-time prompts.
+If the build output says `signing: ad-hoc`, macOS may ask for Calendar and
+Reminders authorization again after rebuilds. If macOS asks for the login
+keychain password during a signed build, that is `codesign` requesting access to
+the local Apple Development private key; choose Always Allow for `codesign` to
+avoid repeated build-time prompts.
 
-## Project Prefixes
+## Release
 
-A project owns items by title prefix:
+FacetX release packaging is local and not notarized. The release flow is:
 
-```text
-Regulus: 问题最小化&修复bugs      ->  project "Regulus"
-调研: 机器学习+运筹优化            ->  ignored unless a matching project exists
+```bash
+make check
+make build
+make dmg
+codesign --verify --deep --strict --verbose=2 app/FacetX.app
 ```
 
-Items without a recognized project prefix are ignored and never modified.
+The DMG is written to `app/FacetX-<version>.dmg`. Version metadata lives in
+`app/Info.plist`.
 
 ## Documentation
 
@@ -53,10 +87,3 @@ Items without a recognized project prefix are ignored and never modified.
 - [Building](docs/BUILDING.md)
 - [Release](docs/RELEASE.md)
 - [Agent guide](AGENTS.md)
-
-## Status
-
-Native SwiftUI app, v0.3 local beta. The current app includes project
-creation/editing, grouped item views, Today and month views, menu bar quick
-capture, EventKit live refresh, Settings container selection, week goals, and
-GitHub commit integration.
