@@ -18,12 +18,30 @@ struct QuickCaptureView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Quick add").font(.headline)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(nsImage: MenuBarController.templateImage())
+                    .resizable()
+                    .frame(width: 15, height: 15)
+                    .opacity(0.70)
+                Text("Quick add")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer(minLength: 0)
+            }
 
             if store.activeProjects.isEmpty {
                 Text("No projects yet. Open FacetX and create one.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 9)
+                    .background(FacetTheme.quietPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
             } else {
                 HStack(spacing: 6) {
                     Picker("", selection: Binding(
@@ -45,16 +63,14 @@ struct QuickCaptureView: View {
                         .focused($fieldFocused)
                         .onSubmit(add)
                 }
-                .padding(.leading, 6)
+                .padding(.leading, 7)
                 .padding(.trailing, 9)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(.regularMaterial.opacity(0.60))
-                )
+                .padding(.vertical, 7)
+                .background(FacetTheme.quietPanel)
+                .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                        .stroke(FacetTheme.hairline, lineWidth: 1)
                 )
 
                 if let error { Text(error).font(.caption).foregroundStyle(.red) }
@@ -81,7 +97,7 @@ struct QuickCaptureView: View {
                             .opacity(0.62)
                         Text("Open FacetX")
                     }
-                    .foregroundStyle(.primary.opacity(0.82))
+                    .foregroundStyle(Color.primary.opacity(0.82))
                 }
                 .buttonStyle(.plain)
 
@@ -96,7 +112,7 @@ struct QuickCaptureView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(16)
+        .padding(14)
         .frame(width: 340)
         .onAppear {
             fieldFocused = true
