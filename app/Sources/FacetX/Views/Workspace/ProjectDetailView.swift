@@ -241,17 +241,33 @@ struct ProjectDetailView: View {
     }
 
     private var modePicker: some View {
-        Picker("", selection: $mode) {
+        HStack(spacing: 2) {
             ForEach(Mode.allCases) { option in
-                Text(option.rawValue)
-                    .frame(width: Mode.titleWidth)
-                    .tag(option)
+                modeSegment(option)
             }
         }
-        .pickerStyle(.segmented)
-        .controlSize(.small)
-        .labelsHidden()
+        .pillGroupContainer()
         .help("Switch view mode")
+    }
+
+    private func modeSegment(_ option: Mode) -> some View {
+        let selected = mode == option
+        return Button {
+            withAnimation(FacetTheme.listSpring) { mode = option }
+        } label: {
+            Text(option.rawValue)
+                .font(.system(size: 11, weight: selected ? .semibold : .medium))
+                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .frame(width: Mode.titleWidth)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(selected ? Color.accentColor.opacity(0.14) : Color.clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     @EnvironmentObject private var toast: ToastController
