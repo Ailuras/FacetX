@@ -195,6 +195,32 @@ check(ItemQuery.todayItems([todayOpen, todayDone, todayEvent, tomorrowOpen]).map
 check(ItemQuery.todayItems([todayOpen, todayDone, todayEvent], includeCompletedReminders: true).map(\.id) == ["today-open", "today-done", "today-event"],
       "todayItems should include completed reminders when requested")
 
+let filterNow = calendar.date(from: DateComponents(year: 2026, month: 6, day: 8, hour: 12))!
+let filterToday = calendar.date(from: DateComponents(year: 2026, month: 6, day: 8, hour: 18))!
+let filterNextWeek = calendar.date(from: DateComponents(year: 2026, month: 6, day: 14, hour: 9))!
+let filterAfterWeek = calendar.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 9))!
+let filterTask = ProjectItem(id: "filter-task", kind: .reminder, rawTitle: "Regulus: Task",
+                             projectPrefix: "Regulus", content: "Task", containerName: "Inbox",
+                             isCompleted: false, date: filterToday, notes: nil, priority: 0, url: nil)
+let filterEvent = ProjectItem(id: "filter-event", kind: .event, rawTitle: "Regulus: Event",
+                              projectPrefix: "Regulus", content: "Event", containerName: "Calendar",
+                              isCompleted: false, date: filterNextWeek, notes: nil, priority: 0, url: nil)
+let filterLater = ProjectItem(id: "filter-later", kind: .reminder, rawTitle: "Regulus: Later",
+                              projectPrefix: "Regulus", content: "Later", containerName: "Inbox",
+                              isCompleted: false, date: filterAfterWeek, notes: nil, priority: 0, url: nil)
+let filterUndated = ProjectItem(id: "filter-undated", kind: .reminder, rawTitle: "Regulus: Undated",
+                                projectPrefix: "Regulus", content: "Undated", containerName: "Inbox",
+                                isCompleted: false, date: nil, notes: nil, priority: 0, url: nil)
+let filterItems = [filterTask, filterEvent, filterLater, filterUndated]
+check(ItemQuery.filtered(filterItems, by: ItemListFilter(kindScope: .tasks), now: filterNow, calendar: calendar).map(\.id) == ["filter-task", "filter-later", "filter-undated"],
+      "item filter should keep only tasks when task scope is selected")
+check(ItemQuery.filtered(filterItems, by: ItemListFilter(kindScope: .events), now: filterNow, calendar: calendar).map(\.id) == ["filter-event"],
+      "item filter should keep only events when schedule scope is selected")
+check(ItemQuery.filtered(filterItems, by: ItemListFilter(dateScope: .today), now: filterNow, calendar: calendar).map(\.id) == ["filter-task"],
+      "item filter should keep only today's dated items")
+check(ItemQuery.filtered(filterItems, by: ItemListFilter(dateScope: .nextSevenDays), now: filterNow, calendar: calendar).map(\.id) == ["filter-task", "filter-event"],
+      "item filter should keep dated items in the next seven days")
+
 let counts = ItemQuery.counts(for: queryItems)
 check(counts.openReminderCount == 1, "counts should include open reminders")
 check(counts.completedReminderCount == 1, "counts should include completed reminders")

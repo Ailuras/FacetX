@@ -27,6 +27,16 @@ public enum ItemQuery {
         return items.filter { tagFilter.matches($0) }
     }
 
+    public static func filtered(
+        _ items: [ProjectItem],
+        by itemFilter: ItemListFilter,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [ProjectItem] {
+        guard itemFilter.isActive else { return items }
+        return items.filter { itemFilter.matches($0, now: now, calendar: calendar) }
+    }
+
     public static func todayItems(
         _ items: [ProjectItem],
         calendar: Calendar = .current,

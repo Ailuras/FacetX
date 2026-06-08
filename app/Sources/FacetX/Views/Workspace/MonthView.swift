@@ -14,6 +14,7 @@ struct MonthView: View {
     @Binding var showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
     @Binding var tagFilter: TagFilter
+    @Binding var itemFilter: ItemListFilter
     let refreshTrigger: Int
     let onCreateItem: (Date?) -> Void
 
@@ -37,6 +38,7 @@ struct MonthView: View {
             return month.contains(d)
         }
         result = ItemQuery.filtered(result, by: tagFilter)
+        result = ItemQuery.filtered(result, by: itemFilter)
         return ItemQuery.searched(result, query: searchText)
     }
 
@@ -150,7 +152,21 @@ struct MonthView: View {
             if !tagFilter.isEmpty {
                 ActiveTagFilterBar(tagFilter: $tagFilter)
             }
-            ShowCompletedCluster(showCompleted: $showCompleted, animation: listAnimation)
+            if itemFilter.isActive {
+                FacetInfoBadge(
+                    text: "\(monthItems.count) shown",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    tint: .secondary,
+                    fill: Color.accentColor.opacity(0.08)
+                )
+            }
+            ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
+                if let selectedDay, let date = month.dateForDay(selectedDay) {
+                    onCreateItem(date)
+                } else {
+                    onCreateItem(month.startDate)
+                }
+            }
         }
     }
 

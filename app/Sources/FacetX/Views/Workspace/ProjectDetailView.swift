@@ -39,14 +39,19 @@ struct ProjectDetailView: View {
     @State private var itemToDelete: ProjectItem? = nil
     @State private var refreshTrigger = 0
     @State private var sortOption: SortOption = .manual
+    @State private var itemFilter = ItemListFilter()
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
 
-    private var visibleItems: [ProjectItem] {
+    private var allScopedItems: [ProjectItem] {
         var result = ItemQuery.filtered(items, by: tagFilter)
-        result = ItemQuery.completedVisibility(result, showCompleted: showCompleted)
-        result = ItemQuery.searched(result, query: searchText)
+        result = ItemQuery.filtered(result, by: itemFilter)
+        return ItemQuery.searched(result, query: searchText)
+    }
+
+    private var visibleItems: [ProjectItem] {
+        let result = ItemQuery.completedVisibility(allScopedItems, showCompleted: showCompleted)
         // Manual order is already applied in items by reload()/moveItem(); re-sorting
         // here via arranged() would snap drag-reordered rows back to the saved rank.
         guard sortOption != .manual else { return result }
@@ -75,8 +80,8 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all: allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
-                    case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
                     case .commits: CommitsView(project: project, searchText: searchText, refreshTrigger: refreshTrigger)
                     }
                 }
@@ -120,6 +125,13 @@ struct ProjectDetailView: View {
         }
         .onChange(of: tagFilter) {
             if let item = selectedDetailItem, !visibleItems.contains(where: { $0.id == item.id }) {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                }
+            }
+        }
+        .onChange(of: itemFilter) {
+            if selectedDetailItem != nil {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
                 }
@@ -274,18 +286,11 @@ struct ProjectDetailView: View {
     }
 
     private var actionCluster: some View {
-        HStack(spacing: 2) {
+        ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
+            beginCreate()
+        } accessory: {
             sortPill
-            FilterPillButton(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
-                             help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
-                             active: showCompleted) {
-                withAnimation(listAnimation) { showCompleted.toggle() }
-            }
-            FilterPillButton(systemName: "plus", help: "Add an item to this project") {
-                beginCreate()
-            }
         }
-        .pillGroupContainer()
     }
 
     private var sortPill: some View {
@@ -352,9 +357,18 @@ struct ProjectDetailView: View {
                 )
             }
 
-            if !showCompleted && completedReminderCount > 0 {
+            if itemFilter.isActive {
                 FacetInfoBadge(
-                    text: "\(completedReminderCount) hidden",
+                    text: "\(visibleItems.count) shown",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    tint: .secondary,
+                    fill: Color.accentColor.opacity(0.08)
+                )
+            }
+
+            if hiddenReminderCount > 0 {
+                FacetInfoBadge(
+                    text: "\(hiddenReminderCount) hidden",
                     systemImage: "eye.slash",
                     tint: .secondary,
                     fill: Color.orange.opacity(0.08)
@@ -463,6 +477,11 @@ struct ProjectDetailView: View {
 
     private var completedReminderCount: Int {
         itemCounts.completedReminderCount
+    }
+
+    private var hiddenReminderCount: Int {
+        guard !showCompleted else { return 0 }
+        return allScopedItems.filter { $0.kind == .reminder && $0.isCompleted }.count
     }
 
     private func projectItemRow(_ item: ProjectItem) -> some View {

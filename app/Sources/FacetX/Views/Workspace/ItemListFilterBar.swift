@@ -79,14 +79,97 @@ struct FilterPillButton: View {
     }
 }
 
-/// The show-completed toggle wrapped in the shared pill-group container, used by
-/// the Week and Month views so their top-right control matches the All view.
-struct ShowCompletedCluster: View {
+struct ItemFilterMenuButton: View {
+    @Binding var itemFilter: ItemListFilter
+
+    var body: some View {
+        Menu {
+            Section("Kind") {
+                kindButton(.all)
+                kindButton(.tasks)
+                kindButton(.events)
+            }
+            Section("Date") {
+                dateButton(.all)
+                dateButton(.today)
+                dateButton(.nextSevenDays)
+            }
+            if itemFilter.isActive {
+                Divider()
+                Button {
+                    itemFilter = ItemListFilter()
+                } label: {
+                    Label("Clear Filter", systemImage: "xmark.circle")
+                }
+            }
+        } label: {
+            Image(systemName: itemFilter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(itemFilter.isActive ? Color.accentColor : .secondary)
+                .frame(width: 26, height: 24)
+                .background(itemFilter.isActive ? Color.accentColor.opacity(0.14) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(itemFilter.isActive ? "Filter items" : "Add an item filter")
+    }
+
+    private func kindButton(_ scope: ItemKindScope) -> some View {
+        Button {
+            itemFilter.kindScope = scope
+        } label: {
+            HStack {
+                Text(scope.rawValue)
+                if itemFilter.kindScope == scope {
+                    Image(systemName: "checkmark")
+                }
+            }
+        }
+    }
+
+    private func dateButton(_ scope: ItemDateScope) -> some View {
+        Button {
+            itemFilter.dateScope = scope
+        } label: {
+            HStack {
+                Text(scope.rawValue)
+                if itemFilter.dateScope == scope {
+                    Image(systemName: "checkmark")
+                }
+            }
+        }
+    }
+}
+
+/// Shared action cluster for All, Week, and Month item lists.
+struct ItemActionCluster<Accessory: View>: View {
+    @Binding var itemFilter: ItemListFilter
     @Binding var showCompleted: Bool
     var animation: Animation = FacetTheme.listSpring
+    let onAdd: () -> Void
+    private let accessory: Accessory
+
+    init(
+        itemFilter: Binding<ItemListFilter>,
+        showCompleted: Binding<Bool>,
+        animation: Animation = FacetTheme.listSpring,
+        onAdd: @escaping () -> Void,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
+        self._itemFilter = itemFilter
+        self._showCompleted = showCompleted
+        self.animation = animation
+        self.onAdd = onAdd
+        self.accessory = accessory()
+    }
 
     var body: some View {
         HStack(spacing: 2) {
+            ItemFilterMenuButton(itemFilter: $itemFilter)
+            accessory
             FilterPillButton(
                 systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
                 help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
@@ -94,8 +177,26 @@ struct ShowCompletedCluster: View {
             ) {
                 withAnimation(animation) { showCompleted.toggle() }
             }
+            FilterPillButton(systemName: "plus", help: "Add an item to this project", action: onAdd)
         }
         .pillGroupContainer()
+    }
+}
+
+extension ItemActionCluster where Accessory == EmptyView {
+    init(
+        itemFilter: Binding<ItemListFilter>,
+        showCompleted: Binding<Bool>,
+        animation: Animation = FacetTheme.listSpring,
+        onAdd: @escaping () -> Void
+    ) {
+        self.init(
+            itemFilter: itemFilter,
+            showCompleted: showCompleted,
+            animation: animation,
+            onAdd: onAdd,
+            accessory: { EmptyView() }
+        )
     }
 }
 

@@ -32,7 +32,17 @@ extension WeekView {
             if !tagFilter.isEmpty {
                 ActiveTagFilterBar(tagFilter: $tagFilter)
             }
-            ShowCompletedCluster(showCompleted: $showCompleted, animation: listAnimation)
+            if itemFilter.isActive {
+                FacetInfoBadge(
+                    text: "\(weekItems.count) shown",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    tint: .secondary,
+                    fill: Color.accentColor.opacity(0.08)
+                )
+            }
+            ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
+                onCreateItem(week.startDate)
+            }
         }
     }
 

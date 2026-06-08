@@ -12,6 +12,7 @@ struct WeekView: View {
     @Binding var showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
     @Binding var tagFilter: TagFilter
+    @Binding var itemFilter: ItemListFilter
     let refreshTrigger: Int
     let onCreateItem: (Date?) -> Void
 
@@ -39,6 +40,7 @@ struct WeekView: View {
             return week.contains(date)
         }
         result = ItemQuery.filtered(result, by: tagFilter)
+        result = ItemQuery.filtered(result, by: itemFilter)
         return ItemQuery.searched(result, query: searchText)
     }
 
