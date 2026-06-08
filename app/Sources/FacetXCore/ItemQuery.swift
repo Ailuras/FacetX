@@ -22,8 +22,9 @@ public enum ItemQuery {
         return items.filter { !($0.kind == .reminder && $0.isCompleted) }
     }
 
-    public static func filteredByTag(_ items: [ProjectItem], tag: String) -> [ProjectItem] {
-        items.filter { $0.tags.contains(tag) }
+    public static func filtered(_ items: [ProjectItem], by tagFilter: TagFilter) -> [ProjectItem] {
+        guard !tagFilter.isEmpty else { return items }
+        return items.filter { tagFilter.matches($0) }
     }
 
     public static func todayItems(

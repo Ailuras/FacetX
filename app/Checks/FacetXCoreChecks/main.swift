@@ -238,7 +238,25 @@ check(ItemArrangement.sorted(mixed, by: .nameAsc).map(\.id) == ["high", "med", "
 check(ItemArrangement.sorted(mixed, by: .dateAsc).first?.id != "high",
       "dateAsc should not put tomorrow's item first")
 
-check(ItemQuery.filteredByTag(mixed, tag: "alpha").map(\.id).sorted() == ["high", "med"],
-      "filteredByTag should match items containing the tag")
+let alphaOnly = TagFilter(included: ["alpha"])
+check(ItemQuery.filtered(mixed, by: alphaOnly).map(\.id).sorted() == ["high", "med"],
+      "tag filter include should match items containing the tag")
+
+let excludeBeta = TagFilter(excluded: ["beta"])
+check(ItemQuery.filtered(mixed, by: excludeBeta).map(\.id) == ["high"],
+      "tag filter exclude should drop items with the tag")
+
+var cycling = TagFilter()
+cycling.cycle("alpha")
+check(cycling.state(of: "alpha") == .included, "first cycle should include")
+cycling.cycle("alpha")
+check(cycling.state(of: "alpha") == .excluded, "second cycle should exclude")
+cycling.cycle("alpha")
+check(cycling.state(of: "alpha") == .neutral, "third cycle should clear")
+check(cycling.isEmpty, "empty include/exclude should report empty")
+
+let bothFilters = TagFilter(included: ["alpha"], excluded: ["beta"])
+check(ItemQuery.filtered(mixed, by: bothFilters).map(\.id) == ["high"],
+      "include alpha and exclude beta should keep only the high-priority item")
 
 print("FacetXCoreChecks OK")

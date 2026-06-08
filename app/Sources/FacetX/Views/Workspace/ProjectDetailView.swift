@@ -9,7 +9,7 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     let project: Project
     let showTodayPanel: Binding<Bool>
-    @Binding var selectedTag: String?
+    @Binding var tagFilter: TagFilter
 
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All", week = "Week", month = "Month", commits = "Git"
@@ -35,10 +35,7 @@ struct ProjectDetailView: View {
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
 
     private var visibleItems: [ProjectItem] {
-        var result = items
-        if let tag = selectedTag {
-            result = ItemQuery.filteredByTag(result, tag: tag)
-        }
+        var result = ItemQuery.filtered(items, by: tagFilter)
         result = ItemQuery.completedVisibility(result, showCompleted: showCompleted)
         result = ItemQuery.searched(result, query: searchText)
         return ItemArrangement.sorted(result, by: sortOption, savedOrder: project.itemOrder)
@@ -66,8 +63,8 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all: allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, selectedTag: $selectedTag, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
-                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, selectedTag: $selectedTag, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
                     case .commits: CommitsView(project: project, searchText: searchText, refreshTrigger: refreshTrigger)
                     }
                 }
@@ -109,7 +106,7 @@ struct ProjectDetailView: View {
                 preserveSelectionDuringReplacement = false
             }
         }
-        .onChange(of: selectedTag) {
+        .onChange(of: tagFilter) {
             if let item = selectedDetailItem, !visibleItems.contains(where: { $0.id == item.id }) {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
@@ -347,8 +344,8 @@ struct ProjectDetailView: View {
         HStack(spacing: 12) {
             summaryCluster
 
-            if let tag = selectedTag {
-                tagFilterChip(tag)
+            if !tagFilter.isEmpty {
+                activeTagFilterBar
             }
 
             Spacer()
@@ -382,31 +379,51 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func tagFilterChip(_ tag: String) -> some View {
-        let color = settings.tagColor(for: tag)
+    private var activeTagFilterBar: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(tagFilter.included).sorted(), id: \.self) { tag in
+                miniTagBadge(tag: tag, included: true)
+            }
+            ForEach(Array(tagFilter.excluded).sorted(), id: \.self) { tag in
+                miniTagBadge(tag: tag, included: false)
+            }
+            Button {
+                tagFilter.clear()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Clear all tag filters")
+        }
+    }
+
+    private func miniTagBadge(tag: String, included: Bool) -> some View {
+        let color = included ? settings.tagColor(for: tag) : Color.red
         return Button {
-            selectedTag = nil
+            if included { tagFilter.included.remove(tag) }
+            else { tagFilter.excluded.remove(tag) }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "tag.fill")
-                    .font(.system(size: 9, weight: .semibold))
+            HStack(spacing: 2) {
+                Image(systemName: included ? "plus" : "minus")
+                    .font(.system(size: 8, weight: .bold))
                 Text(tag)
                     .font(.system(size: 11, weight: .semibold))
-                Image(systemName: "xmark")
-                    .font(.system(size: 8, weight: .bold))
+                    .strikethrough(!included)
             }
             .foregroundStyle(color)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(color.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .stroke(color.opacity(0.30), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        .help("Clear tag filter")
+        .help(included ? "Remove include filter" : "Remove exclude filter")
     }
 
     private var allItemsList: some View {

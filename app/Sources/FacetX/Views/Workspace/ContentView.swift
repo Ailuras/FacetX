@@ -1,3 +1,4 @@
+import FacetXCore
 import SwiftUI
 
 struct ContentView: View {
@@ -10,7 +11,7 @@ struct ContentView: View {
     enum SidebarItem: Hashable { case project(Project.ID) }
 
     @State private var selection: SidebarItem? = nil
-    @State private var selectedTag: String? = nil
+    @State private var tagFilter = TagFilter()
     @State private var showTodayPanel = false
     @State private var discovered: [String] = []
     @State private var draftProject: ProjectDraft?
@@ -82,7 +83,7 @@ struct ContentView: View {
                             )
                         case .project(let id):
                             if let project = store.activeProjects.first(where: { $0.id == id }) {
-                                ProjectDetailView(project: project, showTodayPanel: $showTodayPanel, selectedTag: $selectedTag)
+                                ProjectDetailView(project: project, showTodayPanel: $showTodayPanel, tagFilter: $tagFilter)
                             } else {
                                 ContentUnavailableView("Project not found", systemImage: "folder")
                             }
@@ -229,6 +230,7 @@ struct ContentView: View {
 
     private var tagCloud: some View {
         FlowLayout(spacing: 5, lineSpacing: 5) {
+            allChip
             ForEach(sortedDiscoveredTags, id: \.self) { tag in
                 tagChip(tag)
             }
@@ -236,37 +238,102 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var allChip: some View {
+        let isActive = tagFilter.isEmpty
+        return Button {
+            tagFilter.clear()
+        } label: {
+            Text("All")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(isActive ? .white : .primary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isActive ? Color.accentColor : Color.secondary.opacity(0.14))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(isActive ? Color.accentColor : Color.secondary.opacity(0.20), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Show all tags")
+    }
+
     private func tagChip(_ tag: String) -> some View {
-        let isSel = selectedTag == tag
+        let state = tagFilter.state(of: tag)
         let color = settings.tagColor(for: tag)
         return Button {
-            selectedTag = isSel ? nil : tag
+            tagFilter.cycle(tag)
         } label: {
             HStack(spacing: 3) {
                 Text("#")
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(isSel ? Color.white.opacity(0.85) : color.opacity(0.70))
+                    .foregroundStyle(prefixColor(state: state, color: color))
                 Text(tag)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(isSel ? .white : .primary)
+                    .foregroundStyle(textColor(state: state))
+                    .strikethrough(state == .excluded)
                     .lineLimit(1)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSel ? color : color.opacity(0.14))
+                    .fill(fillColor(state: state, color: color))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isSel ? color : color.opacity(0.20), lineWidth: 0.5)
+                    .stroke(strokeColor(state: state, color: color), lineWidth: state == .excluded ? 1 : 0.5)
             )
         }
         .buttonStyle(.plain)
         .contextMenu {
             tagColorMenu(for: tag)
         }
-        .help("\(tag) · \(store.discoveredTags[tag] ?? 0) items")
+        .help(chipHelp(tag: tag, state: state))
+    }
+
+    private func prefixColor(state: TagFilterState, color: Color) -> Color {
+        switch state {
+        case .included: return Color.white.opacity(0.85)
+        case .excluded: return Color.red.opacity(0.85)
+        case .neutral:  return color.opacity(0.70)
+        }
+    }
+
+    private func textColor(state: TagFilterState) -> Color {
+        switch state {
+        case .included: return .white
+        case .excluded: return .secondary
+        case .neutral:  return .primary
+        }
+    }
+
+    private func fillColor(state: TagFilterState, color: Color) -> Color {
+        switch state {
+        case .included: return color
+        case .excluded: return Color.red.opacity(0.08)
+        case .neutral:  return color.opacity(0.14)
+        }
+    }
+
+    private func strokeColor(state: TagFilterState, color: Color) -> Color {
+        switch state {
+        case .included: return color
+        case .excluded: return Color.red.opacity(0.45)
+        case .neutral:  return color.opacity(0.20)
+        }
+    }
+
+    private func chipHelp(tag: String, state: TagFilterState) -> String {
+        let count = store.discoveredTags[tag] ?? 0
+        switch state {
+        case .neutral:  return "\(tag) · \(count) items — click to include"
+        case .included: return "\(tag) · \(count) items — click to exclude"
+        case .excluded: return "\(tag) · \(count) items — click to clear"
+        }
     }
 
     private var sortedDiscoveredTags: [String] {

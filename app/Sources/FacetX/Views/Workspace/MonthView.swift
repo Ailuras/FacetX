@@ -12,7 +12,7 @@ struct MonthView: View {
     let searchText: String
     let showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
-    @Binding var selectedTag: String?
+    @Binding var tagFilter: TagFilter
     let refreshTrigger: Int
     let onCreateItem: (Date?) -> Void
 
@@ -26,9 +26,7 @@ struct MonthView: View {
 
     private var monthItems: [ProjectItem] {
         var result = ItemArrangement.inMonth(allItems, month)
-        if let tag = selectedTag {
-            result = ItemQuery.filteredByTag(result, tag: tag)
-        }
+        result = ItemQuery.filtered(result, by: tagFilter)
         return ItemQuery.searched(
             ItemQuery.completedVisibility(result, showCompleted: showCompleted),
             query: searchText
