@@ -550,26 +550,73 @@ struct ProjectDetailView: View {
         .onDrop(of: [.text], delegate: ItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
-            onMove: { dragged, target in moveItem(from: dragged, to: target) },
-            onDrop: { commitItemOrder(); dragSnapshot = nil },
-            onConvert: { dragged, targetKind in convertItemKind(dragged, to: targetKind) }
+            onEntered: { dragged, target in previewDropEntered(dragged: dragged, target: target) },
+            onDrop: { finishDrag() }
         ))
         .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
     }
 
-    private func convertItemKind(_ item: ProjectItem, to targetKind: ProjectItem.Kind) {
-        guard item.kind != targetKind else { return }
+    // ── Drag-drop preview / commit ────────────────────────────────────────────
+
+    /// Drop-enter handler used by every row's `ItemDropDelegate`.
+    /// Same kind → live reorder (existing behaviour).
+    /// Different kind → optimistic kind swap so the row slides into the other
+    /// section during the drag, matching how WeekView previews cross-day moves.
+    private func previewDropEntered(dragged: ProjectItem, target: ProjectItem) {
+        if dragged.kind == target.kind {
+            moveItem(from: dragged, to: target)
+        } else {
+            previewKindChange(dragged: dragged, target: target)
+        }
+    }
+
+    private func previewKindChange(dragged: ProjectItem, target: ProjectItem) {
+        guard let fromIndex = items.firstIndex(where: { $0.id == dragged.id }) else { return }
+        let updated = dragged.replacingKind(target.kind)
+        let targetIndex = items.firstIndex(where: { $0.id == target.id })
+        withAnimation(FacetTheme.dragPreviewAnimation) {
+            items.remove(at: fromIndex)
+            if let targetIndex {
+                let adjusted = fromIndex < targetIndex ? targetIndex - 1 : targetIndex
+                items.insert(updated, at: min(max(adjusted, 0), items.count))
+            } else {
+                items.append(updated)
+            }
+            if draggedItem?.id == updated.id { draggedItem = updated }
+            if selectedDetailItem?.id == updated.id { selectedDetailItem = updated }
+        }
+    }
+
+    private func finishDrag() {
+        guard let dragged = draggedItem else { return }
+        let snapshot = dragSnapshot
+        let original = snapshot?.first(where: { $0.id == dragged.id }) ?? dragged
+        guard let current = items.first(where: { $0.id == dragged.id }) else {
+            cancelDrag()
+            return
+        }
+        if original.kind != current.kind {
+            draggedItem = nil
+            persistKindChange(original: original, current: current, snapshot: snapshot)
+        } else {
+            commitItemOrder()
+            dragSnapshot = nil
+            draggedItem = nil
+        }
+    }
+
+    private func persistKindChange(original: ProjectItem, current: ProjectItem, snapshot: [ProjectItem]?) {
         Task {
             let newId: String?
-            if item.kind == .reminder {
+            if original.kind == .reminder {
                 let calName = project.calendarName ?? ""
                 newId = await ek.convertReminderToEvent(
-                    reminderId: item.id,
+                    reminderId: original.id,
                     project: project.prefix,
-                    content: item.content,
-                    notes: item.notes,
-                    tags: item.tags,
-                    dueDate: item.date,
+                    content: original.content,
+                    notes: original.notes,
+                    tags: original.tags,
+                    dueDate: original.date,
                     durationMinutes: settings.defaultEventDurationMinutes,
                     calendarName: calName.isEmpty ? settings.defaultCalendarName : calName,
                     enabledCalendars: settings.effectiveCalendarNames
@@ -577,22 +624,28 @@ struct ProjectDetailView: View {
             } else {
                 let listName = project.reminderListName ?? ""
                 newId = await ek.convertEventToReminder(
-                    eventId: item.id,
+                    eventId: original.id,
                     project: project.prefix,
-                    content: item.content,
-                    notes: item.notes,
-                    tags: item.tags,
-                    priority: item.priority,
-                    startDate: item.date,
-                    hasTime: item.hasTime,
+                    content: original.content,
+                    notes: original.notes,
+                    tags: original.tags,
+                    priority: original.priority,
+                    startDate: original.date,
+                    hasTime: original.hasTime,
                     listName: listName.isEmpty ? settings.defaultReminderListName : listName,
                     enabledLists: settings.effectiveReminderListNames
                 )
             }
-            if newId != nil {
+            if let newId {
+                commitItemOrder()
+                dragSnapshot = nil
                 refreshTrigger += 1
                 await reload(selecting: newId)
             } else {
+                if let snapshot {
+                    withAnimation(listAnimation) { items = snapshot }
+                }
+                dragSnapshot = nil
                 toast.show("Could not convert item", type: .error)
             }
         }

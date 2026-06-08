@@ -46,6 +46,29 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.endDate = endDate
     }
 
+    /// Build a copy with a different kind. Used as a drag-preview placeholder
+    /// when cross-section dragging in the All view — the real EventKit
+    /// conversion happens on drop and replaces this stand-in with a fresh id.
+    public func replacingKind(_ kind: Kind) -> ProjectItem {
+        ProjectItem(
+            id: id,
+            kind: kind,
+            rawTitle: rawTitle,
+            projectPrefix: projectPrefix,
+            content: content,
+            containerName: containerName,
+            isCompleted: isCompleted,
+            date: date,
+            notes: notes,
+            tags: tags,
+            priority: priority,
+            url: url,
+            hasTime: hasTime,
+            isAllDay: isAllDay,
+            endDate: endDate
+        )
+    }
+
     public func replacingDate(_ date: Date, endDate: Date? = nil, hasTime: Bool? = nil) -> ProjectItem {
         ProjectItem(
             id: id,

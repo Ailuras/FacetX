@@ -391,35 +391,24 @@ struct ItemRow: View {
     }
 }
 
+/// All-view drop target: the handler receives the dragged and target items
+/// on enter to update an optimistic preview (same-kind reorder OR cross-kind
+/// kind-swap), and onDrop to commit whatever the preview ended up as.
 struct ItemDropDelegate: DropDelegate {
     let item: ProjectItem
     @Binding var draggedItem: ProjectItem?
-    var onMove: (ProjectItem, ProjectItem) -> Void
+    var onEntered: (ProjectItem, ProjectItem) -> Void
     var onDrop: () -> Void
-    /// Called on drop when the dragged item's kind differs from the target's.
-    /// Receives the dragged item and the target kind to convert to.
-    var onConvert: ((ProjectItem, ProjectItem.Kind) -> Void)? = nil
 
     func performDrop(info: DropInfo) -> Bool {
-        defer {
-            self.draggedItem = nil
-            onDrop()
-        }
-        guard let dragged = draggedItem else { return true }
-        if dragged.id != item.id, dragged.kind != item.kind {
-            onConvert?(dragged, item.kind)
-        }
+        guard draggedItem != nil else { return false }
+        onDrop()
         return true
     }
 
     func dropEntered(info: DropInfo) {
-        guard let draggedItem = draggedItem else { return }
-        guard draggedItem.id != item.id else { return }
-        // Only live-reorder within the same kind; cross-kind drags are committed
-        // as a kind conversion on drop, no preview movement.
-        if draggedItem.kind == item.kind {
-            onMove(draggedItem, item)
-        }
+        guard let draggedItem, draggedItem.id != item.id else { return }
+        onEntered(draggedItem, item)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
