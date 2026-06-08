@@ -14,6 +14,15 @@ struct ProjectDetailView: View {
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All", week = "Week", month = "Month", commits = "Git"
         var id: String { rawValue }
+
+        static let titleWidth: CGFloat = {
+            let font = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small))
+            let widths = allCases.map { option in
+                let title = option.rawValue as NSString
+                return title.size(withAttributes: [.font: font]).width
+            }
+            return ceil(widths.max() ?? 0)
+        }()
     }
 
     @State private var mode: Mode = .all
@@ -220,38 +229,16 @@ struct ProjectDetailView: View {
     }
 
     private var modePicker: some View {
-        HStack(spacing: 1) {
+        Picker("", selection: $mode) {
             ForEach(Mode.allCases) { option in
-                Button {
-                    mode = option
-                } label: {
-                    Text(option.rawValue)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(mode == option ? .primary : .secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .frame(minWidth: 32)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(mode == option ? Color(NSColor.controlBackgroundColor) : Color.clear)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .stroke(mode == option ? Color.gray.opacity(0.25) : Color.clear, lineWidth: 0.5)
-                        )
-                }
-                .buttonStyle(.plain)
+                Text(option.rawValue)
+                    .frame(width: Mode.titleWidth)
+                    .tag(option)
             }
         }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(0.45))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-        )
+        .pickerStyle(.segmented)
+        .controlSize(.small)
+        .labelsHidden()
         .help("Switch view mode")
     }
 
