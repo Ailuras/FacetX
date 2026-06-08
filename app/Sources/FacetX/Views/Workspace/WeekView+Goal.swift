@@ -122,7 +122,7 @@ extension WeekView {
             if let eventId = goal?.eventId {
                 let deleted = await ek.deleteGoalEvent(eventId: eventId)
                 guard deleted else {
-                    goalError = "Could not delete the calendar event. Check Calendar access."
+                    goalError = "Could not delete the schedule item. Check Calendar access."
                     return
                 }
             }
@@ -138,7 +138,7 @@ extension WeekView {
                 enabledCalendars: settings.effectiveCalendarNames
             )
             guard let eventId else {
-                goalError = "Could not save the calendar event. Check Calendar access and enabled calendars."
+                goalError = "Could not save the schedule item. Check Calendar access and enabled calendars."
                 return
             }
             store.setWeekGoal(

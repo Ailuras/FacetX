@@ -152,7 +152,7 @@ struct ItemDetailPane: View {
     @ViewBuilder private var titleActions: some View {
         Picker("", selection: kindSelection) {
             Text("Todo").tag(ProjectItem.Kind.reminder)
-            Text("Event").tag(ProjectItem.Kind.event)
+            Text("Schedule").tag(ProjectItem.Kind.event)
         }
         .pickerStyle(.segmented)
         .labelsHidden()
@@ -708,7 +708,7 @@ struct ItemDetailPane: View {
             saving = false
             if let newId {
                 toast.show(
-                    item.kind == .reminder ? "Converted to event" : "Converted to reminder",
+                    item.kind == .reminder ? "Converted to schedule" : "Converted to reminder",
                     type: .success
                 )
                 onUpdate(newId)

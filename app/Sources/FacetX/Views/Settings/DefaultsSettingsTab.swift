@@ -43,7 +43,7 @@ struct DefaultsSettingsTab: View {
 
                 SettingsDivider()
 
-                SettingsRow(title: "Event Duration", systemImage: "clock") {
+                SettingsRow(title: "Schedule Duration", systemImage: "clock") {
                     HStack(spacing: 8) {
                         Text("\(settings.defaultEventDurationMinutes) min")
                             .font(SettingsUI.secondaryFont)
@@ -125,7 +125,7 @@ struct DefaultsSettingsTab: View {
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)
                 }
 
-                Text("Week goals are all-day calendar events shared across projects. They are kept out of normal project item lists.")
+                Text("Week goals are all-day schedule items shared across projects. They are kept out of normal project item lists.")
                     .font(SettingsUI.secondaryFont)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

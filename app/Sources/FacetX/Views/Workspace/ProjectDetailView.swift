@@ -210,7 +210,7 @@ struct ProjectDetailView: View {
 
     private func detailPane(for selectedItem: ProjectItem) -> some View {
         FacetSidebarPane(
-            title: selectedItem.kind == .reminder ? "Reminder" : "Event",
+            title: selectedItem.kind == .reminder ? "Reminder" : "Schedule",
             systemImage: selectedItem.kind == .reminder ? "checklist" : "calendar",
             subtitle: selectedItem.content,
             onClose: {
@@ -462,7 +462,7 @@ struct ProjectDetailView: View {
     private var summaryCluster: some View {
         HStack(spacing: 6) {
             SummaryChip(value: openTaskCount, label: "Tasks", systemImage: "circle")
-            SummaryChip(value: eventCount, label: "Events", systemImage: "calendar")
+            SummaryChip(value: eventCount, label: "Schedule", systemImage: "calendar")
             SummaryChip(value: completedReminderCount, label: "Done", systemImage: "checkmark.circle")
         }
     }

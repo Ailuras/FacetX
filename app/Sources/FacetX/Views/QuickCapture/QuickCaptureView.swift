@@ -160,11 +160,6 @@ struct QuickCaptureView: View {
             Label("Added", systemImage: "checkmark.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.green)
-        } else {
-            Text(targetSummary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
         }
     }
 
@@ -195,15 +190,6 @@ struct QuickCaptureView: View {
 
     private var targetCalendar: String {
         settings.calendarSaveTarget(projectCalendarName: project?.calendarName)
-    }
-
-    private var targetSummary: String {
-        switch captureKind {
-        case .task:
-            return targetReminderList.isEmpty ? "No reminder list selected" : "Task -> \(targetReminderList)"
-        case .schedule:
-            return targetCalendar.isEmpty ? "No calendar selected" : "Schedule -> \(targetCalendar)"
-        }
     }
 
     private var canAdd: Bool {

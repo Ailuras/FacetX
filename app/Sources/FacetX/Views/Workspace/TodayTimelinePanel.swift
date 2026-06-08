@@ -49,7 +49,7 @@ struct TodayTimelinePanel: View {
                 ContentUnavailableView {
                     Label("No timed items today", systemImage: "sun.max")
                 } description: {
-                    Text("Timed tasks and events for today will appear here.")
+                    Text("Timed tasks and schedule items for today will appear here.")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {

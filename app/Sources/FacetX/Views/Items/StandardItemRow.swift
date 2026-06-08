@@ -103,7 +103,7 @@ struct StandardItemRow: View {
             }
             Button("Copy Title") { copyTitle() }
             Divider()
-            Button(item.kind == .reminder ? "Convert to Event" : "Convert to Reminder") {
+            Button(item.kind == .reminder ? "Convert to Schedule" : "Convert to Reminder") {
                 convertItemType()
             }
             Divider()
