@@ -168,8 +168,8 @@ struct ItemActionCluster<Accessory: View>: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            ItemFilterMenuButton(itemFilter: $itemFilter)
             accessory
+            ItemFilterMenuButton(itemFilter: $itemFilter)
             FilterPillButton(
                 systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
                 help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
