@@ -404,6 +404,7 @@ struct TodayTimelinePanel: View {
 
     @MainActor
     private func scheduleDroppedItem(id: String, at start: Date) async {
+        dropPreview = nil
         guard let item = items.first(where: { $0.id == id }), !item.isCompleted else { return }
 
         let end: Date?
@@ -488,7 +489,10 @@ private struct TimelineDropDelegate: DropDelegate {
     func dropExited(info: DropInfo) { onPreview(nil) }
 
     func performDrop(info: DropInfo) -> Bool {
-        onPreview(nil)
+        // Clear on the next runloop: a state write made synchronously here can be
+        // dropped as SwiftUI tears down the drag-tracking transaction, which would
+        // leave the time guide stranded after a successful drop.
+        DispatchQueue.main.async { onPreview(nil) }
         guard let provider = info.itemProviders(for: [.text]).first else { return false }
         onCommit(provider, snappedDate(forY: info.location.y))
         return true
