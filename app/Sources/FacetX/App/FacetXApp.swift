@@ -1,7 +1,20 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
+    let eventKit = EventKitService()
+    let store = ProjectStore()
+    let settings = AppSettings()
+    let menuBarController = MenuBarController()
+    let keyboard = KeyboardActionRouter()
+    let toast = ToastController()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        menuBarController.configure(eventKit: eventKit, store: store, settings: settings)
+        keyboard.setGlobalShortcutEnabled(settings.globalShortcutEnabled)
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
@@ -11,34 +24,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 struct FacetXApp: App {
     @NSApplicationDelegateAdaptor var appDelegate: AppDelegate
 
-    @StateObject private var eventKit = EventKitService()
-    @StateObject private var store = ProjectStore()
-    @StateObject private var settings = AppSettings()
-    @StateObject private var menuBarController = MenuBarController()
-    @StateObject private var keyboard = KeyboardActionRouter()
-    @StateObject private var toast = ToastController()
-
     var body: some Scene {
         Window("FacetX", id: "main") {
             ContentView()
-                .environmentObject(eventKit)
-                .environmentObject(store)
-                .environmentObject(settings)
-                .environmentObject(keyboard)
-                .environmentObject(toast)
+                .environmentObject(appDelegate.eventKit)
+                .environmentObject(appDelegate.store)
+                .environmentObject(appDelegate.settings)
+                .environmentObject(appDelegate.keyboard)
+                .environmentObject(appDelegate.toast)
                 .background {
                     WindowPositionRestorer()
                 }
-                .task {
-                    menuBarController.configure(eventKit: eventKit, store: store, settings: settings)
-                }
                 .onAppear {
-                    keyboard.setGlobalShortcutEnabled(settings.globalShortcutEnabled)
+                    appDelegate.keyboard.setGlobalShortcutEnabled(appDelegate.settings.globalShortcutEnabled)
                 }
                 .frame(minWidth: 760, minHeight: 480)
         }
         .commands {
-            AppCommands(router: keyboard)
+            AppCommands(router: appDelegate.keyboard)
         }
         // Standard macOS Settings window (⌘,). App-wide container configuration
         // lives here; project management stays in the main window.
@@ -46,11 +49,11 @@ struct FacetXApp: App {
         // shadow SwiftUI's Settings scene.
         SwiftUI.Settings {
             SettingsRootView()
-                .environmentObject(eventKit)
-                .environmentObject(store)
-                .environmentObject(settings)
-                .environmentObject(keyboard)
-                .environmentObject(toast)
+                .environmentObject(appDelegate.eventKit)
+                .environmentObject(appDelegate.store)
+                .environmentObject(appDelegate.settings)
+                .environmentObject(appDelegate.keyboard)
+                .environmentObject(appDelegate.toast)
         }
     }
 }
