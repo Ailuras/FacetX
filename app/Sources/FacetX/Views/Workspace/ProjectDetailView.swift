@@ -83,7 +83,7 @@ struct ProjectDetailView: View {
         .navigationTitle(project.name)
         .toolbar {
             ToolbarItem(placement: .status) {
-                modePicker(width: 200)
+                modePicker
             }
             ToolbarItem(placement: .automatic) {
                 ToolbarSearchField(text: $searchText, placeholder: mode == .commits ? "Search commits…" : "Search items…")
@@ -219,14 +219,40 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func modePicker(width: CGFloat) -> some View {
-        Picker("", selection: $mode) {
-            ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+    private var modePicker: some View {
+        HStack(spacing: 1) {
+            ForEach(Mode.allCases) { option in
+                Button {
+                    mode = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(mode == option ? .primary : .secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .frame(minWidth: 32)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(mode == option ? Color(NSColor.controlBackgroundColor) : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .stroke(mode == option ? Color.gray.opacity(0.25) : Color.clear, lineWidth: 0.5)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.45))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+        )
         .help("Switch view mode")
-        .frame(width: width)
     }
 
     @EnvironmentObject private var toast: ToastController
