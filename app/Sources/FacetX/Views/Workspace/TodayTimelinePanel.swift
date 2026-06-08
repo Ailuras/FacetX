@@ -1,5 +1,6 @@
 import FacetXCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct TodayTimelinePanel: View {
     @EnvironmentObject var ek: EventKitService
@@ -11,6 +12,9 @@ struct TodayTimelinePanel: View {
     @State private var selectedItem: ProjectItem?
     @State private var draggingItemID: String? = nil
     @State private var dragOffsetY: CGFloat = 0
+    /// Snapped position + time label of an item being dragged in from the All
+    /// list, shown as a live drop guide while hovering the grid.
+    @State private var dropPreview: (y: CGFloat, label: String)? = nil
 
     // MARK: – Derived
 
@@ -45,21 +49,22 @@ struct TodayTimelinePanel: View {
             closeHelp: "Close Today panel",
             onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } }
         ) {
-            if todayTimelineItems.isEmpty {
-                ContentUnavailableView {
-                    Label("No timed items today", systemImage: "sun.max")
-                } description: {
-                    Text("Timed tasks and schedule items for today will appear here.")
+            ScrollViewReader { proxy in
+                ScrollView {
+                    compactTimelineView
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        compactTimelineView
+                .onAppear {
+                    scrollToCurrentHour(proxy: proxy)
+                }
+            }
+            .overlay {
+                if todayTimelineItems.isEmpty {
+                    ContentUnavailableView {
+                        Label("No timed items today", systemImage: "sun.max")
+                    } description: {
+                        Text("Drag an item from the list onto a time slot to schedule it.")
                     }
-                    .onAppear {
-                        scrollToCurrentHour(proxy: proxy)
-                    }
+                    .allowsHitTesting(false)
                 }
             }
         }
@@ -104,8 +109,7 @@ struct TodayTimelinePanel: View {
         let itemPositions = compactPositionedItems(startHour: startHour, hourHeight: hourHeight)
 
         return VStack(alignment: .leading, spacing: 0) {
-            if !todayTimelineItems.isEmpty {
-                HStack(alignment: .top, spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
                     // Hour labels
                     VStack(spacing: 0) {
                         ForEach(startHour..<endHour, id: \.self) { hour in
@@ -155,13 +159,38 @@ struct TodayTimelinePanel: View {
                                 .allowsHitTesting(false)
                                 .zIndex(200)
                         }
+
+                        // Live drop guide for items dragged in from the All list
+                        if let preview = dropPreview {
+                            HStack(spacing: 5) {
+                                Text(preview.label)
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Color.accentColor)
+                                    .clipShape(Capsule())
+                                Rectangle()
+                                    .fill(Color.accentColor.opacity(0.55))
+                                    .frame(height: 1.5)
+                            }
+                            .offset(y: preview.y - 8)
+                            .allowsHitTesting(false)
+                            .zIndex(180)
+                        }
                     }
                     .frame(height: totalHeight)
                     .frame(maxWidth: .infinity)
+                    .onDrop(of: [.text], delegate: TimelineDropDelegate(
+                        startHour: startHour,
+                        endHour: endHour,
+                        hourHeight: hourHeight,
+                        onPreview: { dropPreview = $0 },
+                        onCommit: { provider, date in handleTimelineDrop(provider: provider, date: date) }
+                    ))
                 }
-                .padding(.horizontal, timelineContentInset)
-                .padding(.vertical, 14)
-            }
+            .padding(.horizontal, timelineContentInset)
+            .padding(.vertical, 14)
         }
     }
 
@@ -360,5 +389,137 @@ struct TodayTimelinePanel: View {
             endDate: newEndDate
         )
         // ek.changeToken fires automatically → .onChange(of: ek.changeToken) in body triggers reload()
+    }
+
+    // MARK: – Drop-to-schedule (from the All list)
+
+    /// Resolve the dragged item id off the provider, then schedule it onto
+    /// today at `date`. The All list registers each row as an `NSString` id.
+    private func handleTimelineDrop(provider: NSItemProvider, date: Date) {
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let id = object as? String else { return }
+            Task { @MainActor in await scheduleDroppedItem(id: id, at: date) }
+        }
+    }
+
+    @MainActor
+    private func scheduleDroppedItem(id: String, at start: Date) async {
+        guard let item = items.first(where: { $0.id == id }), !item.isCompleted else { return }
+
+        let end: Date?
+        if item.kind == .event {
+            if !item.isAllDay, let s = item.date, let e = item.endDate, e > s {
+                end = start.addingTimeInterval(e.timeIntervalSince(s))
+            } else {
+                end = Calendar.current.date(
+                    byAdding: .minute, value: settings.defaultEventDurationMinutes, to: start
+                )
+            }
+        } else {
+            end = nil
+        }
+
+        applyDroppedOptimistic(item: item, start: start, end: end)
+        _ = await ek.updateItem(
+            id: item.id,
+            project: item.projectPrefix,
+            content: item.content,
+            date: start,
+            useDate: true,
+            dateIncludesTime: true,
+            containerName: item.containerName,
+            notes: item.notes,
+            tags: item.tags,
+            priority: item.priority,
+            isAllDay: item.kind == .event ? false : nil,
+            endDate: end
+        )
+        // ek.changeToken fires automatically → reload() reconciles with EventKit.
+    }
+
+    /// Drop the item onto the timeline immediately as a timed item, before
+    /// EventKit confirms — mirrors `applyOptimisticReschedule` but also clears
+    /// the all-day / untimed flags so it surfaces in `todayTimelineItems`.
+    private func applyDroppedOptimistic(item: ProjectItem, start: Date, end: Date?) {
+        guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
+        var updated = items
+        updated[idx] = ProjectItem(
+            id: item.id,
+            kind: item.kind,
+            rawTitle: item.rawTitle,
+            projectPrefix: item.projectPrefix,
+            content: item.content,
+            containerName: item.containerName,
+            isCompleted: item.isCompleted,
+            date: start,
+            notes: item.notes,
+            tags: item.tags,
+            priority: item.priority,
+            url: item.url,
+            hasTime: true,
+            isAllDay: false,
+            endDate: end
+        )
+        items = updated
+    }
+}
+
+/// Accepts an item dragged from the All list and turns the drop location into a
+/// 15-minute-snapped time on today's timeline, reporting a live guide position
+/// while hovering.
+private struct TimelineDropDelegate: DropDelegate {
+    let startHour: Int
+    let endHour: Int
+    let hourHeight: CGFloat
+    let onPreview: ((y: CGFloat, label: String)?) -> Void
+    let onCommit: (NSItemProvider, Date) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [.text])
+    }
+
+    func dropEntered(info: DropInfo) { updatePreview(info) }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updatePreview(info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) { onPreview(nil) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        onPreview(nil)
+        guard let provider = info.itemProviders(for: [.text]).first else { return false }
+        onCommit(provider, snappedDate(forY: info.location.y))
+        return true
+    }
+
+    private func updatePreview(_ info: DropInfo) {
+        let date = snappedDate(forY: info.location.y)
+        onPreview((y: yOffset(for: date), label: label(for: date)))
+    }
+
+    /// Map a vertical drop offset to a concrete time on today, snapped to the
+    /// nearest 15 minutes and clamped to the visible hour range.
+    private func snappedDate(forY y: CGFloat) -> Date {
+        let minutesFromTop = Double(max(y, 0) / hourHeight) * 60
+        let absolute = Double(startHour) * 60 + minutesFromTop
+        let snapped = (absolute / 15).rounded() * 15
+        let clamped = min(max(snapped, Double(startHour) * 60), Double(endHour) * 60 - 15)
+        let hour = Int(clamped) / 60
+        let minute = Int(clamped) % 60
+        return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()
+    }
+
+    private func yOffset(for date: Date) -> CGFloat {
+        let cal = Calendar.current
+        let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60
+        return CGFloat((h - Double(startHour)) * Double(hourHeight))
+    }
+
+    private func label(for date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "HH:mm"
+        return fmt.string(from: date)
     }
 }
