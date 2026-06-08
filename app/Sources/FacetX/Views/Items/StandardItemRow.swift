@@ -127,18 +127,31 @@ struct StandardItemRow: View {
         SwipeAction(rawValue: settings.trailingSwipeAction) ?? .none
     }
 
-    /// Destructive actions never full-swipe (they need a deliberate tap), and
-    /// every action shows its icon + title so the revealed button reads the
-    /// same way as the rest of the app's labelled controls.
+    /// Destructive actions never full-swipe (they need a deliberate tap). The
+    /// system tint is cleared so only our own pill shows — icon + title sit
+    /// together inside a short rounded chip that matches the app's card radius,
+    /// instead of the tall full-height capsule the native style draws.
     @ViewBuilder
     private func swipeButton(_ action: SwipeAction) -> some View {
         if action.isApplicable(to: item) {
-            Button(role: action.isDestructive ? .destructive : nil) {
+            Button {
                 perform(action)
             } label: {
-                Label(action.title, systemImage: action.systemImage)
+                HStack(spacing: 5) {
+                    Image(systemName: action.systemImage)
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(action.title)
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                        .fill(action.tint)
+                )
             }
-            .tint(action.tint)
+            .tint(.clear)
         }
     }
 
