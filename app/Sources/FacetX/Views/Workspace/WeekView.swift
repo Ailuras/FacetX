@@ -9,7 +9,7 @@ struct WeekView: View {
 
     let project: Project
     let searchText: String
-    let showCompleted: Bool
+    @Binding var showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
     @Binding var tagFilter: TagFilter
     let refreshTrigger: Int
@@ -31,16 +31,24 @@ struct WeekView: View {
 
     var listAnimation: Animation { FacetTheme.listSpring }
 
-    var weekItems: [ProjectItem] {
-        var weekItems = allItems.filter { item in
+    /// Week items after tag + search filtering but *before* the completed-items
+    /// visibility filter — lets us both render the list and count what's hidden.
+    var weekScopedItems: [ProjectItem] {
+        var result = allItems.filter { item in
             guard let date = item.date else { return false }
             return week.contains(date)
         }
-        weekItems = ItemQuery.filtered(weekItems, by: tagFilter)
-        return ItemQuery.searched(
-            ItemQuery.completedVisibility(weekItems, showCompleted: showCompleted),
-            query: searchText
-        )
+        result = ItemQuery.filtered(result, by: tagFilter)
+        return ItemQuery.searched(result, query: searchText)
+    }
+
+    var weekItems: [ProjectItem] {
+        ItemQuery.completedVisibility(weekScopedItems, showCompleted: showCompleted)
+    }
+
+    var hiddenReminderCount: Int {
+        guard !showCompleted else { return 0 }
+        return weekScopedItems.filter { $0.kind == .reminder && $0.isCompleted }.count
     }
 
     var nonGoalItems: [ProjectItem] { weekItems }

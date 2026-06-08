@@ -1,5 +1,6 @@
 import FacetXCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Single-project month view: a calendar grid showing items whose due/start date
 /// falls within the selected month. Tap a day to see its items in the list below.
@@ -10,7 +11,7 @@ struct MonthView: View {
 
     let project: Project
     let searchText: String
-    let showCompleted: Bool
+    @Binding var showCompleted: Bool
     @Binding var selectedItem: ProjectItem?
     @Binding var tagFilter: TagFilter
     let refreshTrigger: Int
@@ -21,16 +22,31 @@ struct MonthView: View {
     @State private var selectedDay: Int? = nil
     @State private var inlineEdit = ItemInlineEditState()
     @State private var itemToDelete: ProjectItem? = nil
+    @State private var draggedItem: ProjectItem? = nil
+    @State private var dragSnapshot: [ProjectItem]? = nil
 
     private var listAnimation: Animation { FacetTheme.listSpring }
 
-    private var monthItems: [ProjectItem] {
-        var result = ItemArrangement.inMonth(allItems, month)
+    /// Month items after tag + search filtering but *before* the completed-items
+    /// visibility filter. Preserves `allItems`' manual order (shared with the
+    /// Week and All views) rather than re-sorting by date, so drag-reordering in
+    /// the day detail list is meaningful.
+    private var monthScopedItems: [ProjectItem] {
+        var result = allItems.filter { item in
+            guard let d = item.date else { return false }
+            return month.contains(d)
+        }
         result = ItemQuery.filtered(result, by: tagFilter)
-        return ItemQuery.searched(
-            ItemQuery.completedVisibility(result, showCompleted: showCompleted),
-            query: searchText
-        )
+        return ItemQuery.searched(result, query: searchText)
+    }
+
+    private var monthItems: [ProjectItem] {
+        ItemQuery.completedVisibility(monthScopedItems, showCompleted: showCompleted)
+    }
+
+    private var hiddenReminderCount: Int {
+        guard !showCompleted else { return 0 }
+        return monthScopedItems.filter { $0.kind == .reminder && $0.isCompleted }.count
     }
 
     private var itemsByDay: [Int: [ProjectItem]] {
@@ -123,6 +139,18 @@ struct MonthView: View {
                     fill: Color.accentColor.opacity(0.08)
                 )
             }
+            if !showCompleted && hiddenReminderCount > 0 {
+                FacetInfoBadge(
+                    text: "\(hiddenReminderCount) hidden",
+                    systemImage: "eye.slash",
+                    tint: .secondary,
+                    fill: Color.orange.opacity(0.08)
+                )
+            }
+            if !tagFilter.isEmpty {
+                ActiveTagFilterBar(tagFilter: $tagFilter)
+            }
+            ShowCompletedCluster(showCompleted: $showCompleted, animation: listAnimation)
         }
     }
 
@@ -330,13 +358,55 @@ struct MonthView: View {
             projectPrefix: project.prefix,
             selectedItem: $selectedItem,
             inlineEdit: $inlineEdit,
-            showDragGrip: false,
-            onDragStart: nil,
+            onDragStart: {
+                ItemDragHelpers.startDrag(
+                    item: item,
+                    items: allItems,
+                    draggedItem: &draggedItem,
+                    dragSnapshot: &dragSnapshot,
+                    cancelDrag: {
+                        if draggedItem != nil { cancelDrag() }
+                    }
+                )
+            },
             onReload: { await reload() },
             onDeleteRequest: { item in
                 itemToDelete = item
             }
         )
+        .onDrop(of: [.text], delegate: ItemDropDelegate(
+            item: item,
+            draggedItem: $draggedItem,
+            onEntered: { dragged, target in moveItem(from: dragged, to: target) },
+            onDrop: { finishDrag() }
+        ))
+        .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
+    }
+
+    // ── Drag reorder (shares the project's manual order with Week / All) ───────
+    private func moveItem(from source: ProjectItem, to destination: ProjectItem) {
+        guard let fromIndex = allItems.firstIndex(where: { $0.id == source.id }),
+              let toIndex = allItems.firstIndex(where: { $0.id == destination.id }),
+              fromIndex != toIndex else { return }
+        withAnimation(FacetTheme.dragPreviewAnimation) {
+            let moved = allItems.remove(at: fromIndex)
+            allItems.insert(moved, at: toIndex)
+        }
+    }
+
+    private func finishDrag() {
+        guard draggedItem != nil else { return }
+        store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
+        dragSnapshot = nil
+        draggedItem = nil
+    }
+
+    private func cancelDrag() {
+        if let snapshot = dragSnapshot {
+            withAnimation(listAnimation) { allItems = snapshot }
+        }
+        dragSnapshot = nil
+        draggedItem = nil
     }
 
     private func dayDetailHeader(day: Int, date: Date?) -> some View {
@@ -408,12 +478,13 @@ struct MonthView: View {
                                       eventStartDate: requestedMonth.startDate,
                                       eventEndDate: requestedMonth.endDate)
         guard !Task.isCancelled, requestedMonth == month else { return }
-        store.reportTags(projectID: project.id, items: fetched)
+        let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
+        store.reportTags(projectID: project.id, items: sortedItems)
         if allItems.isEmpty {
-            allItems = fetched
+            allItems = sortedItems
         } else {
             withAnimation(listAnimation) {
-                allItems = fetched
+                allItems = sortedItems
             }
         }
     }

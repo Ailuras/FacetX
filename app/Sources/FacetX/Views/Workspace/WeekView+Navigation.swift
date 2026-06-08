@@ -21,6 +21,18 @@ extension WeekView {
                     fill: Color.accentColor.opacity(0.08)
                 )
             }
+            if !showCompleted && hiddenReminderCount > 0 {
+                FacetInfoBadge(
+                    text: "\(hiddenReminderCount) hidden",
+                    systemImage: "eye.slash",
+                    tint: .secondary,
+                    fill: Color.orange.opacity(0.08)
+                )
+            }
+            if !tagFilter.isEmpty {
+                ActiveTagFilterBar(tagFilter: $tagFilter)
+            }
+            ShowCompletedCluster(showCompleted: $showCompleted, animation: listAnimation)
         }
     }
 

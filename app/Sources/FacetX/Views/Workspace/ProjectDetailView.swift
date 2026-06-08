@@ -66,8 +66,8 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all: allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
-                    case .month: MonthView(project: project, searchText: searchText, showCompleted: showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
                     case .commits: CommitsView(project: project, searchText: searchText, refreshTrigger: refreshTrigger)
                     }
                 }
@@ -263,25 +263,16 @@ struct ProjectDetailView: View {
     private var actionCluster: some View {
         HStack(spacing: 2) {
             sortPill
-            pillButton(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
-                       help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
-                       active: showCompleted) {
+            FilterPillButton(systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
+                             help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
+                             active: showCompleted) {
                 withAnimation(listAnimation) { showCompleted.toggle() }
             }
-            pillButton(systemName: "plus", help: "Add an item to this project") {
+            FilterPillButton(systemName: "plus", help: "Add an item to this project") {
                 beginCreate()
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-        )
+        .pillGroupContainer()
     }
 
     private var sortPill: some View {
@@ -314,20 +305,6 @@ struct ProjectDetailView: View {
         .help("Sort: \(sortOption.rawValue)")
     }
 
-    private func pillButton(systemName: String, help: String, active: Bool = false,
-                            action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(active ? Color.accentColor : .secondary)
-                .frame(width: 26, height: 24)
-                .background(active ? Color.accentColor.opacity(0.14) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .help(help)
-    }
-
     @ViewBuilder private var allItemsView: some View {
         VStack(spacing: 0) {
             allViewInfoBar
@@ -348,7 +325,7 @@ struct ProjectDetailView: View {
             summaryCluster
 
             if !tagFilter.isEmpty {
-                activeTagFilterBar
+                ActiveTagFilterBar(tagFilter: $tagFilter)
             }
 
             Spacer()
@@ -380,54 +357,6 @@ struct ProjectDetailView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
-    }
-
-    private var activeTagFilterBar: some View {
-        HStack(spacing: 4) {
-            ForEach(Array(tagFilter.included).sorted(), id: \.self) { tag in
-                miniTagBadge(tag: tag, included: true)
-            }
-            ForEach(Array(tagFilter.excluded).sorted(), id: \.self) { tag in
-                miniTagBadge(tag: tag, included: false)
-            }
-            Button {
-                tagFilter.clear()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Clear all tag filters")
-        }
-    }
-
-    private func miniTagBadge(tag: String, included: Bool) -> some View {
-        let color = settings.tagColor(for: tag)
-        return Button {
-            if included { tagFilter.included.remove(tag) }
-            else { tagFilter.excluded.remove(tag) }
-        } label: {
-            HStack(spacing: 2) {
-                Image(systemName: included ? "plus" : "minus")
-                    .font(.system(size: 8, weight: .bold))
-                Text(tag)
-                    .font(.system(size: 11, weight: .semibold))
-                    .strikethrough(!included)
-            }
-            .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(color.opacity(included ? 0.14 : 0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(color.opacity(included ? 0.30 : 0.55),
-                            style: StrokeStyle(lineWidth: 1, dash: included ? [] : [2.5, 2]))
-            )
-        }
-        .buttonStyle(.plain)
-        .help(included ? "Remove include filter" : "Remove exclude filter")
     }
 
     private var allItemsList: some View {
