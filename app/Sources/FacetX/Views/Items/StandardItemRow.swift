@@ -72,11 +72,11 @@ struct StandardItemRow: View {
                 inlineEdit.startNotesEdit(for: item)
             }
         )
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            swipeButton(SwipeAction(rawValue: settings.leadingSwipeAction) ?? .none)
+        .swipeActions(edge: .leading, allowsFullSwipe: !leadingAction.isDestructive) {
+            swipeButton(leadingAction)
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            swipeButton(SwipeAction(rawValue: settings.trailingSwipeAction) ?? .none)
+        .swipeActions(edge: .trailing, allowsFullSwipe: !trailingAction.isDestructive) {
+            swipeButton(trailingAction)
         }
         .contextMenu {
             Button("Edit...") {
@@ -119,13 +119,24 @@ struct StandardItemRow: View {
 
     // MARK: - Swipe
 
+    private var leadingAction: SwipeAction {
+        SwipeAction(rawValue: settings.leadingSwipeAction) ?? .none
+    }
+
+    private var trailingAction: SwipeAction {
+        SwipeAction(rawValue: settings.trailingSwipeAction) ?? .none
+    }
+
+    /// Destructive actions never full-swipe (they need a deliberate tap), and
+    /// every action shows its icon + title so the revealed button reads the
+    /// same way as the rest of the app's labelled controls.
     @ViewBuilder
     private func swipeButton(_ action: SwipeAction) -> some View {
         if action.isApplicable(to: item) {
             Button(role: action.isDestructive ? .destructive : nil) {
                 perform(action)
             } label: {
-                Image(systemName: action.systemImage)
+                Label(action.title, systemImage: action.systemImage)
             }
             .tint(action.tint)
         }
