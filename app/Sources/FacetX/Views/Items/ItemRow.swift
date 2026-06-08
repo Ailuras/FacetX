@@ -215,60 +215,56 @@ struct ItemRow: View {
                         .foregroundStyle(.blue)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    if isInlineEditing, let inlineEditingText {
-                        InlineEditTextField(text: inlineEditingText,
-                                            fontSize: 14,
-                                            fontWeight: .semibold,
-                                            onCommit: { onInlineCommit?() },
-                                            onCancel: { onInlineCancel?() })
-                            .frame(minHeight: 22)
-                    } else {
-                        HStack(spacing: 6) {
-                            Text(item.content)
-                                .font(.system(size: 13, weight: .medium))
-                                .strikethrough(item.isCompleted)
-                                .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                if isInlineEditing, let inlineEditingText {
+                    InlineEditTextField(text: inlineEditingText,
+                                        fontSize: 14,
+                                        fontWeight: .semibold,
+                                        onCommit: { onInlineCommit?() },
+                                        onCancel: { onInlineCancel?() })
+                        .frame(minHeight: 22)
+                } else {
+                    HStack(spacing: 6) {
+                        Text(item.content)
+                            .font(.system(size: 13, weight: .medium))
+                            .strikethrough(item.isCompleted)
+                            .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                            .lineLimit(1)
 
-                            if let projectBadge {
-                                Text(projectBadge)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(Color.accentColor)
-                                    .lineLimit(1)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.accentColor.opacity(0.12))
-                                    .clipShape(Capsule())
-                            }
-
-                            if let notes = item.notes, !notes.isEmpty {
-                                Image(systemName: "doc.text")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.tertiary)
-                                    .padding(.top, 1)
-                            }
-                        }
-                    }
-
-                    if !item.tags.isEmpty {
-                        FlowLayout(spacing: 4, lineSpacing: 4) {
-                            ForEach(item.tags, id: \.self) { tag in
-                                let tagColor = settings.tagColor(for: tag)
-                                HStack(spacing: 2) {
-                                    Text("#")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundStyle(tagColor.opacity(0.65))
-                                    Text(tag)
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundStyle(tagColor)
-                                }
+                        if let projectBadge {
+                            Text(projectBadge)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .lineLimit(1)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                        .fill(tagColor.opacity(0.12))
-                                )
+                                .background(Color.accentColor.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+
+                        if let notes = item.notes, !notes.isEmpty {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        ForEach(item.tags, id: \.self) { tag in
+                            let tagColor = settings.tagColor(for: tag)
+                            HStack(spacing: 2) {
+                                Text("#")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(tagColor.opacity(0.65))
+                                Text(tag)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(tagColor)
+                                    .lineLimit(1)
                             }
+                            .fixedSize()
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(tagColor.opacity(0.12))
+                            )
                         }
                     }
                 }
