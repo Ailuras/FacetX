@@ -14,15 +14,6 @@ struct ProjectDetailView: View {
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All", week = "Week", month = "Month", commits = "Git"
         var id: String { rawValue }
-
-        static let titleWidth: CGFloat = {
-            let font = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small))
-            let widths = allCases.map { option in
-                let title = option.rawValue as NSString
-                return title.size(withAttributes: [.font: font]).width
-            }
-            return ceil(widths.max() ?? 0)
-        }()
     }
 
     @State private var mode: Mode = .all
@@ -243,9 +234,10 @@ struct ProjectDetailView: View {
     private var modePicker: some View {
         Picker("", selection: $mode) {
             ForEach(Mode.allCases) { option in
-                Text(option.rawValue)
-                    .frame(width: Mode.titleWidth)
-                    .padding(.horizontal, 10)
+                // The segmented style is an NSSegmentedControl that only reads
+                // each label's text and ignores padding/frame, so we pad the
+                // string itself to keep the end tabs off the container border.
+                Text("  \(option.rawValue)  ")
                     .tag(option)
             }
         }
