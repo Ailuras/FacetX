@@ -268,12 +268,12 @@ struct ContentView: View {
             tagFilter.cycle(tag)
         } label: {
             HStack(spacing: 3) {
-                Text("#")
+                Text(state == .excluded ? "−" : "#")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(prefixColor(state: state, color: color))
                 Text(tag)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(textColor(state: state))
+                    .foregroundStyle(textColor(state: state, color: color))
                     .strikethrough(state == .excluded)
                     .lineLimit(1)
             }
@@ -285,7 +285,9 @@ struct ContentView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(strokeColor(state: state, color: color), lineWidth: state == .excluded ? 1 : 0.5)
+                    .stroke(strokeColor(state: state, color: color),
+                            style: StrokeStyle(lineWidth: state == .excluded ? 1 : 0.5,
+                                               dash: state == .excluded ? [2.5, 2] : []))
             )
         }
         .buttonStyle(.plain)
@@ -298,15 +300,15 @@ struct ContentView: View {
     private func prefixColor(state: TagFilterState, color: Color) -> Color {
         switch state {
         case .included: return Color.white.opacity(0.85)
-        case .excluded: return Color.red.opacity(0.85)
+        case .excluded: return color.opacity(0.85)
         case .neutral:  return color.opacity(0.70)
         }
     }
 
-    private func textColor(state: TagFilterState) -> Color {
+    private func textColor(state: TagFilterState, color: Color) -> Color {
         switch state {
         case .included: return .white
-        case .excluded: return .secondary
+        case .excluded: return color.opacity(0.60)
         case .neutral:  return .primary
         }
     }
@@ -314,7 +316,7 @@ struct ContentView: View {
     private func fillColor(state: TagFilterState, color: Color) -> Color {
         switch state {
         case .included: return color
-        case .excluded: return Color.red.opacity(0.08)
+        case .excluded: return color.opacity(0.06)
         case .neutral:  return color.opacity(0.14)
         }
     }
@@ -322,7 +324,7 @@ struct ContentView: View {
     private func strokeColor(state: TagFilterState, color: Color) -> Color {
         switch state {
         case .included: return color
-        case .excluded: return Color.red.opacity(0.45)
+        case .excluded: return color.opacity(0.55)
         case .neutral:  return color.opacity(0.20)
         }
     }

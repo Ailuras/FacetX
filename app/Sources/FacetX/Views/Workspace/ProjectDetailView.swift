@@ -400,7 +400,7 @@ struct ProjectDetailView: View {
     }
 
     private func miniTagBadge(tag: String, included: Bool) -> some View {
-        let color = included ? settings.tagColor(for: tag) : Color.red
+        let color = settings.tagColor(for: tag)
         return Button {
             if included { tagFilter.included.remove(tag) }
             else { tagFilter.excluded.remove(tag) }
@@ -415,11 +415,12 @@ struct ProjectDetailView: View {
             .foregroundStyle(color)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(color.opacity(0.12))
+            .background(color.opacity(included ? 0.14 : 0.06))
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(color.opacity(0.30), lineWidth: 1)
+                    .stroke(color.opacity(included ? 0.30 : 0.55),
+                            style: StrokeStyle(lineWidth: 1, dash: included ? [] : [2.5, 2]))
             )
         }
         .buttonStyle(.plain)
