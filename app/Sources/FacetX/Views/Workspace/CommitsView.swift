@@ -336,12 +336,14 @@ struct CommitsView: View {
                 } description: {
                     Text("No recent commits found in \(repo).")
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if visibleCommits.isEmpty {
                 ContentUnavailableView {
                     Label("No results", systemImage: "magnifyingglass")
                 } description: {
                     Text("No commits match “\(searchQuery)”.")
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     ForEach(visibleCommits) { commit in
@@ -361,6 +363,7 @@ struct CommitsView: View {
             } description: {
                 Text("Add a GitHub repository in the project settings to see commits here.")
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
