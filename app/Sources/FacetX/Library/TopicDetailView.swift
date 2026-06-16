@@ -311,21 +311,12 @@ struct TopicDetailView: View {
     }
 
     private var actionCluster: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 2) {
             sortMenu
-            Button {
+            FilterPillButton(systemName: "plus",
+                             help: L10n.pick("Add paper", "添加文献")) {
                 showAddSheet = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 24)
-                    .background(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .help(L10n.pick("Add paper", "添加文献"))
         }
     }
 
@@ -422,12 +413,10 @@ struct TopicDetailView: View {
         } label: {
             Image(systemName: sortKey.systemImage)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(settings.sortAscending ? Color.accentColor : .secondary)
                 .frame(width: 26, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.secondary.opacity(0.10))
-                )
+                .background(settings.sortAscending ? Color.accentColor.opacity(0.14) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)

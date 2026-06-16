@@ -1,9 +1,11 @@
+import FacetXCore
 import SwiftUI
 
 struct PaperDetailPane: View {
     let inputPaper: Paper
     @State private var store = PaperStore.shared
     @State private var metadata = MetadataStore.shared
+    @EnvironmentObject private var appSettings: AppSettings
     @State private var noteText: String = ""
     @State private var isTranslating = false
     @State private var showTranslation = false
@@ -173,35 +175,29 @@ struct PaperDetailPane: View {
 
     private var tagsSection: some View {
         FacetDetailSection(title: L10n.pick("Tags", "标签"), systemImage: "tag") {
-            VStack(alignment: .leading, spacing: 8) {
-                if !paper.tags.isEmpty {
-                    FlowLayout(spacing: 4, lineSpacing: 4) {
-                        ForEach(paper.tags, id: \.self) { tag in
-                            HStack(spacing: 3) {
-                                Text("#\(tag)")
-                                    .font(.system(size: 11, weight: .medium))
-                                Button {
-                                    store.removePaperTag(id: paper.id, tag: tag)
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .fill(LabelColor.forTag(tag).opacity(0.12))
-                            )
-                        }
-                    }
-                }
-                AddTagField { tag in store.addPaperTag(id: paper.id, tag: tag) }
-            }
-            .padding(10)
+            TagChipEditor(tagsText: tagsBinding, knownColors: appSettings)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// Bridges the store's tag array to `TagChipEditor`'s comma-joined string,
+    /// diffing on write so the shared chip editor drives add/remove calls.
+    private var tagsBinding: Binding<String> {
+        Binding(
+            get: { paper.tags.joined(separator: ", ") },
+            set: { newValue in
+                let updated = FacetMetadata.tags(from: newValue)
+                let current = paper.tags
+                for tag in updated where !current.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
+                    store.addPaperTag(id: paper.id, tag: tag)
+                }
+                for tag in current where !updated.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
+                    store.removePaperTag(id: paper.id, tag: tag)
+                }
+            }
+        )
     }
 
     // MARK: - Abstract
@@ -392,46 +388,5 @@ struct PaperDetailPane: View {
             }
             isTranslating = false
         }
-    }
-}
-
-// MARK: - Add Tag Field
-
-private struct AddTagField: View {
-    let onSubmit: (String) -> Void
-    @State private var text = ""
-    @State private var showField = false
-
-    var body: some View {
-        if showField {
-            HStack(spacing: 4) {
-                TextField(L10n.pick("New tag", "新标签"), text: $text)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 110)
-                    .onSubmit { commit() }
-                Button { commit() } label: {
-                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                }
-                .buttonStyle(.plain)
-                Button { showField = false; text = "" } label: {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
-                }
-                .buttonStyle(.plain)
-            }
-        } else {
-            Button { showField = true } label: {
-                Label(L10n.pick("Add Tag", "添加标签"), systemImage: "plus")
-                    .font(.system(size: 11, weight: .medium))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.accentColor)
-        }
-    }
-
-    private func commit() {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { onSubmit(trimmed) }
-        text = ""
-        showField = false
     }
 }
