@@ -228,6 +228,8 @@ struct ItemDetailPane: View {
                 TextEditor(text: $notes)
                     .font(.system(size: 12))
                     .scrollContentBackground(.hidden)
+                    .scrollIndicators(.hidden)
+                    .hideTextEditorScroller()
                     .padding(.horizontal, 6)
                     .padding(.vertical, 5)
                     .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
