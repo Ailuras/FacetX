@@ -45,8 +45,8 @@ enum L10n {
         case deleteItemTitle, paneReminder, paneSchedule
         case searchCommits, searchItems
         // Week / Month / Today views
-        case today, noItems, noItemsSearch, noItemsDay, noTimedItemsToday
-        case todayDragHint, tapDayHint, closeTodayPanel
+        case today, noItems, noItemsSearch, noItemsDay
+        case tapDayHint, closeTodayPanel
         case prevWeek, nextWeek, currentWeek
         case prevMonth, nextMonth, currentMonth, monthUnit
         case addItemForDay
@@ -126,9 +126,6 @@ enum L10n {
             case .noItems:            return ("No items", "暂无条目")
             case .noItemsSearch:      return ("No items match this search.", "没有符合搜索的条目。")
             case .noItemsDay:         return ("No items for this day", "这一天暂无条目")
-            case .noTimedItemsToday:  return ("No timed items today", "今天暂无定时条目")
-            case .todayDragHint:      return ("Drag an item from the list onto a time slot to schedule it.",
-                                              "从列表拖动条目到时间槽即可安排。")
             case .tapDayHint:         return ("Tap a day to view its items", "点按某天查看其条目")
             case .closeTodayPanel:    return ("Close Today panel", "关闭 Today 面板")
             case .prevWeek:           return ("Previous week", "上一周")

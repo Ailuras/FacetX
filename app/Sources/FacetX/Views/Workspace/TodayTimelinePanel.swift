@@ -53,18 +53,9 @@ struct TodayTimelinePanel: View {
                 ScrollView {
                     compactTimelineView
                 }
+                .scrollIndicators(.hidden)
                 .onAppear {
                     scrollToCurrentHour(proxy: proxy)
-                }
-            }
-            .overlay {
-                if todayTimelineItems.isEmpty {
-                    ContentUnavailableView {
-                        Label(L10n.t(.noTimedItemsToday), systemImage: "sun.max")
-                    } description: {
-                        Text(L10n.t(.todayDragHint))
-                    }
-                    .allowsHitTesting(false)
                 }
             }
         }
