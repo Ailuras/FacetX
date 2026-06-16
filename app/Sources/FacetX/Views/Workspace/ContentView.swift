@@ -109,6 +109,7 @@ struct ContentView: View {
                 }
             }
             .task {
+                applyStartupSelection()
                 keyboard.registerLocalShortcuts()
                 if !ek.remindersAuthorized && !ek.calendarAuthorized {
                     await ek.requestAccess()
@@ -126,6 +127,11 @@ struct ContentView: View {
                 await reloadDiscoveredProjects()
             }
             .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
+            .onChange(of: selection) {
+                if case .project(let id) = selection {
+                    settings.lastOpenedProjectID = id.uuidString
+                }
+            }
             .alert(L10n.t(.deleteProjectTitle), isPresented: .init(
                 get: { projectToDelete != nil },
                 set: { if !$0 { projectToDelete = nil } }
@@ -174,6 +180,21 @@ struct ContentView: View {
             ToastStack()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .allowsHitTesting(true)
+        }
+    }
+
+    /// On launch, open a project per the user's startup preference: the last
+    /// opened project, a specific configured project, or nothing.
+    private func applyStartupSelection() {
+        guard selection == nil else { return }
+        let targetID: UUID?
+        switch settings.startupProjectMode {
+        case "last":     targetID = UUID(uuidString: settings.lastOpenedProjectID)
+        case "specific": targetID = UUID(uuidString: settings.startupProjectID)
+        default:         targetID = nil
+        }
+        if let id = targetID, store.activeProjects.contains(where: { $0.id == id }) {
+            selection = .project(id)
         }
     }
 

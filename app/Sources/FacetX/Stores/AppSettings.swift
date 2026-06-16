@@ -44,6 +44,21 @@ final class AppSettings: ObservableObject {
     @Published var language: String {
         didSet { settingsDidChange() }
     }
+    /// Startup behavior: "none" (open nothing), "last" (reopen the last project),
+    /// or "specific" (always open `startupProjectID`).
+    @Published var startupProjectMode: String {
+        didSet { settingsDidChange() }
+    }
+    /// Project id opened on launch when `startupProjectMode == "specific"`.
+    @Published var startupProjectID: String {
+        didSet { settingsDidChange() }
+    }
+    /// Last project the user had selected, reopened on launch when
+    /// `startupProjectMode == "last"`. Saved without bumping `changeToken` since
+    /// it updates on every project switch.
+    @Published var lastOpenedProjectID: String {
+        didSet { save() }
+    }
     @Published var defaultEventDurationMinutes: Int {
         didSet { settingsDidChange() }
     }
@@ -103,6 +118,9 @@ final class AppSettings: ObservableObject {
         self.weekGoalCalendarName = stored.weekGoalCalendarName
         self.menuBarEnabled = stored.menuBarEnabled
         self.language = stored.language ?? "en"
+        self.startupProjectMode = stored.startupProjectMode ?? "none"
+        self.startupProjectID = stored.startupProjectID ?? ""
+        self.lastOpenedProjectID = stored.lastOpenedProjectID ?? ""
         self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes
         self.todayViewMode = stored.todayViewMode
         self.todayTimelineStartHour = stored.todayTimelineStartHour
@@ -252,6 +270,9 @@ final class AppSettings: ObservableObject {
         var weekGoalCalendarName: String
         var menuBarEnabled: Bool
         var language: String?
+        var startupProjectMode: String?
+        var startupProjectID: String?
+        var lastOpenedProjectID: String?
         var defaultEventDurationMinutes: Int
         var todayViewMode: String
         var todayTimelineStartHour: Int
@@ -271,6 +292,9 @@ final class AppSettings: ObservableObject {
                                      weekGoalCalendarName: "",
                                      menuBarEnabled: true,
                                      language: nil,
+                                     startupProjectMode: nil,
+                                     startupProjectID: nil,
+                                     lastOpenedProjectID: nil,
                                      defaultEventDurationMinutes: 120,
                                      todayViewMode: "list",
                                      todayTimelineStartHour: 6,
@@ -292,6 +316,9 @@ final class AppSettings: ObservableObject {
                             weekGoalCalendarName: weekGoalCalendarName,
                             menuBarEnabled: menuBarEnabled,
                             language: language,
+                            startupProjectMode: startupProjectMode,
+                            startupProjectID: startupProjectID.isEmpty ? nil : startupProjectID,
+                            lastOpenedProjectID: lastOpenedProjectID.isEmpty ? nil : lastOpenedProjectID,
                             defaultEventDurationMinutes: defaultEventDurationMinutes,
                             todayViewMode: todayViewMode,
                             todayTimelineStartHour: todayTimelineStartHour,
