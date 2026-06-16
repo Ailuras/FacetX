@@ -109,7 +109,7 @@ class OpenAlexFetcher: @unchecked Sendable {
         return wordsList.map { $0.1 }.joined(separator: " ")
     }
 
-    private func parseWork(_ work: OpenAlexWork, track: String) -> Paper {
+    func parseWork(_ work: OpenAlexWork, track: String) -> Paper {
         let venue = work.primaryLocation?.source?.displayName ?? ""
         let citations = work.citedByCount ?? 0
         let (tier, venueAbbr, score) = scorer.evaluate(venue: venue, citations: citations)

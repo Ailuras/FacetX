@@ -11,6 +11,8 @@ struct TopicDetailView: View {
     @State private var selectedPaper: Paper?
     @State private var sortKey: SortKey = .score
     @State private var showAddSheet = false
+    @State private var isRecommending = false
+    @State private var isFetching = false
 
     private let detailPaneAnimation = FacetTheme.detailSpring
 
@@ -81,7 +83,18 @@ struct TopicDetailView: View {
                     .frame(width: 220, height: 24)
             }
             ToolbarItem(placement: .primaryAction) {
-                toolbarActions
+                HStack(spacing: 3) {
+                    recommendButton
+                    fetchButton
+                    sortMenu
+                    Button {
+                        showAddSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .help("Add paper")
+                }
             }
         }
         .onChange(of: store.paperVersion) {
@@ -193,17 +206,37 @@ struct TopicDetailView: View {
 
     // MARK: - Toolbar
 
-    private var toolbarActions: some View {
-        HStack(spacing: 4) {
-            sortMenu
-            Button {
-                showAddSheet = true
-            } label: {
-                Image(systemName: "plus")
+    @EnvironmentObject private var toast: ToastController
+
+    private var recommendButton: some View {
+        Button {
+            surpriseMe()
+        } label: {
+            if isRecommending {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: "wand.and.stars")
+                    .symbolRenderingMode(.multicolor)
                     .font(.system(size: 13, weight: .medium))
             }
-            .help("Add paper")
         }
+        .disabled(isRecommending)
+        .help("Pick a random pending paper")
+    }
+
+    private var fetchButton: some View {
+        Button {
+            fetchPapers()
+        } label: {
+            if isFetching {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .medium))
+            }
+        }
+        .disabled(isFetching)
+        .help("Fetch new papers from OpenAlex")
     }
 
     private var sortMenu: some View {
@@ -247,5 +280,98 @@ struct TopicDetailView: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Sort: \(sortKey.title)")
+    }
+
+    // MARK: - Actions
+
+    private func surpriseMe() {
+        let pending = papersForTopic.filter { $0.status == .pending }
+        guard let pick = pending.randomElement() else {
+            toast.show("No pending papers in this topic", type: .info, duration: 2)
+            return
+        }
+        withAnimation(detailPaneAnimation) {
+            selectedPaper = pick
+        }
+    }
+
+    private func fetchPapers() {
+        guard !topic.query.trimmingCharacters(in: .whitespaces).isEmpty else {
+            toast.show("No OpenAlex search query configured for this topic", type: .warning, duration: 2.5)
+            return
+        }
+
+        isFetching = true
+
+        Task {
+            do {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                guard let fromDay = Calendar.current.date(byAdding: .day, value: -45, to: Date()) else { return }
+                let fromDate = dateFormatter.string(from: fromDay)
+                let toDate = dateFormatter.string(from: Date())
+
+                // Single-topic fetch: use searchPapers logic inline
+                var allWorks: [OpenAlexWork] = []
+                var cursor: String? = "*"
+                let perPage = min(settings.perPage, 100)
+                var count = 0
+                let maxResults = min(settings.defaultMaxResults, 200)
+
+                while count < maxResults, let c = cursor {
+                    var filters = ["from_publication_date:\(fromDate)", "to_publication_date:\(toDate)", "type:article"]
+                    if !ConfigManager.shared.effectiveConfig.openalex.topic_filter.isEmpty {
+                        filters.append(ConfigManager.shared.effectiveConfig.openalex.topic_filter)
+                    }
+                    var components = URLComponents(string: ConfigManager.shared.effectiveConfig.openalex.base_url)
+                    components?.queryItems = [
+                        URLQueryItem(name: "search", value: topic.query),
+                        URLQueryItem(name: "filter", value: filters.joined(separator: ",")),
+                        URLQueryItem(name: "sort", value: "publication_date:desc,relevance_score:desc"),
+                        URLQueryItem(name: "per_page", value: String(perPage)),
+                        URLQueryItem(name: "cursor", value: c),
+                        URLQueryItem(name: "select", value: "id,doi,title,display_name,authorships,publication_year,publication_date,cited_by_count,abstract_inverted_index,primary_location,open_access")
+                    ]
+                    if !settings.openAlexMailto.isEmpty {
+                        components?.queryItems?.append(URLQueryItem(name: "mailto", value: settings.openAlexMailto))
+                    }
+                    guard let url = components?.url else { break }
+
+                    var request = URLRequest(url: url)
+                    var userAgent = "FacetX/1.0"
+                    if !settings.openAlexMailto.isEmpty { userAgent += " (mailto:\(settings.openAlexMailto))" }
+                    request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { break }
+                    let alexResponse = try JSONDecoder().decode(OpenAlexResponse.self, from: data)
+                    guard let results = alexResponse.results, !results.isEmpty else { break }
+                    allWorks.append(contentsOf: results)
+                    count += results.count
+                    cursor = alexResponse.meta?.nextCursor
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+
+                let fetcherLocal = OpenAlexFetcher(config: ConfigManager.shared.effectiveConfig, venues: MetadataStore.shared.venues)
+                let papers = allWorks.map { fetcherLocal.parseWork($0, track: topic.name) }
+
+                // Apply keyword filtering
+                let relevant = topic.keywords.isEmpty ? papers : papers.filter { paper in
+                    let text = (paper.title + " " + paper.abstract).lowercased()
+                    return topic.keywords.contains { keyword in
+                        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: keyword.lowercased()))\\b"
+                        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return false }
+                        return regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count)) != nil
+                    }
+                }
+
+                let (inserted, updated) = store.addOrUpdate(papers: relevant)
+                isFetching = false
+                toast.show("Fetched \(relevant.count) papers (\(inserted) new, \(updated) updated)", type: .success, duration: 3)
+            } catch {
+                isFetching = false
+                toast.show("Fetch failed: \(error.localizedDescription)", type: .error)
+            }
+        }
     }
 }
