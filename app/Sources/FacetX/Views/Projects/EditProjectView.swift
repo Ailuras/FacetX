@@ -24,8 +24,9 @@ struct EditProjectView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ProjectEditorHeader(title: "Edit Project",
-                                subtitle: project.archived ? "Archived project" : "Project settings",
+            ProjectEditorHeader(title: L10n.pick("Edit Project", "编辑项目"),
+                                subtitle: project.archived ? L10n.pick("Archived project", "已归档项目")
+                                                           : L10n.pick("Project settings", "项目设置"),
                                 initial: projectInitial,
                                 tint: ProjectAppearance.color(for: colorName),
                                 systemImage: ProjectAppearance.iconName(for: iconName))
@@ -44,14 +45,14 @@ struct EditProjectView: View {
             Divider().opacity(0.7)
             HStack {
                 if project.archived {
-                    Button("Unarchive") { unarchive() }
+                    Button(L10n.pick("Unarchive", "取消归档")) { unarchive() }
                 } else {
-                    Button("Archive") { archive() }
+                    Button(L10n.pick("Archive", "归档")) { archive() }
                 }
-                Button("Delete", role: .destructive) { confirmDelete = true }
+                Button(L10n.pick("Delete", "删除"), role: .destructive) { confirmDelete = true }
                 Spacer()
-                Button("Cancel", action: onClose)
-                Button("Save") { save() }
+                Button(L10n.pick("Cancel", "取消"), action: onClose)
+                Button(L10n.pick("Save", "保存")) { save() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(trimmedName.isEmpty)
@@ -63,44 +64,47 @@ struct EditProjectView: View {
         .background(FacetTheme.canvas)
         .frame(width: 500, height: 650)
         .onAppear(perform: loadFields)
-        .alert("Delete project?", isPresented: $confirmDelete) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
+        .alert(L10n.pick("Delete project?", "删除项目？"), isPresented: $confirmDelete) {
+            Button(L10n.pick("Cancel", "取消"), role: .cancel) { }
+            Button(L10n.pick("Delete", "删除"), role: .destructive) {
                 delete()
             }
         } message: {
-            Text("“\(project.name)” will be removed. Its items remain in Calendar/Reminders.")
+            Text(L10n.pick("“\(project.name)” will be removed. Its items remain in Calendar/Reminders.",
+                           "将移除“\(project.name)”。其条目仍保留在日历/提醒事项中。"))
         }
     }
 
     private var identityCard: some View {
-        ProjectEditorCard(title: "Identity", systemImage: "folder") {
-            ProjectEditorTextField(title: "Name", text: $name, placeholder: "Project name")
-            ProjectEditorTextField(title: "Prefix", text: $prefix, placeholder: "Prefix")
-            ProjectEditorHelp("Items whose title starts with “\(effectivePrefix):” belong to this project.")
+        ProjectEditorCard(title: L10n.pick("Identity", "标识"), systemImage: "folder") {
+            ProjectEditorTextField(title: L10n.pick("Name", "名称"), text: $name, placeholder: L10n.pick("Project name", "项目名称"))
+            ProjectEditorTextField(title: L10n.pick("Prefix", "前缀"), text: $prefix, placeholder: L10n.pick("Prefix", "前缀"))
+            ProjectEditorHelp(L10n.pick("Items whose title starts with “\(effectivePrefix):” belong to this project.",
+                                        "标题以“\(effectivePrefix):”开头的条目属于该项目。"))
             if prefixWillChange {
-                ProjectEditorWarning("Existing Calendar and Reminder items will keep the old “\(project.prefix):” prefix and will no longer appear here unless renamed.")
+                ProjectEditorWarning(L10n.pick("Existing Calendar and Reminder items will keep the old “\(project.prefix):” prefix and will no longer appear here unless renamed.",
+                                               "已有的日历和提醒事项条目会保留旧的“\(project.prefix):”前缀，除非重命名，否则将不再显示在此处。"))
             }
-            ProjectEditorTextField(title: "Tagline", text: $tagline, placeholder: "Short description")
+            ProjectEditorTextField(title: L10n.pick("Tagline", "标语"), text: $tagline, placeholder: L10n.pick("Short description", "简短描述"))
         }
     }
 
     private var appearanceCard: some View {
-        ProjectEditorCard(title: "Appearance", systemImage: "paintpalette") {
+        ProjectEditorCard(title: L10n.pick("Appearance", "外观"), systemImage: "paintpalette") {
             ProjectEditorAppearancePicker(colorName: $colorName, iconName: $iconName, initial: projectInitial)
         }
     }
 
     private var saveLocationsCard: some View {
-        ProjectEditorCard(title: "Save Locations", systemImage: "tray.and.arrow.down") {
-            ProjectEditorPicker(title: "Reminders", selection: $reminderListName, options: reminderLists)
-            ProjectEditorPicker(title: "Calendar", selection: $calendarName, options: calendars)
-            ProjectEditorPicker(title: "Goal Calendar", selection: $weekGoalCalendarName, options: calendars)
+        ProjectEditorCard(title: L10n.pick("Save Locations", "保存位置"), systemImage: "tray.and.arrow.down") {
+            ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: reminderLists)
+            ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: calendars)
+            ProjectEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: calendars)
         }
     }
 
     private var integrationsCard: some View {
-        ProjectEditorCard(title: "Integrations", systemImage: "curlybraces") {
+        ProjectEditorCard(title: L10n.pick("Integrations", "集成"), systemImage: "curlybraces") {
             ProjectEditorGitHubRepoPicker(selection: $githubRepo)
         }
     }
@@ -169,7 +173,7 @@ struct EditProjectView: View {
 
     private func archive() {
         store.archive(project)
-        toast.show("Project archived", type: .info)
+        toast.show(L10n.pick("Project archived", "项目已归档"), type: .info)
         onClose()
     }
 
@@ -177,13 +181,13 @@ struct EditProjectView: View {
         var updated = project
         updated.archived = false
         store.update(updated)
-        toast.show("Project unarchived", type: .success)
+        toast.show(L10n.pick("Project unarchived", "项目已取消归档"), type: .success)
         onClose()
     }
 
     private func delete() {
         store.delete(project)
-        toast.show("Project deleted", type: .success)
+        toast.show(L10n.pick("Project deleted", "项目已删除"), type: .success)
         onClose()
     }
 }

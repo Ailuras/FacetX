@@ -24,7 +24,7 @@ struct ActiveTagFilterBar: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Clear all tag filters")
+            .help(L10n.pick("Clear all tag filters", "清除所有标签筛选"))
         }
     }
 
@@ -53,7 +53,8 @@ struct ActiveTagFilterBar: View {
             )
         }
         .buttonStyle(.plain)
-        .help(included ? "Remove include filter" : "Remove exclude filter")
+        .help(included ? L10n.pick("Remove include filter", "移除包含筛选")
+                       : L10n.pick("Remove exclude filter", "移除排除筛选"))
     }
 }
 
@@ -84,12 +85,12 @@ struct ItemFilterMenuButton: View {
 
     var body: some View {
         Menu {
-            Section("Kind") {
+            Section(L10n.pick("Kind", "类型")) {
                 kindButton(.all)
                 kindButton(.tasks)
                 kindButton(.events)
             }
-            Section("Date") {
+            Section(L10n.pick("Date", "日期")) {
                 dateButton(.all)
                 dateButton(.today)
                 dateButton(.nextSevenDays)
@@ -99,7 +100,7 @@ struct ItemFilterMenuButton: View {
                 Button {
                     itemFilter = ItemListFilter()
                 } label: {
-                    Label("Clear Filter", systemImage: "xmark.circle")
+                    Label(L10n.pick("Clear Filter", "清除筛选"), systemImage: "xmark.circle")
                 }
             }
         } label: {
@@ -114,7 +115,24 @@ struct ItemFilterMenuButton: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help(itemFilter.isActive ? "Filter items" : "Add an item filter")
+        .help(itemFilter.isActive ? L10n.pick("Filter items", "筛选条目")
+                                  : L10n.pick("Add an item filter", "添加条目筛选"))
+    }
+
+    private func kindName(_ scope: ItemKindScope) -> String {
+        switch scope {
+        case .all:    return L10n.pick("All", "全部")
+        case .tasks:  return L10n.pick("Tasks", "任务")
+        case .events: return L10n.pick("Events", "事件")
+        }
+    }
+
+    private func dateName(_ scope: ItemDateScope) -> String {
+        switch scope {
+        case .all:            return L10n.pick("Any Time", "任意时间")
+        case .today:          return L10n.pick("Today", "今天")
+        case .nextSevenDays:  return L10n.pick("Next 7 Days", "未来 7 天")
+        }
     }
 
     private func kindButton(_ scope: ItemKindScope) -> some View {
@@ -122,7 +140,7 @@ struct ItemFilterMenuButton: View {
             itemFilter.kindScope = scope
         } label: {
             HStack {
-                Text(scope.rawValue)
+                Text(kindName(scope))
                 if itemFilter.kindScope == scope {
                     Image(systemName: "checkmark")
                 }
@@ -135,7 +153,7 @@ struct ItemFilterMenuButton: View {
             itemFilter.dateScope = scope
         } label: {
             HStack {
-                Text(scope.rawValue)
+                Text(dateName(scope))
                 if itemFilter.dateScope == scope {
                     Image(systemName: "checkmark")
                 }
@@ -172,12 +190,15 @@ struct ItemActionCluster<Accessory: View>: View {
             ItemFilterMenuButton(itemFilter: $itemFilter)
             FilterPillButton(
                 systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
-                help: showCompleted ? "Hide completed reminders" : "Show completed reminders",
+                help: showCompleted ? L10n.pick("Hide completed reminders", "隐藏已完成任务")
+                                    : L10n.pick("Show completed reminders", "显示已完成任务"),
                 active: showCompleted
             ) {
                 withAnimation(animation) { showCompleted.toggle() }
             }
-            FilterPillButton(systemName: "plus", help: "Add an item to this project", action: onAdd)
+            FilterPillButton(systemName: "plus",
+                             help: L10n.pick("Add an item to this project", "向该项目添加条目"),
+                             action: onAdd)
         }
         .pillGroupContainer()
     }

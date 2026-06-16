@@ -39,7 +39,7 @@ struct ToastView: View {
                     .frame(width: 18, height: 18)
             }
             .buttonStyle(.plain)
-            .help("Dismiss")
+            .help(L10n.pick("Dismiss", "关闭"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -115,7 +115,7 @@ struct BannerView: View {
                     .frame(width: 18, height: 18)
             }
             .buttonStyle(.plain)
-            .help("Dismiss")
+            .help(L10n.pick("Dismiss", "关闭"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)

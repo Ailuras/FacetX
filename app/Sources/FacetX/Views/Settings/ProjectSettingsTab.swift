@@ -270,7 +270,7 @@ struct ProjectSettingsTab: View {
                                          "新建条目的默认列表与时长。")) {
             SettingsRow(title: L10n.pick("Tasks", "任务"), systemImage: "checklist") {
                 Picker("", selection: $settings.defaultReminderListName) {
-                    if enabledReminderNames.isEmpty { Text("None").tag("") }
+                    if enabledReminderNames.isEmpty { Text(L10n.pick("None", "无")).tag("") }
                     ForEach(enabledReminderNames, id: \.self) { Text($0).tag($0) }
                 }
                 .labelsHidden()

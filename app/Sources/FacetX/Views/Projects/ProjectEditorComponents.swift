@@ -63,7 +63,7 @@ struct ProjectEditorAppearancePicker: View {
                 projectPreview
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Badge")
+                    Text(L10n.pick("Badge", "徽标"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
@@ -74,7 +74,7 @@ struct ProjectEditorAppearancePicker: View {
             Divider().opacity(0.42)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Color")
+                Text(L10n.pick("Color", "颜色"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
 
@@ -106,7 +106,7 @@ struct ProjectEditorAppearancePicker: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Icon")
+                Text(L10n.pick("Icon", "图标"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
 
@@ -221,7 +221,7 @@ struct ProjectEditorPicker: View {
 
             Menu {
                 if options.isEmpty {
-                    Button("None") { selection = "" }
+                    Button(L10n.pick("None", "无")) { selection = "" }
                 } else {
                     ForEach(options, id: \.self) { option in
                         Button(option) { selection = option }
@@ -229,7 +229,7 @@ struct ProjectEditorPicker: View {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Text(selection.isEmpty ? "None" : selection)
+                    Text(selection.isEmpty ? L10n.pick("None", "无") : selection)
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.tail)

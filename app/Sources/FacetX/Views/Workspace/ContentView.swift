@@ -130,7 +130,7 @@ struct ContentView: View {
                             if let topic = litMeta.topics.first(where: { $0.id == id }) {
                                 TopicDetailView(topic: topic, tagFilter: $tagFilter)
                             } else {
-                                ContentUnavailableView("Topic not found", systemImage: "tag")
+                                ContentUnavailableView(L10n.pick("Topic not found", "未找到主题"), systemImage: "tag")
                             }
                         }
                     }

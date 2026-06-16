@@ -123,7 +123,8 @@ struct ItemDetailPane: View {
                 VStack(alignment: .leading, spacing: 5) {
                     TitleEditingField(
                         text: $content,
-                        placeholder: kind == .reminder ? "What needs doing?" : "What is scheduled?",
+                        placeholder: kind == .reminder ? L10n.pick("What needs doing?", "要做什么？")
+                                                       : L10n.pick("What is scheduled?", "安排什么？"),
                         focusOnAppear: focusTitleOnAppear
                     )
                     .frame(height: 24)
@@ -159,14 +160,14 @@ struct ItemDetailPane: View {
         .controlSize(.small)
         .frame(width: 116)
         .disabled(saving)
-        .help("Choose item type")
+        .help(L10n.pick("Choose item type", "选择条目类型"))
     }
 
     private var scheduleCard: some View {
         FacetDetailBox {
             VStack(spacing: 0) {
                 if kind == .reminder {
-                    propertyRow(label: "Priority", icon: "exclamationmark.circle") {
+                    propertyRow(label: L10n.pick("Priority", "优先级"), icon: "exclamationmark.circle") {
                         PriorityPillPicker(selection: $priority)
                     }
                     propertyDivider
@@ -181,9 +182,9 @@ struct ItemDetailPane: View {
     }
 
     private var linkCard: some View {
-        FacetDetailSection(title: "Link", systemImage: "link") {
+        FacetDetailSection(title: L10n.pick("Link", "链接"), systemImage: "link") {
             HStack(spacing: 6) {
-                TextField("Link associated...", text: $urlString)
+                TextField(L10n.pick("Link associated...", "关联链接…"), text: $urlString)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .frame(minWidth: 0)
@@ -196,7 +197,7 @@ struct ItemDetailPane: View {
                             .foregroundStyle(.blue)
                     }
                     .buttonStyle(.plain)
-                    .help("Open link")
+                    .help(L10n.pick("Open link", "打开链接"))
                 }
             }
             .padding(.horizontal, 10)
@@ -205,7 +206,7 @@ struct ItemDetailPane: View {
     }
 
     private var tagsCard: some View {
-        FacetDetailSection(title: "Tags", systemImage: "tag") {
+        FacetDetailSection(title: L10n.pick("Tags", "标签"), systemImage: "tag") {
             TagChipEditor(tagsText: $tagsText, knownColors: settings)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
@@ -214,10 +215,10 @@ struct ItemDetailPane: View {
     }
 
     private var notesCard: some View {
-        FacetDetailSection(title: "Notes", systemImage: "doc.text") {
+        FacetDetailSection(title: L10n.pick("Notes", "笔记"), systemImage: "doc.text") {
             ZStack(alignment: .topLeading) {
                 if notes.isEmpty {
-                    Text("Add notes and details here...")
+                    Text(L10n.pick("Add notes and details here...", "在此添加笔记和详情…"))
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 10)
@@ -240,13 +241,13 @@ struct ItemDetailPane: View {
 
     private var eventScheduleSection: some View {
         VStack(spacing: 0) {
-            propertyRow(label: "Date", icon: "calendar") {
+            propertyRow(label: L10n.pick("Date", "日期"), icon: "calendar") {
                 eventDateControl
             }
 
             if !isAllDay {
                 propertyDivider
-                propertyRow(label: "Time", icon: "clock") {
+                propertyRow(label: L10n.pick("Time", "时间"), icon: "clock") {
                     eventTimeControl
                 }
             }
@@ -255,13 +256,13 @@ struct ItemDetailPane: View {
 
     private var reminderScheduleSection: some View {
         VStack(spacing: 0) {
-            propertyRow(label: "Due Date", icon: "calendar") {
+            propertyRow(label: L10n.pick("Due Date", "截止日期"), icon: "calendar") {
                 reminderDueDateControl
             }
 
             if useDate {
                 propertyDivider
-                propertyRow(label: "Time", icon: "clock") {
+                propertyRow(label: L10n.pick("Time", "时间"), icon: "clock") {
                     reminderTimeControl
                 }
             }
@@ -275,7 +276,7 @@ struct ItemDetailPane: View {
             Spacer(minLength: 6)
 
             Toggle(isOn: $isAllDay) {
-                Text("All day")
+                Text(L10n.pick("All day", "全天"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -386,11 +387,11 @@ struct ItemDetailPane: View {
             Button(role: .destructive) {
                 deleteItem()
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(L10n.pick("Delete", "删除"), systemImage: "trash")
             }
             .controlSize(.small)
             .disabled(saving)
-            .help("Delete item")
+            .help(L10n.pick("Delete item", "删除条目"))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -399,7 +400,8 @@ struct ItemDetailPane: View {
 
     @ViewBuilder private var saveStatus: some View {
         if saving || hasChanges || didEdit {
-            Label(saving ? "Saving..." : (hasChanges ? "Autosaving..." : "Saved"),
+            Label(saving ? L10n.pick("Saving...", "保存中…")
+                         : (hasChanges ? L10n.pick("Autosaving...", "自动保存中…") : L10n.pick("Saved", "已保存")),
                   systemImage: saving || hasChanges ? "clock" : "checkmark")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -654,7 +656,7 @@ struct ItemDetailPane: View {
                 savedEditSignature = signature
                 onUpdate(nil)
             } else {
-                toast.show("Failed to save changes", type: .error)
+                toast.show(L10n.pick("Failed to save changes", "保存更改失败"), type: .error)
             }
         }
     }
@@ -668,7 +670,7 @@ struct ItemDetailPane: View {
                 onUpdate(nil)
                 onClose()
             } else {
-                toast.show("Failed to delete item", type: .error)
+                toast.show(L10n.pick("Failed to delete item", "删除条目失败"), type: .error)
             }
         }
     }
@@ -710,13 +712,14 @@ struct ItemDetailPane: View {
             saving = false
             if let newId {
                 toast.show(
-                    item.kind == .reminder ? "Converted to schedule" : "Converted to reminder",
+                    item.kind == .reminder ? L10n.pick("Converted to schedule", "已转为事件")
+                                           : L10n.pick("Converted to reminder", "已转为任务"),
                     type: .success
                 )
                 onUpdate(newId)
             } else {
                 kind = item.kind
-                toast.show("Conversion failed", type: .error)
+                toast.show(L10n.pick("Conversion failed", "转换失败"), type: .error)
             }
         }
     }

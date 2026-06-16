@@ -63,7 +63,7 @@ struct PeriodNavigationBar<Accessory: View>: View {
         HStack(spacing: 2) {
             pillIconButton(systemName: "chevron.left", help: previousHelp, action: onPrevious)
             pillIconButton(systemName: "chevron.right", help: nextHelp, action: onNext)
-            pillTextButton("Current", help: currentHelp, action: onCurrent)
+            pillTextButton(L10n.pick("Current", "当前"), help: currentHelp, action: onCurrent)
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 2)

@@ -45,7 +45,7 @@ struct TagChipEditor: View {
                     .foregroundStyle(color.opacity(0.70))
             }
             .buttonStyle(.plain)
-            .help("Remove tag")
+            .help(L10n.pick("Remove tag", "移除标签"))
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 3)
@@ -64,7 +64,7 @@ struct TagChipEditor: View {
             Text("#")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
-            TextField(tags.isEmpty ? "Add tag" : "", text: $draft)
+            TextField(tags.isEmpty ? L10n.pick("Add tag", "添加标签") : "", text: $draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11, weight: .medium))
                 .focused($fieldFocused)

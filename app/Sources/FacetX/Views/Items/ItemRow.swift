@@ -208,7 +208,8 @@ struct ItemRow: View {
                             .foregroundStyle(checkmarkColor)
                     }
                     .buttonStyle(.plain)
-                    .help(item.isCompleted ? "Mark incomplete" : "Mark complete")
+                    .help(item.isCompleted ? L10n.pick("Mark incomplete", "标记为未完成")
+                                           : L10n.pick("Mark complete", "标记为完成"))
                 } else {
                     Image(systemName: "calendar")
                         .font(.system(size: 15, weight: .medium))
@@ -282,7 +283,7 @@ struct ItemRow: View {
                             )
                         }
                         .buttonStyle(.plain)
-                        .help("Open link: \(url.absoluteString)")
+                        .help(L10n.pick("Open link: \(url.absoluteString)", "打开链接：\(url.absoluteString)"))
                     }
 
                     if let date = item.date {
@@ -303,7 +304,7 @@ struct ItemRow: View {
                         }
                         .buttonStyle(.plain)
                         .opacity(hovered ? 1.0 : 0.0)
-                        .help("Edit item")
+                        .help(L10n.pick("Edit item", "编辑条目"))
                     }
                 }
             }

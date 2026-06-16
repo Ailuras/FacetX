@@ -79,36 +79,36 @@ struct StandardItemRow: View {
             swipeButton(trailingAction)
         }
         .contextMenu {
-            Button("Edit...") {
+            Button(L10n.pick("Edit...", "编辑…")) {
                 select()
             }
             Divider()
-            Menu("Set Date") {
-                Button("Today") { reschedule(to: today) }
-                Button("Tomorrow") { reschedule(to: tomorrow) }
-                Button("This Weekend") { reschedule(to: thisWeekend) }
-                Button("Next Week") { reschedule(to: nextWeek) }
+            Menu(L10n.pick("Set Date", "设置日期")) {
+                Button(L10n.pick("Today", "今天")) { reschedule(to: today) }
+                Button(L10n.pick("Tomorrow", "明天")) { reschedule(to: tomorrow) }
+                Button(L10n.pick("This Weekend", "本周末")) { reschedule(to: thisWeekend) }
+                Button(L10n.pick("Next Week", "下周")) { reschedule(to: nextWeek) }
                 if item.kind == .reminder, item.date != nil {
                     Divider()
-                    Button("Clear Date") { clearDate() }
+                    Button(L10n.pick("Clear Date", "清除日期")) { clearDate() }
                 }
             }
             if item.kind == .reminder {
-                Menu("Priority") {
-                    Button("None") { setPriority(0) }
-                    Button("Low") { setPriority(9) }
-                    Button("Medium") { setPriority(5) }
-                    Button("High") { setPriority(1) }
+                Menu(L10n.pick("Priority", "优先级")) {
+                    Button(L10n.pick("None", "无")) { setPriority(0) }
+                    Button(L10n.pick("Low", "低")) { setPriority(9) }
+                    Button(L10n.pick("Medium", "中")) { setPriority(5) }
+                    Button(L10n.pick("High", "高")) { setPriority(1) }
                 }
             }
-            Button("Copy Title") { copyTitle() }
+            Button(L10n.pick("Copy Title", "复制标题")) { copyTitle() }
             Divider()
             Button(item.kind == .reminder ? L10n.pick("Convert to Event", "转为事件")
                                           : L10n.pick("Convert to Task", "转为任务")) {
                 convertItemType()
             }
             Divider()
-            Button("Delete", role: .destructive) {
+            Button(L10n.pick("Delete", "删除"), role: .destructive) {
                 onDeleteRequest(item)
             }
         }

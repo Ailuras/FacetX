@@ -34,8 +34,9 @@ struct NewProjectView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ProjectEditorHeader(title: "New Project",
-                                subtitle: "Create a facet over Calendar and Reminders",
+            ProjectEditorHeader(title: L10n.pick("New Project", "新建项目"),
+                                subtitle: L10n.pick("Create a facet over Calendar and Reminders",
+                                                    "为日历与提醒事项创建一个分面"),
                                 initial: projectInitial,
                                 tint: ProjectAppearance.color(for: colorName),
                                 systemImage: ProjectAppearance.iconName(for: iconName))
@@ -54,9 +55,9 @@ struct NewProjectView: View {
             Divider().opacity(0.7)
             HStack {
                 Spacer()
-                Button("Cancel", action: onCancel)
+                Button(L10n.pick("Cancel", "取消"), action: onCancel)
                     .controlSize(.small)
-                Button("Create") { create() }
+                Button(L10n.pick("Create", "创建")) { create() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .keyboardShortcut(.defaultAction)
@@ -70,30 +71,31 @@ struct NewProjectView: View {
     }
 
     private var identityCard: some View {
-        ProjectEditorCard(title: "Identity", systemImage: "folder") {
-            ProjectEditorTextField(title: "Name", text: $name, placeholder: "Project name")
-            ProjectEditorTextField(title: "Prefix", text: $prefix, placeholder: "Prefix")
-            ProjectEditorHelp("Items whose title starts with “\(effectivePrefix):” belong to this project.")
-            ProjectEditorTextField(title: "Tagline", text: $tagline, placeholder: "Short description")
+        ProjectEditorCard(title: L10n.pick("Identity", "标识"), systemImage: "folder") {
+            ProjectEditorTextField(title: L10n.pick("Name", "名称"), text: $name, placeholder: L10n.pick("Project name", "项目名称"))
+            ProjectEditorTextField(title: L10n.pick("Prefix", "前缀"), text: $prefix, placeholder: L10n.pick("Prefix", "前缀"))
+            ProjectEditorHelp(L10n.pick("Items whose title starts with “\(effectivePrefix):” belong to this project.",
+                                        "标题以“\(effectivePrefix):”开头的条目属于该项目。"))
+            ProjectEditorTextField(title: L10n.pick("Tagline", "标语"), text: $tagline, placeholder: L10n.pick("Short description", "简短描述"))
         }
     }
 
     private var appearanceCard: some View {
-        ProjectEditorCard(title: "Appearance", systemImage: "paintpalette") {
+        ProjectEditorCard(title: L10n.pick("Appearance", "外观"), systemImage: "paintpalette") {
             ProjectEditorAppearancePicker(colorName: $colorName, iconName: $iconName, initial: projectInitial)
         }
     }
 
     private var saveLocationsCard: some View {
-        ProjectEditorCard(title: "Save Locations", systemImage: "tray.and.arrow.down") {
-            ProjectEditorPicker(title: "Reminders", selection: $reminderListName, options: draft.reminderLists)
-            ProjectEditorPicker(title: "Calendar", selection: $calendarName, options: draft.calendars)
-            ProjectEditorPicker(title: "Goal Calendar", selection: $weekGoalCalendarName, options: draft.calendars)
+        ProjectEditorCard(title: L10n.pick("Save Locations", "保存位置"), systemImage: "tray.and.arrow.down") {
+            ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: draft.reminderLists)
+            ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: draft.calendars)
+            ProjectEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: draft.calendars)
         }
     }
 
     private var integrationsCard: some View {
-        ProjectEditorCard(title: "Integrations", systemImage: "curlybraces") {
+        ProjectEditorCard(title: L10n.pick("Integrations", "集成"), systemImage: "curlybraces") {
             ProjectEditorGitHubRepoPicker(selection: $githubRepo)
         }
     }

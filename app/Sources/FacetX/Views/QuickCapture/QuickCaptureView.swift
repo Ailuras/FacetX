@@ -19,9 +19,9 @@ struct QuickCaptureView: View {
         case none, today, tomorrow
         var label: String {
             switch self {
-            case .none: return "No date"
-            case .today: return "Today"
-            case .tomorrow: return "Tomorrow"
+            case .none: return L10n.pick("No date", "无日期")
+            case .today: return L10n.pick("Today", "今天")
+            case .tomorrow: return L10n.pick("Tomorrow", "明天")
             }
         }
         var date: Date? {
@@ -82,14 +82,14 @@ struct QuickCaptureView: View {
                 .resizable()
                 .frame(width: 15, height: 15)
                 .opacity(0.70)
-            Text("Quick add")
+            Text(L10n.pick("Quick add", "快速添加"))
                 .font(.system(size: 13, weight: .semibold))
             Spacer(minLength: 0)
         }
     }
 
     private var emptyState: some View {
-        Text("No projects yet. Open FacetX and create one.")
+        Text(L10n.pick("No projects yet. Open FacetX and create one.", "暂无项目。打开 FacetX 创建一个。"))
             .font(.caption)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -126,14 +126,15 @@ struct QuickCaptureView: View {
                     ForEach(store.activeProjects) { Text($0.name).tag(Optional($0.id)) }
                 }
                 .labelsHidden()
-                .help("Select project")
+                .help(L10n.pick("Select project", "选择项目"))
                 .frame(width: 106, alignment: .leading)
 
                 Rectangle()
                     .fill(Color.secondary.opacity(0.22))
                     .frame(width: 1, height: 18)
 
-                TextField(captureKind == .reminder ? "What needs doing?" : "What's scheduled?", text: $text)
+                TextField(captureKind == .reminder ? L10n.pick("What needs doing?", "要做什么？")
+                                                    : L10n.pick("What's scheduled?", "安排什么？"), text: $text)
                     .textFieldStyle(.plain)
                     .focused($fieldFocused)
                     .onSubmit(add)
@@ -179,7 +180,7 @@ struct QuickCaptureView: View {
             HStack(spacing: 6) {
                 Image(systemName: "return")
                     .font(.system(size: 11, weight: .semibold))
-                Text("Add to \(project?.name ?? "project")")
+                Text(L10n.pick("Add to \(project?.name ?? "project")", "添加到 \(project?.name ?? "项目")"))
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
             }
@@ -199,7 +200,7 @@ struct QuickCaptureView: View {
             Label(error, systemImage: "exclamationmark.triangle.fill")
                 .font(.caption).foregroundStyle(.red)
         } else if justAdded {
-            Label("Added", systemImage: "checkmark.circle.fill")
+            Label(L10n.pick("Added", "已添加"), systemImage: "checkmark.circle.fill")
                 .font(.caption).foregroundStyle(.green)
         }
     }
@@ -220,7 +221,7 @@ struct QuickCaptureView: View {
                         .resizable()
                         .frame(width: 14, height: 14)
                         .opacity(0.62)
-                    Text("Open FacetX")
+                    Text(L10n.pick("Open FacetX", "打开 FacetX"))
                 }
                 .foregroundStyle(Color.primary.opacity(0.82))
             }
@@ -231,7 +232,7 @@ struct QuickCaptureView: View {
             Button {
                 NSApp.terminate(nil)
             } label: {
-                Label("Quit", systemImage: "power")
+                Label(L10n.pick("Quit", "退出"), systemImage: "power")
                     .foregroundStyle(.primary.opacity(0.68))
             }
             .buttonStyle(.plain)
@@ -280,7 +281,7 @@ struct QuickCaptureView: View {
             case .reminder:
                 let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
                 guard !listName.isEmpty else {
-                    error = "Choose a reminder list for this project."
+                    error = L10n.pick("Choose a reminder list for this project.", "请为该项目选择一个提醒事项列表。")
                     return
                 }
                 created = await ek.createReminder(
@@ -292,7 +293,7 @@ struct QuickCaptureView: View {
             case .event:
                 let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
                 guard !calName.isEmpty else {
-                    error = "Choose a calendar for this project."
+                    error = L10n.pick("Choose a calendar for this project.", "请为该项目选择一个日历。")
                     return
                 }
                 let start = day ?? Calendar.current.startOfDay(for: Date())
@@ -313,7 +314,7 @@ struct QuickCaptureView: View {
                 try? await Task.sleep(for: .seconds(1.5))
                 justAdded = false
             } else {
-                error = "Could not save the item."
+                error = L10n.pick("Could not save the item.", "无法保存该条目。")
             }
         }
     }

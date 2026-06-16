@@ -253,6 +253,16 @@ struct ProjectDetailView: View {
         }
     }
 
+    private func sortName(_ option: SortOption) -> String {
+        switch option {
+        case .manual:       return L10n.pick("Manual", "手动")
+        case .priorityDesc: return L10n.pick("Priority", "优先级")
+        case .dateAsc:      return L10n.pick("Date", "日期")
+        case .dateDesc:     return L10n.pick("Date (newest)", "日期（最新）")
+        case .nameAsc:      return L10n.pick("Name", "名称")
+        }
+    }
+
     @EnvironmentObject private var toast: ToastController
 
     private var todayButton: some View {
@@ -300,7 +310,7 @@ struct ProjectDetailView: View {
                 } label: {
                     HStack {
                         Image(systemName: option.systemImage)
-                        Text(option.rawValue)
+                        Text(sortName(option))
                         if sortOption == option {
                             Image(systemName: "checkmark")
                         }
@@ -319,7 +329,7 @@ struct ProjectDetailView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Sort: \(sortOption.rawValue)")
+        .help(L10n.pick("Sort: \(sortOption.rawValue)", "排序：\(sortName(sortOption))"))
     }
 
     @ViewBuilder private var allItemsView: some View {
@@ -413,8 +423,9 @@ struct ProjectDetailView: View {
     }
 
     private var emptyTitle: String {
-        if hasActiveSearch { return "No results" }
-        return items.isEmpty ? "No items yet" : "Completed items hidden"
+        if hasActiveSearch { return L10n.pick("No results", "无结果") }
+        return items.isEmpty ? L10n.pick("No items yet", "暂无条目")
+                             : L10n.pick("Completed items hidden", "已隐藏完成的条目")
     }
 
     @ViewBuilder private func itemKindSection(title: String, systemImage: String,
@@ -455,8 +466,11 @@ struct ProjectDetailView: View {
     }
 
     private var emptyMessage: String {
-        if hasActiveSearch { return "No items match “\(searchText)”." }
-        return items.isEmpty ? "No items yet." : "Completed items are hidden."
+        if hasActiveSearch {
+            return L10n.pick("No items match “\(searchText)”.", "没有匹配“\(searchText)”的条目。")
+        }
+        return items.isEmpty ? L10n.pick("No items yet.", "暂无条目。")
+                             : L10n.pick("Completed items are hidden.", "已隐藏完成的条目。")
     }
 
     private var summaryCluster: some View {
@@ -607,7 +621,7 @@ struct ProjectDetailView: View {
                     withAnimation(listAnimation) { items = snapshot }
                 }
                 dragSnapshot = nil
-                toast.show("Could not convert item", type: .error)
+                toast.show(L10n.pick("Could not convert item", "无法转换条目"), type: .error)
             }
         }
     }
@@ -657,7 +671,7 @@ struct ProjectDetailView: View {
     private func beginCreate(initialDate: Date? = nil) {
         let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
         guard !listName.isEmpty else {
-            toast.show("Choose a reminder list first", type: .error)
+            toast.show(L10n.pick("Choose a reminder list first", "请先选择一个提醒事项列表"), type: .error)
             return
         }
         Task {
@@ -670,7 +684,7 @@ struct ProjectDetailView: View {
                 dueIncludesTime: false,
                 enabledLists: settings.effectiveReminderListNames
             ) else {
-                toast.show("Could not create item", type: .error)
+                toast.show(L10n.pick("Could not create item", "无法创建条目"), type: .error)
                 return
             }
             refreshTrigger += 1

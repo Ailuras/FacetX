@@ -24,7 +24,7 @@ struct ProjectEditorGitHubRepoPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Text("GitHub Repo")
+                Text(L10n.pick("GitHub Repo", "GitHub 仓库"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -33,7 +33,7 @@ struct ProjectEditorGitHubRepoPicker: View {
                         .controlSize(.small)
                 }
                 Picker("", selection: $selection) {
-                    Text("None").tag("")
+                    Text(L10n.pick("None", "无")).tag("")
                     ForEach(pickerOptions, id: \.self) { repo in
                         Text(repo).tag(repo)
                     }
@@ -52,7 +52,7 @@ struct ProjectEditorGitHubRepoPicker: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Refresh GitHub repositories")
+                .help(L10n.pick("Refresh GitHub repositories", "刷新 GitHub 仓库"))
                 .disabled(loading)
             }
 

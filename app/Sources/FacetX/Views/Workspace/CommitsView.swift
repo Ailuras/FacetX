@@ -173,8 +173,8 @@ struct CommitsView: View {
         HStack(spacing: 6) {
             statBadge(icon: hasActiveSearch ? "magnifyingglass" : "number",
                       value: "\(visibleCommits.count)",
-                      label: hasActiveSearch ? "results" : "commits")
-            statBadge(icon: "person.2", value: "\(uniqueAuthors.count)", label: "contributors")
+                      label: hasActiveSearch ? L10n.pick("results", "条结果") : L10n.pick("commits", "次提交"))
+            statBadge(icon: "person.2", value: "\(uniqueAuthors.count)", label: L10n.pick("contributors", "位贡献者"))
         }
     }
 
@@ -332,16 +332,16 @@ struct CommitsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if commits.isEmpty {
                 ContentUnavailableView {
-                    Label("No commits", systemImage: "curlybraces")
+                    Label(L10n.pick("No commits", "暂无提交"), systemImage: "curlybraces")
                 } description: {
-                    Text("No recent commits found in \(repo).")
+                    Text(L10n.pick("No recent commits found in \(repo).", "在 \(repo) 中未找到近期提交。"))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if visibleCommits.isEmpty {
                 ContentUnavailableView {
-                    Label("No results", systemImage: "magnifyingglass")
+                    Label(L10n.pick("No results", "无结果"), systemImage: "magnifyingglass")
                 } description: {
-                    Text("No commits match “\(searchQuery)”.")
+                    Text(L10n.pick("No commits match “\(searchQuery)”.", "没有匹配“\(searchQuery)”的提交。"))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -360,9 +360,10 @@ struct CommitsView: View {
             }
         } else {
             ContentUnavailableView {
-                Label("No GitHub Repo", systemImage: "curlybraces")
+                Label(L10n.pick("No GitHub Repo", "未配置 GitHub 仓库"), systemImage: "curlybraces")
             } description: {
-                Text("Add a GitHub repository in the project settings to see commits here.")
+                Text(L10n.pick("Add a GitHub repository in the project settings to see commits here.",
+                               "在项目设置中添加 GitHub 仓库即可在此查看提交。"))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -428,7 +429,7 @@ struct CommitsView: View {
 
     private func commitDetailPane(_ commit: GitHubCommit) -> some View {
         FacetSidebarPane(
-            title: "Commit Detail",
+            title: L10n.pick("Commit Detail", "提交详情"),
             systemImage: "curlybraces",
             onClose: { selectedCommit = nil }
         ) {
@@ -481,7 +482,7 @@ struct CommitsView: View {
     }
 
     private func commitMetadataCard(_ commit: GitHubCommit) -> some View {
-        FacetDetailSection(title: "Details", systemImage: "info.circle") {
+        FacetDetailSection(title: L10n.pick("Details", "详情"), systemImage: "info.circle") {
             VStack(spacing: 0) {
                 metadataRow(label: "SHA", systemImage: "number") {
                     Text(commit.id)
@@ -557,7 +558,7 @@ struct CommitsView: View {
                 NSWorkspace.shared.open(commit.htmlURL)
             } label: {
                 HStack(spacing: 7) {
-                    Text("View on GitHub")
+                    Text(L10n.pick("View on GitHub", "在 GitHub 上查看"))
                         .font(.system(size: 12, weight: .medium))
                     Spacer()
                     Image(systemName: "arrow.up.right")
