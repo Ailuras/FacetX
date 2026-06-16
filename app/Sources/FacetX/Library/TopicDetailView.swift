@@ -193,6 +193,7 @@ struct TopicDetailView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .thinScrollIndicators()
         }
     }
 
@@ -339,7 +340,7 @@ struct TopicDetailView: View {
                 withAnimation(detailPaneAnimation) { selectedPaper = nil }
             }
         ) {
-            PaperDetailPane(paper: paper)
+            PaperDetailPane(inputPaper: paper)
         }
     }
 

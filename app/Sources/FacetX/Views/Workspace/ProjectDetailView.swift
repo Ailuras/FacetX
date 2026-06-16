@@ -398,6 +398,7 @@ struct ProjectDetailView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .thinScrollIndicators()
             }
         }
     }

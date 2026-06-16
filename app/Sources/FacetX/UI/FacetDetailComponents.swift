@@ -20,7 +20,8 @@ struct FacetSidebarContent<Content: View>: View {
             VStack(alignment: .leading, spacing: spacing) {
                 content
             }
-            .frame(width: FacetSidebarStyle.contentWidth, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(.horizontal, FacetSidebarStyle.contentInset)
             .padding(.vertical, verticalPadding)
             .frame(maxWidth: .infinity, alignment: .top)
             .hideScrollIndicators()
@@ -69,7 +70,7 @@ struct FacetDetailBox<Content: View>: View {
 
     var body: some View {
         content
-            .frame(width: FacetSidebarStyle.contentWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(FacetTheme.quietPanel)
             .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
             .overlay(

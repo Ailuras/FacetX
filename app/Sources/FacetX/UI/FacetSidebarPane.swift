@@ -2,6 +2,8 @@ import SwiftUI
 
 enum FacetSidebarStyle {
     static let width: CGFloat = 340
+    static let minWidth: CGFloat = 280
+    static let maxWidth: CGFloat = 620
     static let contentInset: CGFloat = 16
     static let cornerRadius: CGFloat = 12
     static let padding = EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
@@ -24,6 +26,9 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
     let onClose: () -> Void
     private let accessory: Accessory
     private let content: Content
+
+    @AppStorage("facetSidebarPaneWidth") private var width: Double = Double(FacetSidebarStyle.width)
+    @State private var dragStartWidth: Double?
 
     init(
         title: String,
@@ -58,7 +63,7 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
 
             content
         }
-        .frame(width: FacetSidebarStyle.width)
+        .frame(width: clampedWidth)
         .frame(maxHeight: .infinity)
         .background(FacetTheme.canvas)
         .clipShape(RoundedRectangle(cornerRadius: FacetSidebarStyle.cornerRadius, style: .continuous))
@@ -66,9 +71,38 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
             RoundedRectangle(cornerRadius: FacetSidebarStyle.cornerRadius, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
+        .overlay(alignment: .leading) { resizeHandle }
         .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
         .padding(FacetSidebarStyle.padding)
         .transition(FacetSidebarStyle.transition)
+    }
+
+    private var clampedWidth: CGFloat {
+        min(max(CGFloat(width), FacetSidebarStyle.minWidth), FacetSidebarStyle.maxWidth)
+    }
+
+    /// A thin draggable strip on the pane's leading edge. Dragging left widens
+    /// the pane (it lives on the trailing side), the width persists per app.
+    private var resizeHandle: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 10)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        let base = dragStartWidth ?? Double(clampedWidth)
+                        if dragStartWidth == nil { dragStartWidth = base }
+                        let proposed = base - Double(value.translation.width)
+                        width = min(max(proposed,
+                                        Double(FacetSidebarStyle.minWidth)),
+                                    Double(FacetSidebarStyle.maxWidth))
+                    }
+                    .onEnded { _ in dragStartWidth = nil }
+            )
     }
 }
 

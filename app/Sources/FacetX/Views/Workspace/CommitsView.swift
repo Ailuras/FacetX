@@ -355,6 +355,7 @@ struct CommitsView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .thinScrollIndicators()
                 .animation(listAnimation, value: visibleCommits.map(\.id))
             }
         } else {

@@ -32,6 +32,29 @@ struct HiddenScrollIndicators: NSViewRepresentable {
     }
 }
 
+/// Forces the enclosing scroll view to use thin *overlay* scrollers instead of
+/// the chunky legacy scrollers shown when the system "Show scroll bars" setting
+/// resolves to always-on (e.g. a mouse is attached). Scrolling and the scroller
+/// itself stay intact — only the appearance is slimmed.
+struct ThinScrollIndicators: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { Self.apply(from: view) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { Self.apply(from: nsView) }
+    }
+
+    private static func apply(from view: NSView) {
+        guard let scrollView = view.enclosingScrollView else { return }
+        scrollView.scrollerStyle = .overlay
+        scrollView.verticalScroller?.controlSize = .small
+        scrollView.horizontalScroller?.controlSize = .small
+    }
+}
+
 /// Hides the scroller of a `TextEditor`, whose own inner `NSScrollView` the
 /// enclosing-scroll-view approach can't reach. SwiftUI hosts the background
 /// marker and the text view in separate containers, so this walks up the
@@ -100,5 +123,10 @@ extension View {
     /// Hides the scroller of a `TextEditor`'s own inner scroll view.
     func hideTextEditorScroller() -> some View {
         background(HiddenTextEditorScroller())
+    }
+
+    /// Forces thin overlay scrollers on the enclosing scroll view.
+    func thinScrollIndicators() -> some View {
+        background(ThinScrollIndicators())
     }
 }

@@ -1,12 +1,18 @@
 import SwiftUI
 
 struct PaperDetailPane: View {
-    let paper: Paper
+    let inputPaper: Paper
     @State private var store = PaperStore.shared
     @State private var metadata = MetadataStore.shared
     @State private var noteText: String = ""
     @State private var isTranslating = false
     @State private var showTranslation = false
+
+    /// Always read the live copy from the store so status / tag / translation
+    /// edits reflect immediately instead of using the captured snapshot.
+    private var paper: Paper {
+        store.papers.first(where: { $0.id == inputPaper.id }) ?? inputPaper
+    }
 
     var body: some View {
         FacetSidebarContent {
