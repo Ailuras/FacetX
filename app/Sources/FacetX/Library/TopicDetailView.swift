@@ -208,7 +208,7 @@ struct TopicDetailView: View {
 
             ForEach(papers) { paper in
                 PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
-                         metadata: metadata, showReason: showReason)
+                         metadata: metadata, showReason: showReason, version: store.paperVersion)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
@@ -331,7 +331,7 @@ struct TopicDetailView: View {
                 withAnimation(detailPaneAnimation) { selectedPaper = nil }
             }
         ) {
-            PaperDetailPane(inputPaper: paper)
+            PaperDetailPane(inputPaper: paper, version: store.paperVersion)
         }
     }
 

@@ -5,6 +5,9 @@ struct PaperRow: View {
     let isSelected: Bool
     let metadata: MetadataStore
     var showReason: Bool = false
+    /// `Paper` is a class; passing the store's version gives the row a value to
+    /// diff on so in-place status/badge edits re-render it. (See PaperDetailPane.)
+    var version: Int = 0
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {

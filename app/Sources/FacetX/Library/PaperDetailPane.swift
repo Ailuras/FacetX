@@ -3,6 +3,11 @@ import SwiftUI
 
 struct PaperDetailPane: View {
     let inputPaper: Paper
+    /// `Paper` is a class, so in-place edits (status/tags/note) don't change the
+    /// `papers` array and won't re-render this pane on their own. The parent
+    /// passes the store's `paperVersion` here so each edit gives the view a new
+    /// value to diff on, forcing a re-render that reads the updated fields.
+    let version: Int
     @State private var store = PaperStore.shared
     @State private var metadata = MetadataStore.shared
     @EnvironmentObject private var appSettings: AppSettings
