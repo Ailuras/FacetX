@@ -91,7 +91,7 @@ struct ProjectDetailView: View {
                 modePicker
             }
             ToolbarItem(placement: .automatic) {
-                ToolbarSearchField(text: $searchText, placeholder: mode == .commits ? "Search commits…" : "Search items…")
+                ToolbarSearchField(text: $searchText, placeholder: mode == .commits ? L10n.t(.searchCommits) : L10n.t(.searchItems))
                     .frame(width: 220, height: 24)
             }
             ToolbarItem(placement: .primaryAction) {
@@ -153,7 +153,7 @@ struct ProjectDetailView: View {
             case .newItem:     beginCreate()
             case .refresh:
                 refreshTrigger += 1
-                toast.show("Refreshed", type: .success, duration: 1.5)
+                toast.show(L10n.t(.refreshed), type: .success, duration: 1.5)
             case .toggleShowCompleted:
                 withAnimation(listAnimation) { showCompleted.toggle() }
             case .focusSearch:
@@ -183,12 +183,12 @@ struct ProjectDetailView: View {
                 break
             }
         }
-        .alert("Delete item?", isPresented: .init(
+        .alert(L10n.t(.deleteItemTitle), isPresented: .init(
             get: { itemToDelete != nil },
             set: { if !$0 { itemToDelete = nil } }
         )) {
-            Button("Cancel", role: .cancel) { itemToDelete = nil }
-            Button("Delete", role: .destructive) {
+            Button(L10n.t(.cancel), role: .cancel) { itemToDelete = nil }
+            Button(L10n.t(.delete), role: .destructive) {
                 if let item = itemToDelete {
                     Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
                 }
@@ -201,7 +201,7 @@ struct ProjectDetailView: View {
 
     private func detailPane(for selectedItem: ProjectItem) -> some View {
         FacetSidebarPane(
-            title: selectedItem.kind == .reminder ? "Reminder" : "Schedule",
+            title: selectedItem.kind == .reminder ? L10n.t(.paneReminder) : L10n.t(.paneSchedule),
             systemImage: selectedItem.kind == .reminder ? "checklist" : "calendar",
             subtitle: selectedItem.content,
             onClose: {
@@ -234,14 +234,23 @@ struct ProjectDetailView: View {
     private var modePicker: some View {
         Picker("", selection: $mode) {
             ForEach(Mode.allCases) { option in
-                Text(option.rawValue)
+                Text(modeTitle(option))
                     .tag(option)
             }
         }
         .pickerStyle(.segmented)
         .controlSize(.small)
         .labelsHidden()
-        .help("Switch view mode")
+        .help(L10n.t(.switchViewMode))
+    }
+
+    private func modeTitle(_ mode: Mode) -> String {
+        switch mode {
+        case .all:     return L10n.t(.modeAll)
+        case .week:    return L10n.t(.modeWeek)
+        case .month:   return L10n.t(.modeMonth)
+        case .commits: return L10n.t(.modeGit)
+        }
     }
 
     @EnvironmentObject private var toast: ToastController
@@ -254,18 +263,18 @@ struct ProjectDetailView: View {
                 .symbolRenderingMode(.multicolor)
                 .font(.system(size: 13, weight: .medium))
         }
-        .help(showTodayPanel.wrappedValue ? "Hide Today panel" : "Show Today timeline")
+        .help(showTodayPanel.wrappedValue ? L10n.t(.hideTodayPanel) : L10n.t(.showTodayTimeline))
     }
 
     private var refreshButton: some View {
         Button {
             refreshTrigger += 1
-            toast.show("Refreshed", type: .success, duration: 1.5)
+            toast.show(L10n.t(.refreshed), type: .success, duration: 1.5)
         } label: {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 11, weight: .medium))
         }
-        .help("Refresh")
+        .help(L10n.t(.refresh))
     }
 
     private var toolbarActions: some View {

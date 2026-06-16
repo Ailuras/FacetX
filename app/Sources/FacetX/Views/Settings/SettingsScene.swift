@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsRootView: View {
     @EnvironmentObject private var settings: AppSettings
+    @State private var showRestartPrompt = false
 
     var body: some View {
         TabView {
@@ -17,8 +18,12 @@ struct SettingsRootView: View {
                 .tabItem { Label(L10n.t(.tabShortcuts), systemImage: "keyboard") }
         }
         .frame(width: 720, height: 600)
-        // tabItem labels are cached by TabView and do not refresh when L10n
-        // changes; rebuild the whole tab bar when the language switches.
-        .id(settings.language)
+        .onChange(of: settings.language) { showRestartPrompt = true }
+        .alert(L10n.t(.restartTitle), isPresented: $showRestartPrompt) {
+            Button(L10n.t(.restartNow)) { AppRelauncher.relaunch() }
+            Button(L10n.t(.restartLater), role: .cancel) {}
+        } message: {
+            Text(L10n.t(.restartMessage))
+        }
     }
 }

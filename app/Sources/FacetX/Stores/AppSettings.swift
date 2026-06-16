@@ -38,14 +38,11 @@ final class AppSettings: ObservableObject {
     @Published var menuBarEnabled: Bool {
         didSet { settingsDidChange() }
     }
-    /// UI language, "en" or "zh" (default English). Mirrored into `L10n.language`
-    /// so `L10n.t(_:)` returns the matching string; views holding this settings
-    /// object re-render on change, refreshing localized text live.
+    /// UI language, "en" or "zh" (default English). Read into `L10n.language`
+    /// at launch; switching it persists the choice and prompts a restart rather
+    /// than refreshing the UI live, so every view renders the same language.
     @Published var language: String {
-        didSet {
-            L10n.language = language
-            settingsDidChange()
-        }
+        didSet { settingsDidChange() }
     }
     @Published var defaultEventDurationMinutes: Int {
         didSet { settingsDidChange() }

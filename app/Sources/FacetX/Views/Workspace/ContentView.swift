@@ -26,21 +26,21 @@ struct ContentView: View {
                         persistenceWarningView(persistenceWarning)
                     }
                     List(selection: $selection) {
-                        Section("Projects") {
+                        Section(L10n.t(.sidebarProjects)) {
                             ForEach(store.activeProjects) { project in
                                 ProjectSidebarRow(project: project)
                                     .tag(SidebarItem.project(project.id))
                                     .contextMenu {
-                                        Button("Edit Project") {
+                                        Button(L10n.t(.editProject)) {
                                             selection = .project(project.id)
                                             editingProject = project
                                         }
                                         Divider()
-                                        Button("Archive") {
+                                        Button(L10n.t(.archive)) {
                                             store.archive(project)
-                                            toast.show("Project archived", type: .info)
+                                            toast.show(L10n.t(.projectArchived), type: .info)
                                         }
-                                        Button("Delete", role: .destructive) {
+                                        Button(L10n.t(.delete), role: .destructive) {
                                             projectToDelete = project
                                         }
                                     }
@@ -50,7 +50,7 @@ struct ContentView: View {
                             }
                         }
                         if !sortedDiscoveredTags.isEmpty {
-                            Section("Tags") {
+                            Section(L10n.t(.sidebarTags)) {
                                 tagCloud
                                     .listRowSeparator(.hidden)
                                     .listRowBackground(Color.clear)
@@ -61,7 +61,7 @@ struct ContentView: View {
                     .listStyle(.sidebar)
                     Divider()
                     Button { startNewProject() } label: {
-                        Label("New Project", systemImage: "plus.circle")
+                        Label(L10n.t(.newProject), systemImage: "plus.circle")
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 5)
@@ -77,15 +77,15 @@ struct ContentView: View {
                         switch selection {
                         case nil:
                             ContentUnavailableView(
-                                "Select a project",
+                                L10n.t(.selectProject),
                                 systemImage: "folder",
-                                description: Text("Pick a project from the sidebar to get started.")
+                                description: Text(L10n.t(.selectProjectHint))
                             )
                         case .project(let id):
                             if let project = store.activeProjects.first(where: { $0.id == id }) {
                                 ProjectDetailView(project: project, showTodayPanel: $showTodayPanel, tagFilter: $tagFilter)
                             } else {
-                                ContentUnavailableView("Project not found", systemImage: "folder")
+                                ContentUnavailableView(L10n.t(.projectNotFound), systemImage: "folder")
                             }
                         }
                     }
@@ -115,9 +115,9 @@ struct ContentView: View {
                     // Show banner if access was denied
                     if !ek.remindersAuthorized && !ek.calendarAuthorized {
                         toast.showBanner(
-                            "Calendar and Reminders access is required to display items.",
+                            L10n.t(.accessRequired),
                             type: .warning,
-                            action: BannerAction(title: "Open Settings") {
+                            action: BannerAction(title: L10n.t(.openSettings)) {
                                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
                             }
                         )
@@ -126,20 +126,20 @@ struct ContentView: View {
                 await reloadDiscoveredProjects()
             }
             .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
-            .alert("Delete project?", isPresented: .init(
+            .alert(L10n.t(.deleteProjectTitle), isPresented: .init(
                 get: { projectToDelete != nil },
                 set: { if !$0 { projectToDelete = nil } }
             )) {
-                Button("Cancel", role: .cancel) { projectToDelete = nil }
-                Button("Delete", role: .destructive) {
+                Button(L10n.t(.cancel), role: .cancel) { projectToDelete = nil }
+                Button(L10n.t(.delete), role: .destructive) {
                     if let project = projectToDelete {
                         store.delete(project)
-                        toast.show("Project deleted", type: .success)
+                        toast.show(L10n.t(.projectDeleted), type: .success)
                     }
                     projectToDelete = nil
                 }
             } message: {
-                Text("“\(projectToDelete?.name ?? "")” will be removed. Its items remain in Calendar/Reminders.")
+                Text("“\(projectToDelete?.name ?? "")” \(L10n.t(.deleteProjectMessage))")
             }
             .sheet(item: $draftProject) { draft in
                 NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, colorName, iconName, githubRepo in
@@ -243,7 +243,7 @@ struct ContentView: View {
         return Button {
             tagFilter.clear()
         } label: {
-            Text("All")
+            Text(L10n.t(.allTags))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(isActive ? .white : .primary)
                 .padding(.horizontal, 9)
@@ -258,7 +258,7 @@ struct ContentView: View {
                 )
         }
         .buttonStyle(.plain)
-        .help("Show all tags")
+        .help(L10n.t(.showAllTags))
     }
 
     private func tagChip(_ tag: String) -> some View {
@@ -331,10 +331,11 @@ struct ContentView: View {
 
     private func chipHelp(tag: String, state: TagFilterState) -> String {
         let count = store.discoveredTags[tag] ?? 0
+        let prefix = "\(tag) · \(count) \(L10n.t(.tagItemsUnit)) — "
         switch state {
-        case .neutral:  return "\(tag) · \(count) items — click to include"
-        case .included: return "\(tag) · \(count) items — click to exclude"
-        case .excluded: return "\(tag) · \(count) items — click to clear"
+        case .neutral:  return prefix + L10n.t(.tagClickInclude)
+        case .included: return prefix + L10n.t(.tagClickExclude)
+        case .excluded: return prefix + L10n.t(.tagClickClear)
         }
     }
 
@@ -349,7 +350,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private func tagColorMenu(for tag: String) -> some View {
-        Menu("Color") {
+        Menu(L10n.t(.colorMenu)) {
             ForEach(ProjectAppearance.colors) { option in
                 Button {
                     settings.setTagColor(tag, colorName: option.id)

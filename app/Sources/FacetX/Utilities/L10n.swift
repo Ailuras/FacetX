@@ -3,18 +3,15 @@ import Foundation
 /// Lightweight in-app localization, ported from VellumX.
 ///
 /// Strings are authored as `(English, 中文)` pairs and selected by `language`,
-/// which is mirrored from `AppSettings.language` (default English) on launch and
-/// whenever the user switches it. Lookups go through `L10n.t(_:)`.
+/// which is loaded from `AppSettings.language` (default English) at launch.
+/// Lookups go through `L10n.t(_:)`.
 ///
-/// Reactivity: `language` is a plain global, so SwiftUI does not track reads of
-/// it directly. Live refresh relies on the calling view holding the
-/// `@EnvironmentObject AppSettings` — switching the language mutates a
-/// `@Published` property, which re-renders the view, and `L10n.t(_:)` then
-/// returns the new string. Views that do not observe `AppSettings` will not
-/// refresh until they are rebuilt for another reason.
+/// Language is applied at launch only: switching it in Settings persists the
+/// choice and prompts a restart, so every view renders consistently in the new
+/// language instead of relying on per-view live refresh.
 @MainActor
 enum L10n {
-    /// Current UI language: "en" or "zh". Mirrored from `AppSettings.language`.
+    /// Current UI language: "en" or "zh". Loaded from `AppSettings.language`.
     static var language: String = "en"
 
     static func t(_ key: Key) -> String {
@@ -29,6 +26,24 @@ enum L10n {
         case generalTitle, generalSubtitle
         case interface, showInMenuBar, language
         case storage, applicationSupport
+        // Restart prompt
+        case restartTitle, restartMessage, restartNow, restartLater
+        // Common
+        case cancel, delete, archive
+        // Sidebar / ContentView
+        case sidebarProjects, sidebarTags, editProject
+        case projectArchived, projectDeleted
+        case newProject, selectProject, selectProjectHint, projectNotFound
+        case accessRequired, openSettings
+        case deleteProjectTitle, deleteProjectMessage
+        case allTags, showAllTags, colorMenu
+        case tagItemsUnit, tagClickInclude, tagClickExclude, tagClickClear
+        // ProjectDetailView
+        case modeAll, modeWeek, modeMonth, modeGit
+        case switchViewMode, refreshed, refresh
+        case hideTodayPanel, showTodayTimeline
+        case deleteItemTitle, paneReminder, paneSchedule
+        case searchCommits, searchItems
 
         var pair: (en: String, zh: String) {
             switch self {
@@ -45,6 +60,55 @@ enum L10n {
             case .language:           return ("Language", "语言")
             case .storage:            return ("Storage", "存储")
             case .applicationSupport: return ("Application Support", "Application Support")
+
+            case .restartTitle:       return ("Restart required", "需要重启")
+            case .restartMessage:     return ("Changing the language takes effect after FacetX restarts.",
+                                              "更改语言需要重启 FacetX 后生效。")
+            case .restartNow:         return ("Restart Now", "立即重启")
+            case .restartLater:       return ("Later", "稍后")
+
+            case .cancel:             return ("Cancel", "取消")
+            case .delete:             return ("Delete", "删除")
+            case .archive:            return ("Archive", "归档")
+
+            case .sidebarProjects:    return ("Projects", "项目")
+            case .sidebarTags:        return ("Tags", "标签")
+            case .editProject:        return ("Edit Project", "编辑项目")
+            case .projectArchived:    return ("Project archived", "项目已归档")
+            case .projectDeleted:     return ("Project deleted", "项目已删除")
+            case .newProject:         return ("New Project", "新建项目")
+            case .selectProject:      return ("Select a project", "选择一个项目")
+            case .selectProjectHint:  return ("Pick a project from the sidebar to get started.",
+                                              "从左侧边栏选择一个项目开始。")
+            case .projectNotFound:    return ("Project not found", "未找到项目")
+            case .accessRequired:     return ("Calendar and Reminders access is required to display items.",
+                                              "需要日历与提醒事项权限才能显示项目内容。")
+            case .openSettings:       return ("Open Settings", "打开系统设置")
+            case .deleteProjectTitle: return ("Delete project?", "删除项目？")
+            case .deleteProjectMessage: return ("will be removed. Its items remain in Calendar/Reminders.",
+                                                "将被移除。其条目仍保留在日历 / 提醒事项中。")
+            case .allTags:            return ("All", "全部")
+            case .showAllTags:        return ("Show all tags", "显示全部标签")
+            case .colorMenu:          return ("Color", "颜色")
+            case .tagItemsUnit:       return ("items", "项")
+            case .tagClickInclude:    return ("click to include", "点击包含")
+            case .tagClickExclude:    return ("click to exclude", "点击排除")
+            case .tagClickClear:      return ("click to clear", "点击清除")
+
+            case .modeAll:            return ("All", "全部")
+            case .modeWeek:           return ("Week", "周")
+            case .modeMonth:          return ("Month", "月")
+            case .modeGit:            return ("Git", "Git")
+            case .switchViewMode:     return ("Switch view mode", "切换视图模式")
+            case .refreshed:          return ("Refreshed", "已刷新")
+            case .refresh:            return ("Refresh", "刷新")
+            case .hideTodayPanel:     return ("Hide Today panel", "隐藏 Today 面板")
+            case .showTodayTimeline:  return ("Show Today timeline", "显示 Today 时间线")
+            case .deleteItemTitle:    return ("Delete item?", "删除条目？")
+            case .paneReminder:       return ("Reminder", "提醒事项")
+            case .paneSchedule:       return ("Schedule", "日程")
+            case .searchCommits:      return ("Search commits…", "搜索提交…")
+            case .searchItems:        return ("Search items…", "搜索条目…")
             }
         }
     }
