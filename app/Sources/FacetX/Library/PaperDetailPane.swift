@@ -11,6 +11,7 @@ struct PaperDetailPane: View {
     @State private var store = PaperStore.shared
     @State private var metadata = MetadataStore.shared
     @EnvironmentObject private var appSettings: AppSettings
+    @EnvironmentObject private var toast: ToastController
     @State private var noteText: String = ""
     @State private var isTranslating = false
     @State private var showTranslation = false
@@ -307,7 +308,14 @@ struct PaperDetailPane: View {
                     panel.canChooseFiles = true
                     panel.allowedContentTypes = [.pdf]
                     if panel.runModal() == .OK, let url = panel.url {
-                        _ = PdfCoordinator.setManualPdf(paper: paper, store: store, from: url)
+                        switch PdfCoordinator.setManualPdf(paper: paper, store: store, from: url) {
+                        case .success:
+                            toast.show(L10n.pick("PDF attached", "已附加 PDF"), type: .success, duration: 2)
+                        case .notPDF:
+                            toast.show(L10n.pick("That file is not a PDF", "该文件不是 PDF"), type: .warning)
+                        case .failed:
+                            toast.show(L10n.pick("Failed to attach PDF", "附加 PDF 失败"), type: .error)
+                        }
                     }
                 }
                 if paper.pdfLocalPath != nil {
@@ -389,7 +397,8 @@ struct PaperDetailPane: View {
                 store.setPaperTranslation(id: paper.id, abstractZh: zh)
                 showTranslation = true
             } catch {
-                print("Translation failed: \(error)")
+                toast.show(L10n.pick("Translation failed: \(error.localizedDescription)",
+                                     "翻译失败：\(error.localizedDescription)"), type: .error)
             }
             isTranslating = false
         }
