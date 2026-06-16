@@ -79,20 +79,31 @@ struct SettingsPage<Content: View>: View {
 struct SettingsCard<Content: View>: View {
     let title: String
     let systemImage: String
+    let subtitle: String?
     let content: () -> Content
 
-    init(title: String, systemImage: String,
+    init(title: String, systemImage: String, subtitle: String? = nil,
          @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.systemImage = systemImage
+        self.subtitle = subtitle
         self.content = content
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: systemImage)
-                .font(SettingsUI.sectionFont)
-                .foregroundStyle(.primary.opacity(0.86))
+            VStack(alignment: .leading, spacing: 3) {
+                Label(title, systemImage: systemImage)
+                    .font(SettingsUI.sectionFont)
+                    .foregroundStyle(.primary.opacity(0.86))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(SettingsUI.smallFont)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 26)
+                }
+            }
 
             content()
         }

@@ -9,7 +9,9 @@ struct GeneralSettingsTab: View {
                      subtitle: L10n.t(.generalSubtitle),
                      systemImage: "gearshape",
                      warning: persistenceWarning) {
-            SettingsCard(title: L10n.t(.interface), systemImage: "macwindow") {
+            SettingsCard(title: L10n.t(.interface), systemImage: "macwindow",
+                         subtitle: L10n.pick("Menu bar presence and app language.",
+                                             "菜单栏显示与应用语言。")) {
                 SettingsRow(title: L10n.t(.showInMenuBar), systemImage: "menubar.rectangle") {
                     Toggle("", isOn: $settings.menuBarEnabled)
                         .labelsHidden()
@@ -28,7 +30,9 @@ struct GeneralSettingsTab: View {
                 }
             }
 
-            SettingsCard(title: L10n.t(.startup), systemImage: "play.circle") {
+            SettingsCard(title: L10n.t(.startup), systemImage: "play.circle",
+                         subtitle: L10n.pick("Which project opens when the app launches.",
+                                             "应用启动时打开哪个项目。")) {
                 VStack(alignment: .leading, spacing: 8) {
                     SettingsRow(title: L10n.t(.onLaunch), systemImage: "macwindow.on.rectangle") {
                         Picker("", selection: $settings.startupProjectMode) {
@@ -61,7 +65,9 @@ struct GeneralSettingsTab: View {
                 }
             }
 
-            SettingsCard(title: L10n.t(.storage), systemImage: "externaldrive") {
+            SettingsCard(title: L10n.t(.storage), systemImage: "externaldrive",
+                         subtitle: L10n.pick("Where FacetX keeps its data on disk.",
+                                             "FacetX 在磁盘上保存数据的位置。")) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(L10n.t(.applicationSupport))
                         .font(SettingsUI.rowFont)
