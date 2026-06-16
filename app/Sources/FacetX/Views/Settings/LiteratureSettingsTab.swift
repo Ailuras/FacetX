@@ -2,15 +2,47 @@ import SwiftUI
 
 struct LiteratureSettingsTab: View {
     @State private var settings = LibrarySettings.shared
+    @State private var metadata = MetadataStore.shared
+    @EnvironmentObject private var toast: ToastController
 
     var body: some View {
         SettingsPage(title: L10n.pick("Literature", "文献"),
-                     subtitle: L10n.pick("Fetching and recommendations", "拉取与推荐"),
+                     subtitle: L10n.pick("Fetching, recommendations and scoring rules", "拉取、推荐与评分规则"),
                      systemImage: "books.vertical",
                      warning: nil) {
             fetchCard
             recommendationCard
+            VenueRulesCard(metadata: metadata)
+            TierRulesCard(metadata: metadata)
+            CitationRulesCard(metadata: metadata)
+            rulesActions
         }
+    }
+
+    private var rulesActions: some View {
+        HStack(spacing: 10) {
+            Button {
+                let changed = PaperStore.shared.refreshVenueMetadata()
+                metadata.markRulesApplied()
+                toast.show(L10n.pick("Recomputed \(changed) papers", "已重算 \(changed) 篇"), type: .success)
+            } label: {
+                Label(L10n.pick("Apply to Library", "应用到文献库"), systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!metadata.rulesDirty)
+            .help(L10n.pick("Re-score every paper using the current rules.",
+                            "用当前规则重新为所有文献评分。"))
+
+            Spacer()
+
+            Button(role: .destructive) {
+                metadata.resetToPreset()
+                toast.show(L10n.pick("Rules reset to preset", "规则已重置为预设"), type: .info)
+            } label: {
+                Label(L10n.pick("Reset to Preset", "重置为预设"), systemImage: "arrow.counterclockwise")
+            }
+        }
+        .controlSize(.small)
     }
 
     // MARK: - Fetch
