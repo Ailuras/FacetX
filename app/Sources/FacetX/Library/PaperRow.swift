@@ -8,13 +8,28 @@ struct PaperRow: View {
     /// diff on so in-place status/badge edits re-render it. (See PaperDetailPane.)
     var version: Int = 0
 
+    @State private var hovered = false
+
+    private var rowFill: Color {
+        if isSelected { return Color.accentColor.opacity(0.10) }
+        if hovered { return Color.primary.opacity(0.035) }
+        return FacetTheme.quietPanel
+    }
+
+    private var rowStroke: Color {
+        if isSelected { return Color.accentColor.opacity(0.45) }
+        if hovered { return Color.accentColor.opacity(0.32) }
+        return FacetTheme.hairline
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 10) {
                 statusDot
                 Text(paper.title)
                     .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .foregroundStyle(.primary)
             }
 
@@ -34,13 +49,18 @@ struct PaperRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.10) : FacetTheme.quietPanel)
+                .fill(rowFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(isSelected ? Color.accentColor.opacity(0.45) : FacetTheme.hairline, lineWidth: 1)
+                .stroke(rowStroke, lineWidth: isSelected ? 1.5 : 1)
         )
         .contentShape(Rectangle())
+        .onHover { isHovered in
+            withAnimation(.easeOut(duration: 0.15)) {
+                hovered = isHovered
+            }
+        }
     }
 
     private var statusDot: some View {
@@ -53,7 +73,7 @@ struct PaperRow: View {
 
     private var badges: some View {
         HStack(spacing: 6) {
-            if !paper.venueAbbr.isEmpty, paper.venueAbbr != "Others" {
+            if !paper.venueAbbr.isEmpty {
                 FacetInfoBadge(
                     text: paper.venueAbbr,
                     systemImage: "building.2",
@@ -61,14 +81,14 @@ struct PaperRow: View {
                     fill: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)).opacity(0.12)
                 )
             }
-            if paper.tier > 0 {
-                FacetInfoBadge(
-                    text: "T\(paper.tier)",
-                    systemImage: "star",
-                    tint: metadata.tierColor(paper.tier),
-                    fill: metadata.tierColor(paper.tier).opacity(0.12)
-                )
-            }
+            // Every paper carries a tier (0 = Others / unranked); show it always so
+            // unranked papers still read as rated rather than blank.
+            FacetInfoBadge(
+                text: "T\(paper.tier)",
+                systemImage: "star",
+                tint: metadata.tierColor(paper.tier),
+                fill: metadata.tierColor(paper.tier).opacity(0.12)
+            )
             if paper.citedByCount > 0 {
                 FacetInfoBadge(
                     text: "\(paper.citedByCount)",

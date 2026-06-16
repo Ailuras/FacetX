@@ -296,10 +296,17 @@ struct TopicDetailView: View {
     private var infoBar: some View {
         HStack(spacing: 10) {
             SummaryChip(value: papersForTopic.count, label: L10n.pick("Papers", "文献"), systemImage: "doc.text")
-            SummaryChip(value: papersForTopic.filter { $0.status == .starred }.count,
-                        label: L10n.pick("Starred", "收藏"), systemImage: "star")
-            SummaryChip(value: papersForTopic.filter { $0.status == .pending }.count,
-                        label: L10n.pick("Pending", "待读"), systemImage: "clock")
+            // Starred / Pending counts are only meaningful in the All view; the
+            // mode-scoped views (Starred/Read/Skipped) drop them. The All view
+            // instead surfaces how many papers are currently recommended.
+            if mode == .all {
+                SummaryChip(value: papersForTopic.filter { $0.status == .starred }.count,
+                            label: L10n.pick("Starred", "收藏"), systemImage: "star")
+                SummaryChip(value: papersForTopic.filter { $0.status == .pending }.count,
+                            label: L10n.pick("Pending", "待读"), systemImage: "clock")
+                SummaryChip(value: papersForTopic.filter { $0.isRecommended }.count,
+                            label: L10n.pick("Recommended", "已推荐"), systemImage: "sparkles")
+            }
 
             if !tagFilter.isEmpty {
                 ActiveTagFilterBar(tagFilter: $tagFilter)
@@ -331,7 +338,7 @@ struct TopicDetailView: View {
         HStack(spacing: 2) {
             sortMenu
             FilterPillButton(
-                systemName: showRecommended ? "sparkles" : "sparkle",
+                systemName: showRecommended ? "checkmark.circle.fill" : "checkmark.circle",
                 help: showRecommended
                     ? L10n.pick("Hide recommendations", "隐藏推荐")
                     : L10n.pick("Show recommendations", "显示推荐"),
@@ -461,17 +468,24 @@ struct TopicDetailView: View {
             return
         }
         isRecommending = true
-        store.clearRecommendations(paperIds: pool.map(\.id))
-        let fresh = papersForTopic
+        // Accumulate: recommend only papers that aren't already in the set, so
+        // clicking again the same day adds fresh picks instead of replacing the
+        // previous ones (which made it look like only the latest 3 ever stuck).
+        let candidates = pool.filter { !$0.isRecommended }
         let engine = RecommendEngine(config: ConfigManager.shared.effectiveConfig)
-        let results = engine.recommend(papers: fresh)
+        let results = engine.recommend(papers: candidates)
         for result in results {
             store.setPaperRecommended(id: result.paper.id, isRecommended: true, reason: "")
         }
         withAnimation(detailPaneAnimation) { mode = .all }
         isRecommending = false
-        toast.show(L10n.pick("Recommended \(results.count) papers", "已推荐 \(results.count) 篇"),
-                   type: .success, duration: 2)
+        if results.isEmpty {
+            toast.show(L10n.pick("No more papers to recommend", "没有更多可推荐的文献"),
+                       type: .info, duration: 2)
+        } else {
+            toast.show(L10n.pick("Recommended \(results.count) more papers", "新增推荐 \(results.count) 篇"),
+                       type: .success, duration: 2)
+        }
     }
 
     private func fetchPapers() {

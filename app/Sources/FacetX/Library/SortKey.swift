@@ -24,7 +24,7 @@ enum SortKey: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .score:           return "star"
+        case .score:           return "list.number"
         case .publicationDate: return "calendar"
         case .citations:       return "quote.bubble"
         case .statusTime:      return "clock"
