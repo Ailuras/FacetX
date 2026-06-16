@@ -173,8 +173,15 @@ struct ContentView: View {
             }
             .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
             .onChange(of: selection) {
-                if case .project(let id) = selection {
+                switch selection {
+                case .project(let id):
+                    settings.lastOpenedKind = "project"
                     settings.lastOpenedProjectID = id.uuidString
+                case .topic(let id):
+                    settings.lastOpenedKind = "topic"
+                    settings.lastOpenedTopicID = id.uuidString
+                case .none:
+                    break
                 }
             }
             .alert(L10n.t(.deleteProjectTitle), isPresented: .init(
@@ -267,17 +274,28 @@ struct ContentView: View {
         }
     }
 
-    /// On launch, open a project per the user's startup preference: the last
-    /// opened project, a specific configured project, or nothing.
+    /// On launch, open the last opened or a specific project / literature library
+    /// per the user's startup preference, or nothing.
     private func applyStartupSelection() {
         guard selection == nil else { return }
-        let targetID: UUID?
+        let kind: String
+        let rawID: String
         switch settings.startupProjectMode {
-        case "last":     targetID = UUID(uuidString: settings.lastOpenedProjectID)
-        case "specific": targetID = UUID(uuidString: settings.startupProjectID)
-        default:         targetID = nil
+        case "last":
+            kind = settings.lastOpenedKind
+            rawID = kind == "topic" ? settings.lastOpenedTopicID : settings.lastOpenedProjectID
+        case "specific":
+            kind = settings.startupSelectionKind
+            rawID = kind == "topic" ? settings.startupTopicID : settings.startupProjectID
+        default:
+            return
         }
-        if let id = targetID, store.activeProjects.contains(where: { $0.id == id }) {
+        guard let id = UUID(uuidString: rawID) else { return }
+        if kind == "topic" {
+            if litMeta.topics.contains(where: { $0.id == id && !$0.archived }) {
+                selection = .topic(id)
+            }
+        } else if store.activeProjects.contains(where: { $0.id == id }) {
             selection = .project(id)
         }
     }
@@ -438,6 +456,10 @@ struct ContentView: View {
     /// merged with paper tag counts, so the sidebar cloud is one vocabulary.
     private var combinedTags: [String: Int] {
         var aggregate = store.discoveredTags
+        // `Paper` is a class, so adding a tag mutates `papers[i].tags` in place and
+        // never re-assigns the `papers` array — Observation won't see it. Reading
+        // `paperVersion` (bumped on every tag change) ties the cloud to those edits.
+        _ = litStore.paperVersion
         for paper in litStore.papers {
             for tag in paper.tags {
                 aggregate[tag, default: 0] += 1

@@ -49,14 +49,35 @@ final class AppSettings: ObservableObject {
     @Published var startupProjectMode: String {
         didSet { settingsDidChange() }
     }
-    /// Project id opened on launch when `startupProjectMode == "specific"`.
+    /// Project id opened on launch when `startupProjectMode == "specific"` and
+    /// `startupSelectionKind == "project"`.
     @Published var startupProjectID: String {
+        didSet { settingsDidChange() }
+    }
+    /// Whether the "specific" startup target is a project or a literature library.
+    /// "project" or "topic".
+    @Published var startupSelectionKind: String {
+        didSet { settingsDidChange() }
+    }
+    /// Topic (literature library) id opened on launch when the specific target is
+    /// a library.
+    @Published var startupTopicID: String {
         didSet { settingsDidChange() }
     }
     /// Last project the user had selected, reopened on launch when
     /// `startupProjectMode == "last"`. Saved without bumping `changeToken` since
     /// it updates on every project switch.
     @Published var lastOpenedProjectID: String {
+        didSet { save() }
+    }
+    /// Whether the last opened sidebar item was a project or a literature library.
+    /// "project" or "topic".
+    @Published var lastOpenedKind: String {
+        didSet { save() }
+    }
+    /// Last literature library the user had selected, reopened on launch when
+    /// `startupProjectMode == "last"` and `lastOpenedKind == "topic"`.
+    @Published var lastOpenedTopicID: String {
         didSet { save() }
     }
     @Published var defaultEventDurationMinutes: Int {
@@ -120,7 +141,11 @@ final class AppSettings: ObservableObject {
         self.language = stored.language ?? "en"
         self.startupProjectMode = stored.startupProjectMode ?? "none"
         self.startupProjectID = stored.startupProjectID ?? ""
+        self.startupSelectionKind = stored.startupSelectionKind ?? "project"
+        self.startupTopicID = stored.startupTopicID ?? ""
         self.lastOpenedProjectID = stored.lastOpenedProjectID ?? ""
+        self.lastOpenedKind = stored.lastOpenedKind ?? "project"
+        self.lastOpenedTopicID = stored.lastOpenedTopicID ?? ""
         self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes
         self.todayViewMode = stored.todayViewMode
         self.todayTimelineStartHour = stored.todayTimelineStartHour
@@ -272,7 +297,11 @@ final class AppSettings: ObservableObject {
         var language: String?
         var startupProjectMode: String?
         var startupProjectID: String?
+        var startupSelectionKind: String?
+        var startupTopicID: String?
         var lastOpenedProjectID: String?
+        var lastOpenedKind: String?
+        var lastOpenedTopicID: String?
         var defaultEventDurationMinutes: Int
         var todayViewMode: String
         var todayTimelineStartHour: Int
@@ -294,7 +323,11 @@ final class AppSettings: ObservableObject {
                                      language: nil,
                                      startupProjectMode: nil,
                                      startupProjectID: nil,
+                                     startupSelectionKind: nil,
+                                     startupTopicID: nil,
                                      lastOpenedProjectID: nil,
+                                     lastOpenedKind: nil,
+                                     lastOpenedTopicID: nil,
                                      defaultEventDurationMinutes: 120,
                                      todayViewMode: "list",
                                      todayTimelineStartHour: 6,
@@ -318,7 +351,11 @@ final class AppSettings: ObservableObject {
                             language: language,
                             startupProjectMode: startupProjectMode,
                             startupProjectID: startupProjectID.isEmpty ? nil : startupProjectID,
+                            startupSelectionKind: startupSelectionKind,
+                            startupTopicID: startupTopicID.isEmpty ? nil : startupTopicID,
                             lastOpenedProjectID: lastOpenedProjectID.isEmpty ? nil : lastOpenedProjectID,
+                            lastOpenedKind: lastOpenedKind,
+                            lastOpenedTopicID: lastOpenedTopicID.isEmpty ? nil : lastOpenedTopicID,
                             defaultEventDurationMinutes: defaultEventDurationMinutes,
                             todayViewMode: todayViewMode,
                             todayTimelineStartHour: todayTimelineStartHour,

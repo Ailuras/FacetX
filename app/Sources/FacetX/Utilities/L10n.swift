@@ -80,10 +80,10 @@ enum L10n {
             case .applicationSupport: return ("Application Support", "Application Support")
             case .startup:            return ("Startup", "启动")
             case .onLaunch:           return ("On launch", "启动时")
-            case .startupNone:        return ("Don't open a project", "不打开项目")
-            case .startupLast:        return ("Last opened project", "上次打开的项目")
-            case .startupSpecific:    return ("A specific project", "指定项目")
-            case .startupProject:     return ("Default project", "默认项目")
+            case .startupNone:        return ("Don't open anything", "不打开任何内容")
+            case .startupLast:        return ("Last opened project or library", "上次打开的项目或文献库")
+            case .startupSpecific:    return ("A specific project or library", "指定项目或文献库")
+            case .startupProject:     return ("Default", "默认")
 
             case .restartTitle:       return ("Restart required", "需要重启")
             case .restartMessage:     return ("Changing the language takes effect after FacetX restarts.",

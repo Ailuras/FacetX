@@ -3,6 +3,32 @@ import SwiftUI
 struct GeneralSettingsTab: View {
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
+    @State private var metadata = MetadataStore.shared
+
+    private var activeTopics: [TrackPref] {
+        metadata.topics.filter { !$0.archived }
+    }
+
+    /// Encodes the specific-startup target as "project:<uuid>" / "topic:<uuid>"
+    /// so projects and literature libraries share one picker.
+    private var specificSelection: Binding<String> {
+        Binding(
+            get: {
+                settings.startupSelectionKind == "topic"
+                    ? "topic:\(settings.startupTopicID)"
+                    : "project:\(settings.startupProjectID)"
+            },
+            set: { newValue in
+                if newValue.hasPrefix("topic:") {
+                    settings.startupSelectionKind = "topic"
+                    settings.startupTopicID = String(newValue.dropFirst("topic:".count))
+                } else if newValue.hasPrefix("project:") {
+                    settings.startupSelectionKind = "project"
+                    settings.startupProjectID = String(newValue.dropFirst("project:".count))
+                }
+            }
+        )
+    }
 
     var body: some View {
         SettingsPage(title: L10n.t(.generalTitle),
@@ -31,8 +57,8 @@ struct GeneralSettingsTab: View {
             }
 
             SettingsCard(title: L10n.t(.startup), systemImage: "play.circle",
-                         subtitle: L10n.pick("Which project opens when the app launches.",
-                                             "应用启动时打开哪个项目。")) {
+                         subtitle: L10n.pick("Which project or library opens when the app launches.",
+                                             "应用启动时打开哪个项目或文献库。")) {
                 VStack(alignment: .leading, spacing: 8) {
                     SettingsRow(title: L10n.t(.onLaunch), systemImage: "macwindow.on.rectangle") {
                         Picker("", selection: $settings.startupProjectMode) {
@@ -46,9 +72,16 @@ struct GeneralSettingsTab: View {
                     if settings.startupProjectMode == "specific" {
                         SettingsDivider()
                         SettingsRow(title: L10n.t(.startupProject), systemImage: "folder") {
-                            Picker("", selection: $settings.startupProjectID) {
-                                ForEach(store.activeProjects) { project in
-                                    Text(project.name).tag(project.id.uuidString)
+                            Picker("", selection: specificSelection) {
+                                Section(L10n.pick("Projects", "项目")) {
+                                    ForEach(store.activeProjects) { project in
+                                        Text(project.name).tag("project:\(project.id.uuidString)")
+                                    }
+                                }
+                                Section(L10n.pick("Libraries", "文献库")) {
+                                    ForEach(activeTopics) { topic in
+                                        Text(topic.name).tag("topic:\(topic.id.uuidString)")
+                                    }
                                 }
                             }
                             .labelsHidden()
@@ -58,9 +91,11 @@ struct GeneralSettingsTab: View {
                 }
             }
             .onChange(of: settings.startupProjectMode) {
-                if settings.startupProjectMode == "specific",
-                   settings.startupProjectID.isEmpty,
-                   let first = store.activeProjects.first {
+                guard settings.startupProjectMode == "specific" else { return }
+                let hasProject = !settings.startupProjectID.isEmpty
+                let hasTopic = !settings.startupTopicID.isEmpty
+                if !hasProject && !hasTopic, let first = store.activeProjects.first {
+                    settings.startupSelectionKind = "project"
                     settings.startupProjectID = first.id.uuidString
                 }
             }
