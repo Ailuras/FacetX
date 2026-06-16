@@ -33,26 +33,51 @@ struct HiddenScrollIndicators: NSViewRepresentable {
 }
 
 /// Hides the scroller of a `TextEditor`, whose own inner `NSScrollView` the
-/// enclosing-scroll-view approach can't reach. Searches the sibling subtree
-/// of the background view for the text view's scroll view.
+/// enclosing-scroll-view approach can't reach. SwiftUI hosts the background
+/// marker and the text view in separate containers, so this walks up the
+/// ancestor chain until it reaches a common ancestor whose subtree contains
+/// the text view's scroll view, and retries since that scroll view may not be
+/// in the hierarchy on the first layout pass.
 struct HiddenTextEditorScroller: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        DispatchQueue.main.async { Self.disableScrollers(near: view) }
+        Self.scheduleDisable(for: view)
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { Self.disableScrollers(near: nsView) }
+        Self.scheduleDisable(for: nsView)
     }
 
-    private static func disableScrollers(near view: NSView) {
-        guard let parent = view.superview else { return }
-        for scrollView in parent.descendantScrollViews() {
-            scrollView.scrollerStyle = .overlay
-            scrollView.hasVerticalScroller = false
-            scrollView.hasHorizontalScroller = false
+    private static func scheduleDisable(for view: NSView, attempt: Int = 0) {
+        DispatchQueue.main.async {
+            if disableScrollers(near: view) || attempt >= 6 { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                scheduleDisable(for: view, attempt: attempt + 1)
+            }
         }
+    }
+
+    /// Returns true once a text-view scroll view was found and hidden.
+    @discardableResult
+    private static func disableScrollers(near view: NSView) -> Bool {
+        var node = view.superview
+        var hops = 0
+        while let current = node, hops < 8 {
+            let textScrollViews = current.descendantScrollViews()
+                .filter { $0.documentView is NSTextView }
+            if !textScrollViews.isEmpty {
+                for scrollView in textScrollViews {
+                    scrollView.scrollerStyle = .overlay
+                    scrollView.hasVerticalScroller = false
+                    scrollView.hasHorizontalScroller = false
+                }
+                return true
+            }
+            node = current.superview
+            hops += 1
+        }
+        return false
     }
 }
 
