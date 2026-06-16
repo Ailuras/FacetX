@@ -5,14 +5,16 @@ struct ShortcutsSettingsTab: View {
     @EnvironmentObject private var keyboard: KeyboardActionRouter
 
     var body: some View {
-        SettingsPage(title: "Shortcuts",
-                     subtitle: "Keyboard shortcuts for common actions",
+        SettingsPage(title: L10n.pick("Shortcuts", "快捷键"),
+                     subtitle: L10n.pick("Keyboard shortcuts for common actions", "常用操作的键盘快捷键"),
                      systemImage: "keyboard",
                      warning: nil) {
             VStack(alignment: .leading, spacing: 16) {
-                SettingsCard(title: "Global Shortcut", systemImage: "globe") {
+                SettingsCard(title: L10n.pick("Global Shortcut", "全局快捷键"), systemImage: "globe",
+                             subtitle: L10n.pick("Works system-wide, even when FacetX is in the background.",
+                                                 "全局生效，即使 FacetX 在后台也可触发。")) {
                     HStack {
-                        Text("Quick Capture (⌃⌥Space)")
+                        Text(L10n.pick("Quick Capture (⌃⌥Space)", "快速捕获 (⌃⌥Space)"))
                             .font(SettingsUI.rowFont)
                         Spacer()
                         Toggle("", isOn: .init(
@@ -29,34 +31,34 @@ struct ShortcutsSettingsTab: View {
                     .padding(.vertical, 3)
                 }
 
-                shortcutGroup(title: "Navigation",
+                shortcutGroup(title: L10n.pick("Navigation", "导航"),
                               systemImage: "arrow.left.arrow.right",
                               rows: [
-                                ("Today", "⌘T"),
-                                ("All", "⌘1"),
-                                ("Week", "⌘2"),
-                                ("Month", "⌘3"),
-                                ("Git", "⌘4"),
-                                ("Previous Project", "⌘↑"),
-                                ("Next Project", "⌘↓")
+                                (L10n.pick("Today", "今天"), "⌘T"),
+                                (L10n.pick("All", "全部"), "⌘1"),
+                                (L10n.pick("Week", "周"), "⌘2"),
+                                (L10n.pick("Month", "月"), "⌘3"),
+                                (L10n.pick("Git", "Git"), "⌘4"),
+                                (L10n.pick("Previous Project", "上一个项目"), "⌘↑"),
+                                (L10n.pick("Next Project", "下一个项目"), "⌘↓")
                               ])
 
-                shortcutGroup(title: "Items",
+                shortcutGroup(title: L10n.pick("Items", "条目"),
                               systemImage: "checklist",
                               rows: [
-                                ("New Item", "⌘N"),
-                                ("Toggle Complete", "Space"),
-                                ("Open Detail", "↵"),
-                                ("Delete", "⌘⌫"),
-                                ("Show / Hide Completed", "⌘⇧H")
+                                (L10n.pick("New Item", "新建条目"), "⌘N"),
+                                (L10n.pick("Toggle Complete", "切换完成"), "Space"),
+                                (L10n.pick("Open Detail", "打开详情"), "↵"),
+                                (L10n.pick("Delete", "删除"), "⌘⌫"),
+                                (L10n.pick("Show / Hide Completed", "显示 / 隐藏已完成"), "⌘⇧H")
                               ])
 
-                shortcutGroup(title: "View",
+                shortcutGroup(title: L10n.pick("View", "视图"),
                               systemImage: "eye",
                               rows: [
-                                ("Search", "⌘F"),
-                                ("Refresh", "⌘R"),
-                                ("Close Detail Pane", "Esc")
+                                (L10n.pick("Search", "搜索"), "⌘F"),
+                                (L10n.pick("Refresh", "刷新"), "⌘R"),
+                                (L10n.pick("Close Detail Pane", "关闭详情面板"), "Esc")
                               ])
             }
         }

@@ -17,8 +17,8 @@ struct SourcesSettingsTab: View {
     }
 
     var body: some View {
-        SettingsPage(title: "Sources",
-                     subtitle: "Calendar and Reminders containers",
+        SettingsPage(title: L10n.pick("Sources", "数据源"),
+                     subtitle: L10n.pick("Calendar and Reminders containers", "日历与提醒事项容器"),
                      systemImage: "square.stack.3d.up",
                      warning: persistenceWarning) {
             summaryStrip
@@ -39,13 +39,13 @@ struct SourcesSettingsTab: View {
 
     private var summaryStrip: some View {
         HStack(spacing: 8) {
-            SummaryPill(title: "Reminders",
+            SummaryPill(title: L10n.pick("Reminders", "提醒事项"),
                         value: selectionSummary(enabled: enabledReminderNames.count,
                                                 total: allReminderNames.count,
                                                 allSelected: !settings.reminderListsDisabled && settings.enabledReminderListNames.isEmpty,
                                                 allDisabled: settings.reminderListsDisabled),
                         systemImage: "checklist")
-            SummaryPill(title: "Calendars",
+            SummaryPill(title: L10n.pick("Calendars", "日历"),
                         value: selectionSummary(enabled: enabledCalendarNames.count,
                                                 total: allCalendarNames.count,
                                                 allSelected: !settings.calendarsDisabled && settings.enabledCalendarNames.isEmpty,
@@ -53,11 +53,11 @@ struct SourcesSettingsTab: View {
                         systemImage: "calendar")
 
             VStack(spacing: 6) {
-                sourceActionButton(title: "Use All", systemImage: "checkmark.circle") {
+                sourceActionButton(title: L10n.pick("Use All", "全部启用"), systemImage: "checkmark.circle") {
                     settings.useAllContainers()
                     ensureDefaults()
                 }
-                sourceActionButton(title: "Disable All", systemImage: "xmark.circle") {
+                sourceActionButton(title: L10n.pick("Disable All", "全部禁用"), systemImage: "xmark.circle") {
                     settings.disableAllContainers()
                     ensureDefaults()
                 }
@@ -84,26 +84,29 @@ struct SourcesSettingsTab: View {
     }
 
     private var containersSection: some View {
-        SettingsCard(title: "Enabled Sources", systemImage: "square.stack.3d.up") {
+        SettingsCard(title: L10n.pick("Enabled Sources", "已启用的源"), systemImage: "square.stack.3d.up",
+                     subtitle: L10n.pick("Toggle which lists and calendars FacetX reads.",
+                                         "选择 FacetX 读取哪些列表与日历。")) {
             if containers.isEmpty {
-                Text("No containers found.")
+                Text(L10n.pick("No containers found.", "未找到容器。"))
                     .font(SettingsUI.secondaryFont)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
             } else {
                 HStack(alignment: .top, spacing: 16) {
-                    containerColumn(kind: .reminder, title: "Reminders", icon: "checklist", color: .green)
-                    containerColumn(kind: .calendar, title: "Calendars", icon: "calendar", color: .blue)
+                    containerColumn(kind: .reminder, title: L10n.pick("Reminders", "提醒事项"), icon: "checklist", color: .green)
+                    containerColumn(kind: .calendar, title: L10n.pick("Calendars", "日历"), icon: "calendar", color: .blue)
                 }
             }
         }
     }
 
     private var duplicateContainersSection: some View {
-        SettingsCard(title: "Duplicate Names", systemImage: "exclamationmark.triangle") {
+        SettingsCard(title: L10n.pick("Duplicate Names", "重名容器"), systemImage: "exclamationmark.triangle") {
             VStack(alignment: .leading, spacing: 8) {
-                Text("FacetX stores container selections by title. Duplicate names below are enabled, disabled, and chosen as save targets together.")
+                Text(L10n.pick("FacetX stores container selections by title. Duplicate names below are enabled, disabled, and chosen as save targets together.",
+                               "FacetX 按标题存储容器选择。以下重名容器会被一起启用、禁用并选作保存目标。"))
                     .font(SettingsUI.secondaryFont)
                     .foregroundStyle(.secondary)
 
@@ -113,7 +116,8 @@ struct SourcesSettingsTab: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(warning.kind == .reminder ? .green : .blue)
                             .frame(width: 16)
-                        Text("\(warning.title) appears in \(warning.sources.joined(separator: ", ")). Rename one if you need exact control.")
+                        Text(L10n.pick("\(warning.title) appears in \(warning.sources.joined(separator: ", ")). Rename one if you need exact control.",
+                                       "“\(warning.title)” 出现在 \(warning.sources.joined(separator: "、")) 中。如需精确控制请重命名其一。"))
                             .font(SettingsUI.secondaryFont)
                             .foregroundStyle(.primary.opacity(0.82))
                     }
@@ -137,7 +141,7 @@ struct SourcesSettingsTab: View {
 
             let filtered = compactContainers.filter { $0.kind == kind }
             if filtered.isEmpty {
-                Text("None")
+                Text(L10n.pick("None", "无"))
                     .font(SettingsUI.smallFont)
                     .foregroundStyle(.tertiary)
                     .padding(.vertical, 8)
@@ -263,9 +267,9 @@ struct SourcesSettingsTab: View {
     }
 
     private func selectionSummary(enabled: Int, total: Int, allSelected: Bool, allDisabled: Bool) -> String {
-        guard total > 0 else { return "None" }
+        guard total > 0 else { return L10n.pick("None", "无") }
         if allDisabled { return "0/\(total)" }
-        return allSelected ? "All \(total)" : "\(enabled)/\(total)"
+        return allSelected ? L10n.pick("All \(total)", "全部 \(total)") : "\(enabled)/\(total)"
     }
 
     private func ensureDefaults() {
