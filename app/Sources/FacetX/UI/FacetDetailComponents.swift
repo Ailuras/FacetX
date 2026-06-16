@@ -23,7 +23,9 @@ struct FacetSidebarContent<Content: View>: View {
             .frame(width: FacetSidebarStyle.contentWidth, alignment: .topLeading)
             .padding(.vertical, verticalPadding)
             .frame(maxWidth: .infinity, alignment: .top)
+            .hideScrollIndicators()
         }
+        .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity)
     }
 }
