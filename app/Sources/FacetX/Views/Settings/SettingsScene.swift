@@ -12,6 +12,8 @@ struct SettingsRootView: View {
                 .tabItem { Label(L10n.t(.tabDefaults), systemImage: "tray.and.arrow.down") }
             SourcesSettingsTab()
                 .tabItem { Label(L10n.t(.tabSources), systemImage: "square.stack.3d.up") }
+            LiteratureSettingsTab()
+                .tabItem { Label(L10n.pick("Literature", "文献"), systemImage: "books.vertical") }
             IntegrationsSettingsTab()
                 .tabItem { Label(L10n.t(.tabIntegrations), systemImage: "curlybraces") }
             ShortcutsSettingsTab()

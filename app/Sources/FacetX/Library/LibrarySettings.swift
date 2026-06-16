@@ -55,6 +55,13 @@ final class LibrarySettings {
     var perPage: Int { didSet { save() } }
     var defaultDays: Int { didSet { save() } }
     var defaultMaxResults: Int { didSet { save() } }
+    var topicFilter: String { didSet { save() } }
+
+    // Daily recommendation params
+    var dailyCount: Int { didSet { save() } }
+    var qualitySlots: Int { didSet { save() } }
+    var highScoreThreshold: Int { didSet { save() } }
+    var recentDays: Int { didSet { save() } }
 
     // Sort
     var sortKeyRaw: String { didSet { save() } }
@@ -100,6 +107,11 @@ final class LibrarySettings {
         perPage            = stored?.perPage ?? d.openalex.per_page
         defaultDays        = stored?.defaultDays ?? d.openalex.default_days
         defaultMaxResults  = stored?.defaultMaxResults ?? d.openalex.default_max_results
+        topicFilter        = stored?.topicFilter ?? d.openalex.topic_filter
+        dailyCount         = stored?.dailyCount ?? d.recommendation.daily_count
+        qualitySlots       = stored?.qualitySlots ?? d.recommendation.quality_slots
+        highScoreThreshold = stored?.highScoreThreshold ?? d.recommendation.high_score_threshold
+        recentDays         = stored?.recentDays ?? d.recommendation.recent_days
         sortKeyRaw         = stored?.sortKeyRaw ?? SortKey.score.rawValue
         sortAscending      = stored?.sortAscending ?? false
         apiKeys = stored?.apiKeys ?? [:]
@@ -119,6 +131,11 @@ final class LibrarySettings {
         var perPage: Int?
         var defaultDays: Int?
         var defaultMaxResults: Int?
+        var topicFilter: String?
+        var dailyCount: Int?
+        var qualitySlots: Int?
+        var highScoreThreshold: Int?
+        var recentDays: Int?
         var sortKeyRaw: String?
         var sortAscending: Bool?
         var apiKeys: [String: String]?
@@ -138,6 +155,11 @@ final class LibrarySettings {
             perPage: perPage,
             defaultDays: defaultDays,
             defaultMaxResults: defaultMaxResults,
+            topicFilter: topicFilter,
+            dailyCount: dailyCount,
+            qualitySlots: qualitySlots,
+            highScoreThreshold: highScoreThreshold,
+            recentDays: recentDays,
             sortKeyRaw: sortKeyRaw,
             sortAscending: sortAscending,
             apiKeys: nonEmptyKeys.isEmpty ? nil : nonEmptyKeys

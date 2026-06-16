@@ -9,8 +9,8 @@ struct TopicEditorSheet: View {
     @State private var name = ""
     @State private var query = ""
     @State private var keywordsText = ""
-    @State private var selectedColor: String? = "purple"
-    @State private var selectedIcon = "books.vertical"
+    @State private var colorName = "purple"
+    @State private var iconName = "books.vertical"
 
     init(onSave: @escaping (TrackPref) -> Void, onCancel: @escaping () -> Void) {
         self.onSave = onSave
@@ -25,133 +25,104 @@ struct TopicEditorSheet: View {
         _name = State(initialValue: topic.name)
         _query = State(initialValue: topic.query)
         _keywordsText = State(initialValue: topic.keywords.joined(separator: ", "))
-        _selectedColor = State(initialValue: topic.color)
-        _selectedIcon = State(initialValue: topic.icon ?? "books.vertical")
+        _colorName = State(initialValue: topic.color ?? "purple")
+        _iconName = State(initialValue: topic.icon ?? "books.vertical")
     }
 
-    private var tint: Color { LabelColor.color(named: selectedColor) ?? .purple }
+    private var tint: Color { LabelColor.color(named: colorName) ?? .purple }
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var topicInitial: String { trimmedName.first.map { String($0).uppercased() } ?? "L" }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
+            ProjectEditorHeader(
+                title: existingID == nil ? L10n.pick("New Library", "新建文献库") : L10n.pick("Edit Library", "编辑文献库"),
+                subtitle: L10n.pick("Literature library settings", "文献库设置"),
+                initial: topicInitial,
+                tint: tint,
+                systemImage: iconName
+            )
+            Divider().opacity(0.7)
+
             ScrollView {
-                form.padding(20)
-            }
-        }
-        .frame(width: 420, height: 540)
-    }
-
-    private var header: some View {
-        HStack {
-            Text(existingID == nil ? L10n.pick("New Library", "新建文献库") : L10n.pick("Edit Library", "编辑文献库"))
-                .font(.headline)
-            Spacer()
-            Button(L10n.t(.cancel), action: onCancel)
-                .keyboardShortcut(.cancelAction)
-            Button(L10n.t(.save)) { save() }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .disabled(trimmedName.isEmpty)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-    }
-
-    private var form: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            preview
-
-            field(L10n.pick("Name", "名称"), required: true) {
-                TextField(L10n.pick("e.g. SAT Solving", "例如：SAT 求解"), text: $name)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            field(L10n.pick("Search Query", "检索式")) {
-                VStack(alignment: .leading, spacing: 4) {
-                    TextField(L10n.pick("OpenAlex search terms", "OpenAlex 检索词"), text: $query)
-                        .textFieldStyle(.roundedBorder)
-                    Text(L10n.pick("Used by Fetch to pull recent papers from OpenAlex.",
-                                   "“拉取”按钮据此从 OpenAlex 获取近期文献。"))
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 14) {
+                    identityCard
+                    fetchCard
+                    appearanceCard
                 }
+                .padding(18)
             }
 
-            field(L10n.pick("Keywords", "关键词")) {
-                VStack(alignment: .leading, spacing: 4) {
-                    TextField(L10n.pick("comma, separated, keywords", "逗号, 分隔, 关键词"), text: $keywordsText)
-                        .textFieldStyle(.roundedBorder)
-                    Text(L10n.pick("Fetched papers must match at least one keyword.",
-                                   "拉取的文献需至少匹配一个关键词。"))
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
+            Divider().opacity(0.7)
+            HStack {
+                Spacer()
+                Button(L10n.t(.cancel), action: onCancel)
+                Button(L10n.t(.save)) { save() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmedName.isEmpty)
             }
+            .controlSize(.small)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+        }
+        .background(FacetTheme.canvas)
+        .frame(width: 500, height: 650)
+    }
 
-            colorPicker
-            iconPicker
+    private var identityCard: some View {
+        ProjectEditorCard(title: L10n.pick("Identity", "基本信息"), systemImage: "books.vertical") {
+            ProjectEditorTextField(title: L10n.pick("Name", "名称"), text: $name,
+                                   placeholder: L10n.pick("Library name", "文献库名称"))
+            ProjectEditorHelp(L10n.pick("Papers in this library are grouped under this name.",
+                                        "该文献库下的文献以此名称归类。"))
         }
     }
 
-    private var preview: some View {
-        HStack(spacing: 9) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(tint.opacity(0.14))
-                Image(systemName: selectedIcon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(tint)
-            }
-            .frame(width: 30, height: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(trimmedName.isEmpty ? L10n.pick("New Library", "新建文献库") : trimmedName)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(trimmedName.isEmpty ? .secondary : .primary)
-                Text(L10n.pick("0 papers", "0 篇文献"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-    }
-
-    private func field<Content: View>(_ label: String, required: Bool = false,
-                                      @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 3) {
-                Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                if required { Text("*").font(.caption.weight(.bold)).foregroundStyle(.red) }
-            }
-            content()
+    private var fetchCard: some View {
+        ProjectEditorCard(title: L10n.pick("Fetching", "拉取"), systemImage: "magnifyingglass") {
+            ProjectEditorTextField(title: L10n.pick("Search Query", "检索式"), text: $query,
+                                   placeholder: L10n.pick("OpenAlex search terms", "OpenAlex 检索词"))
+            ProjectEditorHelp(L10n.pick("Used by Fetch to pull recent papers from OpenAlex.",
+                                        "“拉取”按钮据此从 OpenAlex 获取近期文献。"))
+            ProjectEditorTextField(title: L10n.pick("Keywords", "关键词"), text: $keywordsText,
+                                   placeholder: L10n.pick("comma, separated, keywords", "逗号, 分隔, 关键词"))
+            ProjectEditorHelp(L10n.pick("Fetched papers must match at least one keyword.",
+                                        "拉取的文献需至少匹配一个关键词。"))
         }
     }
 
-    private var colorPicker: some View {
-        field(L10n.pick("Color", "颜色")) {
-            LazyVGrid(columns: Array(repeating: .init(.fixed(26)), count: 8), spacing: 8) {
-                ForEach(LabelColor.allCases, id: \.self) { labelColor in
+    private var appearanceCard: some View {
+        ProjectEditorCard(title: L10n.pick("Appearance", "外观"), systemImage: "paintpalette") {
+            VStack(alignment: .leading, spacing: 12) {
+                colorRow
+                iconGrid
+            }
+        }
+    }
+
+    private var colorRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.pick("Color", "颜色"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ForEach(LabelColor.allCases, id: \.self) { option in
                     Button {
-                        selectedColor = labelColor.rawValue
+                        colorName = option.rawValue
                     } label: {
-                        Circle()
-                            .fill(labelColor.color)
-                            .frame(width: 20, height: 20)
-                            .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
-                            .overlay {
-                                if selectedColor == labelColor.rawValue {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundStyle(.white)
-                                }
+                        ZStack {
+                            Circle().fill(option.color)
+                            if colorName == option.rawValue {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
                             }
+                        }
+                        .frame(width: 22, height: 22)
+                        .overlay(
+                            Circle().stroke(Color.primary.opacity(colorName == option.rawValue ? 0.18 : 0.08), lineWidth: 1)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -159,24 +130,28 @@ struct TopicEditorSheet: View {
         }
     }
 
-    private var iconPicker: some View {
-        field(L10n.pick("Icon", "图标")) {
-            LazyVGrid(columns: Array(repeating: .init(.fixed(30)), count: 8), spacing: 8) {
+    private var iconGrid: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.pick("Icon", "图标"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(30), spacing: 7), count: 8),
+                      alignment: .leading, spacing: 7) {
                 ForEach(SidebarGlyph.choices, id: \.symbol) { choice in
                     Button {
-                        selectedIcon = choice.symbol
+                        iconName = choice.symbol
                     } label: {
                         Image(systemName: choice.symbol)
-                            .font(.system(size: 14))
-                            .foregroundStyle(selectedIcon == choice.symbol ? tint : .primary)
-                            .frame(width: 28, height: 28)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(iconName == choice.symbol ? tint : .secondary)
+                            .frame(width: 30, height: 26)
                             .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(selectedIcon == choice.symbol ? tint.opacity(0.14) : Color.secondary.opacity(0.06))
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(iconName == choice.symbol ? tint.opacity(0.14) : FacetTheme.panel.opacity(0.58))
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(selectedIcon == choice.symbol ? tint.opacity(0.5) : Color.clear, lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(iconName == choice.symbol ? tint.opacity(0.34) : FacetTheme.hairline, lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -195,8 +170,8 @@ struct TopicEditorSheet: View {
             name: trimmedName,
             query: query.trimmingCharacters(in: .whitespacesAndNewlines),
             keywords: keywords,
-            color: selectedColor,
-            icon: selectedIcon
+            color: colorName,
+            icon: iconName
         )
         onSave(topic)
     }

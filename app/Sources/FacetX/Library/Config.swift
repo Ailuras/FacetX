@@ -168,15 +168,16 @@ class ConfigManager {
         cfg.scoring.max_citation_points = metadata.maxCitationPoints
 
         cfg.recommendation = RecommendationConfig(
-            daily_count: 3,
-            quality_slots: 1,
-            high_score_threshold: 5,
-            recent_days: 30
+            daily_count: s.dailyCount,
+            quality_slots: s.qualitySlots,
+            high_score_threshold: s.highScoreThreshold,
+            recent_days: s.recentDays
         )
         cfg.openalex.mailto = s.openAlexMailto
         cfg.openalex.per_page = s.perPage
         cfg.openalex.default_days = s.defaultDays
         cfg.openalex.default_max_results = s.defaultMaxResults
+        cfg.openalex.topic_filter = s.topicFilter
         cfg.translate.provider = s.apiProvider
         cfg.translate.enabled = s.translateEnabled
         if !s.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

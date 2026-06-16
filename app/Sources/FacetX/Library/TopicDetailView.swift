@@ -173,7 +173,7 @@ struct TopicDetailView: View {
         if visibleCount == 0 {
             emptyState
         } else {
-            List(selection: listSelection) {
+            List {
                 if !recommendedPapers.isEmpty {
                     paperSection(
                         title: L10n.pick("Daily Recommendations", "每日推荐"),
@@ -196,19 +196,6 @@ struct TopicDetailView: View {
         }
     }
 
-    private var listSelection: Binding<Set<String>> {
-        Binding(
-            get: { selectedPaper.map { Set([$0.id]) } ?? [] },
-            set: { ids in
-                if let id = ids.first {
-                    withAnimation(detailPaneAnimation) {
-                        selectedPaper = papersForTopic.first { $0.id == id }
-                    }
-                }
-            }
-        )
-    }
-
     @ViewBuilder
     private func paperSection(title: String, systemImage: String, color: Color,
                               papers: [Paper], showReason: Bool) -> some View {
@@ -221,7 +208,6 @@ struct TopicDetailView: View {
             ForEach(papers) { paper in
                 PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
                          metadata: metadata, showReason: showReason)
-                    .tag(paper.id)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
