@@ -27,7 +27,8 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
     private let accessory: Accessory
     private let content: Content
 
-    @AppStorage("facetSidebarPaneWidth") private var width: Double = Double(FacetSidebarStyle.width)
+    @AppStorage("facetSidebarPaneWidth") private var storedWidth: Double = Double(FacetSidebarStyle.width)
+    @State private var dragWidth: Double?
     @State private var dragStartWidth: Double?
 
     init(
@@ -78,11 +79,16 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
     }
 
     private var clampedWidth: CGFloat {
-        min(max(CGFloat(width), FacetSidebarStyle.minWidth), FacetSidebarStyle.maxWidth)
+        let raw = dragWidth ?? storedWidth
+        return min(max(CGFloat(raw), FacetSidebarStyle.minWidth), FacetSidebarStyle.maxWidth)
     }
 
     /// A thin draggable strip on the pane's leading edge. Dragging left widens
     /// the pane (it lives on the trailing side), the width persists per app.
+    ///
+    /// The drag is measured in the *global* coordinate space: a local space
+    /// would move with the handle as the pane resizes, feeding the translation
+    /// back into itself and producing severe jitter.
     private var resizeHandle: some View {
         Rectangle()
             .fill(Color.clear)
@@ -92,16 +98,20 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
                 if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
             }
             .gesture(
-                DragGesture(minimumDistance: 1)
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
-                        let base = dragStartWidth ?? Double(clampedWidth)
+                        let base = dragStartWidth ?? storedWidth
                         if dragStartWidth == nil { dragStartWidth = base }
                         let proposed = base - Double(value.translation.width)
-                        width = min(max(proposed,
-                                        Double(FacetSidebarStyle.minWidth)),
-                                    Double(FacetSidebarStyle.maxWidth))
+                        dragWidth = min(max(proposed,
+                                            Double(FacetSidebarStyle.minWidth)),
+                                        Double(FacetSidebarStyle.maxWidth))
                     }
-                    .onEnded { _ in dragStartWidth = nil }
+                    .onEnded { _ in
+                        if let dragWidth { storedWidth = dragWidth }
+                        dragWidth = nil
+                        dragStartWidth = nil
+                    }
             )
     }
 }

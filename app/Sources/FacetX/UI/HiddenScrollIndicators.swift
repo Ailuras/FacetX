@@ -39,16 +39,47 @@ struct HiddenScrollIndicators: NSViewRepresentable {
 struct ThinScrollIndicators: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        DispatchQueue.main.async { Self.apply(from: view) }
+        Self.schedule(for: view)
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { Self.apply(from: nsView) }
+        Self.schedule(for: nsView)
     }
 
-    private static func apply(from view: NSView) {
-        guard let scrollView = view.enclosingScrollView else { return }
+    /// A `List` is backed by an `NSScrollView` that is *not* the background
+    /// marker's `enclosingScrollView`, and it may not exist on the first layout
+    /// pass — so search nearby ancestors' subtrees and retry a few times.
+    private static func schedule(for view: NSView, attempt: Int = 0) {
+        DispatchQueue.main.async {
+            if apply(near: view) || attempt >= 6 { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                schedule(for: view, attempt: attempt + 1)
+            }
+        }
+    }
+
+    @discardableResult
+    private static func apply(near view: NSView) -> Bool {
+        if let scrollView = view.enclosingScrollView {
+            slim(scrollView)
+            return true
+        }
+        var node = view.superview
+        var hops = 0
+        while let current = node, hops < 8 {
+            let scrollViews = current.descendantScrollViews()
+            if !scrollViews.isEmpty {
+                scrollViews.forEach(slim)
+                return true
+            }
+            node = current.superview
+            hops += 1
+        }
+        return false
+    }
+
+    private static func slim(_ scrollView: NSScrollView) {
         scrollView.scrollerStyle = .overlay
         scrollView.verticalScroller?.controlSize = .small
         scrollView.horizontalScroller?.controlSize = .small
