@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct LiteratureSettingsTab: View {
@@ -12,6 +13,7 @@ struct LiteratureSettingsTab: View {
                      warning: nil) {
             fetchCard
             recommendationCard
+            translationCard
             VenueRulesCard(metadata: metadata)
             TierRulesCard(metadata: metadata)
             CitationRulesCard(metadata: metadata)
@@ -33,6 +35,22 @@ struct LiteratureSettingsTab: View {
             .help(L10n.pick("Re-score every paper using the current rules.",
                             "用当前规则重新为所有文献评分。"))
 
+            Button {
+                exportRules()
+            } label: {
+                Label(L10n.pick("Export", "导出"), systemImage: "square.and.arrow.up")
+            }
+            .help(L10n.pick("Export venues, tiers and scoring rules to a file.",
+                            "将会议、等级与评分规则导出到文件。"))
+
+            Button {
+                importRules()
+            } label: {
+                Label(L10n.pick("Import", "导入"), systemImage: "square.and.arrow.down")
+            }
+            .help(L10n.pick("Replace the current rules with a configuration file.",
+                            "用配置文件替换当前规则。"))
+
             Spacer()
 
             Button(role: .destructive) {
@@ -43,6 +61,34 @@ struct LiteratureSettingsTab: View {
             }
         }
         .controlSize(.small)
+    }
+
+    private func exportRules() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "facetx-literature-rules.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try metadata.exportMetadata().write(to: url)
+            toast.show(L10n.pick("Rules exported", "规则已导出"), type: .success)
+        } catch {
+            toast.show(L10n.pick("Export failed: \(error.localizedDescription)",
+                                 "导出失败：\(error.localizedDescription)"), type: .error)
+        }
+    }
+
+    private func importRules() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try metadata.importMetadata(from: Data(contentsOf: url))
+            toast.show(L10n.pick("Rules imported", "规则已导入"), type: .success)
+        } catch {
+            toast.show(L10n.pick("Import failed: \(error.localizedDescription)",
+                                 "导入失败：\(error.localizedDescription)"), type: .error)
+        }
     }
 
     // MARK: - Fetch
@@ -85,6 +131,25 @@ struct LiteratureSettingsTab: View {
             SettingsDivider()
             stepperRow(L10n.pick("Recent Window (days)", "近期窗口（天）"), systemImage: "calendar.badge.clock",
                        value: $settings.recentDays, range: 1...365)
+        }
+    }
+
+    // MARK: - Translation
+
+    private var translationCard: some View {
+        SettingsCard(title: L10n.pick("Translation", "翻译"), systemImage: "character.book.closed",
+                     subtitle: L10n.pick("Translate paper abstracts. Provider and API key live in Integrations → LLM API.",
+                                         "翻译文献摘要。服务商与密钥位于「集成 → 大模型 API」。")) {
+            SettingsRow(title: L10n.pick("Enable Translation", "启用翻译"), systemImage: "globe") {
+                Toggle("", isOn: $settings.translateEnabled)
+                    .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+            }
+            SettingsDivider()
+            SettingsRow(title: L10n.pick("Target Language", "目标语言"), systemImage: "text.bubble") {
+                TextField("", text: $settings.targetLanguage)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: SettingsUI.controlWidth)
+            }
         }
     }
 

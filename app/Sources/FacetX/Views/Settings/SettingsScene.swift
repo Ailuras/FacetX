@@ -8,10 +8,8 @@ struct SettingsRootView: View {
         TabView {
             GeneralSettingsTab()
                 .tabItem { Label(L10n.t(.tabGeneral), systemImage: "gearshape") }
-            DefaultsSettingsTab()
-                .tabItem { Label(L10n.t(.tabDefaults), systemImage: "tray.and.arrow.down") }
-            SourcesSettingsTab()
-                .tabItem { Label(L10n.t(.tabSources), systemImage: "square.stack.3d.up") }
+            ProjectSettingsTab()
+                .tabItem { Label(L10n.pick("Project", "项目"), systemImage: "folder") }
             LiteratureSettingsTab()
                 .tabItem { Label(L10n.pick("Literature", "文献"), systemImage: "books.vertical") }
             IntegrationsSettingsTab()

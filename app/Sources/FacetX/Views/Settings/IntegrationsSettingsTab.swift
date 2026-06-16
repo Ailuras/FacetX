@@ -22,7 +22,7 @@ struct IntegrationsSettingsTab: View {
                      systemImage: "curlybraces",
                      warning: persistenceWarning) {
             githubCard
-            translationCard
+            apiCard
             openAlexCard
         }
         .onAppear {
@@ -77,17 +77,12 @@ struct IntegrationsSettingsTab: View {
         }
     }
 
-    // MARK: - Translation API
+    // MARK: - LLM API
 
-    private var translationCard: some View {
-        SettingsCard(title: L10n.pick("Translation API", "翻译 API"), systemImage: "character.book.closed",
-                     subtitle: L10n.pick("LLM provider used to translate paper abstracts.",
-                                         "用于翻译文献摘要的大模型服务。")) {
-            SettingsRow(title: L10n.pick("Enable Translation", "启用翻译"), systemImage: "globe") {
-                Toggle("", isOn: $litSettings.translateEnabled)
-                    .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-            }
-            SettingsDivider()
+    private var apiCard: some View {
+        SettingsCard(title: L10n.pick("LLM API", "大模型 API"), systemImage: "character.book.closed",
+                     subtitle: L10n.pick("Provider and credentials shared by features such as translation.",
+                                         "供翻译等功能共用的服务商与凭据。")) {
             SettingsRow(title: L10n.pick("Provider", "服务商"), systemImage: "server.rack") {
                 Picker("", selection: $litSettings.apiProvider) {
                     ForEach(TranslationProvider.allCases, id: \.self) { p in
@@ -101,12 +96,6 @@ struct IntegrationsSettingsTab: View {
                     availableModels = []
                     connectionMessage = nil
                 }
-            }
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("Target Language", "目标语言"), systemImage: "text.bubble") {
-                TextField("", text: $litSettings.targetLanguage)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: SettingsUI.controlWidth)
             }
             SettingsDivider()
             SettingsRow(title: L10n.pick("Base URL", "接口地址"), systemImage: "link") {
