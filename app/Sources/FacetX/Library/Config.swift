@@ -18,6 +18,9 @@ struct ScoringConfig {
     var tiers: [String: ScoringTier]
     var citation_breakpoints: [CitationBreakpoint]
     var max_citation_points: Int
+    /// Tier assigned to papers whose venue matches no rule (the "Others" fallback).
+    /// 0 means unranked (no tier points).
+    var others_tier: Int = 0
 }
 
 struct RecommendationConfig {
@@ -153,9 +156,14 @@ class ConfigManager {
 
         let metadata = MetadataStore.shared
 
-        if !metadata.venues.isEmpty {
+        // Build tier points for every rank used by a venue rule, the configured
+        // "Others" fallback, plus any rank defined in the Tier Points table.
+        let ranks = Set(metadata.venues.map(\.tier))
+            .union(metadata.tiers.map(\.rank))
+            .union([metadata.othersTier])
+        if !ranks.isEmpty {
             var tiers: [String: ScoringTier] = [:]
-            for tier in Set(metadata.venues.map(\.tier)) {
+            for tier in ranks where tier != 0 {
                 let points = metadata.tiers.first(where: { $0.rank == tier })?.points
                     ?? MetadataStore.tierPoints[tier]
                     ?? max(1, 12 - 2 * tier)
@@ -166,6 +174,7 @@ class ConfigManager {
 
         cfg.scoring.citation_breakpoints = metadata.citationBreakpoints
         cfg.scoring.max_citation_points = metadata.maxCitationPoints
+        cfg.scoring.others_tier = metadata.othersTier
 
         cfg.recommendation = RecommendationConfig(
             daily_count: s.dailyCount,

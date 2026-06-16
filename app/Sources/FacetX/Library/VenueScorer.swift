@@ -51,22 +51,27 @@ class VenueScorer {
 
     func evaluate(venue: String, citations: Int) -> (tier: Int, abbr: String, score: Double) {
         let citation = citationScore(citations: citations)
-        guard !venue.isEmpty else { return (0, "Others", citation) }
+        let othersTier = config.scoring.others_tier
+        guard !venue.isEmpty else {
+            return (othersTier, "Others", tierPoints(othersTier) + citation)
+        }
 
         let venueLower = venue.lowercased()
         let match = matchVenue(venueLower)
         let abbr = match?.abbr ?? "Others"
 
-        var tier = match?.tier ?? 0
-        if tier != 0, isBlacklisted(venueLower) {
-            tier = 0
+        // Unmatched venues take the configurable "Others" tier; a matched venue on
+        // the blacklist is demoted back to that same fallback.
+        var tier = match?.tier ?? othersTier
+        if match != nil, isBlacklisted(venueLower) {
+            tier = othersTier
         }
 
-        var base = 0.0
-        if let tierConfig = config.scoring.tiers[String(tier)] {
-            base = Double(tierConfig.points)
-        }
-        return (tier, abbr, base + citation)
+        return (tier, abbr, tierPoints(tier) + citation)
+    }
+
+    private func tierPoints(_ tier: Int) -> Double {
+        Double(config.scoring.tiers[String(tier)]?.points ?? 0)
     }
 
     private func isBlacklisted(_ venueLower: String) -> Bool {

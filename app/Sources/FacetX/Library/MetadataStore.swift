@@ -32,6 +32,9 @@ final class MetadataStore {
     var venues: [VenuePref] = [] { didSet { persistScoringRule(saveVenues) } }
     var citationBreakpoints: [CitationBreakpoint] = [] { didSet { persistScoringRule(saveScoring) } }
     var maxCitationPoints: Int = 0 { didSet { persistScoringRule(saveScoring) } }
+    /// Tier given to papers whose venue matches no rule (the fixed "Others"
+    /// fallback row). 0 = unranked.
+    var othersTier: Int = 0 { didSet { persistScoringRule(saveScoring) } }
     var metadataVersion: Int = 0
     var rulesDirty = false
 
@@ -215,6 +218,9 @@ final class MetadataStore {
             print("Error creating metadata tables: \(error)")
             sqlite3_free(errorMsg)
         }
+
+        // Added after the initial release; ignore the error if it already exists.
+        sqlite3_exec(db, "ALTER TABLE metadata_scoring ADD COLUMN others_tier INTEGER NOT NULL DEFAULT 0", nil, nil, nil)
     }
 
     private func seedDefaultsIfNeeded() {
@@ -359,13 +365,14 @@ final class MetadataStore {
         let bpJson = String(data: bpData, encoding: .utf8) ?? "[]"
 
         let sql = """
-        INSERT INTO metadata_scoring (id, citation_breakpoints_json, max_citation_points)
-        VALUES (1, ?, ?)
+        INSERT INTO metadata_scoring (id, citation_breakpoints_json, max_citation_points, others_tier)
+        VALUES (1, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             citation_breakpoints_json = excluded.citation_breakpoints_json,
-            max_citation_points = excluded.max_citation_points
+            max_citation_points = excluded.max_citation_points,
+            others_tier = excluded.others_tier
         """
-        execute(sql, bindings: [bpJson, maxCitationPoints])
+        execute(sql, bindings: [bpJson, maxCitationPoints, othersTier])
     }
 
     private func replace(table: String, body: () -> Void) {
@@ -492,7 +499,7 @@ final class MetadataStore {
     }
 
     private func loadScoring() {
-        let sql = "SELECT citation_breakpoints_json, max_citation_points FROM metadata_scoring WHERE id = 1"
+        let sql = "SELECT citation_breakpoints_json, max_citation_points, others_tier FROM metadata_scoring WHERE id = 1"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
         defer { sqlite3_finalize(stmt) }
@@ -502,6 +509,7 @@ final class MetadataStore {
             let bpData = bpJson.data(using: .utf8) ?? Data("[]".utf8)
             citationBreakpoints = (try? JSONDecoder().decode([CitationBreakpoint].self, from: bpData)) ?? []
             maxCitationPoints = Int(sqlite3_column_int(stmt, 1))
+            othersTier = Int(sqlite3_column_int(stmt, 2))
         }
     }
 
@@ -577,15 +585,10 @@ final class MetadataStore {
 
     // MARK: - Import / Export / Preset
 
+    /// Scoring rules only (venues, tiers, fields, citation/others scoring). Topics
+    /// are the user's literature libraries — deliberately excluded so importing a
+    /// rules file never wipes their libraries.
     struct MetadataExport: Codable {
-        struct TopicExport: Codable {
-            var name: String
-            var query: String
-            var keywords: [String]
-            var color: String?
-            var icon: String?
-            var archived: Bool
-        }
         struct VenueExport: Codable {
             var abbr: String
             var phrase: String
@@ -606,9 +609,9 @@ final class MetadataStore {
         struct ScoringExport: Codable {
             var citation_breakpoints: [CitationBreakpoint]
             var max_citation_points: Int
+            var others_tier: Int?
         }
 
-        var topics: [TopicExport]
         var venues: [VenueExport]
         var tiers: [TierExport]
         var fields: [FieldExport]
@@ -617,14 +620,13 @@ final class MetadataStore {
 
     func exportMetadata() throws -> Data {
         let export = MetadataExport(
-            topics: topics.map { .init(name: $0.name, query: $0.query, keywords: $0.keywords, color: $0.color, icon: $0.icon, archived: $0.archived) },
             venues: venues.map { .init(abbr: $0.abbr, phrase: $0.phrase, tier: $0.tier, field: Self.normalizedField($0.field), exact: $0.exact) },
             tiers: tiers.map { .init(rank: $0.rank, name: $0.name, points: $0.points, color: $0.color) },
             fields: fields.compactMap { field in
                 guard let name = Self.normalizedFieldName(field.name) else { return nil }
                 return .init(name: name, color: field.color)
             },
-            scoring: .init(citation_breakpoints: citationBreakpoints, max_citation_points: maxCitationPoints)
+            scoring: .init(citation_breakpoints: citationBreakpoints, max_citation_points: maxCitationPoints, others_tier: othersTier)
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -636,9 +638,6 @@ final class MetadataStore {
 
         isLoading = true
 
-        topics = decoded.topics.map {
-            TrackPref(name: $0.name, query: $0.query, keywords: $0.keywords, color: $0.color, icon: $0.icon, archived: $0.archived)
-        }
         venues = decoded.venues.map {
             VenuePref(abbr: $0.abbr, phrase: $0.phrase, tier: $0.tier, field: Self.normalizedField($0.field), exact: $0.exact)
         }
@@ -651,10 +650,10 @@ final class MetadataStore {
         }
         citationBreakpoints = decoded.scoring.citation_breakpoints
         maxCitationPoints = decoded.scoring.max_citation_points
+        othersTier = decoded.scoring.others_tier ?? 0
 
         isLoading = false
 
-        saveTopics()
         saveFields()
         saveTiers()
         saveVenues()
@@ -671,6 +670,7 @@ final class MetadataStore {
         tiers = makeTiers(from: venues)
         citationBreakpoints = Self.defaultCitationBreakpoints
         maxCitationPoints = Self.defaultMaxCitationPoints
+        othersTier = 0
         isLoading = false
 
         saveTopics()

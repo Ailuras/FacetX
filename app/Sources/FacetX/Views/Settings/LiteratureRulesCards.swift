@@ -26,6 +26,7 @@ struct VenueRulesCard: View {
                         deleteButton { metadata.venues.removeAll { $0.id == venue.id } }
                     }
                 }
+                othersRow
                 addButton(L10n.pick("Add Venue", "添加会议")) {
                     metadata.venues.append(VenuePref(abbr: "", phrase: "", tier: 3, field: nil))
                 }
@@ -41,6 +42,36 @@ struct VenueRulesCard: View {
             ruleColumn(L10n.pick("Tier", "等级"), width: 64)
             Spacer().frame(width: 20)
         }
+    }
+
+    /// The fixed fallback used when no venue rule matches. It can't be deleted and
+    /// has no field or phrase — only its tier is configurable.
+    private var othersRow: some View {
+        HStack(spacing: 8) {
+            Text("Others")
+                .font(SettingsUI.rowFont)
+                .frame(width: 70, alignment: .leading)
+            Text("—")
+                .foregroundStyle(.tertiary)
+                .frame(width: 96, alignment: .leading)
+            Text(L10n.pick("Fallback for unmatched venues", "未匹配会议的兜底"))
+                .font(SettingsUI.secondaryFont)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Picker("", selection: $metadata.othersTier) {
+                Text(L10n.pick("None", "无")).tag(0)
+                ForEach(1...5, id: \.self) { Text("T\($0)").tag($0) }
+            }
+            .labelsHidden().frame(width: 64)
+            Image(systemName: "lock")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .frame(width: 20)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .background(FacetTheme.panel.opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     private func fieldBinding(for venue: Binding<VenuePref>) -> Binding<String> {
@@ -99,8 +130,8 @@ struct CitationRulesCard: View {
                                          "按区间为每次引用计分，并设置上限。")) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    ruleColumn(L10n.pick("Up to (citations)", "上限（引用数）"), width: 150)
-                    ruleColumn(L10n.pick("Points / citation", "每次引用分值"), width: 110)
+                    ruleColumn(L10n.pick("Up to (citations)", "上限（引用数）"))
+                    ruleColumn(L10n.pick("Points / citation", "每次引用分值"))
                     Spacer().frame(width: 20)
                 }
                 ForEach(metadata.citationBreakpoints.indices, id: \.self) { index in
@@ -108,13 +139,13 @@ struct CitationRulesCard: View {
                         HStack(spacing: 6) {
                             if metadata.citationBreakpoints[index].up_to != nil {
                                 TextField("", value: upToBinding(index), format: .number)
-                                    .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(width: 90)
+                                    .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                             } else {
                                 HStack(spacing: 3) {
                                     Image(systemName: "infinity")
                                     Text(L10n.pick("No cap", "无上限"))
                                 }
-                                .font(.caption).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+                                .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                             }
                             Button {
                                 metadata.citationBreakpoints[index].up_to =
@@ -125,9 +156,9 @@ struct CitationRulesCard: View {
                             }
                             .buttonStyle(.borderless).foregroundStyle(.secondary)
                         }
-                        .frame(width: 150, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         TextField("", value: pointsBinding(index), format: .number)
-                            .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(width: 110)
+                            .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                         deleteButton { metadata.citationBreakpoints.remove(at: index) }
                     }
                 }
