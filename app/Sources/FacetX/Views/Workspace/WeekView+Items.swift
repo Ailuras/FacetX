@@ -7,7 +7,7 @@ extension WeekView {
         if loading {
             ProgressView()
         } else if nonGoalItems.isEmpty && hasActiveSearch {
-            Text("No items match this search.")
+            Text(L10n.t(.noItemsSearch))
                 .font(.callout).foregroundStyle(.secondary)
         } else {
             List {
@@ -55,7 +55,7 @@ extension WeekView {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(group.isToday ? Color.accentColor : .secondary)
             if group.isToday {
-                Text("Today")
+                Text(L10n.t(.today))
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 5)
@@ -75,7 +75,7 @@ extension WeekView {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("Add item for \(group.label)")
+            .help(L10n.language == "zh" ? "为 \(group.label) 添加条目" : "Add item for \(group.label)")
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
@@ -89,7 +89,7 @@ extension WeekView {
         let cal = Calendar.current
         let isDropTarget = dropTargetDate.map { cal.isDate($0, inSameDayAs: group.date) } ?? false
 
-        return Text("No items")
+        return Text(L10n.t(.noItems))
             .font(.caption)
             .foregroundStyle(.tertiary)
             .padding(.vertical, 8)

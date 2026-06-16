@@ -83,7 +83,7 @@ struct MonthView: View {
                 dayDetailView(for: day)
             } else {
                 Spacer()
-                Text("Tap a day to view its items")
+                Text(L10n.t(.tapDayHint))
                     .font(.callout)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity)
@@ -97,12 +97,12 @@ struct MonthView: View {
         .onChange(of: settings.changeToken) { Task { await reload() } }
         .onChange(of: refreshTrigger) { Task { await reload() } }
         .onChange(of: month) { _, _ in selectedDay = nil }
-        .alert("Delete item?", isPresented: .init(
+        .alert(L10n.t(.deleteItemTitle), isPresented: .init(
             get: { itemToDelete != nil },
             set: { if !$0 { itemToDelete = nil } }
         )) {
-            Button("Cancel", role: .cancel) { itemToDelete = nil }
-            Button("Delete", role: .destructive) {
+            Button(L10n.t(.cancel), role: .cancel) { itemToDelete = nil }
+            Button(L10n.t(.delete), role: .destructive) {
                 if let item = itemToDelete {
                     Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
                 }
@@ -125,10 +125,10 @@ struct MonthView: View {
     private var monthNav: some View {
         PeriodNavigationBar(
             title: month.label,
-            subtitle: "Month \(month.id)",
-            previousHelp: "Previous month",
-            nextHelp: "Next month",
-            currentHelp: "Go to current month",
+            subtitle: "\(L10n.t(.monthUnit)) \(month.id)",
+            previousHelp: L10n.t(.prevMonth),
+            nextHelp: L10n.t(.nextMonth),
+            currentHelp: L10n.t(.currentMonth),
             onPrevious: { month = month.shifted(by: -1) },
             onNext: { month = month.shifted(by: 1) },
             onCurrent: { month = MonthYear.containing(Date()) }
@@ -171,9 +171,15 @@ struct MonthView: View {
     }
 
     // ── Weekday header ───────────────────────────────────────────────────────
+    private var weekdaySymbols: [String] {
+        L10n.language == "zh"
+            ? ["一", "二", "三", "四", "五", "六", "日"]
+            : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    }
+
     private var weekdayHeader: some View {
         HStack(spacing: 0) {
-            ForEach(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], id: \.self) { day in
+            ForEach(weekdaySymbols, id: \.self) { day in
                 Text(day)
                     .font(.caption2)
                     .fontWeight(.medium)
@@ -255,7 +261,7 @@ struct MonthView: View {
                         .background(Color.accentColor.opacity(0.10))
                         .clipShape(Capsule())
                         .padding(.leading, 2)
-                        .help("\(hiddenCount) more items on this day")
+                        .help(L10n.language == "zh" ? "本日还有 \(hiddenCount) 项" : "\(hiddenCount) more items on this day")
                 }
             }
             .padding(.horizontal, 4)
@@ -347,7 +353,7 @@ struct MonthView: View {
                     Image(systemName: "calendar.day.timeline.left")
                         .font(.system(size: 18))
                         .foregroundStyle(.tertiary)
-                    Text("No items for this day")
+                    Text(L10n.t(.noItemsDay))
                         .font(.callout)
                         .foregroundStyle(.tertiary)
                     Spacer()
@@ -443,12 +449,14 @@ struct MonthView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.plain)
-            .help("Add item for this day")
+            .help(L10n.t(.addItemForDay))
         }
     }
 
     private func dayHeaderLabel(for date: Date?, day: Int) -> String {
-        guard let date = date else { return "Day \(day)" }
+        guard let date = date else {
+            return L10n.language == "zh" ? "第 \(day) 天" : "Day \(day)"
+        }
         let df = DateFormatter()
         df.dateFormat = "EEEE, MMMM d"
         return df.string(from: date)

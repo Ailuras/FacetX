@@ -121,12 +121,12 @@ struct WeekView: View {
                 break
             }
         }
-        .alert("Delete item?", isPresented: .init(
+        .alert(L10n.t(.deleteItemTitle), isPresented: .init(
             get: { itemToDelete != nil },
             set: { if !$0 { itemToDelete = nil } }
         )) {
-            Button("Cancel", role: .cancel) { itemToDelete = nil }
-            Button("Delete", role: .destructive) {
+            Button(L10n.t(.cancel), role: .cancel) { itemToDelete = nil }
+            Button(L10n.t(.delete), role: .destructive) {
                 if let item = itemToDelete {
                     Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
                 }

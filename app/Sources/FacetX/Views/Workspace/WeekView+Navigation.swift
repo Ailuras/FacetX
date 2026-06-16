@@ -4,18 +4,18 @@ import SwiftUI
 extension WeekView {
     var weekNav: some View {
         PeriodNavigationBar(
-            title: "Week \(week.week)",
+            title: L10n.language == "zh" ? "第 \(week.week) 周" : "Week \(week.week)",
             subtitle: weekRangeLabel,
-            previousHelp: "Previous week",
-            nextHelp: "Next week",
-            currentHelp: "Go to current week",
+            previousHelp: L10n.t(.prevWeek),
+            nextHelp: L10n.t(.nextWeek),
+            currentHelp: L10n.t(.currentWeek),
             onPrevious: { week = week.shifted(by: -1) },
             onNext: { week = week.shifted(by: 1) },
             onCurrent: { week = ISOWeek.containing(Date()) }
         ) {
             if hasActiveSearch {
                 FacetInfoBadge(
-                    text: "\(weekItems.count) results",
+                    text: "\(weekItems.count) \(L10n.t(.resultsUnit))",
                     systemImage: "magnifyingglass",
                     tint: .secondary,
                     fill: Color.accentColor.opacity(0.08)
@@ -23,7 +23,7 @@ extension WeekView {
             }
             if !showCompleted && hiddenReminderCount > 0 {
                 FacetInfoBadge(
-                    text: "\(hiddenReminderCount) hidden",
+                    text: "\(hiddenReminderCount) \(L10n.t(.hiddenUnit))",
                     systemImage: "eye.slash",
                     tint: .secondary,
                     fill: Color.orange.opacity(0.08)
@@ -34,7 +34,7 @@ extension WeekView {
             }
             if itemFilter.isActive {
                 FacetInfoBadge(
-                    text: "\(weekItems.count) shown",
+                    text: "\(weekItems.count) \(L10n.t(.shownUnit))",
                     systemImage: "line.3.horizontal.decrease.circle",
                     tint: .secondary,
                     fill: Color.accentColor.opacity(0.08)

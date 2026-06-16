@@ -44,6 +44,18 @@ enum L10n {
         case hideTodayPanel, showTodayTimeline
         case deleteItemTitle, paneReminder, paneSchedule
         case searchCommits, searchItems
+        // Week / Month / Today views
+        case today, noItems, noItemsSearch, noItemsDay, noTimedItemsToday
+        case todayDragHint, tapDayHint, closeTodayPanel
+        case prevWeek, nextWeek, currentWeek
+        case prevMonth, nextMonth, currentMonth, monthUnit
+        case addItemForDay
+        case resultsUnit, hiddenUnit, shownUnit
+        // Week goal
+        case goalPlaceholderTitle, goalPlaceholderBody
+        case save, edit, editWeeklyGoal, thisWeeksFocus
+        case setWeekFocus, setWeekFocusHint, setWeekGoalHelp
+        case goalDeleteError, goalSaveError
 
         var pair: (en: String, zh: String) {
             switch self {
@@ -109,6 +121,42 @@ enum L10n {
             case .paneSchedule:       return ("Schedule", "日程")
             case .searchCommits:      return ("Search commits…", "搜索提交…")
             case .searchItems:        return ("Search items…", "搜索条目…")
+
+            case .today:              return ("Today", "今天")
+            case .noItems:            return ("No items", "暂无条目")
+            case .noItemsSearch:      return ("No items match this search.", "没有符合搜索的条目。")
+            case .noItemsDay:         return ("No items for this day", "这一天暂无条目")
+            case .noTimedItemsToday:  return ("No timed items today", "今天暂无定时条目")
+            case .todayDragHint:      return ("Drag an item from the list onto a time slot to schedule it.",
+                                              "从列表拖动条目到时间槽即可安排。")
+            case .tapDayHint:         return ("Tap a day to view its items", "点按某天查看其条目")
+            case .closeTodayPanel:    return ("Close Today panel", "关闭 Today 面板")
+            case .prevWeek:           return ("Previous week", "上一周")
+            case .nextWeek:           return ("Next week", "下一周")
+            case .currentWeek:        return ("Go to current week", "回到本周")
+            case .prevMonth:          return ("Previous month", "上个月")
+            case .nextMonth:          return ("Next month", "下个月")
+            case .currentMonth:       return ("Go to current month", "回到本月")
+            case .monthUnit:          return ("Month", "月份")
+            case .addItemForDay:      return ("Add item for this day", "为这一天添加条目")
+            case .resultsUnit:        return ("results", "结果")
+            case .hiddenUnit:         return ("hidden", "已隐藏")
+            case .shownUnit:          return ("shown", "显示")
+
+            case .goalPlaceholderTitle: return ("This week I'm focused on...", "本周我专注于…")
+            case .goalPlaceholderBody:  return ("Details and constraints...", "细节与约束…")
+            case .save:               return ("Save", "保存")
+            case .edit:               return ("Edit", "编辑")
+            case .editWeeklyGoal:     return ("Edit weekly goal", "编辑周目标")
+            case .thisWeeksFocus:     return ("This Week's Focus", "本周重点")
+            case .setWeekFocus:       return ("Set this week's focus", "设定本周重点")
+            case .setWeekFocusHint:   return ("Pick one outcome to keep this project's week anchored.",
+                                              "选择一个目标,让本项目的这一周保持聚焦。")
+            case .setWeekGoalHelp:    return ("Set this week's project goal", "设定本周项目目标")
+            case .goalDeleteError:    return ("Could not delete the schedule item. Check Calendar access.",
+                                              "无法删除日程项,请检查日历访问权限。")
+            case .goalSaveError:      return ("Could not save the schedule item. Check Calendar access and enabled calendars.",
+                                              "无法保存日程项,请检查日历访问权限及已启用的日历。")
             }
         }
     }

@@ -5,8 +5,8 @@ extension WeekView {
     @ViewBuilder var goalSection: some View {
         if editingGoal {
             VStack(alignment: .leading, spacing: 10) {
-                goalEyebrow("This Week's Focus", systemImage: "target")
-                TextField("This week I'm focused on...", text: $goalTitle)
+                goalEyebrow(L10n.t(.thisWeeksFocus), systemImage: "target")
+                TextField(L10n.t(.goalPlaceholderTitle), text: $goalTitle)
                     .textFieldStyle(.plain)
                     .font(.system(size: 18, weight: .semibold))
                     .padding(10)
@@ -16,7 +16,7 @@ extension WeekView {
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
                             .stroke(FacetTheme.hairline, lineWidth: 1)
                     )
-                TextField("Details and constraints...", text: $goalBody, axis: .vertical)
+                TextField(L10n.t(.goalPlaceholderBody), text: $goalBody, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .lineLimit(2...4)
@@ -32,13 +32,13 @@ extension WeekView {
                 }
                 HStack {
                     Spacer()
-                    Button("Save") {
+                    Button(L10n.t(.save)) {
                         Task { await saveGoal() }
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(savingGoal)
                     if savingGoal { ProgressView().scaleEffect(0.7) }
-                    Button("Cancel") { editingGoal = false }
+                    Button(L10n.t(.cancel)) { editingGoal = false }
                         .disabled(savingGoal)
                 }
                 .controlSize(.small)
@@ -47,11 +47,11 @@ extension WeekView {
         } else if let goal {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    goalEyebrow("This Week's Focus", systemImage: "target")
+                    goalEyebrow(L10n.t(.thisWeeksFocus), systemImage: "target")
                     Spacer()
-                    Button("Edit") { startEditingGoal() }
+                    Button(L10n.t(.edit)) { startEditingGoal() }
                         .font(.caption)
-                        .help("Edit weekly goal")
+                        .help(L10n.t(.editWeeklyGoal))
                 }
                 Text(goal.title)
                     .font(.system(size: 20, weight: .bold))
@@ -76,10 +76,10 @@ extension WeekView {
                     .frame(width: 32, height: 32)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Set this week's focus")
+                        Text(L10n.t(.setWeekFocus))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.primary)
-                        Text("Pick one outcome to keep this project's week anchored.")
+                        Text(L10n.t(.setWeekFocusHint))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -90,7 +90,7 @@ extension WeekView {
                 }
             }
             .buttonStyle(.plain)
-            .help("Set this week's project goal")
+            .help(L10n.t(.setWeekGoalHelp))
             .frame(maxWidth: .infinity, alignment: .leading)
             .goalCard(accented: false)
         }
@@ -122,7 +122,7 @@ extension WeekView {
             if let eventId = goal?.eventId {
                 let deleted = await ek.deleteGoalEvent(eventId: eventId)
                 guard deleted else {
-                    goalError = "Could not delete the schedule item. Check Calendar access."
+                    goalError = L10n.t(.goalDeleteError)
                     return
                 }
             }
@@ -138,7 +138,7 @@ extension WeekView {
                 enabledCalendars: settings.effectiveCalendarNames
             )
             guard let eventId else {
-                goalError = "Could not save the schedule item. Check Calendar access and enabled calendars."
+                goalError = L10n.t(.goalSaveError)
                 return
             }
             store.setWeekGoal(

@@ -43,10 +43,10 @@ struct TodayTimelinePanel: View {
 
     var body: some View {
         FacetSidebarPane(
-            title: "Today",
+            title: L10n.t(.today),
             systemImage: "sun.max.fill",
             subtitle: todayDateLabel,
-            closeHelp: "Close Today panel",
+            closeHelp: L10n.t(.closeTodayPanel),
             onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } }
         ) {
             ScrollViewReader { proxy in
@@ -60,9 +60,9 @@ struct TodayTimelinePanel: View {
             .overlay {
                 if todayTimelineItems.isEmpty {
                     ContentUnavailableView {
-                        Label("No timed items today", systemImage: "sun.max")
+                        Label(L10n.t(.noTimedItemsToday), systemImage: "sun.max")
                     } description: {
-                        Text("Drag an item from the list onto a time slot to schedule it.")
+                        Text(L10n.t(.todayDragHint))
                     }
                     .allowsHitTesting(false)
                 }
