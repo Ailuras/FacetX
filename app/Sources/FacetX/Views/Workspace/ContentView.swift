@@ -8,7 +8,7 @@ struct ContentView: View {
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     @EnvironmentObject private var toast: ToastController
 
-    enum SidebarItem: Hashable { case project(Project.ID) }
+    enum SidebarItem: Hashable { case project(Project.ID); case topic(UUID) }
 
     @State private var selection: SidebarItem? = nil
     @State private var tagFilter = TagFilter()
@@ -17,6 +17,11 @@ struct ContentView: View {
     @State private var draftProject: ProjectDraft?
     @State private var editingProject: Project?
     @State private var projectToDelete: Project?
+    @State private var litStore = PaperStore.shared
+    @State private var litMeta = MetadataStore.shared
+    @State private var showTopicEditor = false
+    @State private var editingTopic: TrackPref?
+    @State private var topicToDelete: TrackPref?
 
     var body: some View {
         ZStack {
@@ -57,11 +62,45 @@ struct ContentView: View {
                                     .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 8, trailing: 10))
                             }
                         }
+                        if !litMeta.topics.filter({ !$0.archived }).isEmpty {
+                            Section(L10n.pick("Literature", "文献")) {
+                                ForEach(litMeta.topics.filter { !$0.archived }) { topic in
+                                    LiteratureSidebarRow(topic: topic, paperCount: litStore.papers.filter { p in
+                                        p.track.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.contains(topic.name)
+                                    }.count)
+                                        .tag(SidebarItem.topic(topic.id))
+                                        .contextMenu {
+                                            Button("Edit") {
+                                                editingTopic = topic
+                                            }
+                                            Button("Archive") {
+                                                litMeta.setTopicArchived(id: topic.id, true)
+                                                if case .topic(let id) = selection, id == topic.id {
+                                                    selection = nil
+                                                }
+                                            }
+                                            Divider()
+                                            Button("Delete", role: .destructive) {
+                                                topicToDelete = topic
+                                            }
+                                        }
+                                }
+                            }
+                        }
                     }
                     .listStyle(.sidebar)
                     Divider()
                     Button { startNewProject() } label: {
                         Label(L10n.t(.newProject), systemImage: "plus.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 5)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary.opacity(0.82))
+                    .padding(8)
+                    Button { showTopicEditor = true } label: {
+                        Label(L10n.pick("New Library", "新建文献库"), systemImage: "books.vertical")
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 5)
@@ -86,6 +125,12 @@ struct ContentView: View {
                                 ProjectDetailView(project: project, showTodayPanel: $showTodayPanel, tagFilter: $tagFilter)
                             } else {
                                 ContentUnavailableView(L10n.t(.projectNotFound), systemImage: "folder")
+                            }
+                        case .topic(let id):
+                            if let topic = litMeta.topics.first(where: { $0.id == id }) {
+                                TopicDetailView(topic: topic)
+                            } else {
+                                ContentUnavailableView("Topic not found", systemImage: "tag")
                             }
                         }
                     }
@@ -163,6 +208,43 @@ struct ContentView: View {
             }
             .sheet(item: $editingProject) { project in
                 EditProjectView(project: project) { editingProject = nil }
+            }
+            .sheet(isPresented: $showTopicEditor) {
+                TopicEditorSheet(
+                    onSave: { topic in
+                        litMeta.addTopic(topic)
+                        selection = .topic(topic.id)
+                        showTopicEditor = false
+                    },
+                    onCancel: { showTopicEditor = false }
+                )
+            }
+            .sheet(item: $editingTopic) { topic in
+                TopicEditorSheet(topic: topic,
+                    onSave: { updated in
+                        litMeta.updateTopic(updated)
+                        editingTopic = nil
+                    },
+                    onCancel: { editingTopic = nil }
+                )
+            }
+            .alert("Delete \"\(topicToDelete?.name ?? "")\"?", isPresented: .init(
+                get: { topicToDelete != nil },
+                set: { if !$0 { topicToDelete = nil } }
+            )) {
+                Button(L10n.t(.cancel), role: .cancel) { topicToDelete = nil }
+                Button(L10n.t(.delete), role: .destructive) {
+                    if let topic = topicToDelete {
+                        litStore.purgeTopicPapers(topic.name)
+                        litMeta.deleteTopic(id: topic.id)
+                        if case .topic(let id) = selection, id == topic.id {
+                            selection = nil
+                        }
+                    }
+                    topicToDelete = nil
+                }
+            } message: {
+                Text("Papers only in this topic will also be deleted.")
             }
 
             // Banner overlay (top)

@@ -19,6 +19,10 @@ enum L10n {
         return language == "zh" ? pair.zh : pair.en
     }
 
+    static func pick(_ en: String, _ zh: String) -> String {
+        language == "zh" ? zh : en
+    }
+
     enum Key {
         // Settings tabs
         case tabGeneral, tabDefaults, tabSources, tabIntegrations, tabShortcuts
