@@ -18,6 +18,7 @@ struct TopicDetailView: View {
     @State private var isFetching = false
     @State private var showRecommended = true
     @State private var mode: Mode = .all
+    @State private var paperToDelete: Paper?
 
     private let detailPaneAnimation = FacetTheme.detailSpring
 
@@ -170,6 +171,24 @@ struct TopicDetailView: View {
                 _ = store.addOrUpdate(papers: papers)
             }
         }
+        .alert(L10n.pick("Delete this paper?", "删除该文献？"), isPresented: .init(
+            get: { paperToDelete != nil },
+            set: { if !$0 { paperToDelete = nil } }
+        )) {
+            Button(L10n.pick("Cancel", "取消"), role: .cancel) { paperToDelete = nil }
+            Button(L10n.pick("Delete", "删除"), role: .destructive) {
+                if let paper = paperToDelete {
+                    if selectedPaper?.id == paper.id {
+                        withAnimation(detailPaneAnimation) { selectedPaper = nil }
+                    }
+                    store.deletePapers(ids: [paper.id])
+                    toast.show(L10n.pick("Paper deleted", "已删除文献"), type: .success, duration: 2)
+                }
+                paperToDelete = nil
+            }
+        } message: {
+            Text(paperToDelete?.title ?? "")
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -223,6 +242,7 @@ struct TopicDetailView: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
                     .onTapGesture { toggleSelection(paper) }
+                    .contextMenu { paperContextMenu(for: paper) }
             }
         }
     }
@@ -250,6 +270,117 @@ struct TopicDetailView: View {
         withAnimation(detailPaneAnimation) {
             selectedPaper = (selectedPaper?.id == paper.id) ? nil : paper
         }
+    }
+
+    // MARK: - Context Menu
+
+    /// All per-paper actions live here so the sidebar pane stays optional —
+    /// status, recommendation, tags, links, citations and delete are reachable
+    /// straight from a right-click on the row.
+    @ViewBuilder
+    private func paperContextMenu(for paper: Paper) -> some View {
+        Button {
+            store.setPaperStatus(id: paper.id,
+                                 status: paper.status == .starred ? .pending : .starred)
+        } label: {
+            Label(paper.status == .starred ? L10n.pick("Unstar", "取消收藏") : L10n.pick("Star", "收藏"),
+                  systemImage: paper.status == .starred ? "star.slash" : "star")
+        }
+
+        Menu {
+            ForEach(PaperStatus.allCases, id: \.self) { status in
+                Button {
+                    store.setPaperStatus(id: paper.id, status: status)
+                } label: {
+                    Label(statusName(status),
+                          systemImage: paper.status == status ? "checkmark" : status.iconName)
+                }
+            }
+        } label: {
+            Label(L10n.pick("Set Status", "设置状态"), systemImage: "flag")
+        }
+
+        Button {
+            store.setPaperRecommended(id: paper.id, isRecommended: !paper.isRecommended)
+        } label: {
+            Label(paper.isRecommended ? L10n.pick("Remove Recommendation", "取消推荐")
+                                      : L10n.pick("Recommend", "推荐"),
+                  systemImage: paper.isRecommended ? "minus.circle" : "sparkles")
+        }
+
+        if !store.allTags.isEmpty {
+            Menu {
+                ForEach(store.allTags, id: \.self) { tag in
+                    Button {
+                        if paper.tags.contains(tag) {
+                            store.removePaperTag(id: paper.id, tag: tag)
+                        } else {
+                            store.addPaperTag(id: paper.id, tag: tag)
+                        }
+                    } label: {
+                        Label(tag, systemImage: paper.tags.contains(tag) ? "checkmark" : "tag")
+                    }
+                }
+            } label: {
+                Label(L10n.pick("Tags", "标签"), systemImage: "tag")
+            }
+        }
+
+        Button {
+            if selectedPaper?.id != paper.id { toggleSelection(paper) }
+        } label: {
+            Label(L10n.pick("Edit Details…", "编辑详情…"), systemImage: "sidebar.right")
+        }
+
+        Divider()
+
+        if !paper.landingPageUrl.isEmpty {
+            Button {
+                if let url = URL(string: paper.landingPageUrl) { NSWorkspace.shared.open(url) }
+            } label: {
+                Label(L10n.pick("Open Source Page", "打开原文"), systemImage: "arrow.up.right.square")
+            }
+        }
+        if PdfCoordinator.hasLocalPdf(paper) {
+            Button {
+                _ = PdfCoordinator.reveal(paper: paper)
+            } label: {
+                Label(L10n.pick("Show PDF in Finder", "在访达中显示 PDF"), systemImage: "folder")
+            }
+        }
+
+        Menu {
+            Button(L10n.pick("Title", "标题")) { copyToPasteboard(paper.title) }
+            Divider()
+            Button("BibTeX") { copyToPasteboard(CitationExporter.bibtex(for: paper)) }
+            Button("APA") { copyToPasteboard(CitationExporter.apa(for: paper)) }
+            Button("RIS") { copyToPasteboard(CitationExporter.ris(for: paper)) }
+            Button("Markdown") { copyToPasteboard(CitationExporter.markdown(for: paper)) }
+        } label: {
+            Label(L10n.pick("Copy", "复制"), systemImage: "doc.on.doc")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            paperToDelete = paper
+        } label: {
+            Label(L10n.pick("Delete", "删除"), systemImage: "trash")
+        }
+    }
+
+    private func statusName(_ status: PaperStatus) -> String {
+        switch status {
+        case .pending: return L10n.pick("Pending", "待读")
+        case .read:    return L10n.pick("Read", "已读")
+        case .starred: return L10n.pick("Starred", "收藏")
+        case .skip:    return L10n.pick("Skip", "忽略")
+        }
+    }
+
+    private func copyToPasteboard(_ string: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
     }
 
     private var emptyState: some View {
