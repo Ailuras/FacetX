@@ -391,9 +391,9 @@ struct ProjectDetailView: View {
                 emptyAllItemsView
             } else {
                 List {
-                    itemKindSection(title: "Tasks", systemImage: "checklist",
+                    itemKindSection(title: L10n.pick("Tasks", "任务"), systemImage: "checklist",
                                     count: taskItems.count, color: .green, items: taskItems)
-                    itemKindSection(title: "Schedule", systemImage: "calendar",
+                    itemKindSection(title: L10n.pick("Events", "事件"), systemImage: "calendar",
                                     count: scheduleItems.count, color: .blue, items: scheduleItems)
                 }
                 .listStyle(.plain)
@@ -461,9 +461,9 @@ struct ProjectDetailView: View {
 
     private var summaryCluster: some View {
         HStack(spacing: 6) {
-            SummaryChip(value: openTaskCount, label: "Tasks", systemImage: "circle")
-            SummaryChip(value: eventCount, label: "Schedule", systemImage: "calendar")
-            SummaryChip(value: completedReminderCount, label: "Done", systemImage: "checkmark.circle")
+            SummaryChip(value: openTaskCount, label: L10n.pick("Tasks", "任务"), systemImage: "circle")
+            SummaryChip(value: eventCount, label: L10n.pick("Events", "事件"), systemImage: "calendar")
+            SummaryChip(value: completedReminderCount, label: L10n.pick("Done", "已完成"), systemImage: "checkmark.circle")
         }
     }
 
@@ -664,7 +664,7 @@ struct ProjectDetailView: View {
             let dueDate = initialDate.map { FacetDateDefaults.dayDefault(reference: $0) }
             guard let id = await ek.createReminder(
                 project: project.prefix,
-                content: "New Todo",
+                content: L10n.pick("New Task", "新任务"),
                 listName: listName,
                 dueDate: dueDate,
                 dueIncludesTime: false,

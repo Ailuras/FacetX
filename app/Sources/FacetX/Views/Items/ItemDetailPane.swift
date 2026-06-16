@@ -151,8 +151,8 @@ struct ItemDetailPane: View {
 
     @ViewBuilder private var titleActions: some View {
         Picker("", selection: kindSelection) {
-            Text("Todo").tag(ProjectItem.Kind.reminder)
-            Text("Schedule").tag(ProjectItem.Kind.event)
+            Text(L10n.pick("Task", "任务")).tag(ProjectItem.Kind.reminder)
+            Text(L10n.pick("Event", "事件")).tag(ProjectItem.Kind.event)
         }
         .pickerStyle(.segmented)
         .labelsHidden()

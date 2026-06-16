@@ -103,7 +103,8 @@ struct StandardItemRow: View {
             }
             Button("Copy Title") { copyTitle() }
             Divider()
-            Button(item.kind == .reminder ? "Convert to Schedule" : "Convert to Reminder") {
+            Button(item.kind == .reminder ? L10n.pick("Convert to Event", "转为事件")
+                                          : L10n.pick("Convert to Task", "转为任务")) {
                 convertItemType()
             }
             Divider()

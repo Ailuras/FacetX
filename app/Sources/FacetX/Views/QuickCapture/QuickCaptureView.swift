@@ -11,7 +11,7 @@ struct QuickCaptureView: View {
 
     private enum CaptureKind: CaseIterable {
         case reminder, event
-        var label: String { self == .reminder ? "Reminder" : "Schedule" }
+        var label: String { self == .reminder ? L10n.pick("Task", "任务") : L10n.pick("Event", "事件") }
         var icon: String { self == .reminder ? "checkmark.circle" : "calendar" }
     }
 

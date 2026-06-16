@@ -37,7 +37,7 @@ enum ProjectAppearance {
         ProjectIconOption(id: "curlybraces", title: "Code"),
         ProjectIconOption(id: "chart.bar.fill", title: "Metrics"),
         ProjectIconOption(id: "paperplane.fill", title: "Launch"),
-        ProjectIconOption(id: "calendar", title: "Schedule"),
+        ProjectIconOption(id: "calendar", title: "Event"),
         ProjectIconOption(id: "checklist", title: "Tasks")
     ]
 

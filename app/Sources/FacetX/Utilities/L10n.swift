@@ -129,8 +129,8 @@ enum L10n {
             case .hideTodayPanel:     return ("Hide Today panel", "隐藏 Today 面板")
             case .showTodayTimeline:  return ("Show Today timeline", "显示 Today 时间线")
             case .deleteItemTitle:    return ("Delete item?", "删除条目？")
-            case .paneReminder:       return ("Reminder", "提醒事项")
-            case .paneSchedule:       return ("Schedule", "日程")
+            case .paneReminder:       return ("Task", "任务")
+            case .paneSchedule:       return ("Event", "事件")
             case .searchCommits:      return ("Search commits…", "搜索提交…")
             case .searchItems:        return ("Search items…", "搜索条目…")
 
@@ -162,10 +162,10 @@ enum L10n {
             case .setWeekFocusHint:   return ("Pick one outcome to keep this project's week anchored.",
                                               "选择一个目标,让本项目的这一周保持聚焦。")
             case .setWeekGoalHelp:    return ("Set this week's project goal", "设定本周项目目标")
-            case .goalDeleteError:    return ("Could not delete the schedule item. Check Calendar access.",
-                                              "无法删除日程项,请检查日历访问权限。")
-            case .goalSaveError:      return ("Could not save the schedule item. Check Calendar access and enabled calendars.",
-                                              "无法保存日程项,请检查日历访问权限及已启用的日历。")
+            case .goalDeleteError:    return ("Could not delete the event. Check Calendar access.",
+                                              "无法删除事件,请检查日历访问权限。")
+            case .goalSaveError:      return ("Could not save the event. Check Calendar access and enabled calendars.",
+                                              "无法保存事件,请检查日历访问权限及已启用的日历。")
             }
         }
     }
