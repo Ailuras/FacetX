@@ -336,6 +336,7 @@ struct TopicDetailView: View {
                 showAddSheet = true
             }
         }
+        .pillGroupContainer()
     }
 
     // MARK: - Detail Pane
