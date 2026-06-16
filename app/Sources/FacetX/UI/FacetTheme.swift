@@ -3,6 +3,11 @@ import SwiftUI
 enum FacetTheme {
     static let radius: CGFloat = 8
 
+    /// Shared height for the small "label" UI components — count chips, info
+    /// badges and pill buttons — so every element in a header/info bar and every
+    /// metadata badge in a list row lines up at the same height.
+    static let chipHeight: CGFloat = 24
+
     /// Shared spring used for soft item-list transitions (insert/complete/move).
     static let listSpring: Animation = .spring(response: 0.34, dampingFraction: 0.88)
     static let dragPreviewAnimation: Animation = .spring(response: 0.22, dampingFraction: 0.86)

@@ -274,34 +274,24 @@ struct ItemRow: View {
                 HStack(spacing: 8) {
                     if !isInlineEditing, let url = item.url {
                         Link(destination: url) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "link")
-                                    .font(.system(size: 10))
-                                Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                                    .font(.system(size: 10, weight: .medium))
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.blue.opacity(0.10))
-                            .foregroundStyle(.blue)
-                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            FacetInfoBadge(
+                                text: url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
+                                systemImage: "link",
+                                tint: .blue,
+                                fill: Color.blue.opacity(0.10)
+                            )
                         }
                         .buttonStyle(.plain)
                         .help("Open link: \(url.absoluteString)")
                     }
 
                     if let date = item.date {
-                        HStack(spacing: 4) {
-                            Image(systemName: item.kind == .reminder ? "calendar.badge.clock" : "clock")
-                                .font(.system(size: 10))
-                            Text(formattedDate(date))
-                                .font(.system(size: 10, weight: .medium))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(dateHighlightColor(for: date).opacity(0.10))
-                        .foregroundStyle(dateHighlightColor(for: date))
-                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        FacetInfoBadge(
+                            text: formattedDate(date),
+                            systemImage: item.kind == .reminder ? "calendar.badge.clock" : "clock",
+                            tint: dateHighlightColor(for: date),
+                            fill: dateHighlightColor(for: date).opacity(0.10)
+                        )
                     }
 
                     if !isInlineEditing {

@@ -21,7 +21,7 @@ struct SummaryChip: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 8)
-        .padding(.vertical, 3)
+        .frame(height: FacetTheme.chipHeight)
         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(FacetTheme.quietPanel))
         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
     }
