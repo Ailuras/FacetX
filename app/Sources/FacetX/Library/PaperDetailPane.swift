@@ -88,9 +88,9 @@ struct PaperDetailPane: View {
                         fill: Color.secondary.opacity(0.08)
                     )
                 }
-                if let year = paper.publicationYear {
+                if !paper.publicationDate.isEmpty {
                     FacetInfoBadge(
-                        text: "\(year)",
+                        text: paper.publicationDate,
                         systemImage: "calendar",
                         tint: .secondary,
                         fill: Color.secondary.opacity(0.08)

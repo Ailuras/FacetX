@@ -149,8 +149,8 @@ struct AddPaperView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                if let year = paper.publicationYear {
-                    Text("\(year)")
+                if !paper.publicationDate.isEmpty {
+                    Text(paper.publicationDate)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -210,10 +210,10 @@ struct AddPaperView: View {
 
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L10n.pick("Year", "年份")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        TextField("2024", text: $yearText)
+                        Text(L10n.pick("Date", "日期")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        TextField("2024-06-15", text: $yearText)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
+                            .frame(width: 110)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -256,15 +256,27 @@ struct AddPaperView: View {
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        let year = Int(yearText.trimmingCharacters(in: .whitespaces))
+        let dateText = yearText.trimmingCharacters(in: .whitespaces)
+        let pubYear: Int?
+        let pubDate: String
+        if dateText.isEmpty {
+            pubYear = nil
+            pubDate = ""
+        } else if dateText.count >= 4, let y = Int(dateText.prefix(4)) {
+            pubYear = y
+            pubDate = dateText
+        } else {
+            pubYear = nil
+            pubDate = dateText
+        }
 
         let paper = Paper(
             id: UUID().uuidString,
             doi: { let d = doi.trimmingCharacters(in: .whitespacesAndNewlines); return d.isEmpty ? nil : d }(),
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             authors: authors,
-            publicationDate: year.map { "\($0)" } ?? "",
-            publicationYear: year,
+            publicationDate: pubDate,
+            publicationYear: pubYear,
             venue: venue.trimmingCharacters(in: .whitespacesAndNewlines),
             citedByCount: 0,
             abstract: abstract.trimmingCharacters(in: .whitespacesAndNewlines),

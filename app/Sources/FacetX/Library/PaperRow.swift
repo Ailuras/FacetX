@@ -10,33 +10,32 @@ struct PaperRow: View {
     var version: Int = 0
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            statusDot
-
-            VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 10) {
+                statusDot
                 Text(paper.title)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(2)
                     .foregroundStyle(.primary)
+            }
 
-                if showReason, !paper.recommendationReason.isEmpty {
-                    Label(paper.recommendationReason, systemImage: "sparkles")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.orange)
-                        .lineLimit(1)
-                }
+            if showReason, !paper.recommendationReason.isEmpty {
+                Label(paper.recommendationReason, systemImage: "sparkles")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+            }
 
-                badges
-
+            HStack(spacing: 8) {
                 if !paper.authors.isEmpty {
                     Text(paper.authors.prefix(3).joined(separator: ", "))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+                Spacer(minLength: 8)
+                badges
             }
-
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 9)
@@ -86,9 +85,9 @@ struct PaperRow: View {
                     fill: Color.secondary.opacity(0.08)
                 )
             }
-            if let year = paper.publicationYear {
+            if !paper.publicationDate.isEmpty {
                 FacetInfoBadge(
-                    text: "\(year)",
+                    text: paper.publicationDate,
                     systemImage: "calendar",
                     tint: .secondary,
                     fill: Color.secondary.opacity(0.08)
