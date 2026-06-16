@@ -5,22 +5,32 @@ struct GeneralSettingsTab: View {
     @EnvironmentObject private var settings: AppSettings
 
     var body: some View {
-        SettingsPage(title: "General",
-                     subtitle: "Interface and local state",
+        SettingsPage(title: L10n.t(.generalTitle),
+                     subtitle: L10n.t(.generalSubtitle),
                      systemImage: "gearshape",
                      warning: persistenceWarning) {
-            SettingsCard(title: "Interface", systemImage: "macwindow") {
-                SettingsRow(title: "Show in Menu Bar", systemImage: "menubar.rectangle") {
+            SettingsCard(title: L10n.t(.interface), systemImage: "macwindow") {
+                SettingsRow(title: L10n.t(.showInMenuBar), systemImage: "menubar.rectangle") {
                     Toggle("", isOn: $settings.menuBarEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.mini)
                 }
+                SettingsDivider()
+                SettingsRow(title: L10n.t(.language), systemImage: "globe") {
+                    Picker("", selection: $settings.language) {
+                        Text("English").tag("en")
+                        Text("中文").tag("zh")
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                }
             }
 
-            SettingsCard(title: "Storage", systemImage: "externaldrive") {
+            SettingsCard(title: L10n.t(.storage), systemImage: "externaldrive") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Application Support")
+                    Text(L10n.t(.applicationSupport))
                         .font(SettingsUI.rowFont)
                     Text(AppSupport.directory().path)
                         .font(SettingsUI.secondaryFont)

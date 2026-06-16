@@ -38,6 +38,15 @@ final class AppSettings: ObservableObject {
     @Published var menuBarEnabled: Bool {
         didSet { settingsDidChange() }
     }
+    /// UI language, "en" or "zh" (default English). Mirrored into `L10n.language`
+    /// so `L10n.t(_:)` returns the matching string; views holding this settings
+    /// object re-render on change, refreshing localized text live.
+    @Published var language: String {
+        didSet {
+            L10n.language = language
+            settingsDidChange()
+        }
+    }
     @Published var defaultEventDurationMinutes: Int {
         didSet { settingsDidChange() }
     }
@@ -96,6 +105,7 @@ final class AppSettings: ObservableObject {
         self.defaultCalendarName = stored.defaultCalendarName
         self.weekGoalCalendarName = stored.weekGoalCalendarName
         self.menuBarEnabled = stored.menuBarEnabled
+        self.language = stored.language ?? "en"
         self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes
         self.todayViewMode = stored.todayViewMode
         self.todayTimelineStartHour = stored.todayTimelineStartHour
@@ -106,6 +116,7 @@ final class AppSettings: ObservableObject {
         self.trailingSwipeAction = stored.trailingSwipeAction ?? "today"
         self.tagColors = stored.tagColors ?? [:]
         self.persistenceError = persistenceError
+        L10n.language = self.language
     }
 
     /// Is this reminder list enabled? Empty config = all reminder lists enabled.
@@ -243,6 +254,7 @@ final class AppSettings: ObservableObject {
         var defaultCalendarName: String
         var weekGoalCalendarName: String
         var menuBarEnabled: Bool
+        var language: String?
         var defaultEventDurationMinutes: Int
         var todayViewMode: String
         var todayTimelineStartHour: Int
@@ -261,6 +273,7 @@ final class AppSettings: ObservableObject {
                                      defaultCalendarName: "",
                                      weekGoalCalendarName: "",
                                      menuBarEnabled: true,
+                                     language: nil,
                                      defaultEventDurationMinutes: 120,
                                      todayViewMode: "list",
                                      todayTimelineStartHour: 6,
@@ -281,6 +294,7 @@ final class AppSettings: ObservableObject {
                             defaultCalendarName: defaultCalendarName,
                             weekGoalCalendarName: weekGoalCalendarName,
                             menuBarEnabled: menuBarEnabled,
+                            language: language,
                             defaultEventDurationMinutes: defaultEventDurationMinutes,
                             todayViewMode: todayViewMode,
                             todayTimelineStartHour: todayTimelineStartHour,
