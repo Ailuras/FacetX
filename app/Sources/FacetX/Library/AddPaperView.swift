@@ -5,7 +5,15 @@ struct AddPaperView: View {
     let onAdd: ([Paper]) -> Void
     @Environment(\.dismiss) private var dismiss
 
-    enum Tab: String, CaseIterable { case search = "OpenAlex", manual = "Manual" }
+    enum Tab: String, CaseIterable {
+        case search, manual
+        var title: String {
+            switch self {
+            case .search: return "OpenAlex"
+            case .manual: return L10n.pick("Manual", "手动")
+            }
+        }
+    }
     @State private var tab = Tab.search
 
     // Search
@@ -37,7 +45,7 @@ struct AddPaperView: View {
 
             Picker("", selection: $tab) {
                 ForEach(Tab.allCases, id: \.self) { t in
-                    Text(t.rawValue).tag(t)
+                    Text(t.title).tag(t)
                 }
             }
             .pickerStyle(.segmented)
@@ -58,21 +66,23 @@ struct AddPaperView: View {
 
     private var header: some View {
         HStack {
-            Text("Add Paper to \(topicName)").font(.headline)
+            Text(L10n.pick("Add Paper to \(topicName)", "向 \(topicName) 添加文献")).font(.headline)
             Spacer()
-            Button("Cancel") { dismiss() }
+            Button(L10n.t(.cancel)) { dismiss() }
                 .keyboardShortcut(.cancelAction)
             if !selectedPaperIDs.isEmpty {
-                Button("Add \(selectedPaperIDs.count) Selected") {
+                Button(L10n.pick("Add \(selectedPaperIDs.count) Selected", "添加 \(selectedPaperIDs.count) 篇")) {
                     let papers = searchResults.filter { selectedPaperIDs.contains($0.id) }
                     onAdd(papers)
                     dismiss()
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             } else if tab == .manual, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button("Add") {
+                Button(L10n.pick("Add", "添加")) {
                     addManualPaper()
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -85,7 +95,7 @@ struct AddPaperView: View {
     private var searchTab: some View {
         VStack(spacing: 0) {
             HStack {
-                TextField("DOI or title...", text: $queryText)
+                TextField(L10n.pick("DOI or title...", "DOI 或标题…"), text: $queryText)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { search() }
 
@@ -109,7 +119,8 @@ struct AddPaperView: View {
                 if isSearching {
                     ProgressView().padding(40)
                 } else {
-                    Text("Search by DOI or title to find papers from OpenAlex.")
+                    Text(L10n.pick("Search by DOI or title to find papers from OpenAlex.",
+                                   "输入 DOI 或标题，从 OpenAlex 检索文献。"))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .padding(40)
@@ -186,28 +197,28 @@ struct AddPaperView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Title *").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    TextField("Paper title", text: $title)
+                    Text(L10n.pick("Title *", "标题 *")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    TextField(L10n.pick("Paper title", "文献标题"), text: $title)
                         .textFieldStyle(.roundedBorder)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Authors").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    TextField("Author1, Author2", text: $authorsText)
+                    Text(L10n.pick("Authors", "作者")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    TextField(L10n.pick("Author1, Author2", "作者1, 作者2"), text: $authorsText)
                         .textFieldStyle(.roundedBorder)
                 }
 
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Year").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(L10n.pick("Year", "年份")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                         TextField("2024", text: $yearText)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Venue").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        TextField("Conference or journal", text: $venue)
+                        Text(L10n.pick("Venue", "来源")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        TextField(L10n.pick("Conference or journal", "会议或期刊"), text: $venue)
                             .textFieldStyle(.roundedBorder)
                     }
                 }
@@ -225,7 +236,7 @@ struct AddPaperView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Abstract").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(L10n.pick("Abstract", "摘要")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     TextEditor(text: $abstract)
                         .font(.system(size: 12))
                         .frame(height: 80)

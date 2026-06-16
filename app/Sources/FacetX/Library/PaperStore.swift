@@ -741,6 +741,58 @@ class PaperStore {
         }
     }
 
+    // MARK: - Recommendations
+
+    /// Marks or clears a paper's recommendation flag, persisting the reason.
+    func setPaperRecommended(id: String, isRecommended: Bool, reason: String = "") {
+        let sql = """
+        INSERT INTO paper_recommendations (paper_id, recommended_at, is_active, recommendation_reason)
+        VALUES (?, datetime('now'), ?, ?)
+        ON CONFLICT(paper_id) DO UPDATE SET
+            recommended_at = datetime('now'),
+            is_active = excluded.is_active,
+            recommendation_reason = excluded.recommendation_reason
+        """
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(stmt, 2, isRecommended ? 1 : 0)
+            sqlite3_bind_text(stmt, 3, reason, -1, SQLITE_TRANSIENT)
+            if sqlite3_step(stmt) == SQLITE_DONE {
+                if let idx = papers.firstIndex(where: { $0.id == id }) {
+                    papers[idx].isRecommended = isRecommended
+                    papers[idx].recommendationReason = reason
+                    papers[idx].recommendedAt = isRecommended ? Date() : nil
+                }
+                paperVersion += 1
+            }
+            sqlite3_finalize(stmt)
+        }
+    }
+
+    /// Clears the active recommendation flag for the given papers in one transaction.
+    func clearRecommendations(paperIds: [String]) {
+        guard !paperIds.isEmpty else { return }
+        sqlite3_exec(db, "BEGIN IMMEDIATE TRANSACTION", nil, nil, nil)
+        let sql = "UPDATE paper_recommendations SET is_active = 0 WHERE paper_id = ?"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            for id in paperIds {
+                sqlite3_reset(stmt)
+                sqlite3_clear_bindings(stmt)
+                sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+                sqlite3_step(stmt)
+            }
+            sqlite3_finalize(stmt)
+        }
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+        let idSet = Set(paperIds)
+        for idx in papers.indices where idSet.contains(papers[idx].id) {
+            papers[idx].isRecommended = false
+        }
+        paperVersion += 1
+    }
+
     func savePdf(id: String, result: PdfFetchResult) {
         let now = Int(Date().timeIntervalSince1970)
 

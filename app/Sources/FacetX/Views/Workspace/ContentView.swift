@@ -54,14 +54,6 @@ struct ContentView: View {
                                 store.reorderProjects(from: indices, to: newOffset)
                             }
                         }
-                        if !sortedDiscoveredTags.isEmpty {
-                            Section(L10n.t(.sidebarTags)) {
-                                tagCloud
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(Color.clear)
-                                    .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 8, trailing: 10))
-                            }
-                        }
                         if !litMeta.topics.filter({ !$0.archived }).isEmpty {
                             Section(L10n.pick("Literature", "文献")) {
                                 ForEach(litMeta.topics.filter { !$0.archived }) { topic in
@@ -70,44 +62,52 @@ struct ContentView: View {
                                     }.count)
                                         .tag(SidebarItem.topic(topic.id))
                                         .contextMenu {
-                                            Button("Edit") {
+                                            Button(L10n.pick("Edit Library", "编辑文献库")) {
                                                 editingTopic = topic
                                             }
-                                            Button("Archive") {
+                                            Button(L10n.t(.archive)) {
                                                 litMeta.setTopicArchived(id: topic.id, true)
                                                 if case .topic(let id) = selection, id == topic.id {
                                                     selection = nil
                                                 }
+                                                toast.show(L10n.pick("Library archived", "文献库已归档"), type: .info)
                                             }
                                             Divider()
-                                            Button("Delete", role: .destructive) {
+                                            Button(L10n.t(.delete), role: .destructive) {
                                                 topicToDelete = topic
                                             }
                                         }
                                 }
                             }
                         }
+                        if !sortedDiscoveredTags.isEmpty {
+                            Section(L10n.t(.sidebarTags)) {
+                                tagCloud
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                                    .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 8, trailing: 10))
+                            }
+                        }
                     }
                     .listStyle(.sidebar)
                     Divider()
-                    Button { startNewProject() } label: {
-                        Label(L10n.t(.newProject), systemImage: "plus.circle")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 5)
+                    HStack(spacing: 8) {
+                        sidebarCreateButton(
+                            title: L10n.t(.newProject),
+                            systemImage: "plus.circle",
+                            alignment: .leading
+                        ) { startNewProject() }
+
+                        Spacer(minLength: 8)
+
+                        sidebarCreateButton(
+                            title: L10n.pick("New Library", "新建文献库"),
+                            systemImage: "books.vertical",
+                            alignment: .trailing
+                        ) { showTopicEditor = true }
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.primary.opacity(0.82))
-                    .padding(8)
-                    Button { showTopicEditor = true } label: {
-                        Label(L10n.pick("New Library", "新建文献库"), systemImage: "books.vertical")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 5)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.primary.opacity(0.82))
-                    .padding(8)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
                 }
                 .navigationTitle("FacetX")
             } detail: {
@@ -228,7 +228,7 @@ struct ContentView: View {
                     onCancel: { editingTopic = nil }
                 )
             }
-            .alert("Delete \"\(topicToDelete?.name ?? "")\"?", isPresented: .init(
+            .alert(L10n.pick("Delete “\(topicToDelete?.name ?? "")”?", "删除“\(topicToDelete?.name ?? "")”？"), isPresented: .init(
                 get: { topicToDelete != nil },
                 set: { if !$0 { topicToDelete = nil } }
             )) {
@@ -240,11 +240,13 @@ struct ContentView: View {
                         if case .topic(let id) = selection, id == topic.id {
                             selection = nil
                         }
+                        toast.show(L10n.pick("Library deleted", "文献库已删除"), type: .success)
                     }
                     topicToDelete = nil
                 }
             } message: {
-                Text("Papers only in this topic will also be deleted.")
+                Text(L10n.pick("Papers only in this library will also be deleted.",
+                               "仅属于该文献库的文献也会被一并删除。"))
             }
 
             // Banner overlay (top)
@@ -468,6 +470,29 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private func sidebarCreateButton(title: String, systemImage: String,
+                                     alignment: HorizontalAlignment,
+                                     action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var persistenceWarning: String? {

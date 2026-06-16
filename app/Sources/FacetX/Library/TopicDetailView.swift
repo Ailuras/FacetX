@@ -6,6 +6,7 @@ struct TopicDetailView: View {
     @State private var store = PaperStore.shared
     @State private var metadata = MetadataStore.shared
     @State private var settings = LibrarySettings.shared
+    @EnvironmentObject private var toast: ToastController
 
     @State private var searchText = ""
     @State private var selectedPaper: Paper?
@@ -13,28 +14,74 @@ struct TopicDetailView: View {
     @State private var showAddSheet = false
     @State private var isRecommending = false
     @State private var isFetching = false
+    @State private var mode: Mode = .all
 
     private let detailPaneAnimation = FacetTheme.detailSpring
 
-    private var papersForTopic: [Paper] {
-        store.papers.filter { paper in
-            let topics = paper.track.split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            return topics.contains(topic.name)
-        }
-    }
+    enum Mode: String, CaseIterable, Identifiable {
+        case all, starred, read, skipped
+        var id: String { rawValue }
 
-    private var filteredPapers: [Paper] {
-        var result = papersForTopic
-
-        if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
-            let tokens = searchText.lowercased().split(separator: " ").map(String.init)
-            result = result.filter { paper in
-                tokens.allSatisfy { paper.searchText.contains($0) }
+        var title: String {
+            switch self {
+            case .all:     return L10n.pick("All", "全部")
+            case .starred: return L10n.pick("Starred", "收藏")
+            case .read:    return L10n.pick("Read", "已读")
+            case .skipped: return L10n.pick("Skipped", "忽略")
             }
         }
 
+        var status: PaperStatus? {
+            switch self {
+            case .all:     return nil
+            case .starred: return .starred
+            case .read:    return .read
+            case .skipped: return .skip
+            }
+        }
+    }
+
+    // MARK: - Derived collections
+
+    private var papersForTopic: [Paper] {
+        store.papers.filter { paper in
+            paper.track.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .contains(topic.name)
+        }
+    }
+
+    private func matchesSearch(_ paper: Paper) -> Bool {
+        let trimmed = searchText.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return true }
+        let tokens = trimmed.lowercased().split(separator: " ").map(String.init)
+        return tokens.allSatisfy { paper.searchText.contains($0) }
+    }
+
+    /// Daily recommendations, pinned at the top of the All view.
+    private var recommendedPapers: [Paper] {
+        guard mode == .all else { return [] }
+        return papersForTopic
+            .filter { $0.isRecommended && matchesSearch($0) }
+            .sorted { $0.score > $1.score }
+    }
+
+    /// The main list below the recommendations, scoped by the active mode.
+    private var listedPapers: [Paper] {
+        var result = papersForTopic.filter(matchesSearch)
+        if let status = mode.status {
+            result = result.filter { $0.status == status }
+        } else {
+            // In All view, recommended papers live in their own pinned section.
+            let recommendedIds = Set(recommendedPapers.map(\.id))
+            result = result.filter { !recommendedIds.contains($0.id) }
+        }
+        return sorted(result)
+    }
+
+    private func sorted(_ papers: [Paper]) -> [Paper] {
         let ascending = settings.sortAscending
+        var result = papers
         switch sortKey {
         case .score:
             result.sort { ascending ? $0.score < $1.score : $0.score > $1.score }
@@ -43,30 +90,38 @@ struct TopicDetailView: View {
         case .citations:
             result.sort { ascending ? $0.citedByCount < $1.citedByCount : $0.citedByCount > $1.citedByCount }
         case .statusTime:
-            result.sort { lhs, rhs in
-                let l = lhs.statusChangedAt ?? .distantPast
-                let r = rhs.statusChangedAt ?? .distantPast
+            result.sort {
+                let l = $0.statusChangedAt ?? .distantPast
+                let r = $1.statusChangedAt ?? .distantPast
                 return ascending ? l < r : l > r
             }
         case .dateAdded:
-            result.sort { lhs, rhs in
-                let l = lhs.addedAt ?? .distantPast
-                let r = rhs.addedAt ?? .distantPast
+            result.sort {
+                let l = $0.addedAt ?? .distantPast
+                let r = $1.addedAt ?? .distantPast
                 return ascending ? l < r : l > r
             }
         case .title:
-            result.sort { lhs, rhs in
-                let cmp = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+            result.sort {
+                let cmp = $0.title.localizedCaseInsensitiveCompare($1.title)
                 return ascending ? cmp == .orderedAscending : cmp == .orderedDescending
             }
         }
         return result
     }
 
+    private var hasActiveSearch: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var visibleCount: Int { recommendedPapers.count + listedPapers.count }
+
+    // MARK: - Body
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                paperList
+                content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let paper = selectedPaper {
@@ -78,32 +133,25 @@ struct TopicDetailView: View {
         .background(FacetTheme.canvas)
         .navigationTitle(topic.name)
         .toolbar {
+            ToolbarItem(placement: .status) {
+                modePicker
+            }
             ToolbarItem(placement: .automatic) {
-                ToolbarSearchField(text: $searchText, placeholder: "Search papers...")
+                ToolbarSearchField(text: $searchText, placeholder: L10n.pick("Search papers...", "搜索文献…"))
                     .frame(width: 220, height: 24)
             }
             ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 3) {
-                    recommendButton
-                    fetchButton
-                    sortMenu
-                    Button {
-                        showAddSheet = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .help("Add paper")
-                }
+                toolbarActions
             }
         }
         .onChange(of: store.paperVersion) {
             if let paper = selectedPaper,
                !store.papers.contains(where: { $0.id == paper.id }) {
-                withAnimation(detailPaneAnimation) {
-                    selectedPaper = nil
-                }
+                withAnimation(detailPaneAnimation) { selectedPaper = nil }
             }
+        }
+        .onChange(of: mode) {
+            withAnimation(detailPaneAnimation) { selectedPaper = nil }
         }
         .sheet(isPresented: $showAddSheet) {
             AddPaperView(topicName: topic.name) { papers in
@@ -112,71 +160,159 @@ struct TopicDetailView: View {
         }
     }
 
-    // MARK: - Paper List
-
-    private var paperList: some View {
+    @ViewBuilder private var content: some View {
         VStack(spacing: 0) {
             infoBar
+            paperList
+        }
+    }
 
-            if filteredPapers.isEmpty {
-                ContentUnavailableView(
-                    searchText.isEmpty ? "No papers in this topic" : "No results",
-                    systemImage: searchText.isEmpty ? "doc.text" : "magnifyingglass",
-                    description: Text(searchText.isEmpty
-                        ? "Add papers via the + button in the toolbar."
-                        : "No papers match \"\(searchText)\".")
+    // MARK: - Paper List
+
+    @ViewBuilder private var paperList: some View {
+        if visibleCount == 0 {
+            emptyState
+        } else {
+            List(selection: listSelection) {
+                if !recommendedPapers.isEmpty {
+                    paperSection(
+                        title: L10n.pick("Daily Recommendations", "每日推荐"),
+                        systemImage: "sparkles",
+                        color: .orange,
+                        papers: recommendedPapers,
+                        showReason: true
+                    )
+                }
+                paperSection(
+                    title: mode == .all ? L10n.pick("Papers", "文献") : mode.title,
+                    systemImage: mode == .all ? "doc.text" : (mode.status?.iconName ?? "doc.text"),
+                    color: .accentColor,
+                    papers: listedPapers,
+                    showReason: false
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(selection: Binding(
-                    get: { selectedPaper.map { Set([$0.id]) } ?? [] },
-                    set: { ids in
-                        if let id = ids.first {
-                            withAnimation(detailPaneAnimation) {
-                                selectedPaper = filteredPapers.first { $0.id == id }
-                            }
-                        }
-                    }
-                )) {
-                    ForEach(filteredPapers) { paper in
-                        PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id, metadata: metadata)
-                            .tag(paper.id)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 2, leading: 10, bottom: 2, trailing: 10))
-                            .onTapGesture {
-                                if selectedPaper?.id == paper.id {
-                                    withAnimation(detailPaneAnimation) {
-                                        selectedPaper = nil
-                                    }
-                                } else {
-                                    withAnimation(detailPaneAnimation) {
-                                        selectedPaper = paper
-                                    }
-                                }
-                            }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+        }
+    }
+
+    private var listSelection: Binding<Set<String>> {
+        Binding(
+            get: { selectedPaper.map { Set([$0.id]) } ?? [] },
+            set: { ids in
+                if let id = ids.first {
+                    withAnimation(detailPaneAnimation) {
+                        selectedPaper = papersForTopic.first { $0.id == id }
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func paperSection(title: String, systemImage: String, color: Color,
+                              papers: [Paper], showReason: Bool) -> some View {
+        if !papers.isEmpty {
+            sectionHeader(title: title, systemImage: systemImage, count: papers.count, color: color)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
+
+            ForEach(papers) { paper in
+                PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
+                         metadata: metadata, showReason: showReason)
+                    .tag(paper.id)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+                    .onTapGesture { toggleSelection(paper) }
             }
         }
     }
 
-    private var infoBar: some View {
-        HStack(spacing: 12) {
-            SummaryChip(value: papersForTopic.count, label: "Papers", systemImage: "doc.text")
+    private func sectionHeader(title: String, systemImage: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(color)
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+            Text("\(count)")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(color)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(color.opacity(0.12))
+                .clipShape(Capsule())
+            Spacer()
+        }
+        .foregroundStyle(.primary.opacity(0.86))
+    }
 
-            if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+    private func toggleSelection(_ paper: Paper) {
+        withAnimation(detailPaneAnimation) {
+            selectedPaper = (selectedPaper?.id == paper.id) ? nil : paper
+        }
+    }
+
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label(
+                hasActiveSearch ? L10n.pick("No results", "无结果") : emptyTitle,
+                systemImage: hasActiveSearch ? "magnifyingglass" : emptyIcon
+            )
+        } description: {
+            Text(emptyMessage)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyTitle: String {
+        switch mode {
+        case .all:     return L10n.pick("No papers in this topic", "该主题暂无文献")
+        case .starred: return L10n.pick("No starred papers", "暂无收藏")
+        case .read:    return L10n.pick("No papers read", "暂无已读")
+        case .skipped: return L10n.pick("No skipped papers", "暂无忽略")
+        }
+    }
+
+    private var emptyIcon: String {
+        mode == .all ? "doc.text" : (mode.status?.iconName ?? "doc.text")
+    }
+
+    private var emptyMessage: String {
+        if hasActiveSearch {
+            return L10n.pick("No papers match “\(searchText)”.", "没有匹配“\(searchText)”的文献。")
+        }
+        if mode == .all {
+            return L10n.pick("Use Fetch to pull recent papers, or + to add manually.",
+                             "点击拉取获取近期文献，或用 + 手动添加。")
+        }
+        return L10n.pick("Papers you mark will appear here.", "标记后的文献会显示在这里。")
+    }
+
+    // MARK: - Info Bar
+
+    private var infoBar: some View {
+        HStack(spacing: 10) {
+            SummaryChip(value: papersForTopic.count, label: L10n.pick("Papers", "文献"), systemImage: "doc.text")
+            SummaryChip(value: papersForTopic.filter { $0.status == .starred }.count,
+                        label: L10n.pick("Starred", "收藏"), systemImage: "star")
+            SummaryChip(value: papersForTopic.filter { $0.status == .pending }.count,
+                        label: L10n.pick("Pending", "待读"), systemImage: "clock")
+
+            Spacer()
+
+            if hasActiveSearch {
                 FacetInfoBadge(
-                    text: "\(filteredPapers.count) results",
+                    text: L10n.pick("\(visibleCount) results", "\(visibleCount) 条结果"),
                     systemImage: "magnifyingglass",
                     tint: .secondary,
                     fill: Color.accentColor.opacity(0.08)
                 )
             }
 
-            Spacer()
+            actionCluster
         }
         .frame(minHeight: 30, alignment: .center)
         .padding(.horizontal, 16)
@@ -187,17 +323,34 @@ struct TopicDetailView: View {
         }
     }
 
+    private var actionCluster: some View {
+        HStack(spacing: 6) {
+            sortMenu
+            Button {
+                showAddSheet = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 24)
+                    .background(Color.accentColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(L10n.pick("Add paper", "添加文献"))
+        }
+    }
+
     // MARK: - Detail Pane
 
     private func detailPane(for paper: Paper) -> some View {
         FacetSidebarPane(
-            title: "Paper",
+            title: L10n.pick("Paper", "文献"),
             systemImage: "doc.text",
             subtitle: paper.title,
             onClose: {
-                withAnimation(detailPaneAnimation) {
-                    selectedPaper = nil
-                }
+                withAnimation(detailPaneAnimation) { selectedPaper = nil }
             }
         ) {
             PaperDetailPane(paper: paper)
@@ -206,22 +359,39 @@ struct TopicDetailView: View {
 
     // MARK: - Toolbar
 
-    @EnvironmentObject private var toast: ToastController
+    private var modePicker: some View {
+        Picker("", selection: $mode) {
+            ForEach(Mode.allCases) { m in
+                Text(m.title).tag(m)
+            }
+        }
+        .pickerStyle(.segmented)
+        .controlSize(.small)
+        .labelsHidden()
+        .help(L10n.pick("Filter papers", "筛选文献"))
+    }
+
+    private var toolbarActions: some View {
+        HStack(spacing: 3) {
+            recommendButton
+            fetchButton
+        }
+    }
 
     private var recommendButton: some View {
         Button {
-            surpriseMe()
+            recommend()
         } label: {
             if isRecommending {
                 ProgressView().controlSize(.small)
             } else {
-                Image(systemName: "wand.and.stars")
+                Image(systemName: "sun.max")
                     .symbolRenderingMode(.multicolor)
                     .font(.system(size: 13, weight: .medium))
             }
         }
         .disabled(isRecommending)
-        .help("Pick a random pending paper")
+        .help(L10n.pick("Generate daily recommendations", "生成每日推荐"))
     }
 
     private var fetchButton: some View {
@@ -236,7 +406,7 @@ struct TopicDetailView: View {
             }
         }
         .disabled(isFetching)
-        .help("Fetch new papers from OpenAlex")
+        .help(L10n.pick("Fetch papers from the last 40 days", "拉取近 40 天文献"))
     }
 
     private var sortMenu: some View {
@@ -249,26 +419,23 @@ struct TopicDetailView: View {
                     HStack {
                         Image(systemName: key.systemImage)
                         Text(key.title)
-                        if sortKey == key {
-                            Image(systemName: "checkmark")
-                        }
+                        if sortKey == key { Image(systemName: "checkmark") }
                     }
                 }
             }
-
             Divider()
-
             Button {
                 settings.sortAscending.toggle()
             } label: {
                 HStack {
                     Image(systemName: settings.sortAscending ? "arrow.up" : "arrow.down")
-                    Text(settings.sortAscending ? "Ascending" : "Descending")
+                    Text(settings.sortAscending ? L10n.pick("Ascending", "升序") : L10n.pick("Descending", "降序"))
                 }
             }
         } label: {
             Image(systemName: sortKey.systemImage)
                 .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
                 .frame(width: 26, height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -279,25 +446,35 @@ struct TopicDetailView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Sort: \(sortKey.title)")
+        .help(L10n.pick("Sort: \(sortKey.title)", "排序：\(sortKey.title)"))
     }
 
     // MARK: - Actions
 
-    private func surpriseMe() {
-        let pending = papersForTopic.filter { $0.status == .pending }
-        guard let pick = pending.randomElement() else {
-            toast.show("No pending papers in this topic", type: .info, duration: 2)
+    private func recommend() {
+        let pool = papersForTopic
+        guard !pool.isEmpty else {
+            toast.show(L10n.pick("No papers to recommend yet", "暂无可推荐的文献"), type: .info, duration: 2)
             return
         }
-        withAnimation(detailPaneAnimation) {
-            selectedPaper = pick
+        isRecommending = true
+        store.clearRecommendations(paperIds: pool.map(\.id))
+        let fresh = papersForTopic
+        let engine = RecommendEngine(config: ConfigManager.shared.effectiveConfig)
+        let results = engine.recommend(papers: fresh)
+        for result in results {
+            store.setPaperRecommended(id: result.paper.id, isRecommended: true, reason: result.reason)
         }
+        withAnimation(detailPaneAnimation) { mode = .all }
+        isRecommending = false
+        toast.show(L10n.pick("Recommended \(results.count) papers", "已推荐 \(results.count) 篇"),
+                   type: .success, duration: 2)
     }
 
     private func fetchPapers() {
         guard !topic.query.trimmingCharacters(in: .whitespaces).isEmpty else {
-            toast.show("No OpenAlex search query configured for this topic", type: .warning, duration: 2.5)
+            toast.show(L10n.pick("This topic has no search query configured", "该主题尚未配置检索式"),
+                       type: .warning, duration: 2.5)
             return
         }
 
@@ -307,23 +484,23 @@ struct TopicDetailView: View {
             do {
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd"
-                guard let fromDay = Calendar.current.date(byAdding: .day, value: -45, to: Date()) else { return }
+                guard let fromDay = Calendar.current.date(byAdding: .day, value: -40, to: Date()) else { return }
                 let fromDate = dateFormatter.string(from: fromDay)
                 let toDate = dateFormatter.string(from: Date())
 
-                // Single-topic fetch: use searchPapers logic inline
                 var allWorks: [OpenAlexWork] = []
                 var cursor: String? = "*"
                 let perPage = min(settings.perPage, 100)
                 var count = 0
                 let maxResults = min(settings.defaultMaxResults, 200)
+                let cfg = ConfigManager.shared.effectiveConfig
 
                 while count < maxResults, let c = cursor {
                     var filters = ["from_publication_date:\(fromDate)", "to_publication_date:\(toDate)", "type:article"]
-                    if !ConfigManager.shared.effectiveConfig.openalex.topic_filter.isEmpty {
-                        filters.append(ConfigManager.shared.effectiveConfig.openalex.topic_filter)
+                    if !cfg.openalex.topic_filter.isEmpty {
+                        filters.append(cfg.openalex.topic_filter)
                     }
-                    var components = URLComponents(string: ConfigManager.shared.effectiveConfig.openalex.base_url)
+                    var components = URLComponents(string: cfg.openalex.base_url)
                     components?.queryItems = [
                         URLQueryItem(name: "search", value: topic.query),
                         URLQueryItem(name: "filter", value: filters.joined(separator: ",")),
@@ -352,10 +529,9 @@ struct TopicDetailView: View {
                     try? await Task.sleep(nanoseconds: 100_000_000)
                 }
 
-                let fetcherLocal = OpenAlexFetcher(config: ConfigManager.shared.effectiveConfig, venues: MetadataStore.shared.venues)
-                let papers = allWorks.map { fetcherLocal.parseWork($0, track: topic.name) }
+                let fetcher = OpenAlexFetcher(config: cfg, venues: MetadataStore.shared.venues)
+                let papers = allWorks.map { fetcher.parseWork($0, track: topic.name) }
 
-                // Apply keyword filtering
                 let relevant = topic.keywords.isEmpty ? papers : papers.filter { paper in
                     let text = (paper.title + " " + paper.abstract).lowercased()
                     return topic.keywords.contains { keyword in
@@ -367,10 +543,13 @@ struct TopicDetailView: View {
 
                 let (inserted, updated) = store.addOrUpdate(papers: relevant)
                 isFetching = false
-                toast.show("Fetched \(relevant.count) papers (\(inserted) new, \(updated) updated)", type: .success, duration: 3)
+                toast.show(L10n.pick("Fetched \(relevant.count) papers (\(inserted) new, \(updated) updated)",
+                                     "拉取 \(relevant.count) 篇（新增 \(inserted)，更新 \(updated)）"),
+                           type: .success, duration: 3)
             } catch {
                 isFetching = false
-                toast.show("Fetch failed: \(error.localizedDescription)", type: .error)
+                toast.show(L10n.pick("Fetch failed: \(error.localizedDescription)",
+                                     "拉取失败：\(error.localizedDescription)"), type: .error)
             }
         }
     }

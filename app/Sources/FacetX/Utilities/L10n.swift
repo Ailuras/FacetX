@@ -11,15 +11,16 @@ import Foundation
 /// language instead of relying on per-view live refresh.
 @MainActor
 enum L10n {
-    /// Current UI language: "en" or "zh". Loaded from `AppSettings.language`.
-    static var language: String = "en"
+    /// Current UI language: "en" or "zh". Loaded from `AppSettings.language` at
+    /// launch and never mutated afterward, so nonisolated reads are safe.
+    nonisolated(unsafe) static var language: String = "en"
 
-    static func t(_ key: Key) -> String {
+    nonisolated static func t(_ key: Key) -> String {
         let pair = key.pair
         return language == "zh" ? pair.zh : pair.en
     }
 
-    static func pick(_ en: String, _ zh: String) -> String {
+    nonisolated static func pick(_ en: String, _ zh: String) -> String {
         language == "zh" ? zh : en
     }
 
