@@ -2,7 +2,6 @@ import Foundation
 
 struct RecommendationResult {
     var paper: Paper
-    var reason: String
     var slotIndex: Int
 }
 
@@ -56,33 +55,27 @@ struct RecommendEngine {
             return randomPaper
         }
 
-        let qualityReason = L10n.pick("Quality pick (score ≥ \(Int(highThreshold)))", "高分推荐（评分 ≥ \(Int(highThreshold))）")
-        let recentReason = L10n.pick("Recent pick", "近期推荐")
-        let exploreReason = L10n.pick("Exploration pick", "探索推荐")
-
         // 1. Quality priority slots
         for i in 0..<qualitySlots {
-            var reason = qualityReason
             var px = popRandom(from: highPendingPool)
-            if px == nil { px = popRandom(from: recentPendingPool); reason = recentReason }
-            if px == nil { px = popRandom(from: pendingPool); reason = exploreReason }
-            if px == nil { px = popRandom(from: highFallbackPool); reason = qualityReason }
-            if px == nil { px = popRandom(from: recentFallbackPool); reason = recentReason }
-            if px == nil { px = popRandom(from: fallbackPool); reason = exploreReason }
+            if px == nil { px = popRandom(from: recentPendingPool) }
+            if px == nil { px = popRandom(from: pendingPool) }
+            if px == nil { px = popRandom(from: highFallbackPool) }
+            if px == nil { px = popRandom(from: recentFallbackPool) }
+            if px == nil { px = popRandom(from: fallbackPool) }
             if let chosen = px {
-                selected.append(RecommendationResult(paper: chosen, reason: reason, slotIndex: i))
+                selected.append(RecommendationResult(paper: chosen, slotIndex: i))
             }
         }
 
         // 2. Recency priority slots
         for i in qualitySlots..<dailyCount {
-            var reason = recentReason
             var px = popRandom(from: recentPendingPool)
-            if px == nil { px = popRandom(from: pendingPool); reason = exploreReason }
-            if px == nil { px = popRandom(from: recentFallbackPool); reason = recentReason }
-            if px == nil { px = popRandom(from: fallbackPool); reason = exploreReason }
+            if px == nil { px = popRandom(from: pendingPool) }
+            if px == nil { px = popRandom(from: recentFallbackPool) }
+            if px == nil { px = popRandom(from: fallbackPool) }
             if let chosen = px {
-                selected.append(RecommendationResult(paper: chosen, reason: reason, slotIndex: i))
+                selected.append(RecommendationResult(paper: chosen, slotIndex: i))
             }
         }
 

@@ -149,7 +149,7 @@ struct TopicDetailView: View {
                 modePicker
             }
             ToolbarItem(placement: .automatic) {
-                ToolbarSearchField(text: $searchText, placeholder: L10n.pick("Search papers...", "搜索文献…"))
+                ToolbarSearchField(text: $searchText, placeholder: L10n.t(.searchItems))
                     .frame(width: 220, height: 24)
             }
             ToolbarItem(placement: .primaryAction) {
@@ -191,16 +191,14 @@ struct TopicDetailView: View {
                         title: L10n.pick("Daily Recommendations", "每日推荐"),
                         systemImage: "sparkles",
                         color: .orange,
-                        papers: recommendedPapers,
-                        showReason: true
+                        papers: recommendedPapers
                     )
                 }
                 paperSection(
                     title: mode == .all ? L10n.pick("Papers", "文献") : mode.title,
                     systemImage: mode == .all ? "doc.text" : (mode.status?.iconName ?? "doc.text"),
                     color: .accentColor,
-                    papers: listedPapers,
-                    showReason: false
+                    papers: listedPapers
                 )
             }
             .listStyle(.plain)
@@ -211,7 +209,7 @@ struct TopicDetailView: View {
 
     @ViewBuilder
     private func paperSection(title: String, systemImage: String, color: Color,
-                              papers: [Paper], showReason: Bool) -> some View {
+                              papers: [Paper]) -> some View {
         if !papers.isEmpty {
             sectionHeader(title: title, systemImage: systemImage, count: papers.count, color: color)
                 .listRowSeparator(.hidden)
@@ -220,7 +218,7 @@ struct TopicDetailView: View {
 
             ForEach(papers) { paper in
                 PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
-                         metadata: metadata, showReason: showReason, version: store.paperVersion)
+                         metadata: metadata, version: store.paperVersion)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
@@ -468,7 +466,7 @@ struct TopicDetailView: View {
         let engine = RecommendEngine(config: ConfigManager.shared.effectiveConfig)
         let results = engine.recommend(papers: fresh)
         for result in results {
-            store.setPaperRecommended(id: result.paper.id, isRecommended: true, reason: result.reason)
+            store.setPaperRecommended(id: result.paper.id, isRecommended: true, reason: "")
         }
         withAnimation(detailPaneAnimation) { mode = .all }
         isRecommending = false

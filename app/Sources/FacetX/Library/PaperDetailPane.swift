@@ -25,9 +25,6 @@ struct PaperDetailPane: View {
     var body: some View {
         FacetSidebarContent {
             headerCard
-            if paper.isRecommended, !paper.recommendationReason.isEmpty {
-                recommendationCard
-            }
             statusSection
             tagsSection
             abstractSection
@@ -112,30 +109,6 @@ struct PaperDetailPane: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var recommendationCard: some View {
-        FacetDetailBox {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.orange)
-                Text(paper.recommendationReason)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 0)
-                Button {
-                    store.setPaperRecommended(id: paper.id, isRecommended: false)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.pick("Dismiss recommendation", "取消推荐"))
-            }
-            .padding(10)
-        }
     }
 
     // MARK: - Status
@@ -286,6 +259,8 @@ struct PaperDetailPane: View {
                 .font(.system(size: 12))
                 .frame(minHeight: 80)
                 .scrollContentBackground(.hidden)
+                .scrollIndicators(.hidden)
+                .hideTextEditorScroller()
                 .padding(6)
                 .onChange(of: noteText) { _, new in
                     store.setPaperNote(id: paper.id, note: new)

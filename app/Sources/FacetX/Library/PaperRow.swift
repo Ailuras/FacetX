@@ -4,7 +4,6 @@ struct PaperRow: View {
     let paper: Paper
     let isSelected: Bool
     let metadata: MetadataStore
-    var showReason: Bool = false
     /// `Paper` is a class; passing the store's version gives the row a value to
     /// diff on so in-place status/badge edits re-render it. (See PaperDetailPane.)
     var version: Int = 0
@@ -17,13 +16,6 @@ struct PaperRow: View {
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(2)
                     .foregroundStyle(.primary)
-            }
-
-            if showReason, !paper.recommendationReason.isEmpty {
-                Label(paper.recommendationReason, systemImage: "sparkles")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.orange)
-                    .lineLimit(1)
             }
 
             HStack(spacing: 8) {
