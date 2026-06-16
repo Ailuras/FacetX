@@ -128,7 +128,7 @@ struct ContentView: View {
                             }
                         case .topic(let id):
                             if let topic = litMeta.topics.first(where: { $0.id == id }) {
-                                TopicDetailView(topic: topic)
+                                TopicDetailView(topic: topic, tagFilter: $tagFilter)
                             } else {
                                 ContentUnavailableView("Topic not found", systemImage: "tag")
                             }
@@ -434,8 +434,20 @@ struct ContentView: View {
         }
     }
 
+    /// Tags shared across projects and literature: project-item tag counts
+    /// merged with paper tag counts, so the sidebar cloud is one vocabulary.
+    private var combinedTags: [String: Int] {
+        var aggregate = store.discoveredTags
+        for paper in litStore.papers {
+            for tag in paper.tags {
+                aggregate[tag, default: 0] += 1
+            }
+        }
+        return aggregate
+    }
+
     private func chipHelp(tag: String, state: TagFilterState) -> String {
-        let count = store.discoveredTags[tag] ?? 0
+        let count = combinedTags[tag] ?? 0
         let prefix = "\(tag) · \(count) \(L10n.t(.tagItemsUnit)) — "
         switch state {
         case .neutral:  return prefix + L10n.t(.tagClickInclude)
@@ -445,9 +457,10 @@ struct ContentView: View {
     }
 
     private var sortedDiscoveredTags: [String] {
-        store.discoveredTags.keys.sorted { a, b in
-            let ca = store.discoveredTags[a] ?? 0
-            let cb = store.discoveredTags[b] ?? 0
+        let tags = combinedTags
+        return tags.keys.sorted { a, b in
+            let ca = tags[a] ?? 0
+            let cb = tags[b] ?? 0
             if ca != cb { return ca > cb }
             return a.localizedStandardCompare(b) == .orderedAscending
         }

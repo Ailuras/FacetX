@@ -45,11 +45,17 @@ public struct TagFilter: Equatable, Sendable {
     ///   - none of its tags are excluded, AND
     ///   - either nothing is included, or at least one included tag matches.
     public func matches(_ item: ProjectItem) -> Bool {
+        matches(tags: item.tags)
+    }
+
+    /// Generic matcher over any tag list, so the same filter drives both
+    /// project items and papers (shared tags across projects and literature).
+    public func matches(tags: [String]) -> Bool {
         if !excluded.isEmpty {
-            for tag in item.tags where excluded.contains(tag) { return false }
+            for tag in tags where excluded.contains(tag) { return false }
         }
         if included.isEmpty { return true }
-        for tag in item.tags where included.contains(tag) { return true }
+        for tag in tags where included.contains(tag) { return true }
         return false
     }
 }

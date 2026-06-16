@@ -1,7 +1,9 @@
+import FacetXCore
 import SwiftUI
 
 struct TopicDetailView: View {
     let topic: TrackPref
+    @Binding var tagFilter: TagFilter
 
     @State private var store = PaperStore.shared
     @State private var metadata = MetadataStore.shared
@@ -58,17 +60,22 @@ struct TopicDetailView: View {
         return tokens.allSatisfy { paper.searchText.contains($0) }
     }
 
+    /// Search text plus the sidebar tag filter (shared with projects).
+    private func matchesFilters(_ paper: Paper) -> Bool {
+        matchesSearch(paper) && tagFilter.matches(tags: paper.tags)
+    }
+
     /// Daily recommendations, pinned at the top of the All view.
     private var recommendedPapers: [Paper] {
         guard mode == .all else { return [] }
         return papersForTopic
-            .filter { $0.isRecommended && matchesSearch($0) }
+            .filter { $0.isRecommended && matchesFilters($0) }
             .sorted { $0.score > $1.score }
     }
 
     /// The main list below the recommendations, scoped by the active mode.
     private var listedPapers: [Paper] {
-        var result = papersForTopic.filter(matchesSearch)
+        var result = papersForTopic.filter(matchesFilters)
         if let status = mode.status {
             result = result.filter { $0.status == status }
         } else {
@@ -112,6 +119,10 @@ struct TopicDetailView: View {
 
     private var hasActiveSearch: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var hasActiveFilter: Bool {
+        hasActiveSearch || !tagFilter.isEmpty
     }
 
     private var visibleCount: Int { recommendedPapers.count + listedPapers.count }
@@ -245,8 +256,8 @@ struct TopicDetailView: View {
     private var emptyState: some View {
         ContentUnavailableView {
             Label(
-                hasActiveSearch ? L10n.pick("No results", "无结果") : emptyTitle,
-                systemImage: hasActiveSearch ? "magnifyingglass" : emptyIcon
+                hasActiveFilter ? L10n.pick("No results", "无结果") : emptyTitle,
+                systemImage: hasActiveFilter ? "magnifyingglass" : emptyIcon
             )
         } description: {
             Text(emptyMessage)
@@ -271,6 +282,9 @@ struct TopicDetailView: View {
         if hasActiveSearch {
             return L10n.pick("No papers match “\(searchText)”.", "没有匹配“\(searchText)”的文献。")
         }
+        if !tagFilter.isEmpty {
+            return L10n.pick("No papers match the active tag filter.", "没有匹配当前标签筛选的文献。")
+        }
         if mode == .all {
             return L10n.pick("Use Fetch to pull recent papers, or + to add manually.",
                              "点击拉取获取近期文献，或用 + 手动添加。")
@@ -287,6 +301,10 @@ struct TopicDetailView: View {
                         label: L10n.pick("Starred", "收藏"), systemImage: "star")
             SummaryChip(value: papersForTopic.filter { $0.status == .pending }.count,
                         label: L10n.pick("Pending", "待读"), systemImage: "clock")
+
+            if !tagFilter.isEmpty {
+                ActiveTagFilterBar(tagFilter: $tagFilter)
+            }
 
             Spacer()
 
