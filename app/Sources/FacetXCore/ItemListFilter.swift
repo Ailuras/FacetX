@@ -3,7 +3,7 @@ import Foundation
 public enum ItemKindScope: String, CaseIterable, Identifiable, Sendable {
     case all = "All"
     case tasks = "Tasks"
-    case events = "Schedule"
+    case events = "Events"
 
     public var id: String { rawValue }
 

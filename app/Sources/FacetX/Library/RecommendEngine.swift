@@ -57,7 +57,7 @@ struct RecommendEngine {
         }
 
         let qualityReason = L10n.pick("Quality pick (score ≥ \(Int(highThreshold)))", "高分推荐（评分 ≥ \(Int(highThreshold))）")
-        let recentReason = L10n.pick("Recent pick (last \(recentDays)d)", "近期推荐（近 \(recentDays) 天）")
+        let recentReason = L10n.pick("Recent pick", "近期推荐")
         let exploreReason = L10n.pick("Exploration pick", "探索推荐")
 
         // 1. Quality priority slots

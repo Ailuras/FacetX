@@ -16,6 +16,7 @@ struct TopicDetailView: View {
     @State private var showAddSheet = false
     @State private var isRecommending = false
     @State private var isFetching = false
+    @State private var showRecommended = true
     @State private var mode: Mode = .all
 
     private let detailPaneAnimation = FacetTheme.detailSpring
@@ -67,7 +68,7 @@ struct TopicDetailView: View {
 
     /// Daily recommendations, pinned at the top of the All view.
     private var recommendedPapers: [Paper] {
-        guard mode == .all else { return [] }
+        guard mode == .all, showRecommended else { return [] }
         return papersForTopic
             .filter { $0.isRecommended && matchesFilters($0) }
             .sorted { $0.score > $1.score }
@@ -331,6 +332,15 @@ struct TopicDetailView: View {
     private var actionCluster: some View {
         HStack(spacing: 2) {
             sortMenu
+            FilterPillButton(
+                systemName: showRecommended ? "sparkles" : "sparkle",
+                help: showRecommended
+                    ? L10n.pick("Hide recommendations", "隐藏推荐")
+                    : L10n.pick("Show recommendations", "显示推荐"),
+                active: showRecommended
+            ) {
+                showRecommended.toggle()
+            }
             FilterPillButton(systemName: "plus",
                              help: L10n.pick("Add paper", "添加文献")) {
                 showAddSheet = true
@@ -432,9 +442,9 @@ struct TopicDetailView: View {
         } label: {
             Image(systemName: sortKey.systemImage)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(settings.sortAscending ? Color.accentColor : .secondary)
+                .foregroundStyle(sortKey == .score ? .secondary : Color.accentColor)
                 .frame(width: 26, height: 24)
-                .background(settings.sortAscending ? Color.accentColor.opacity(0.14) : Color.clear)
+                .background(sortKey == .score ? Color.clear : Color.accentColor.opacity(0.14))
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .contentShape(Rectangle())
         }
