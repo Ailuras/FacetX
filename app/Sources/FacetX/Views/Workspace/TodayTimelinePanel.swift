@@ -52,6 +52,7 @@ struct TodayTimelinePanel: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     compactTimelineView
+                        .hideScrollIndicators()
                 }
                 .scrollIndicators(.hidden)
                 .onAppear {
