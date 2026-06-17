@@ -4,11 +4,13 @@ public struct ItemCounts: Equatable, Sendable {
     public let openReminderCount: Int
     public let completedReminderCount: Int
     public let eventCount: Int
+    public let literatureCount: Int
 
-    public init(openReminderCount: Int, completedReminderCount: Int, eventCount: Int) {
+    public init(openReminderCount: Int, completedReminderCount: Int, eventCount: Int, literatureCount: Int) {
         self.openReminderCount = openReminderCount
         self.completedReminderCount = completedReminderCount
         self.eventCount = eventCount
+        self.literatureCount = literatureCount
     }
 }
 
@@ -55,7 +57,8 @@ public enum ItemQuery {
         ItemCounts(
             openReminderCount: items.filter { $0.kind == .reminder && !$0.isCompleted }.count,
             completedReminderCount: items.filter { $0.kind == .reminder && $0.isCompleted }.count,
-            eventCount: items.filter { $0.kind == .event }.count
+            eventCount: items.filter { $0.kind == .event && $0.linkedPaperIDs.isEmpty }.count,
+            literatureCount: items.filter { $0.kind == .event && !$0.linkedPaperIDs.isEmpty }.count
         )
     }
 

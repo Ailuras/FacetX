@@ -486,6 +486,7 @@ struct ProjectDetailView: View {
         HStack(spacing: 6) {
             SummaryChip(value: openTaskCount, label: L10n.pick("Tasks", "任务"), systemImage: "circle")
             SummaryChip(value: eventCount, label: L10n.pick("Events", "事件"), systemImage: "calendar")
+            SummaryChip(value: literatureCount, label: L10n.pick("Literature", "文献"), systemImage: "books.vertical")
             SummaryChip(value: completedReminderCount, label: L10n.pick("Done", "已完成"), systemImage: "checkmark.circle")
         }
     }
@@ -496,6 +497,10 @@ struct ProjectDetailView: View {
 
     private var eventCount: Int {
         itemCounts.eventCount
+    }
+
+    private var literatureCount: Int {
+        itemCounts.literatureCount
     }
 
     private var completedReminderCount: Int {
