@@ -298,6 +298,11 @@ struct ProjectSettingsTab: View {
                                  systemImage: "target",
                                  selection: $settings.weekGoalCalendarName,
                                  values: enabledCalendarNames)
+                compactDivider
+                defaultPickerRow(title: L10n.pick("Literature Calendar", "文献日历"),
+                                 systemImage: "books.vertical",
+                                 selection: $settings.defaultLiteratureCalendarName,
+                                 values: enabledCalendarNames)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 2)
@@ -561,6 +566,12 @@ struct ProjectSettingsTab: View {
         if settings.weekGoalCalendarName.isEmpty
             || !enabledCalendarNames.contains(settings.weekGoalCalendarName) {
             settings.weekGoalCalendarName = settings.defaultCalendarName.isEmpty
+                ? (enabledCalendarNames.first ?? "")
+                : settings.defaultCalendarName
+        }
+        if settings.defaultLiteratureCalendarName.isEmpty
+            || !enabledCalendarNames.contains(settings.defaultLiteratureCalendarName) {
+            settings.defaultLiteratureCalendarName = settings.defaultCalendarName.isEmpty
                 ? (enabledCalendarNames.first ?? "")
                 : settings.defaultCalendarName
         }

@@ -12,6 +12,10 @@ struct PaperDetailPane: View {
     @State private var metadata = MetadataStore.shared
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var toast: ToastController
+    @EnvironmentObject private var projectStore: ProjectStore
+    @EnvironmentObject private var ek: EventKitService
+    @State private var noteStore = ItemNoteStore.shared
+    @State private var associatedItems: [ProjectItem] = []
     @State private var noteText: String = ""
     @State private var isTranslating = false
     @State private var isFetchingPdf = false
@@ -30,17 +34,25 @@ struct PaperDetailPane: View {
             tagsSection
             abstractSection
             detailsSection
+            associatedItemsSection
             notesSection
             pdfSection
             citeSection
         }
-        .onAppear { noteText = paper.note }
+        .onAppear {
+            noteText = paper.note
+            loadAssociatedItems()
+        }
         .onChange(of: paper.note) { _, new in
             if noteText != new { noteText = new }
         }
         .onChange(of: paper.id) { _, _ in
             noteText = paper.note
             showTranslation = false
+            loadAssociatedItems()
+        }
+        .onChange(of: ek.changeToken) { _, _ in
+            loadAssociatedItems()
         }
     }
 
@@ -433,6 +445,85 @@ struct PaperDetailPane: View {
                                      "翻译失败：\(error.localizedDescription)"), type: .error)
             }
             isTranslating = false
+        }
+    }
+
+    private var associatedItemsSection: some View {
+        FacetDetailSection(title: L10n.pick("Linked Project Items", "关联项目条目"), systemImage: "link") {
+            VStack(alignment: .leading, spacing: 6) {
+                if associatedItems.isEmpty {
+                    Text(L10n.pick("No linked project items.", "暂无关联项目条目。"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .padding(.vertical, 2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(associatedItems) { item in
+                        HStack(spacing: 8) {
+                            Image(systemName: item.kind == .reminder ? "checkmark.circle" : "calendar")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(item.kind == .reminder ? .green : .blue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.content)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(2)
+                                Text("\(item.projectPrefix) · \(item.containerName)")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 8)
+                            Button(role: .destructive) {
+                                removeLink(from: item)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help(L10n.pick("Unlink", "取消关联"))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(FacetTheme.quietPanel)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                }
+            }
+            .padding(10)
+        }
+    }
+
+    private func loadAssociatedItems() {
+        Task {
+            let prefixes = Set(projectStore.activeProjects.map(\.prefix))
+            let allItems = await ek.items(
+                forProjects: prefixes,
+                enabledReminderLists: appSettings.effectiveReminderListNames,
+                enabledCalendars: appSettings.effectiveCalendarNames
+            )
+            self.associatedItems = allItems.filter { $0.linkedPaperIDs.contains(paper.id) }
+        }
+    }
+
+    private func removeLink(from item: ProjectItem) {
+        var metadata = FacetItemMetadata(
+            itemID: item.facetID ?? UUID().uuidString,
+            noteID: item.noteID ?? UUID().uuidString,
+            paperIDs: item.linkedPaperIDs,
+            commits: item.linkedCommits,
+            tags: item.tags
+        )
+        metadata = metadata.removingPaper(paper.id)
+        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
+        Task {
+            let ok = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
+            if ok {
+                loadAssociatedItems()
+                toast.show(L10n.pick("Link removed", "已取消关联"), type: .success, duration: 1.6)
+            } else {
+                toast.show(L10n.pick("Failed to remove link", "取消关联失败"), type: .error)
+            }
         }
     }
 }

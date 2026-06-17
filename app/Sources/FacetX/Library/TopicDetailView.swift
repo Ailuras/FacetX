@@ -9,6 +9,9 @@ struct TopicDetailView: View {
     @State private var metadata = MetadataStore.shared
     @State private var settings = LibrarySettings.shared
     @EnvironmentObject private var toast: ToastController
+    @EnvironmentObject private var projectStore: ProjectStore
+    @EnvironmentObject private var appSettings: AppSettings
+    @EnvironmentObject private var ek: EventKitService
 
     @State private var searchText = ""
     @State private var selectedPaper: Paper?
@@ -279,6 +282,19 @@ struct TopicDetailView: View {
     /// straight from a right-click on the row.
     @ViewBuilder
     private func paperContextMenu(for paper: Paper) -> some View {
+        if !projectStore.activeProjects.isEmpty {
+            Menu {
+                ForEach(projectStore.activeProjects) { project in
+                    Button(project.name) {
+                        addPaperToProject(paper, project: project)
+                    }
+                }
+            } label: {
+                Label(L10n.pick("Add to Project", "添加到项目"), systemImage: "folder.badge.plus")
+            }
+            Divider()
+        }
+
         Button {
             store.setPaperStatus(id: paper.id,
                                  status: paper.status == .starred ? .pending : .starred)
@@ -710,6 +726,64 @@ struct TopicDetailView: View {
                 isFetching = false
                 toast.show(L10n.pick("Fetch failed: \(error.localizedDescription)",
                                      "拉取失败：\(error.localizedDescription)"), type: .error)
+            }
+        }
+    }
+
+    private func addPaperToProject(_ paper: Paper, project: Project) {
+        let calendarName: String
+        if let projCal = project.literatureCalendarName, !projCal.isEmpty {
+            calendarName = projCal
+        } else if !appSettings.defaultLiteratureCalendarName.isEmpty {
+            calendarName = appSettings.defaultLiteratureCalendarName
+        } else if !appSettings.defaultCalendarName.isEmpty {
+            calendarName = appSettings.defaultCalendarName
+        } else {
+            toast.show(L10n.pick("No literature calendar configured. Please set a default or project calendar.", "未配置文献日历，请在设置或项目属性中指定。"), type: .warning)
+            return
+        }
+
+        let paperUrlString = paper.landingPageUrl
+        let paperUrl = URL(string: paperUrlString)
+
+        var userNotes = "\(paper.title)\n"
+        if !paper.authors.isEmpty {
+            userNotes += "Authors: \(paper.authors.joined(separator: ", "))\n"
+        }
+        if !paper.venue.isEmpty {
+            userNotes += "Venue: \(paper.venue)\n"
+        }
+        if !paper.abstract.isEmpty {
+            userNotes += "\nAbstract:\n\(paper.abstract)\n"
+        }
+
+        let metadata = FacetItemMetadata(
+            itemID: UUID().uuidString,
+            noteID: UUID().uuidString,
+            paperIDs: [paper.id],
+            commits: [],
+            tags: []
+        )
+
+        let composedNotes = FacetMetadata.compose(userNotes: userNotes, metadata: metadata.facetMetadata())
+
+        Task {
+            let eventId = await ek.createEvent(
+                project: project.prefix,
+                content: paper.title,
+                calendarName: calendarName,
+                startDate: Date(),
+                durationMinutes: 60,
+                notes: composedNotes,
+                url: paperUrl,
+                isAllDay: true,
+                enabledCalendars: appSettings.effectiveCalendarNames
+            )
+
+            if eventId != nil {
+                toast.show(L10n.pick("Added literature to project “\(project.name)” as event", "已将文献作为日历日程添加到项目“\(project.name)”"), type: .success, duration: 2)
+            } else {
+                toast.show(L10n.pick("Failed to create calendar event", "创建日历日程失败"), type: .error)
             }
         }
     }

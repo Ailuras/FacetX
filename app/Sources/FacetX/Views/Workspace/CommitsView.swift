@@ -379,6 +379,7 @@ struct CommitsView: View {
         let isSelected = selectedCommit?.id == commit.id
         let isHovered = hoveredCommitID == commit.id
         let tint = authorColor(for: commit.authorName)
+        let linkedCount = linkedItems(for: commit).count
 
         return VStack(alignment: .leading, spacing: 6) {
             Text(commit.summary)
@@ -398,6 +399,24 @@ struct CommitsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                if linkedCount > 0 {
+                    Text("·")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    
+                    HStack(spacing: 3) {
+                        Image(systemName: "link")
+                            .font(.system(size: 8, weight: .semibold))
+                        Text("\(linkedCount)")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                    .foregroundStyle(.purple)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Color.purple.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+
                 Spacer()
 
                 Text(commit.shortSHA)
@@ -409,7 +428,8 @@ struct CommitsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.leading, linkedCount > 0 ? 16 : 12)
+        .padding(.trailing, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(commitRowFill(isSelected: isSelected, isHovered: isHovered))
@@ -419,6 +439,16 @@ struct CommitsView: View {
                 .stroke(commitRowStroke(isSelected: isSelected, isHovered: isHovered, tint: tint),
                         lineWidth: isSelected ? 1.5 : 1)
         )
+        .overlay(alignment: .leading) {
+            if linkedCount > 0 {
+                Rectangle()
+                    .fill(Color.purple)
+                    .frame(width: 3)
+                    .padding(.vertical, 6)
+                    .cornerRadius(1.5)
+                    .padding(.leading, 4)
+            }
+        }
         .contentShape(Rectangle())
         .onHover { isHovered in
             withAnimation(.easeOut(duration: 0.15)) {
@@ -431,6 +461,28 @@ struct CommitsView: View {
                     selectedCommit = nil
                 } else {
                     selectedCommit = commit
+                }
+            }
+        }
+        .contextMenu {
+            let linkable = linkableItems(for: commit)
+            if !linkable.isEmpty {
+                Menu(L10n.pick("Link Task/Event", "关联任务/日程")) {
+                    ForEach(linkable) { item in
+                        Button(item.content) {
+                            link(commit: commit, to: item)
+                        }
+                    }
+                }
+            }
+            let linked = linkedItems(for: commit)
+            if !linked.isEmpty {
+                Menu(L10n.pick("Unlink Task/Event", "取消关联任务/日程")) {
+                    ForEach(linked) { item in
+                        Button(item.content) {
+                            unlink(commit: commit, from: item)
+                        }
+                    }
                 }
             }
         }

@@ -35,6 +35,9 @@ final class AppSettings: ObservableObject {
     @Published var weekGoalCalendarName: String {
         didSet { settingsDidChange() }
     }
+    @Published var defaultLiteratureCalendarName: String {
+        didSet { settingsDidChange() }
+    }
     @Published var menuBarEnabled: Bool {
         didSet { settingsDidChange() }
     }
@@ -137,6 +140,7 @@ final class AppSettings: ObservableObject {
         self.defaultReminderListName = stored.defaultReminderListName
         self.defaultCalendarName = stored.defaultCalendarName
         self.weekGoalCalendarName = stored.weekGoalCalendarName
+        self.defaultLiteratureCalendarName = stored.defaultLiteratureCalendarName ?? ""
         self.menuBarEnabled = stored.menuBarEnabled
         self.language = stored.language ?? "en"
         self.startupProjectMode = stored.startupProjectMode ?? "none"
@@ -244,6 +248,7 @@ final class AppSettings: ObservableObject {
         defaultReminderListName = ""
         defaultCalendarName = ""
         weekGoalCalendarName = ""
+        defaultLiteratureCalendarName = ""
     }
 
     /// Ensure `name` is enabled. If config is "all" (empty), it stays all —
@@ -283,6 +288,7 @@ final class AppSettings: ObservableObject {
         else { enabledCalendarNames.insert(name) }
         if !isCalendarEnabled(defaultCalendarName) { defaultCalendarName = "" }
         if !isCalendarEnabled(weekGoalCalendarName) { weekGoalCalendarName = "" }
+        if !isCalendarEnabled(defaultLiteratureCalendarName) { defaultLiteratureCalendarName = "" }
     }
 
     private struct Stored: Codable {
@@ -293,6 +299,7 @@ final class AppSettings: ObservableObject {
         var defaultReminderListName: String
         var defaultCalendarName: String
         var weekGoalCalendarName: String
+        var defaultLiteratureCalendarName: String?
         var menuBarEnabled: Bool
         var language: String?
         var startupProjectMode: String?
@@ -319,6 +326,7 @@ final class AppSettings: ObservableObject {
                                      defaultReminderListName: "",
                                      defaultCalendarName: "",
                                      weekGoalCalendarName: "",
+                                     defaultLiteratureCalendarName: "",
                                      menuBarEnabled: true,
                                      language: nil,
                                      startupProjectMode: nil,
@@ -347,6 +355,7 @@ final class AppSettings: ObservableObject {
                             defaultReminderListName: defaultReminderListName,
                             defaultCalendarName: defaultCalendarName,
                             weekGoalCalendarName: weekGoalCalendarName,
+                            defaultLiteratureCalendarName: defaultLiteratureCalendarName,
                             menuBarEnabled: menuBarEnabled,
                             language: language,
                             startupProjectMode: startupProjectMode,

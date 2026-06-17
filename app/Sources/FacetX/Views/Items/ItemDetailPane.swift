@@ -226,45 +226,9 @@ struct ItemDetailPane: View {
     private var resourcesCard: some View {
         FacetDetailSection(title: L10n.pick("Linked Resources", "关联资源"), systemImage: "link.badge.plus") {
             VStack(alignment: .leading, spacing: 10) {
-                linkedPapersSection
                 linkedCommitsSection
             }
             .padding(10)
-        }
-    }
-
-    private var linkedPapersSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            resourceHeader(
-                title: L10n.pick("Papers", "文献"),
-                count: itemMetadata.paperIDs.count,
-                systemImage: "doc.text"
-            ) {
-                Menu {
-                    ForEach(availablePapers) { paper in
-                        Button(paper.title) {
-                            updateItemMetadata(itemMetadata.addingPaper(paper.id))
-                        }
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .disabled(availablePapers.isEmpty || saving)
-                .help(L10n.pick("Link paper", "关联文献"))
-            }
-
-            if linkedPapers.isEmpty {
-                emptyResourceText(L10n.pick("No linked papers.", "暂无关联文献。"))
-            } else {
-                ForEach(linkedPapers) { paper in
-                    resourceRow(title: paper.title, subtitle: paper.venueAbbr.isEmpty ? paper.venue : paper.venueAbbr) {
-                        updateItemMetadata(itemMetadata.removingPaper(paper.id))
-                    }
-                }
-            }
         }
     }
 
@@ -282,7 +246,7 @@ struct ItemDetailPane: View {
                 emptyResourceText(L10n.pick("No linked commits.", "暂无关联提交。"))
             } else {
                 ForEach(itemMetadata.commits, id: \.self) { commit in
-                    resourceRow(title: commit, subtitle: nil) {
+                    commitResourceRow(commitString: commit) {
                         updateItemMetadata(itemMetadata.removingCommit(commit))
                     }
                 }
@@ -290,17 +254,72 @@ struct ItemDetailPane: View {
         }
     }
 
-    private var linkedPapers: [Paper] {
-        itemMetadata.paperIDs.compactMap { id in
-            paperStore.papers.first { $0.id == id }
-        }
+    private func parseCommit(_ commitString: String) -> (repo: String, sha: String, shortSha: String, url: URL?)? {
+        let parts = commitString.split(separator: "@")
+        guard parts.count == 2 else { return nil }
+        let repo = String(parts[0])
+        let sha = String(parts[1])
+        let shortSha = String(sha.prefix(7))
+        let url = URL(string: "https://github.com/\(repo)/commit/\(sha)")
+        return (repo: repo, sha: sha, shortSha: shortSha, url: url)
     }
 
-    private var availablePapers: [Paper] {
-        let linked = Set(itemMetadata.paperIDs)
-        return paperStore.papers
-            .filter { !linked.contains($0.id) }
-            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    private func commitResourceRow(commitString: String, onRemove: @escaping () -> Void) -> some View {
+        let parsed = parseCommit(commitString)
+        let titleText = parsed?.shortSha ?? commitString
+        let subtitleText = parsed?.repo
+        
+        return HStack(spacing: 8) {
+            Image(systemName: "curlybraces")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.purple)
+                .frame(width: 16, height: 16)
+                .background(Color.purple.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(titleText)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .lineLimit(1)
+                    
+                    if let url = parsed?.url {
+                        Button {
+                            NSWorkspace.shared.open(url)
+                        } label: {
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                
+                if let subtitleText {
+                    Text(subtitleText)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer(minLength: 8)
+            
+            Button(role: .destructive) {
+                onRemove()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(saving)
+            .help(L10n.pick("Unlink", "取消关联"))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     private func resourceHeader<Action: View>(title: String, count: Int, systemImage: String,
@@ -321,37 +340,6 @@ struct ItemDetailPane: View {
             Spacer()
             action()
         }
-    }
-
-    private func resourceRow(title: String, subtitle: String?, onRemove: @escaping () -> Void) -> some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 11, weight: .medium))
-                    .lineLimit(2)
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 8)
-            Button(role: .destructive) {
-                onRemove()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .disabled(saving)
-            .help(L10n.pick("Unlink", "取消关联"))
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     private func emptyResourceText(_ text: String) -> some View {

@@ -15,6 +15,7 @@ struct Project: Identifiable, Codable, Hashable {
     var reminderListName: String?
     var calendarName: String?
     var weekGoalCalendarName: String?
+    var literatureCalendarName: String?
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
     var itemOrder: [String] = []
@@ -26,7 +27,8 @@ struct Project: Identifiable, Codable, Hashable {
     var githubRepo: String?
 
     init(name: String, prefix: String? = nil, tagline: String = "",
-         reminderListName: String? = nil, calendarName: String? = nil, weekGoalCalendarName: String? = nil,
+         reminderListName: String? = nil, calendarName: String? = nil,
+         weekGoalCalendarName: String? = nil, literatureCalendarName: String? = nil,
          colorName: String? = nil, iconName: String? = nil,
          githubRepo: String? = nil) {
         self.name = name
@@ -35,6 +37,7 @@ struct Project: Identifiable, Codable, Hashable {
         self.reminderListName = reminderListName
         self.calendarName = calendarName
         self.weekGoalCalendarName = weekGoalCalendarName
+        self.literatureCalendarName = literatureCalendarName
         self.colorName = colorName
         self.iconName = iconName
         self.githubRepo = githubRepo
@@ -93,13 +96,13 @@ final class ProjectStore: ObservableObject {
     @discardableResult
     func createProject(name: String, prefix: String? = nil, tagline: String = "",
                        reminderListName: String? = nil, calendarName: String? = nil,
-                       weekGoalCalendarName: String? = nil,
+                       weekGoalCalendarName: String? = nil, literatureCalendarName: String? = nil,
                        colorName: String? = nil, iconName: String? = nil,
                        githubRepo: String? = nil) -> Project.ID {
         let maxOrder = projects.map(\.sortOrder).max() ?? -1
         var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
-                              weekGoalCalendarName: weekGoalCalendarName,
+                              weekGoalCalendarName: weekGoalCalendarName, literatureCalendarName: literatureCalendarName,
                               colorName: colorName, iconName: iconName,
                               githubRepo: githubRepo)
         project.sortOrder = maxOrder + 1

@@ -242,6 +242,13 @@ struct ItemRow: View {
                                 .clipShape(Capsule())
                         }
 
+                        if !item.linkedPaperIDs.isEmpty {
+                            Image(systemName: "books.vertical")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.orange)
+                                .help(L10n.pick("Linked Literature", "已关联文献"))
+                        }
+
                         if let notes = item.notes, !notes.isEmpty {
                             Image(systemName: "doc.text")
                                 .font(.system(size: 11))

@@ -15,6 +15,7 @@ struct EditProjectView: View {
     @State private var reminderListName = ""
     @State private var calendarName = ""
     @State private var weekGoalCalendarName = ""
+    @State private var literatureCalendarName = ""
     @State private var githubRepo = ""
     @State private var colorName = ProjectAppearance.defaultColorName
     @State private var iconName = ProjectAppearance.defaultIconName
@@ -100,6 +101,7 @@ struct EditProjectView: View {
             ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: reminderLists)
             ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: calendars)
             ProjectEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: calendars)
+            ProjectEditorPicker(title: L10n.pick("Literature Calendar", "文献日历"), selection: $literatureCalendarName, options: calendars)
         }
     }
 
@@ -147,6 +149,9 @@ struct EditProjectView: View {
         weekGoalCalendarName = firstAvailable(project.weekGoalCalendarName,
                                              settings.weekGoalCalendarName,
                                              in: calendars)
+        literatureCalendarName = firstAvailable(project.literatureCalendarName,
+                                               settings.defaultLiteratureCalendarName,
+                                               in: calendars)
     }
 
     private func save() {
@@ -157,6 +162,7 @@ struct EditProjectView: View {
         updated.reminderListName = reminderListName.isEmpty ? nil : reminderListName
         updated.calendarName = calendarName.isEmpty ? nil : calendarName
         updated.weekGoalCalendarName = weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName
+        updated.literatureCalendarName = literatureCalendarName.isEmpty ? nil : literatureCalendarName
         updated.colorName = colorName
         updated.iconName = iconName
         let repo = githubRepo.trimmingCharacters(in: .whitespaces)
