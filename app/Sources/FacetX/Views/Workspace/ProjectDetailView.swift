@@ -73,7 +73,10 @@ struct ProjectDetailView: View {
                     case .all: allItemsView
                     case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
                     case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
-                    case .commits: CommitsView(project: project, searchText: searchText, refreshTrigger: refreshTrigger)
+                    case .commits:
+                        CommitsView(project: project, items: items, searchText: searchText, refreshTrigger: refreshTrigger) {
+                            await reload()
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

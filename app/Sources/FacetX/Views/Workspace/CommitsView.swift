@@ -1,12 +1,17 @@
+import FacetXCore
 import SwiftUI
 
 /// Displays recent GitHub commits for a project's configured repository.
 struct CommitsView: View {
+    @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
+    @State private var noteStore = ItemNoteStore.shared
 
     let project: Project
+    let items: [ProjectItem]
     let searchText: String
     let refreshTrigger: Int
+    let onItemsChanged: () async -> Void
 
     @State private var commits: [GitHubCommit] = []
     @State private var selectedCommit: GitHubCommit?
@@ -460,6 +465,8 @@ struct CommitsView: View {
                     commitBodyCard(body)
                 }
 
+                commitLinkedItemsCard(commit)
+
                 commitGitHubCard(commit)
             }
         }
@@ -592,6 +599,80 @@ struct CommitsView: View {
         }
     }
 
+    private func commitLinkedItemsCard(_ commit: GitHubCommit) -> some View {
+        FacetDetailSection(title: L10n.pick("Linked Items", "关联条目"), systemImage: "checklist") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text("\(linkedItems(for: commit).count)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Text(L10n.pick("tasks/events", "任务/日程"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Menu {
+                        ForEach(linkableItems(for: commit)) { item in
+                            Button(item.content) {
+                                link(commit: commit, to: item)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .disabled(linkableItems(for: commit).isEmpty || loading)
+                    .help(L10n.pick("Link item", "关联条目"))
+                }
+
+                let linked = linkedItems(for: commit)
+                if linked.isEmpty {
+                    Text(L10n.pick("No linked tasks or events.", "暂无关联任务或日程。"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(linked) { item in
+                        linkedItemRow(item, commit: commit)
+                    }
+                }
+            }
+            .padding(10)
+        }
+    }
+
+    private func linkedItemRow(_ item: ProjectItem, commit: GitHubCommit) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: item.kind == .reminder ? "checkmark.circle" : "calendar")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(item.kind == .reminder ? .green : .blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.content)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(2)
+                Text(item.containerName)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button(role: .destructive) {
+                unlink(commit: commit, from: item)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(L10n.pick("Unlink", "取消关联"))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+
     private func authorColor(for name: String) -> Color {
         let colors: [Color] = [
             .blue, .green, .orange, .purple, .pink, .teal, .indigo, .red
@@ -613,6 +694,49 @@ struct CommitsView: View {
 
     private func containsSearch(_ value: String, query: String) -> Bool {
         value.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    }
+
+    private func commitLinkID(_ commit: GitHubCommit) -> String {
+        "\(project.githubRepo ?? project.name)@\(commit.id)"
+    }
+
+    private func linkedItems(for commit: GitHubCommit) -> [ProjectItem] {
+        let id = commitLinkID(commit)
+        return items.filter { $0.linkedCommits.contains(id) }
+    }
+
+    private func linkableItems(for commit: GitHubCommit) -> [ProjectItem] {
+        let id = commitLinkID(commit)
+        return items.filter { !$0.linkedCommits.contains(id) }
+    }
+
+    private func link(commit: GitHubCommit, to item: ProjectItem) {
+        updateCommitLink(commit, item: item, add: true)
+    }
+
+    private func unlink(commit: GitHubCommit, from item: ProjectItem) {
+        updateCommitLink(commit, item: item, add: false)
+    }
+
+    private func updateCommitLink(_ commit: GitHubCommit, item: ProjectItem, add: Bool) {
+        let linkID = commitLinkID(commit)
+        var metadata = FacetItemMetadata(
+            itemID: item.facetID ?? UUID().uuidString,
+            noteID: item.noteID ?? UUID().uuidString,
+            paperIDs: item.linkedPaperIDs,
+            commits: item.linkedCommits,
+            tags: item.tags
+        )
+        metadata = add ? metadata.addingCommit(linkID) : metadata.removingCommit(linkID)
+        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
+        Task {
+            let ok = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
+            if ok {
+                await onItemsChanged()
+            } else {
+                errorMessage = L10n.pick("Failed to update commit link.", "更新提交关联失败。")
+            }
+        }
     }
 
     // MARK: – Helpers

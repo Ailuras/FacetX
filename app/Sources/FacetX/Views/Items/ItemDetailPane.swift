@@ -7,6 +7,7 @@ struct ItemDetailPane: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var toast: ToastController
     @State private var noteStore = ItemNoteStore.shared
+    @State private var paperStore = PaperStore.shared
 
     let item: ProjectItem
     let project: Project
@@ -82,6 +83,7 @@ struct ItemDetailPane: View {
                 scheduleCard
                 linkCard
                 tagsCard
+                resourcesCard
                 notesCard
             }
 
@@ -219,6 +221,145 @@ struct ItemDetailPane: View {
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var resourcesCard: some View {
+        FacetDetailSection(title: L10n.pick("Linked Resources", "关联资源"), systemImage: "link.badge.plus") {
+            VStack(alignment: .leading, spacing: 10) {
+                linkedPapersSection
+                linkedCommitsSection
+            }
+            .padding(10)
+        }
+    }
+
+    private var linkedPapersSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            resourceHeader(
+                title: L10n.pick("Papers", "文献"),
+                count: itemMetadata.paperIDs.count,
+                systemImage: "doc.text"
+            ) {
+                Menu {
+                    ForEach(availablePapers) { paper in
+                        Button(paper.title) {
+                            updateItemMetadata(itemMetadata.addingPaper(paper.id))
+                        }
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .disabled(availablePapers.isEmpty || saving)
+                .help(L10n.pick("Link paper", "关联文献"))
+            }
+
+            if linkedPapers.isEmpty {
+                emptyResourceText(L10n.pick("No linked papers.", "暂无关联文献。"))
+            } else {
+                ForEach(linkedPapers) { paper in
+                    resourceRow(title: paper.title, subtitle: paper.venueAbbr.isEmpty ? paper.venue : paper.venueAbbr) {
+                        updateItemMetadata(itemMetadata.removingPaper(paper.id))
+                    }
+                }
+            }
+        }
+    }
+
+    private var linkedCommitsSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            resourceHeader(
+                title: L10n.pick("Commits", "提交"),
+                count: itemMetadata.commits.count,
+                systemImage: "curlybraces"
+            ) {
+                EmptyView()
+            }
+
+            if itemMetadata.commits.isEmpty {
+                emptyResourceText(L10n.pick("No linked commits.", "暂无关联提交。"))
+            } else {
+                ForEach(itemMetadata.commits, id: \.self) { commit in
+                    resourceRow(title: commit, subtitle: nil) {
+                        updateItemMetadata(itemMetadata.removingCommit(commit))
+                    }
+                }
+            }
+        }
+    }
+
+    private var linkedPapers: [Paper] {
+        itemMetadata.paperIDs.compactMap { id in
+            paperStore.papers.first { $0.id == id }
+        }
+    }
+
+    private var availablePapers: [Paper] {
+        let linked = Set(itemMetadata.paperIDs)
+        return paperStore.papers
+            .filter { !linked.contains($0.id) }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    private func resourceHeader<Action: View>(title: String, count: Int, systemImage: String,
+                                              @ViewBuilder action: () -> Action) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+            Text("\(count)")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Color.secondary.opacity(0.10))
+                .clipShape(Capsule())
+            Spacer()
+            action()
+        }
+    }
+
+    private func resourceRow(title: String, subtitle: String?, onRemove: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(2)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            Button(role: .destructive) {
+                onRemove()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(saving)
+            .help(L10n.pick("Unlink", "取消关联"))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+
+    private func emptyResourceText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 2)
     }
 
     private var notesCard: some View {
@@ -746,6 +887,25 @@ struct ItemDetailPane: View {
             toast.show(L10n.pick("Failed to rebuild metadata", "重建元数据失败"), type: .error)
         }
         return ok
+    }
+
+    private func updateItemMetadata(_ metadata: FacetItemMetadata) {
+        saveLocalNoteIfNeeded()
+        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
+        var updated = metadata
+        updated.tags = FacetMetadata.tags(from: tagsText)
+        saving = true
+        Task {
+            let ok = await ek.rewriteItemMetadata(id: item.id, metadata: updated)
+            saving = false
+            if ok {
+                itemMetadata = updated
+                metadataNeedsRepair = false
+                onUpdate(item.id)
+            } else {
+                toast.show(L10n.pick("Failed to update links", "更新关联失败"), type: .error)
+            }
+        }
     }
 
     private func deleteItem() {
