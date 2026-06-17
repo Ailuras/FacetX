@@ -286,7 +286,7 @@ struct ItemDetailPane: View {
                         NotificationCenter.default.post(name: .navigateToPaper, object: nil, userInfo: ["paperID": paperID])
                     } label: {
                         Image(systemName: "arrow.up.right")
-                            .font(.system(size: 8, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Color.accentColor)
                     }
                     .buttonStyle(.plain)
