@@ -350,12 +350,22 @@ struct TopicDetailView: View {
         }
 
         Menu {
-            Button(L10n.pick("Title", "标题")) { copyToPasteboard(paper.title) }
+            Button(L10n.pick("Title", "标题")) {
+                copyToPasteboard(paper.title, label: L10n.pick("Title", "标题"))
+            }
             Divider()
-            Button("BibTeX") { copyToPasteboard(CitationExporter.bibtex(for: paper)) }
-            Button("APA") { copyToPasteboard(CitationExporter.apa(for: paper)) }
-            Button("RIS") { copyToPasteboard(CitationExporter.ris(for: paper)) }
-            Button("Markdown") { copyToPasteboard(CitationExporter.markdown(for: paper)) }
+            Button("BibTeX") {
+                copyToPasteboard(CitationExporter.bibtex(for: paper), label: "BibTeX")
+            }
+            Button("APA") {
+                copyToPasteboard(CitationExporter.apa(for: paper), label: "APA")
+            }
+            Button("RIS") {
+                copyToPasteboard(CitationExporter.ris(for: paper), label: "RIS")
+            }
+            Button("Markdown") {
+                copyToPasteboard(CitationExporter.markdown(for: paper), label: "Markdown")
+            }
         } label: {
             Label(L10n.pick("Copy", "复制"), systemImage: "doc.on.doc")
         }
@@ -378,9 +388,11 @@ struct TopicDetailView: View {
         }
     }
 
-    private func copyToPasteboard(_ string: String) {
+    private func copyToPasteboard(_ string: String, label: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(string, forType: .string)
+        toast.show(L10n.pick("\(label) copied", "\(label) 已复制"),
+                   type: .success, duration: 1.6)
     }
 
     private var emptyState: some View {

@@ -388,6 +388,8 @@ struct PaperDetailPane: View {
         Button {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(value(), forType: .string)
+            toast.show(L10n.pick("\(label) citation copied", "\(label) 引用已复制"),
+                       type: .success, duration: 1.6)
         } label: {
             Text(label)
                 .font(.system(size: 11, weight: .medium))
