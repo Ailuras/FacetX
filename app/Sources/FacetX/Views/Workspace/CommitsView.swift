@@ -384,7 +384,8 @@ struct CommitsView: View {
         return VStack(alignment: .leading, spacing: 6) {
             Text(commit.summary)
                 .font(.system(size: 13, weight: .medium))
-                .lineLimit(2)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
             HStack(spacing: 8) {
                 Text(commit.authorName)
