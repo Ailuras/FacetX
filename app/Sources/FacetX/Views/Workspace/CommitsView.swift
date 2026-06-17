@@ -14,6 +14,7 @@ struct CommitsView: View {
     @State private var errorMessage: String?
     @State private var dateRange: DateRange = .none
     @State private var selectedWeekDay: Date? = Calendar.current.startOfDay(for: Date())
+    @State private var hoveredCommitID: GitHubCommit.ID?
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
@@ -370,7 +371,11 @@ struct CommitsView: View {
     }
 
     private func commitRow(_ commit: GitHubCommit) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let isSelected = selectedCommit?.id == commit.id
+        let isHovered = hoveredCommitID == commit.id
+        let tint = authorColor(for: commit.authorName)
+
+        return VStack(alignment: .leading, spacing: 6) {
             Text(commit.summary)
                 .font(.system(size: 13, weight: .medium))
                 .lineLimit(2)
@@ -402,27 +407,40 @@ struct CommitsView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(selectedCommit?.id == commit.id
-                    ? Color.accentColor.opacity(0.08)
-                    : FacetTheme.quietPanel)
+        .background(commitRowFill(isSelected: isSelected, isHovered: isHovered))
         .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(selectedCommit?.id == commit.id
-                        ? Color.accentColor.opacity(0.35)
-                        : FacetTheme.hairline,
-                        lineWidth: 1)
+                .stroke(commitRowStroke(isSelected: isSelected, isHovered: isHovered, tint: tint),
+                        lineWidth: isSelected ? 1.5 : 1)
         )
         .contentShape(Rectangle())
+        .onHover { isHovered in
+            withAnimation(.easeOut(duration: 0.15)) {
+                hoveredCommitID = isHovered ? commit.id : nil
+            }
+        }
         .onTapGesture {
             withAnimation(.easeOut(duration: 0.15)) {
-                if selectedCommit?.id == commit.id {
+                if isSelected {
                     selectedCommit = nil
                 } else {
                     selectedCommit = commit
                 }
             }
         }
+    }
+
+    private func commitRowFill(isSelected: Bool, isHovered: Bool) -> Color {
+        if isSelected { return Color.accentColor.opacity(0.10) }
+        if isHovered { return Color.primary.opacity(0.035) }
+        return FacetTheme.quietPanel
+    }
+
+    private func commitRowStroke(isSelected: Bool, isHovered: Bool, tint: Color) -> Color {
+        if isSelected { return Color.accentColor.opacity(0.45) }
+        if isHovered { return tint.opacity(0.32) }
+        return FacetTheme.hairline
     }
 
     // MARK: – Commit Detail Pane
