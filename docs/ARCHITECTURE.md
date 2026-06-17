@@ -4,6 +4,10 @@ FacetX is a native macOS SwiftUI app that layers projects over Apple Calendar
 and Reminders without owning item content. EventKit remains the source of truth;
 FacetX persists only project metadata that EventKit cannot represent.
 
+Task and event items are the primary work atoms. Projects group them by prefix;
+papers, commits, and long-form work notes attach to an item rather than to the
+project.
+
 ## Core Contract
 
 An item belongs to a project when its title starts with `ProjectName:`.
@@ -61,6 +65,50 @@ WeekGoal
 ```
 
 JSON writes are atomic and use `[.prettyPrinted, .sortedKeys]`.
+
+Item work notes:
+
+```text
+item-notes.db
+  item_notes
+    id
+    body
+    created_at
+    updated_at
+```
+
+Reminder and calendar notes hold only FacetX metadata for normal project items.
+The user-facing work note body lives in the local item note database and is
+referenced by `note-id`.
+
+Canonical item metadata:
+
+```text
+FacetX-Metadata-Begin
+commits: owner/repo@sha,...
+facetx-kind: item-v1
+item-id: stable-facetx-item-uuid
+note-id: local-note-uuid
+papers: paper-id,...
+tags: tag, tag
+FacetX-Metadata-End
+```
+
+The `item-id` is the stable FacetX identity for the task/event. It is preserved
+when a reminder is converted to a calendar event or vice versa. The EventKit
+`calendarItemIdentifier` can change after conversion or sync, so durable links
+must use metadata carried inside the item notes, not the EventKit identifier
+alone.
+
+FacetX does not maintain a separate link table for item relationships. Linked
+paper ids and commit ids are stored in the item metadata. This keeps task/event
+links portable with the EventKit item and avoids a second source of truth for
+relationships.
+
+If an existing item has plain notes or an incomplete metadata block, the item
+detail pane offers a rebuild action. Rebuild absorbs the old user-facing notes
+into `item-notes.db`, then rewrites the EventKit notes field as canonical
+metadata.
 
 ## EventKit Concurrency
 
