@@ -54,7 +54,7 @@ struct ProjectDetailView: View {
     }
 
     private var taskItems: [ProjectItem] {
-        visibleItems.filter { $0.kind == .reminder && $0.linkedPaperIDs.isEmpty }
+        visibleItems.filter { $0.kind == .reminder }
     }
 
     private var scheduleItems: [ProjectItem] {
@@ -62,7 +62,7 @@ struct ProjectDetailView: View {
     }
 
     private var literatureItems: [ProjectItem] {
-        visibleItems.filter { !$0.linkedPaperIDs.isEmpty }
+        visibleItems.filter { $0.kind == .event && !$0.linkedPaperIDs.isEmpty }
     }
 
     private var itemCounts: ItemCounts {
