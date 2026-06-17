@@ -4,6 +4,7 @@ import SwiftUI
 struct LiteratureSettingsTab: View {
     @State private var settings = LibrarySettings.shared
     @State private var metadata = MetadataStore.shared
+    @State private var showScoringRules = false
     @EnvironmentObject private var toast: ToastController
 
     var body: some View {
@@ -13,10 +14,13 @@ struct LiteratureSettingsTab: View {
                      warning: nil) {
             recommendationCard
             translationCard
-            VenueRulesCard(metadata: metadata)
-            TierRulesCard(metadata: metadata)
-            CitationRulesCard(metadata: metadata)
-            rulesActions
+            scoringRulesSummary
+            if showScoringRules {
+                VenueRulesCard(metadata: metadata)
+                TierRulesCard(metadata: metadata)
+                CitationRulesCard(metadata: metadata)
+                rulesActions
+            }
         }
     }
 
@@ -105,13 +109,13 @@ struct LiteratureSettingsTab: View {
                                       value: $settings.qualitySlots,
                                       range: 0...20,
                                       unit: L10n.pick("papers", "篇"),
-                                      valueWidth: 42)
+                                      valueWidth: recommendationValueWidth)
                     compactDivider
                     compactStepperRow(L10n.pick("Minimum", "分数下限"),
                                       value: $settings.highScoreThreshold,
                                       range: 0...100,
                                       unit: L10n.pick("score", "分"),
-                                      valueWidth: 42)
+                                      valueWidth: recommendationValueWidth)
                 }
 
                 recommendationLane(title: L10n.pick("Recent", "近期"),
@@ -122,19 +126,61 @@ struct LiteratureSettingsTab: View {
                                       value: $settings.recentSlots,
                                       range: 0...20,
                                       unit: L10n.pick("papers", "篇"),
-                                      valueWidth: 42)
+                                      valueWidth: recommendationValueWidth)
                     compactDivider
                     compactStepperRow(L10n.pick("Window", "时间窗口"),
                                       value: $settings.recentDays,
                                       range: 1...365,
                                       unit: L10n.pick("days", "天"),
-                                      valueWidth: 52)
+                                      valueWidth: recommendationValueWidth)
                 }
             }
 
             ProjectEditorHelp(L10n.pick("Daily total: \(settings.qualitySlots + settings.recentSlots) papers. High-score picks use the score threshold; recent picks use the publication-date window.",
                                         "每日总数：\(settings.qualitySlots + settings.recentSlots) 篇。高分推荐使用分数下限；近期推荐使用发表时间窗口。"))
                 .padding(.leading, 28)
+        }
+    }
+
+    // MARK: - Scoring rules
+
+    private var scoringRulesSummary: some View {
+        SettingsCard(title: L10n.pick("Scoring Rules", "评分规则"), systemImage: "slider.horizontal.3",
+                     subtitle: L10n.pick("Venue tiers and citation scoring. Expand only when editing rules.",
+                                         "会议等级与引用评分；仅在需要编辑规则时展开。")) {
+            HStack(spacing: 8) {
+                rulesMetric(title: L10n.pick("Venues", "会议"),
+                            value: "\(metadata.venues.count)",
+                            systemImage: "building.2",
+                            tint: .indigo)
+                rulesMetric(title: L10n.pick("Tiers", "等级"),
+                            value: "\(metadata.tiers.count)",
+                            systemImage: "rosette",
+                            tint: .orange)
+                rulesMetric(title: L10n.pick("Citation Ranges", "引用区间"),
+                            value: "\(metadata.citationBreakpoints.count)",
+                            systemImage: "quote.bubble",
+                            tint: .teal)
+            }
+
+            HStack(spacing: 10) {
+                Label(metadata.rulesDirty ? L10n.pick("Rules need applying", "规则待应用")
+                                           : L10n.pick("Rules are applied", "规则已应用"),
+                      systemImage: metadata.rulesDirty ? "exclamationmark.circle" : "checkmark.circle")
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(metadata.rulesDirty ? .orange : .secondary)
+
+                Spacer()
+
+                Button {
+                    showScoringRules.toggle()
+                } label: {
+                    Label(showScoringRules ? L10n.pick("Hide Rules", "收起规则")
+                                           : L10n.pick("Edit Rules", "编辑规则"),
+                          systemImage: showScoringRules ? "chevron.up" : "chevron.down")
+                }
+                .controlSize(.small)
+            }
         }
     }
 
@@ -158,6 +204,8 @@ struct LiteratureSettingsTab: View {
     }
 
     // MARK: - Helpers
+
+    private var recommendationValueWidth: CGFloat { 52 }
 
     private func clamped(_ value: Binding<Int>, to range: ClosedRange<Int>) -> Binding<Int> {
         Binding(
@@ -241,5 +289,38 @@ struct LiteratureSettingsTab: View {
         Divider()
             .opacity(0.36)
             .padding(.leading, 2)
+    }
+
+    private func rulesMetric(title: String, value: String, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(tint.opacity(0.12))
+                Image(systemName: systemImage)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Text(value)
+                    .font(.system(size: 12, weight: .semibold))
+                    .monospacedDigit()
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(FacetTheme.panel.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
     }
 }
