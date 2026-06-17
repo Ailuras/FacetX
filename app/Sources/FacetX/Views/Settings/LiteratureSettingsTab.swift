@@ -135,10 +135,6 @@ struct LiteratureSettingsTab: View {
                                       valueWidth: recommendationValueWidth)
                 }
             }
-
-            ProjectEditorHelp(L10n.pick("Daily total: \(settings.qualitySlots + settings.recentSlots) papers. High-score picks use the score threshold; recent picks use the publication-date window.",
-                                        "每日总数：\(settings.qualitySlots + settings.recentSlots) 篇。高分推荐使用分数下限；近期推荐使用发表时间窗口。"))
-                .padding(.leading, 28)
         }
     }
 
@@ -190,15 +186,19 @@ struct LiteratureSettingsTab: View {
         SettingsCard(title: L10n.pick("Translation", "翻译"), systemImage: "character.book.closed",
                      subtitle: L10n.pick("Translate paper abstracts. Provider and API key live in Integrations → LLM API.",
                                          "翻译文献摘要。服务商与密钥位于「集成 → 大模型 API」。")) {
-            SettingsRow(title: L10n.pick("Enable Translation", "启用翻译"), systemImage: "globe") {
-                Toggle("", isOn: $settings.translateEnabled)
-                    .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-            }
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("Target Language", "目标语言"), systemImage: "text.bubble") {
-                TextField("", text: $settings.targetLanguage)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: SettingsUI.controlWidth)
+            SettingsRow(title: L10n.pick("Abstract Translation", "摘要翻译"), systemImage: "globe") {
+                HStack(spacing: 8) {
+                    Toggle("", isOn: $settings.translateEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                    TextField(L10n.pick("Target Language", "目标语言"), text: $settings.targetLanguage)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 150)
+                        .disabled(!settings.translateEnabled)
+                        .opacity(settings.translateEnabled ? 1 : 0.55)
+                }
+                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
             }
         }
     }

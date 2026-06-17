@@ -27,7 +27,6 @@ struct IntegrationsSettingsTab: View {
         }
         .onAppear {
             loadGitHubStatus()
-            if availableModels.isEmpty, !litSettings.apiKey.isEmpty { loadModels() }
         }
     }
 
@@ -37,42 +36,50 @@ struct IntegrationsSettingsTab: View {
         SettingsCard(title: "GitHub", systemImage: "curlybraces",
                      subtitle: L10n.pick("Personal access token for commit history.",
                                          "用于读取提交历史的个人访问令牌。")) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    if githubStatus.isEmpty {
-                        Text(L10n.pick("No token configured.", "尚未配置令牌。"))
-                            .font(SettingsUI.secondaryFont)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        HStack(spacing: 6) {
-                            Image(systemName: githubConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .foregroundStyle(githubConnected ? .green : .orange)
-                            Text(githubStatus)
-                                .font(SettingsUI.secondaryFont)
-                        }
-                    }
+            HStack(spacing: 8) {
+                serviceMetric(title: L10n.pick("Status", "状态"),
+                              value: githubStatusText,
+                              systemImage: githubConnected ? "checkmark.circle" : "key",
+                              tint: githubConnected ? .green : .orange)
+                serviceMetric(title: L10n.pick("Access", "访问"),
+                              value: settings.githubToken.isEmpty ? L10n.pick("Not Set", "未设置") : L10n.pick("Token Saved", "令牌已保存"),
+                              systemImage: "lock.shield",
+                              tint: .blue)
+            }
 
-                    Spacer()
-
-                    if !githubStatus.isEmpty {
-                        Button(L10n.pick("Remove", "移除")) {
-                            settings.githubToken = ""
-                            githubToken = ""
-                            githubStatus = ""
-                        }
-                        .controlSize(.small)
-                    }
-                }
-
+            SettingsRow(title: L10n.pick("Token", "令牌"), systemImage: "key") {
                 HStack(spacing: 8) {
                     SecureField(L10n.pick("Personal Access Token", "个人访问令牌"), text: $githubToken)
                         .textFieldStyle(.roundedBorder)
+                        .frame(width: 138)
 
-                    Button(validating ? L10n.pick("Validating...", "验证中…") : L10n.pick("Save", "保存")) {
+                    Button {
                         saveGitHubToken()
+                    } label: {
+                        if validating {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text(L10n.pick("Test", "测试"))
+                        }
                     }
+                    .controlSize(.small)
                     .disabled(githubToken.isEmpty || validating)
+
+                    if !settings.githubToken.isEmpty || !githubStatus.isEmpty {
+                        Button(role: .destructive) {
+                            settings.githubToken = ""
+                            githubToken = ""
+                            githubStatus = ""
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .help(L10n.pick("Remove token", "移除令牌"))
+                    }
                 }
+                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
             }
         }
     }
@@ -83,68 +90,101 @@ struct IntegrationsSettingsTab: View {
         SettingsCard(title: L10n.pick("LLM API", "大模型 API"), systemImage: "character.book.closed",
                      subtitle: L10n.pick("Provider and credentials shared by features such as translation.",
                                          "供翻译等功能共用的服务商与凭据。")) {
-            SettingsRow(title: L10n.pick("Provider", "服务商"), systemImage: "server.rack") {
-                Picker("", selection: $litSettings.apiProvider) {
-                    ForEach(TranslationProvider.allCases, id: \.self) { p in
-                        Text(p.displayName).tag(p)
+            HStack(spacing: 8) {
+                serviceMetric(title: L10n.pick("Provider", "服务商"),
+                              value: litSettings.apiProvider.displayName,
+                              systemImage: "server.rack",
+                              tint: .purple)
+                serviceMetric(title: L10n.pick("Model", "模型"),
+                              value: litSettings.apiModel.isEmpty ? L10n.pick("Unset", "未设置") : litSettings.apiModel,
+                              systemImage: "cpu",
+                              tint: .blue)
+                serviceMetric(title: L10n.pick("Connection", "连接"),
+                              value: apiConnectionStatus,
+                              systemImage: apiConnectionIcon,
+                              tint: apiConnectionTint)
+            }
+
+            VStack(spacing: 0) {
+                SettingsRow(title: L10n.pick("Provider", "服务商"), systemImage: "server.rack") {
+                    Picker("", selection: $litSettings.apiProvider) {
+                        ForEach(TranslationProvider.allCases, id: \.self) { p in
+                            Text(p.displayName).tag(p)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                    .onChange(of: litSettings.apiProvider) { _, p in
+                        litSettings.apiBaseURL = p.defaultBaseURL
+                        litSettings.apiModel = p.defaultModel
+                        availableModels = []
+                        connectionMessage = nil
                     }
                 }
-                .labelsHidden().pickerStyle(.segmented).fixedSize()
-                .onChange(of: litSettings.apiProvider) { _, p in
-                    litSettings.apiBaseURL = p.defaultBaseURL
-                    litSettings.apiModel = p.defaultModel
-                    availableModels = []
-                    connectionMessage = nil
-                }
-            }
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("Base URL", "接口地址"), systemImage: "link") {
-                TextField("", text: $litSettings.apiBaseURL)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: SettingsUI.controlWidth)
-                    .onChange(of: litSettings.apiBaseURL) { _, _ in connectionMessage = nil }
-            }
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("API Key", "API 密钥"), systemImage: "key") {
-                HStack(spacing: 8) {
-                    SecureField("", text: $litSettings.apiKey)
+                compactDivider
+                SettingsRow(title: L10n.pick("Endpoint", "接口地址"), systemImage: "link") {
+                    TextField("", text: $litSettings.apiBaseURL)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 150)
-                        .onChange(of: litSettings.apiKey) { _, _ in connectionMessage = nil }
-                    Button { testConnection() } label: {
-                        if isTesting {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Text(L10n.pick("Test", "测试"))
+                        .frame(width: SettingsUI.controlWidth)
+                        .onChange(of: litSettings.apiBaseURL) { _, _ in connectionMessage = nil }
+                }
+                compactDivider
+                SettingsRow(title: L10n.pick("Credential", "凭据"), systemImage: "key") {
+                    HStack(spacing: 8) {
+                        SecureField("", text: $litSettings.apiKey)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 150)
+                            .onChange(of: litSettings.apiKey) { _, _ in connectionMessage = nil }
+                        Button { testConnection() } label: {
+                            if isTesting {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Text(L10n.pick("Test", "测试"))
+                            }
                         }
+                        .controlSize(.small)
+                        .disabled(isTesting || litSettings.apiKey.isEmpty)
                     }
-                    .controlSize(.small)
-                    .disabled(isTesting || litSettings.apiKey.isEmpty)
+                }
+                compactDivider
+                SettingsRow(title: L10n.pick("Model", "模型"), systemImage: "cpu") {
+                    HStack(spacing: 6) {
+                        Picker("", selection: $litSettings.apiModel) {
+                            if availableModels.isEmpty {
+                                Text(litSettings.apiModel.isEmpty ? L10n.pick("Unavailable", "不可用") : litSettings.apiModel)
+                                    .tag(litSettings.apiModel)
+                            } else {
+                                ForEach(availableModels, id: \.self) { Text($0).tag($0) }
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 172, alignment: .trailing)
+                        .disabled(availableModels.isEmpty)
+                        Button { loadModels() } label: {
+                            if isLoadingModels {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isLoadingModels)
+                        .help(L10n.pick("Refresh model list", "刷新模型列表"))
+                    }
                 }
             }
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("Model", "模型"), systemImage: "cpu") {
-                HStack(spacing: 6) {
-                    Picker("", selection: $litSettings.apiModel) {
-                        if availableModels.isEmpty {
-                            Text(litSettings.apiModel.isEmpty ? L10n.pick("Unavailable", "不可用") : litSettings.apiModel)
-                                .tag(litSettings.apiModel)
-                        } else {
-                            ForEach(availableModels, id: \.self) { Text($0).tag($0) }
-                        }
-                    }
-                    .labelsHidden().pickerStyle(.menu).fixedSize()
-                    .disabled(availableModels.isEmpty)
-                    Button { loadModels() } label: {
-                        if isLoadingModels {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise").foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain).disabled(isLoadingModels)
-                }
-            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(FacetTheme.panel.opacity(0.42))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+
             if let connectionMessage {
                 HStack(spacing: 6) {
                     Image(systemName: connectionIsError ? "exclamationmark.triangle" : "checkmark.circle")
@@ -217,9 +257,6 @@ struct IntegrationsSettingsTab: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(width: SettingsUI.controlWidth)
             }
-            ProjectEditorHelp(L10n.pick("OpenAlex receives this as an extra filter expression on every fetch. The preset topics.field.id:17 limits results to Computer Science. Contact email is recommended by OpenAlex for higher rate limits.",
-                                        "FacetX 会把它作为额外 filter 表达式附加到每次 OpenAlex 拉取。预设 topics.field.id:17 表示限制在计算机科学领域；联系邮箱有助于获得更好的速率限制。"))
-                .padding(.leading, 28)
         }
     }
 
@@ -242,7 +279,6 @@ struct IntegrationsSettingsTab: View {
                     .foregroundStyle(.secondary)
                 Text(value)
                     .font(.system(size: 12, weight: .semibold))
-                    .monospacedDigit()
                     .lineLimit(1)
             }
 
@@ -302,6 +338,38 @@ struct IntegrationsSettingsTab: View {
 
     private var githubConnected: Bool {
         githubStatus.hasPrefix("Connected as ")
+    }
+
+    private var githubStatusText: String {
+        if githubStatus.isEmpty { return L10n.pick("Not Tested", "未测试") }
+        if githubConnected {
+            return githubStatus.replacingOccurrences(of: "Connected as ", with: "@")
+        }
+        return githubStatus
+    }
+
+    private var apiConnectionStatus: String {
+        guard let connectionMessage else {
+            return litSettings.apiKey.isEmpty ? L10n.pick("No Key", "无密钥") : L10n.pick("Not Tested", "未测试")
+        }
+        if connectionIsError { return L10n.pick("Failed", "失败") }
+        return connectionMessage.hasPrefix("Connected") || connectionMessage.hasPrefix("已连接")
+            ? L10n.pick("Connected", "已连接")
+            : connectionMessage
+    }
+
+    private var apiConnectionIcon: String {
+        if connectionMessage == nil {
+            return litSettings.apiKey.isEmpty ? "key.slash" : "questionmark.circle"
+        }
+        return connectionIsError ? "exclamationmark.triangle" : "checkmark.circle"
+    }
+
+    private var apiConnectionTint: Color {
+        if connectionMessage == nil {
+            return litSettings.apiKey.isEmpty ? .orange : .secondary
+        }
+        return connectionIsError ? .red : .green
     }
 
     private func loadGitHubStatus() {
