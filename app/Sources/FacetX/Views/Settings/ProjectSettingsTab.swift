@@ -264,65 +264,78 @@ struct ProjectSettingsTab: View {
     // MARK: - Defaults
 
     private var projectItemsCard: some View {
-        SettingsCard(title: L10n.pick("Project Items", "项目条目"), systemImage: "tray.and.arrow.down",
-                     subtitle: L10n.pick("Defaults for new items and week goals.",
-                                         "新建条目与周目标的默认设置。")) {
-            SettingsRow(title: L10n.pick("Save Targets", "保存目标"), systemImage: "tray.and.arrow.down") {
-                HStack(spacing: 8) {
-                    compactTargetPicker(title: L10n.pick("Tasks", "任务"),
-                                        systemImage: "checklist",
-                                        selection: $settings.defaultReminderListName,
-                                        values: enabledReminderNames)
-                    compactTargetPicker(title: L10n.pick("Calendar", "日历"),
-                                        systemImage: "calendar",
-                                        selection: $settings.defaultCalendarName,
-                                        values: enabledCalendarNames)
-                }
-                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-            }
-
-            SettingsDivider()
-
-            SettingsRow(title: L10n.pick("Event Duration", "事件时长"), systemImage: "clock") {
-                HStack(spacing: 8) {
-                    Text(L10n.pick("\(settings.defaultEventDurationMinutes) min", "\(settings.defaultEventDurationMinutes) 分钟"))
-                        .font(SettingsUI.secondaryFont)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 64, alignment: .trailing)
-                    Stepper("", value: $settings.defaultEventDurationMinutes, in: 5...1440, step: 15)
-                        .labelsHidden()
-                        .controlSize(.mini)
-                }
-                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-            }
-
-            SettingsDivider()
-
-            weekGoalStoragePreview
-
-            SettingsRow(title: L10n.pick("Week Goals", "周目标"), systemImage: "target") {
-                Picker("", selection: $settings.weekGoalCalendarName) {
-                    if enabledCalendarNames.isEmpty { Text(L10n.pick("None", "无")).tag("") }
-                    ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 2)
-            .background(FacetTheme.panel.opacity(0.42))
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
-
+        SettingsCard(title: L10n.pick("Project Defaults", "项目默认值"), systemImage: "tray.and.arrow.down",
+                     subtitle: L10n.pick("Where new items and week goals are saved.",
+                                         "新建条目与周目标的保存位置。")) {
             HStack(spacing: 8) {
-                settingsNote(L10n.pick("Stored as all-day events.", "保存为全天事件。"),
-                             systemImage: "calendar")
-                settingsNote(L10n.pick("Hidden from item lists.", "不显示在普通条目列表。"),
-                             systemImage: "eye.slash")
+                defaultMetric(title: L10n.pick("Tasks", "任务"),
+                              value: settingValue(settings.defaultReminderListName),
+                              systemImage: "checklist",
+                              tint: .green)
+                defaultMetric(title: L10n.pick("Calendar", "日历"),
+                              value: settingValue(settings.defaultCalendarName),
+                              systemImage: "calendar",
+                              tint: .blue)
+                defaultMetric(title: L10n.pick("Week Goals", "周目标"),
+                              value: settingValue(settings.weekGoalCalendarName),
+                              systemImage: "target",
+                              tint: .purple)
+            }
+
+            HStack(alignment: .top, spacing: 10) {
+                defaultsPanel(title: L10n.pick("New Items", "新建条目"),
+                              systemImage: "plus.square.on.square",
+                              tint: .blue) {
+                    HStack(spacing: 8) {
+                        pickerField(title: L10n.pick("Tasks", "任务"),
+                                    systemImage: "checklist",
+                                    selection: $settings.defaultReminderListName,
+                                    values: enabledReminderNames)
+                        pickerField(title: L10n.pick("Calendar", "日历"),
+                                    systemImage: "calendar",
+                                    selection: $settings.defaultCalendarName,
+                                    values: enabledCalendarNames)
+                    }
+
+                    compactDivider
+
+                    HStack(spacing: 8) {
+                        Label(L10n.pick("Duration", "时长"), systemImage: "clock")
+                            .font(SettingsUI.rowFont)
+                            .foregroundStyle(.primary.opacity(0.82))
+                        Spacer()
+                        Text(L10n.pick("\(settings.defaultEventDurationMinutes) min",
+                                       "\(settings.defaultEventDurationMinutes) 分钟"))
+                            .font(SettingsUI.smallFont.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 64, alignment: .trailing)
+                        Stepper("", value: $settings.defaultEventDurationMinutes, in: 5...1440, step: 15)
+                            .labelsHidden()
+                            .controlSize(.mini)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                defaultsPanel(title: L10n.pick("Week Goals", "周目标"),
+                              systemImage: "target",
+                              tint: .purple) {
+                    pickerField(title: L10n.pick("Calendar", "日历"),
+                                systemImage: "calendar.badge.clock",
+                                selection: $settings.weekGoalCalendarName,
+                                values: enabledCalendarNames)
+
+                    compactDivider
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(L10n.pick("Stored as all-day events.", "保存为全天事件。"),
+                              systemImage: "calendar")
+                        Label(L10n.pick("Hidden from item lists.", "不显示在普通条目列表。"),
+                              systemImage: "eye.slash")
+                    }
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
+                }
             }
         }
     }
@@ -383,22 +396,93 @@ struct ProjectSettingsTab: View {
 
     // MARK: - Helpers
 
-    private func compactTargetPicker(title: String, systemImage: String,
-                                     selection: Binding<String>, values: [String]) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
+    private func defaultMetric(title: String, value: String, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(tint.opacity(0.12))
+                Image(systemName: systemImage)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(FacetTheme.panel.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func defaultsPanel<Content: View>(title: String, systemImage: String, tint: Color,
+                                              @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 18)
+                Text(title)
+                    .font(SettingsUI.smallFont.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 3)
+            .background(FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(FacetTheme.panel.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func pickerField(title: String, systemImage: String,
+                             selection: Binding<String>, values: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: systemImage)
+                .font(SettingsUI.smallFont)
                 .foregroundStyle(.secondary)
-                .frame(width: 12)
             Picker(title, selection: selection) {
                 if values.isEmpty { Text(L10n.pick("None", "无")).tag("") }
                 ForEach(values, id: \.self) { Text($0).tag($0) }
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            .frame(width: 84, alignment: .trailing)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 111, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func settingValue(_ value: String) -> String {
+        value.isEmpty ? L10n.pick("None", "无") : value
     }
 
     private func swipeActionRow(title: String, systemImage: String, selection: Binding<String>) -> some View {
@@ -474,37 +558,6 @@ struct ProjectSettingsTab: View {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(FacetTheme.hairline, lineWidth: 1)
                 )
-        }
-        .padding(10)
-        .background(FacetTheme.panel.opacity(0.42))
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-    }
-
-    private var weekGoalStoragePreview: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.purple.opacity(0.12))
-                Image(systemName: "target")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.purple)
-            }
-            .frame(width: 24, height: 24)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(L10n.pick("Storage Calendar", "存储日历"))
-                    .font(SettingsUI.smallFont)
-                    .foregroundStyle(.secondary)
-                Text(settings.weekGoalCalendarName.isEmpty ? L10n.pick("None", "无") : settings.weekGoalCalendarName)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-            }
-
-            Spacer()
         }
         .padding(10)
         .background(FacetTheme.panel.opacity(0.42))
