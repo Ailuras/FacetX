@@ -1,5 +1,90 @@
 import SwiftUI
 
+// MARK: - Fields
+
+struct FieldRulesCard: View {
+    @Bindable var metadata: MetadataStore
+
+    var body: some View {
+        SettingsCard(title: L10n.pick("Fields", "领域"), systemImage: "square.grid.2x2",
+                     subtitle: L10n.pick("Configure literature fields and their badge colors.",
+                                         "配置文献领域及其徽章颜色。")) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    ruleColumn(L10n.pick("Name", "名称"))
+                    ruleColumn(L10n.pick("Color", "颜色"), width: 128)
+                    Spacer().frame(width: 20)
+                }
+
+                ForEach(metadata.fields) { field in
+                    HStack(spacing: 8) {
+                        if field.name == MetadataStore.othersField {
+                            Text(MetadataStore.othersField)
+                                .font(SettingsUI.rowFont)
+                                .padding(.horizontal, 8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            TextField(L10n.pick("Field", "领域"), text: nameBinding(for: field))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        colorPicker(for: field)
+                            .frame(width: 128)
+
+                        if field.name == MetadataStore.othersField {
+                            Image(systemName: "lock")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                                .frame(width: 20)
+                        } else {
+                            deleteButton { metadata.deleteField(id: field.id) }
+                        }
+                    }
+                }
+
+                addButton(L10n.pick("Add Field", "添加领域")) {
+                    metadata.addField()
+                }
+            }
+        }
+    }
+
+    private func nameBinding(for field: FieldPref) -> Binding<String> {
+        Binding(
+            get: { metadata.fields.first(where: { $0.id == field.id })?.name ?? field.name },
+            set: { metadata.renameField(id: field.id, to: $0) }
+        )
+    }
+
+    private func colorBinding(for field: FieldPref) -> Binding<String> {
+        Binding(
+            get: {
+                metadata.fields.first(where: { $0.id == field.id })?.color
+                    ?? MetadataStore.defaultFieldColor(field.name)
+                    ?? "teal"
+            },
+            set: { metadata.setFieldColor(id: field.id, colorName: $0) }
+        )
+    }
+
+    private func colorPicker(for field: FieldPref) -> some View {
+        Picker("", selection: colorBinding(for: field)) {
+            ForEach(LabelColor.allCases) { option in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(option.color)
+                        .frame(width: 9, height: 9)
+                    Text(option.title)
+                }
+                .tag(option.rawValue)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+    }
+}
+
 // MARK: - Venue ratings
 
 struct VenueRulesCard: View {
@@ -15,8 +100,8 @@ struct VenueRulesCard: View {
                     HStack(spacing: 8) {
                         TextField(L10n.pick("Abbr", "缩写"), text: $venue.abbr)
                             .textFieldStyle(.roundedBorder).frame(width: 70)
-                        TextField(L10n.pick("Field", "领域"), text: fieldBinding(for: $venue))
-                            .textFieldStyle(.roundedBorder).frame(width: 96)
+                        fieldPicker(selection: fieldSelection(for: $venue))
+                            .frame(width: 108)
                         TextField(L10n.pick("Match phrase", "匹配短语"), text: $venue.phrase)
                             .textFieldStyle(.roundedBorder).frame(maxWidth: .infinity)
                         Picker("", selection: $venue.tier) {
@@ -37,7 +122,7 @@ struct VenueRulesCard: View {
     private var header: some View {
         HStack(spacing: 8) {
             ruleColumn(L10n.pick("Abbr", "缩写"), width: 70)
-            ruleColumn(L10n.pick("Field", "领域"), width: 96)
+            ruleColumn(L10n.pick("Field", "领域"), width: 108)
             ruleColumn(L10n.pick("Match phrase", "匹配短语"))
             ruleColumn(L10n.pick("Tier", "等级"), width: 64)
             Spacer().frame(width: 20)
@@ -52,10 +137,8 @@ struct VenueRulesCard: View {
                 .font(SettingsUI.rowFont)
                 .padding(.leading, 10)
                 .frame(width: 70, alignment: .leading)
-            Text("—")
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 10)
-                .frame(width: 96, alignment: .leading)
+            fieldBadge(MetadataStore.othersField)
+                .frame(width: 108, alignment: .leading)
             Text(L10n.pick("Fallback for unmatched venues", "未匹配会议的兜底"))
                 .font(SettingsUI.secondaryFont)
                 .foregroundStyle(.secondary)
@@ -76,11 +159,32 @@ struct VenueRulesCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
-    private func fieldBinding(for venue: Binding<VenuePref>) -> Binding<String> {
+    private func fieldSelection(for venue: Binding<VenuePref>) -> Binding<String> {
         Binding(
-            get: { venue.wrappedValue.field ?? "" },
-            set: { venue.wrappedValue.field = $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
+            get: { MetadataStore.normalizedField(venue.wrappedValue.field) ?? MetadataStore.othersField },
+            set: { venue.wrappedValue.field = $0 == MetadataStore.othersField ? nil : $0 }
         )
+    }
+
+    private func fieldPicker(selection: Binding<String>) -> some View {
+        Picker("", selection: selection) {
+            ForEach(metadata.allFields, id: \.self) { field in
+                Text(field).tag(field)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+    }
+
+    private func fieldBadge(_ field: String) -> some View {
+        Text(field)
+            .font(SettingsUI.smallFont.weight(.semibold))
+            .foregroundStyle(metadata.fieldColor(field))
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(metadata.fieldColor(field).opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -136,32 +240,15 @@ struct CitationRulesCard: View {
                     ruleColumn(L10n.pick("Points / citation", "每次引用分值"))
                     Spacer().frame(width: 20)
                 }
-                ForEach(metadata.citationBreakpoints.indices, id: \.self) { index in
+                ForEach($metadata.citationBreakpoints) { $breakpoint in
                     HStack(spacing: 8) {
-                        HStack(spacing: 6) {
-                            if metadata.citationBreakpoints[index].up_to != nil {
-                                TextField("", value: upToBinding(index), format: .number)
-                                    .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                            } else {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "infinity")
-                                    Text(L10n.pick("No cap", "无上限"))
-                                }
-                                .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            Button {
-                                metadata.citationBreakpoints[index].up_to =
-                                    metadata.citationBreakpoints[index].up_to == nil ? 100 : nil
-                            } label: {
-                                Image(systemName: metadata.citationBreakpoints[index].up_to == nil ? "number" : "infinity")
-                                    .font(.system(size: 11))
-                            }
-                            .buttonStyle(.borderless).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        TextField("", value: pointsBinding(index), format: .number)
+                        TextField("", value: finiteUpToBinding($breakpoint), format: .number)
                             .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                        deleteButton { metadata.citationBreakpoints.remove(at: index) }
+                        TextField("", value: $breakpoint.points_per_citation, format: .number)
+                            .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                        deleteButton {
+                            metadata.citationBreakpoints.removeAll { $0.id == breakpoint.id }
+                        }
                     }
                 }
                 HStack(spacing: 8) {
@@ -173,20 +260,18 @@ struct CitationRulesCard: View {
                         .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(width: 72)
                 }
                 addButton(L10n.pick("Add Breakpoint", "添加区间")) {
-                    metadata.citationBreakpoints.append(CitationBreakpoint(up_to: nil, points_per_citation: 1.0))
+                    let next = (metadata.citationBreakpoints.compactMap(\.up_to).max() ?? 0) + 50
+                    metadata.citationBreakpoints.append(CitationBreakpoint(up_to: next, points_per_citation: 0.1))
                 }
             }
         }
     }
 
-    private func upToBinding(_ index: Int) -> Binding<Int> {
-        Binding(get: { metadata.citationBreakpoints[index].up_to ?? 0 },
-                set: { metadata.citationBreakpoints[index].up_to = $0 })
-    }
-
-    private func pointsBinding(_ index: Int) -> Binding<Double> {
-        Binding(get: { metadata.citationBreakpoints[index].points_per_citation },
-                set: { metadata.citationBreakpoints[index].points_per_citation = $0 })
+    private func finiteUpToBinding(_ breakpoint: Binding<CitationBreakpoint>) -> Binding<Int> {
+        Binding(
+            get: { breakpoint.wrappedValue.up_to ?? 1 },
+            set: { breakpoint.wrappedValue.up_to = max(1, $0) }
+        )
     }
 }
 
@@ -202,6 +287,7 @@ func ruleColumn(_ title: String, width: CGFloat? = nil) -> some View {
 }
 
 @ViewBuilder
+@MainActor
 func addButton(_ title: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
         Label(title, systemImage: "plus.circle.fill").font(.system(size: 12, weight: .medium))
@@ -210,6 +296,7 @@ func addButton(_ title: String, action: @escaping () -> Void) -> some View {
 }
 
 @ViewBuilder
+@MainActor
 func deleteButton(action: @escaping () -> Void) -> some View {
     Button(action: action) {
         Image(systemName: "trash").font(.system(size: 12))

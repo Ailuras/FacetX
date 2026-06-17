@@ -21,8 +21,7 @@ extension AppConfig {
                 tiers: builtinTiers,
                 citation_breakpoints: [
                     CitationBreakpoint(up_to: 10, points_per_citation: 0.5),
-                    CitationBreakpoint(up_to: 50, points_per_citation: 0.2),
-                    CitationBreakpoint(up_to: nil, points_per_citation: 0.05)
+                    CitationBreakpoint(up_to: 50, points_per_citation: 0.2)
                 ],
                 max_citation_points: 40
             ),

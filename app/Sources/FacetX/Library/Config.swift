@@ -9,9 +9,32 @@ struct ScoringTier {
     var points: Int
 }
 
-struct CitationBreakpoint: Codable {
+struct CitationBreakpoint: Codable, Identifiable, Equatable {
+    var id = UUID()
     var up_to: Int?
     var points_per_citation: Double
+
+    enum CodingKeys: String, CodingKey {
+        case up_to
+        case points_per_citation
+    }
+
+    init(up_to: Int?, points_per_citation: Double) {
+        self.up_to = up_to
+        self.points_per_citation = points_per_citation
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        up_to = try container.decodeIfPresent(Int.self, forKey: .up_to)
+        points_per_citation = try container.decode(Double.self, forKey: .points_per_citation)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(up_to, forKey: .up_to)
+        try container.encode(points_per_citation, forKey: .points_per_citation)
+    }
 }
 
 struct ScoringConfig {

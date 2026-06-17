@@ -118,6 +118,66 @@ final class MetadataStore {
         metadataVersion += 1
     }
 
+    func addField() {
+        var next = 1
+        var name = "Field \(next)"
+        let existing = Set(fields.compactMap { Self.normalizedFieldName($0.name) })
+        while existing.contains(name) {
+            next += 1
+            name = "Field \(next)"
+        }
+        fields.append(FieldPref(id: UUID().uuidString, name: name, color: "teal", sortOrder: fields.count))
+        metadataVersion += 1
+    }
+
+    func renameField(id: String, to rawName: String) {
+        guard let index = fields.firstIndex(where: { $0.id == id }) else { return }
+        let oldName = fields[index].name
+        guard oldName != Self.othersField else {
+            fields[index].name = Self.othersField
+            return
+        }
+        guard let newName = Self.normalizedFieldName(rawName),
+              newName != Self.othersField,
+              !fields.contains(where: { $0.id != id && $0.name.caseInsensitiveCompare(newName) == .orderedSame }) else {
+            return
+        }
+
+        isLoading = true
+        fields[index].name = newName
+        for venueIndex in venues.indices where Self.normalizedField(venues[venueIndex].field) == oldName {
+            venues[venueIndex].field = newName
+        }
+        isLoading = false
+
+        saveFields()
+        saveVenues()
+        metadataVersion += 1
+    }
+
+    func setFieldColor(id: String, colorName: String?) {
+        guard let index = fields.firstIndex(where: { $0.id == id }) else { return }
+        fields[index].color = colorName
+        metadataVersion += 1
+    }
+
+    func deleteField(id: String) {
+        guard let field = fields.first(where: { $0.id == id }),
+              field.name != Self.othersField else { return }
+        let name = field.name
+
+        isLoading = true
+        fields.removeAll { $0.id == id }
+        for venueIndex in venues.indices where Self.normalizedField(venues[venueIndex].field) == name {
+            venues[venueIndex].field = nil
+        }
+        isLoading = false
+
+        saveFields()
+        saveVenues()
+        metadataVersion += 1
+    }
+
     private func colorName(forKey key: String) -> String? {
         if key.hasPrefix("field:") {
             guard let name = Self.normalizedFieldName(String(key.dropFirst("field:".count))) else { return nil }
@@ -251,7 +311,7 @@ final class MetadataStore {
     private func load() {
         isLoading = true
         topics = loadTopics()
-        fields = loadFields()
+        fields = ensureOthersField(in: loadFields())
         tiers = loadTiers()
         venues = loadVenues()
         loadScoring()
@@ -507,7 +567,9 @@ final class MetadataStore {
         if sqlite3_step(stmt) == SQLITE_ROW {
             let bpJson = columnString(stmt, 0)
             let bpData = bpJson.data(using: .utf8) ?? Data("[]".utf8)
-            citationBreakpoints = (try? JSONDecoder().decode([CitationBreakpoint].self, from: bpData)) ?? []
+            citationBreakpoints = Self.finiteCitationBreakpoints(
+                (try? JSONDecoder().decode([CitationBreakpoint].self, from: bpData)) ?? []
+            )
             maxCitationPoints = Int(sqlite3_column_int(stmt, 1))
             othersTier = Int(sqlite3_column_int(stmt, 2))
         }
@@ -525,9 +587,25 @@ final class MetadataStore {
 
     private func makeFields(from venues: [VenuePref]) -> [FieldPref] {
         let names = Set(venues.compactMap { Self.normalizedField($0.field) })
-        return names.sorted().enumerated().map { index, name in
+        let generated = names.sorted().enumerated().map { index, name in
             FieldPref(id: UUID().uuidString, name: name, color: Self.defaultFieldColor(name), sortOrder: index)
         }
+        return ensureOthersField(in: generated)
+    }
+
+    private func ensureOthersField(in fields: [FieldPref]) -> [FieldPref] {
+        let normalized = fields.compactMap { field -> FieldPref? in
+            guard let name = Self.normalizedFieldName(field.name) else { return nil }
+            return FieldPref(id: field.id, name: name, color: field.color, sortOrder: field.sortOrder)
+        }
+        if normalized.contains(where: { $0.name == Self.othersField }) {
+            return normalized
+        }
+        return normalized + [
+            FieldPref(id: UUID().uuidString, name: Self.othersField,
+                      color: Self.defaultFieldColor(Self.othersField),
+                      sortOrder: normalized.count)
+        ]
     }
 
     static func defaultFieldColor(_ field: String?) -> String? {
@@ -537,6 +615,7 @@ final class MetadataStore {
         case "FM": return "red"
         case "PL": return "orange"
         case "SE": return "blue"
+        case othersField: return "gray"
         default: return nil
         }
     }
@@ -644,11 +723,11 @@ final class MetadataStore {
         tiers = decoded.tiers.map {
             TierPref(rank: $0.rank, name: $0.name, points: $0.points, color: $0.color, sortOrder: 0)
         }
-        fields = decoded.fields.enumerated().compactMap {
+        fields = ensureOthersField(in: decoded.fields.enumerated().compactMap {
             guard let name = Self.normalizedFieldName($1.name) else { return nil }
             return FieldPref(id: UUID().uuidString, name: name, color: $1.color, sortOrder: $0)
-        }
-        citationBreakpoints = decoded.scoring.citation_breakpoints
+        })
+        citationBreakpoints = Self.finiteCitationBreakpoints(decoded.scoring.citation_breakpoints)
         maxCitationPoints = decoded.scoring.max_citation_points
         othersTier = decoded.scoring.others_tier ?? 0
 
@@ -688,10 +767,15 @@ final class MetadataStore {
 
     static let defaultCitationBreakpoints: [CitationBreakpoint] = [
         CitationBreakpoint(up_to: 10, points_per_citation: 0.5),
-        CitationBreakpoint(up_to: 50, points_per_citation: 0.2),
-        CitationBreakpoint(up_to: nil, points_per_citation: 0.05)
+        CitationBreakpoint(up_to: 50, points_per_citation: 0.2)
     ]
     static let defaultMaxCitationPoints: Int = 40
+
+    static func finiteCitationBreakpoints(_ breakpoints: [CitationBreakpoint]) -> [CitationBreakpoint] {
+        breakpoints
+            .filter { $0.up_to != nil }
+            .sorted { ($0.up_to ?? 0) < ($1.up_to ?? 0) }
+    }
 
     static let defaultTracks: [TrackPref] = [
         TrackPref(name: "SAT", query: "SAT solver boolean satisfiability",

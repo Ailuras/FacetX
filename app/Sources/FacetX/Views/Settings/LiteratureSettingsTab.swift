@@ -16,6 +16,7 @@ struct LiteratureSettingsTab: View {
             translationCard
             scoringRulesSummary
             if showScoringRules {
+                FieldRulesCard(metadata: metadata)
                 VenueRulesCard(metadata: metadata)
                 TierRulesCard(metadata: metadata)
                 CitationRulesCard(metadata: metadata)
@@ -149,6 +150,10 @@ struct LiteratureSettingsTab: View {
                             value: "\(metadata.venues.count)",
                             systemImage: "building.2",
                             tint: .indigo)
+                rulesMetric(title: L10n.pick("Fields", "领域"),
+                            value: "\(metadata.fields.count)",
+                            systemImage: "square.grid.2x2",
+                            tint: .blue)
                 rulesMetric(title: L10n.pick("Tiers", "等级"),
                             value: "\(metadata.tiers.count)",
                             systemImage: "rosette",
