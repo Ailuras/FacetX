@@ -4,6 +4,8 @@ import SwiftUI
 
 extension Notification.Name {
     static let focusSearchField = Notification.Name("com.facetx.focusSearchField")
+    static let navigateToPaper = Notification.Name("com.facetx.navigateToPaper")
+    static let selectPaperInTopic = Notification.Name("com.facetx.selectPaperInTopic")
 }
 
 /// Commands emitted by the keyboard shortcut system.

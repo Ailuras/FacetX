@@ -353,14 +353,30 @@ struct ItemRow: View {
             .contentShape(Rectangle())
 
             if hasLocalPDF {
-                pdfCornerBadge
-                    .padding(.top, 4)
-                    .padding(.trailing, 4)
+                Button {
+                    revealFirstPDF()
+                } label: {
+                    pdfCornerBadge
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+                .padding(.trailing, 4)
             }
         }
         .onHover { isHovered in
             withAnimation(.easeOut(duration: 0.15)) {
                 hovered = isHovered
+            }
+        }
+    }
+
+    private func revealFirstPDF() {
+        for paperID in item.linkedPaperIDs {
+            if let paper = PaperStore.shared.papers.first(where: { $0.id == paperID }) {
+                if PdfCoordinator.hasLocalPdf(paper) {
+                    _ = PdfCoordinator.reveal(paper: paper)
+                    return
+                }
             }
         }
     }

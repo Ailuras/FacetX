@@ -176,6 +176,12 @@ struct TopicDetailView: View {
         .onChange(of: ek.changeToken) { _, _ in
             loadPaperLinks()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .selectPaperInTopic)) { notification in
+            guard let paperID = notification.userInfo?["paperID"] as? String else { return }
+            if let paper = store.papers.first(where: { $0.id == paperID }) {
+                selectedPaper = paper
+            }
+        }
         .sheet(isPresented: $showAddSheet) {
             AddPaperView(topicName: topic.name) { papers in
                 _ = store.addOrUpdate(papers: papers)

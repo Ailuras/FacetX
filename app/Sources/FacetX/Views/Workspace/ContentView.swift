@@ -153,6 +153,18 @@ struct ContentView: View {
                 default:              break
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToPaper)) { notification in
+                guard let paperID = notification.userInfo?["paperID"] as? String else { return }
+                guard let paper = litStore.papers.first(where: { $0.id == paperID }) else { return }
+                let paperTracks = paper.track.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                guard let matchedTopic = litMeta.topics.first(where: { topic in
+                    !topic.archived && paperTracks.contains(topic.name)
+                }) else { return }
+                selection = .topic(matchedTopic.id)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    NotificationCenter.default.post(name: .selectPaperInTopic, object: nil, userInfo: ["paperID": paperID])
+                }
+            }
             .task {
                 applyStartupSelection()
                 keyboard.registerLocalShortcuts()

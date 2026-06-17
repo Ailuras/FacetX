@@ -296,6 +296,16 @@ struct ItemDetailPane: View {
                         .buttonStyle(.plain)
                         .help(L10n.pick("Open paper page", "打开论文页面"))
                     }
+
+                    Button {
+                        NotificationCenter.default.post(name: .navigateToPaper, object: nil, userInfo: ["paperID": paperID])
+                    } label: {
+                        Image(systemName: "books.vertical")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help(L10n.pick("View in Library", "在文献库中查看"))
                 }
 
                 if !subtitle.isEmpty {
