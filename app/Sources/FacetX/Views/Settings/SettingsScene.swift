@@ -12,6 +12,8 @@ struct SettingsRootView: View {
                 .tabItem { Label(L10n.pick("Project", "项目"), systemImage: "folder") }
             LiteratureSettingsTab()
                 .tabItem { Label(L10n.pick("Literature", "文献"), systemImage: "books.vertical") }
+            LiteratureRulesSettingsTab()
+                .tabItem { Label(L10n.pick("Rules", "规则"), systemImage: "slider.horizontal.3") }
             IntegrationsSettingsTab()
                 .tabItem { Label(L10n.t(.tabIntegrations), systemImage: "curlybraces") }
             ShortcutsSettingsTab()

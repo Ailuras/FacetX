@@ -49,13 +49,8 @@ final class MetadataStore {
     }
 
     var allFields: [String] {
-        var names = fields.compactMap { Self.normalizedFieldName($0.name) }.filter { $0 != Self.othersField }
-        for venue in venues {
-            if let field = Self.normalizedField(venue.field), !names.contains(field) {
-                names.append(field)
-            }
-        }
-        return names.sorted() + [Self.othersField]
+        let names = fields.compactMap { Self.normalizedFieldName($0.name) }.filter { $0 != Self.othersField }
+        return Array(Set(names)).sorted() + [Self.othersField]
     }
 
     var allTiers: [Int] {
@@ -311,9 +306,10 @@ final class MetadataStore {
     private func load() {
         isLoading = true
         topics = loadTopics()
-        fields = ensureOthersField(in: loadFields())
+        let loadedFields = loadFields()
         tiers = loadTiers()
         venues = loadVenues()
+        fields = ensureFields(in: loadedFields, cover: venues)
         loadScoring()
         isLoading = false
         metadataVersion += 1
@@ -590,22 +586,30 @@ final class MetadataStore {
         let generated = names.sorted().enumerated().map { index, name in
             FieldPref(id: UUID().uuidString, name: name, color: Self.defaultFieldColor(name), sortOrder: index)
         }
-        return ensureOthersField(in: generated)
+        return ensureFields(in: generated, cover: venues)
     }
 
-    private func ensureOthersField(in fields: [FieldPref]) -> [FieldPref] {
-        let normalized = fields.compactMap { field -> FieldPref? in
+    private func ensureFields(in fields: [FieldPref], cover venues: [VenuePref]) -> [FieldPref] {
+        var normalized = fields.compactMap { field -> FieldPref? in
             guard let name = Self.normalizedFieldName(field.name) else { return nil }
             return FieldPref(id: field.id, name: name, color: field.color, sortOrder: field.sortOrder)
         }
-        if normalized.contains(where: { $0.name == Self.othersField }) {
-            return normalized
+
+        var existing = Set(normalized.map(\.name))
+        for venue in venues {
+            guard let name = Self.normalizedField(venue.field), !existing.contains(name) else { continue }
+            normalized.append(FieldPref(id: UUID().uuidString, name: name,
+                                        color: Self.defaultFieldColor(name),
+                                        sortOrder: normalized.count))
+            existing.insert(name)
         }
-        return normalized + [
-            FieldPref(id: UUID().uuidString, name: Self.othersField,
-                      color: Self.defaultFieldColor(Self.othersField),
-                      sortOrder: normalized.count)
-        ]
+
+        if !existing.contains(Self.othersField) {
+            normalized.append(FieldPref(id: UUID().uuidString, name: Self.othersField,
+                                        color: Self.defaultFieldColor(Self.othersField),
+                                        sortOrder: normalized.count))
+        }
+        return normalized
     }
 
     static func defaultFieldColor(_ field: String?) -> String? {
@@ -723,10 +727,10 @@ final class MetadataStore {
         tiers = decoded.tiers.map {
             TierPref(rank: $0.rank, name: $0.name, points: $0.points, color: $0.color, sortOrder: 0)
         }
-        fields = ensureOthersField(in: decoded.fields.enumerated().compactMap {
+        fields = ensureFields(in: decoded.fields.enumerated().compactMap {
             guard let name = Self.normalizedFieldName($1.name) else { return nil }
             return FieldPref(id: UUID().uuidString, name: name, color: $1.color, sortOrder: $0)
-        })
+        }, cover: venues)
         citationBreakpoints = Self.finiteCitationBreakpoints(decoded.scoring.citation_breakpoints)
         maxCitationPoints = decoded.scoring.max_citation_points
         othersTier = decoded.scoring.others_tier ?? 0
