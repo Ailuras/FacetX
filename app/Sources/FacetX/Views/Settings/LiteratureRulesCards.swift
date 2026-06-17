@@ -12,7 +12,7 @@ struct FieldRulesCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     ruleColumn(L10n.pick("Name", "名称"))
-                    ruleColumn(L10n.pick("Color", "颜色"), width: 128)
+                    ruleColumn(L10n.pick("Color", "颜色"), width: 152)
                     Spacer().frame(width: 20)
                 }
 
@@ -29,8 +29,8 @@ struct FieldRulesCard: View {
                                 .frame(maxWidth: .infinity)
                         }
 
-                        colorPicker(for: field)
-                            .frame(width: 128)
+                        colorSwatchAndPicker(for: field)
+                            .frame(width: 152)
 
                         if field.name == MetadataStore.othersField {
                             Image(systemName: "lock")
@@ -68,20 +68,29 @@ struct FieldRulesCard: View {
         )
     }
 
-    private func colorPicker(for field: FieldPref) -> some View {
-        Picker("", selection: colorBinding(for: field)) {
-            ForEach(LabelColor.allCases) { option in
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(option.color)
-                        .frame(width: 9, height: 9)
-                    Text(option.title)
+    /// Shows a live color swatch alongside the picker so the selected colour
+    /// is always visible without opening the dropdown (macOS NSPopUpButton does
+    /// not render SwiftUI Circle views in the collapsed button label).
+    private func colorSwatchAndPicker(for field: FieldPref) -> some View {
+        let binding = colorBinding(for: field)
+        return HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(LabelColor.color(named: binding.wrappedValue) ?? .teal)
+                .frame(width: 14, height: 14)
+            Picker("", selection: binding) {
+                ForEach(LabelColor.allCases) { option in
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(option.color)
+                            .frame(width: 9, height: 9)
+                        Text(option.title)
+                    }
+                    .tag(option.rawValue)
                 }
-                .tag(option.rawValue)
             }
+            .labelsHidden()
+            .pickerStyle(.menu)
         }
-        .labelsHidden()
-        .pickerStyle(.menu)
     }
 }
 
@@ -96,19 +105,47 @@ struct VenueRulesCard: View {
                                          "将会议名匹配到领域与等级，决定评分徽章。")) {
             VStack(alignment: .leading, spacing: 8) {
                 header
-                ForEach($metadata.venues) { $venue in
+                // Use enumerated ForEach with index-based Bindings to avoid the
+                // ForEach($array) binding crash when rows are deleted.
+                ForEach(Array(metadata.venues.enumerated()), id: \.element.id) { idx, venue in
                     HStack(spacing: 8) {
-                        TextField(L10n.pick("Abbr", "缩写"), text: $venue.abbr)
-                            .textFieldStyle(.roundedBorder).frame(width: 70)
-                        fieldPicker(selection: fieldSelection(for: $venue))
-                            .frame(width: 108)
-                        TextField(L10n.pick("Match phrase", "匹配短语"), text: $venue.phrase)
-                            .textFieldStyle(.roundedBorder).frame(maxWidth: .infinity)
-                        Picker("", selection: $venue.tier) {
+                        TextField(L10n.pick("Abbr", "缩写"), text: Binding(
+                            get: { idx < metadata.venues.count ? metadata.venues[idx].abbr : "" },
+                            set: { if idx < metadata.venues.count { metadata.venues[idx].abbr = $0 } }
+                        ))
+                        .textFieldStyle(.roundedBorder).frame(width: 70)
+
+                        fieldPicker(selection: Binding(
+                            get: {
+                                guard idx < metadata.venues.count else { return MetadataStore.othersField }
+                                return MetadataStore.normalizedField(metadata.venues[idx].field)
+                                    ?? MetadataStore.othersField
+                            },
+                            set: { val in
+                                guard idx < metadata.venues.count else { return }
+                                metadata.venues[idx].field = val == MetadataStore.othersField ? nil : val
+                            }
+                        ))
+                        .frame(width: 108)
+
+                        TextField(L10n.pick("Match phrase", "匹配短语"), text: Binding(
+                            get: { idx < metadata.venues.count ? metadata.venues[idx].phrase : "" },
+                            set: { if idx < metadata.venues.count { metadata.venues[idx].phrase = $0 } }
+                        ))
+                        .textFieldStyle(.roundedBorder).frame(maxWidth: .infinity)
+
+                        Picker("", selection: Binding(
+                            get: { idx < metadata.venues.count ? metadata.venues[idx].tier : 3 },
+                            set: { if idx < metadata.venues.count { metadata.venues[idx].tier = $0 } }
+                        )) {
                             ForEach(1...5, id: \.self) { Text("T\($0)").tag($0) }
                         }
                         .labelsHidden().frame(width: 64)
-                        deleteButton { metadata.venues.removeAll { $0.id == venue.id } }
+
+                        deleteButton {
+                            guard idx < metadata.venues.count else { return }
+                            metadata.venues.remove(at: idx)
+                        }
                     }
                 }
                 othersRow
@@ -157,13 +194,6 @@ struct VenueRulesCard: View {
         .padding(.vertical, 4)
         .background(FacetTheme.panel.opacity(0.4))
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-    }
-
-    private func fieldSelection(for venue: Binding<VenuePref>) -> Binding<String> {
-        Binding(
-            get: { MetadataStore.normalizedField(venue.wrappedValue.field) ?? MetadataStore.othersField },
-            set: { venue.wrappedValue.field = $0 == MetadataStore.othersField ? nil : $0 }
-        )
     }
 
     private func fieldPicker(selection: Binding<String>) -> some View {
@@ -240,14 +270,38 @@ struct CitationRulesCard: View {
                     ruleColumn(L10n.pick("Points / citation", "每次引用分值"))
                     Spacer().frame(width: 20)
                 }
-                ForEach($metadata.citationBreakpoints) { $breakpoint in
+                // Use enumerated ForEach with index-based Bindings to prevent
+                // the crash that occurs when ForEach($array) element bindings
+                // are accessed after their element has been removed.
+                ForEach(Array(metadata.citationBreakpoints.enumerated()), id: \.element.id) { idx, _ in
                     HStack(spacing: 8) {
-                        TextField("", value: finiteUpToBinding($breakpoint), format: .number)
-                            .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                        TextField("", value: $breakpoint.points_per_citation, format: .number)
-                            .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                        TextField("", value: Binding(
+                            get: {
+                                guard idx < metadata.citationBreakpoints.count else { return 1 }
+                                return metadata.citationBreakpoints[idx].up_to ?? 1
+                            },
+                            set: {
+                                guard idx < metadata.citationBreakpoints.count else { return }
+                                metadata.citationBreakpoints[idx].up_to = max(1, $0)
+                            }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+
+                        TextField("", value: Binding(
+                            get: {
+                                guard idx < metadata.citationBreakpoints.count else { return 0.0 }
+                                return metadata.citationBreakpoints[idx].points_per_citation
+                            },
+                            set: {
+                                guard idx < metadata.citationBreakpoints.count else { return }
+                                metadata.citationBreakpoints[idx].points_per_citation = $0
+                            }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+
                         deleteButton {
-                            metadata.citationBreakpoints.removeAll { $0.id == breakpoint.id }
+                            guard idx < metadata.citationBreakpoints.count else { return }
+                            metadata.citationBreakpoints.remove(at: idx)
                         }
                     }
                 }
@@ -265,13 +319,6 @@ struct CitationRulesCard: View {
                 }
             }
         }
-    }
-
-    private func finiteUpToBinding(_ breakpoint: Binding<CitationBreakpoint>) -> Binding<Int> {
-        Binding(
-            get: { breakpoint.wrappedValue.up_to ?? 1 },
-            set: { breakpoint.wrappedValue.up_to = max(1, $0) }
-        )
     }
 }
 

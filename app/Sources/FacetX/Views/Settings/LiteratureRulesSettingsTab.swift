@@ -12,8 +12,8 @@ struct LiteratureRulesSettingsTab: View {
                      warning: nil) {
             rulesSummary
             FieldRulesCard(metadata: metadata)
-            VenueRulesCard(metadata: metadata)
             TierRulesCard(metadata: metadata)
+            VenueRulesCard(metadata: metadata)
             CitationRulesCard(metadata: metadata)
             rulesActions
         }
