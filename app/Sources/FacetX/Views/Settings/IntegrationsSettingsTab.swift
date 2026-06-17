@@ -106,34 +106,20 @@ struct IntegrationsSettingsTab: View {
 
             VStack(spacing: 0) {
                 SettingsRow(title: L10n.pick("Provider", "服务商"), systemImage: "server.rack") {
-                    HStack(spacing: 8) {
-                        Picker("", selection: $litSettings.apiProvider) {
-                            ForEach(TranslationProvider.allCases, id: \.self) { p in
-                                Text(p.displayName).tag(p)
-                            }
+                    Picker("", selection: $litSettings.apiProvider) {
+                        ForEach(TranslationProvider.allCases, id: \.self) { p in
+                            Text(p.displayName).tag(p)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(width: 176)
-                        .onChange(of: litSettings.apiProvider) { _, p in
-                            litSettings.apiBaseURL = p.defaultBaseURL
-                            litSettings.apiModel = p.defaultModel
-                            availableModels = []
-                            connectionMessage = nil
-                        }
-
-                        Button { testConnection() } label: {
-                            if isTesting {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Text(L10n.pick("Test", "测试"))
-                            }
-                        }
-                        .controlSize(.small)
-                        .disabled(isTesting || litSettings.apiKey.isEmpty)
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                    .onChange(of: litSettings.apiProvider) { _, p in
+                        litSettings.apiBaseURL = p.defaultBaseURL
+                        litSettings.apiModel = p.defaultModel
+                        availableModels = []
+                        connectionMessage = nil
+                    }
                 }
                 compactDivider
                 SettingsRow(title: L10n.pick("API", "接口"), systemImage: "link") {
@@ -151,18 +137,32 @@ struct IntegrationsSettingsTab: View {
                 }
                 compactDivider
                 SettingsRow(title: L10n.pick("Model", "模型"), systemImage: "cpu") {
-                    Picker("", selection: $litSettings.apiModel) {
-                        if availableModels.isEmpty {
-                            Text(litSettings.apiModel.isEmpty ? L10n.pick("Unavailable", "不可用") : litSettings.apiModel)
-                                .tag(litSettings.apiModel)
-                        } else {
-                            ForEach(availableModels, id: \.self) { Text($0).tag($0) }
+                    HStack(spacing: 8) {
+                        Picker("", selection: $litSettings.apiModel) {
+                            if availableModels.isEmpty {
+                                Text(litSettings.apiModel.isEmpty ? L10n.pick("Unavailable", "不可用") : litSettings.apiModel)
+                                    .tag(litSettings.apiModel)
+                            } else {
+                                ForEach(availableModels, id: \.self) { Text($0).tag($0) }
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 172, alignment: .trailing)
+                        .disabled(availableModels.isEmpty)
+
+                        Button { testConnection() } label: {
+                            if isTesting {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text(L10n.pick("Test", "测试"))
+                            }
+                        }
+                        .controlSize(.small)
+                        .disabled(isTesting || litSettings.apiKey.isEmpty)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-                    .disabled(availableModels.isEmpty)
                 }
             }
             .padding(.horizontal, 10)
