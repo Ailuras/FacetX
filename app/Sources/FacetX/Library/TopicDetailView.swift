@@ -13,6 +13,7 @@ struct TopicDetailView: View {
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var ek: EventKitService
 
+    @State private var paperLinks: [String: Set<String>] = [:]
     @State private var searchText = ""
     @State private var selectedPaper: Paper?
     @State private var sortKey: SortKey = .score
@@ -169,6 +170,12 @@ struct TopicDetailView: View {
         .onChange(of: mode) {
             withAnimation(detailPaneAnimation) { selectedPaper = nil }
         }
+        .onAppear {
+            loadPaperLinks()
+        }
+        .onChange(of: ek.changeToken) { _, _ in
+            loadPaperLinks()
+        }
         .sheet(isPresented: $showAddSheet) {
             AddPaperView(topicName: topic.name) { papers in
                 _ = store.addOrUpdate(papers: papers)
@@ -282,9 +289,12 @@ struct TopicDetailView: View {
     /// straight from a right-click on the row.
     @ViewBuilder
     private func paperContextMenu(for paper: Paper) -> some View {
-        if !projectStore.activeProjects.isEmpty {
+        let linkedPrefixes = paperLinks[paper.id] ?? []
+        let availableProjects = projectStore.activeProjects.filter { !linkedPrefixes.contains($0.prefix) }
+
+        if !availableProjects.isEmpty {
             Menu {
-                ForEach(projectStore.activeProjects) { project in
+                ForEach(availableProjects) { project in
                     Button(project.name) {
                         addPaperToProject(paper, project: project)
                     }
@@ -782,9 +792,30 @@ struct TopicDetailView: View {
 
             if eventId != nil {
                 toast.show(L10n.pick("Added literature to project “\(project.name)” as event", "已将文献作为日历日程添加到项目“\(project.name)”"), type: .success, duration: 2)
+                await MainActor.run {
+                    loadPaperLinks()
+                }
             } else {
                 toast.show(L10n.pick("Failed to create calendar event", "创建日历日程失败"), type: .error)
             }
+        }
+    }
+
+    private func loadPaperLinks() {
+        Task {
+            let prefixes = Set(projectStore.activeProjects.map(\.prefix))
+            let allItems = await ek.items(
+                forProjects: prefixes,
+                enabledReminderLists: appSettings.effectiveReminderListNames,
+                enabledCalendars: appSettings.effectiveCalendarNames
+            )
+            var map: [String: Set<String>] = [:]
+            for item in allItems {
+                for paperId in item.linkedPaperIDs {
+                    map[paperId, default: []].insert(item.projectPrefix)
+                }
+            }
+            self.paperLinks = map
         }
     }
 }

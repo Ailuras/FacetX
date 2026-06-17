@@ -54,11 +54,15 @@ struct ProjectDetailView: View {
     }
 
     private var taskItems: [ProjectItem] {
-        visibleItems.filter { $0.kind == .reminder }
+        visibleItems.filter { $0.kind == .reminder && $0.linkedPaperIDs.isEmpty }
     }
 
     private var scheduleItems: [ProjectItem] {
-        visibleItems.filter { $0.kind == .event }
+        visibleItems.filter { $0.kind == .event && $0.linkedPaperIDs.isEmpty }
+    }
+
+    private var literatureItems: [ProjectItem] {
+        visibleItems.filter { !$0.linkedPaperIDs.isEmpty }
     }
 
     private var itemCounts: ItemCounts {
@@ -408,6 +412,8 @@ struct ProjectDetailView: View {
                                     count: taskItems.count, color: .green, items: taskItems)
                     itemKindSection(title: L10n.pick("Events", "事件"), systemImage: "calendar",
                                     count: scheduleItems.count, color: .blue, items: scheduleItems)
+                    itemKindSection(title: L10n.pick("Literature", "文献"), systemImage: "books.vertical",
+                                    count: literatureItems.count, color: .yellow, items: literatureItems)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)

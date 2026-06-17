@@ -132,8 +132,14 @@ struct ItemRow: View {
     }
 
     private var borderHighlightColor: Color {
-        if item.kind == .reminder && item.priority > 0 {
-            return priorityColor
+        if !item.linkedPaperIDs.isEmpty {
+            return .yellow
+        }
+        if !item.linkedCommits.isEmpty {
+            return .purple
+        }
+        if item.kind == .reminder {
+            return item.priority > 0 ? priorityColor : .green
         }
         return .blue
     }
@@ -165,180 +171,228 @@ struct ItemRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .center, spacing: 10) {
-                if showDragGrip {
-                    if let onDragStart = onDragStart {
-                        dragGripDots
-                            .frame(width: 16, height: 28)
-                            .contentShape(Rectangle())
-                            .hoverCursor(.openHand)
-                            .onDrag {
-                                onDragStart()
-                            } preview: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "line.3.horizontal")
-                                        .font(.system(size: 13, weight: .semibold))
-                                    Text(item.content)
-                                        .font(.system(size: 12, weight: .medium))
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .center, spacing: 10) {
+                    if showDragGrip {
+                        if let onDragStart = onDragStart {
+                            dragGripDots
+                                .frame(width: 16, height: 28)
+                                .contentShape(Rectangle())
+                                .hoverCursor(.openHand)
+                                .onDrag {
+                                    onDragStart()
+                                } preview: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "line.3.horizontal")
+                                            .font(.system(size: 13, weight: .semibold))
+                                        Text(item.content)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .lineLimit(1)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(FacetTheme.quietPanel)
+                                    .foregroundColor(.primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
+                                }
+                        } else {
+                            dragGripDots
+                                .frame(width: 16, height: 28)
+                                .contentShape(Rectangle())
+                        }
+                    }
+
+                    if item.kind == .reminder {
+                        Button { onToggle(!item.isCompleted) } label: {
+                            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(checkmarkColor)
+                        }
+                        .buttonStyle(.plain)
+                        .help(item.isCompleted ? L10n.pick("Mark incomplete", "标记为未完成")
+                                               : L10n.pick("Mark complete", "标记为完成"))
+                    } else if !item.linkedPaperIDs.isEmpty {
+                        Image(systemName: "books.vertical")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.yellow)
+                    } else if !item.linkedCommits.isEmpty {
+                        Image(systemName: "source.branch")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.purple)
+                    } else {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.blue)
+                    }
+
+                    if isInlineEditing, let inlineEditingText {
+                        InlineEditTextField(text: inlineEditingText,
+                                            fontSize: 14,
+                                            fontWeight: .semibold,
+                                            onCommit: { onInlineCommit?() },
+                                            onCancel: { onInlineCancel?() })
+                            .frame(minHeight: 22)
+                    } else {
+                        HStack(spacing: 6) {
+                            Text(item.content)
+                                .font(.system(size: 13, weight: .medium))
+                                .strikethrough(item.isCompleted)
+                                .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                                .lineLimit(1)
+
+                            if let projectBadge {
+                                Text(projectBadge)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.accentColor.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+
+                            if !item.linkedPaperIDs.isEmpty {
+                                Image(systemName: "books.vertical")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.yellow)
+                                    .help(L10n.pick("Linked Literature", "已关联文献"))
+                            }
+
+                            if !item.linkedCommits.isEmpty {
+                                Image(systemName: "source.branch")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.purple)
+                                    .help(L10n.pick("Linked Commits", "已关联提交"))
+                            }
+
+                            if let notes = item.notes, !notes.isEmpty {
+                                Image(systemName: "doc.text")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+
+                            ForEach(item.tags, id: \.self) { tag in
+                                let tagColor = settings.tagColor(for: tag)
+                                HStack(spacing: 2) {
+                                    Text("#")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(tagColor.opacity(0.65))
+                                    Text(tag)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(tagColor)
                                         .lineLimit(1)
                                 }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(FacetTheme.quietPanel)
-                                .foregroundColor(.primary)
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
-                                )
-                                .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
-                            }
-                    } else {
-                        dragGripDots
-                            .frame(width: 16, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                }
-
-                if item.kind == .reminder {
-                    Button { onToggle(!item.isCompleted) } label: {
-                        Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(checkmarkColor)
-                    }
-                    .buttonStyle(.plain)
-                    .help(item.isCompleted ? L10n.pick("Mark incomplete", "标记为未完成")
-                                           : L10n.pick("Mark complete", "标记为完成"))
-                } else {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.blue)
-                }
-
-                if isInlineEditing, let inlineEditingText {
-                    InlineEditTextField(text: inlineEditingText,
-                                        fontSize: 14,
-                                        fontWeight: .semibold,
-                                        onCommit: { onInlineCommit?() },
-                                        onCancel: { onInlineCancel?() })
-                        .frame(minHeight: 22)
-                } else {
-                    HStack(spacing: 6) {
-                        Text(item.content)
-                            .font(.system(size: 13, weight: .medium))
-                            .strikethrough(item.isCompleted)
-                            .foregroundStyle(item.isCompleted ? .secondary : .primary)
-                            .lineLimit(1)
-
-                        if let projectBadge {
-                            Text(projectBadge)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(Color.accentColor)
-                                .lineLimit(1)
+                                .fixedSize()
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Color.accentColor.opacity(0.12))
-                                .clipShape(Capsule())
-                        }
-
-                        if !item.linkedPaperIDs.isEmpty {
-                            Image(systemName: "books.vertical")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.orange)
-                                .help(L10n.pick("Linked Literature", "已关联文献"))
-                        }
-
-                        if let notes = item.notes, !notes.isEmpty {
-                            Image(systemName: "doc.text")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                        }
-
-                        ForEach(item.tags, id: \.self) { tag in
-                            let tagColor = settings.tagColor(for: tag)
-                            HStack(spacing: 2) {
-                                Text("#")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(tagColor.opacity(0.65))
-                                Text(tag)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(tagColor)
-                                    .lineLimit(1)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .fill(tagColor.opacity(0.12))
+                                )
                             }
-                            .fixedSize()
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .fill(tagColor.opacity(0.12))
-                            )
                         }
                     }
-                }
 
-                Spacer()
+                    Spacer()
 
-                HStack(spacing: 8) {
-                    if !isInlineEditing, let url = item.url {
-                        Link(destination: url) {
+                    HStack(spacing: 8) {
+                        if !isInlineEditing, let url = item.url {
+                            Link(destination: url) {
+                                FacetInfoBadge(
+                                    text: url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
+                                    systemImage: "link",
+                                    tint: .blue,
+                                    fill: Color.blue.opacity(0.10)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .help(L10n.pick("Open link: \(url.absoluteString)", "打开链接：\(url.absoluteString)"))
+                        }
+
+                        if let date = item.date {
                             FacetInfoBadge(
-                                text: url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link",
-                                systemImage: "link",
-                                tint: .blue,
-                                fill: Color.blue.opacity(0.10)
+                                text: formattedDate(date),
+                                systemImage: item.kind == .reminder ? "calendar.badge.clock" : "clock",
+                                tint: dateHighlightColor(for: date),
+                                fill: dateHighlightColor(for: date).opacity(0.10)
                             )
                         }
-                        .buttonStyle(.plain)
-                        .help(L10n.pick("Open link: \(url.absoluteString)", "打开链接：\(url.absoluteString)"))
-                    }
 
-                    if let date = item.date {
-                        FacetInfoBadge(
-                            text: formattedDate(date),
-                            systemImage: item.kind == .reminder ? "calendar.badge.clock" : "clock",
-                            tint: dateHighlightColor(for: date),
-                            fill: dateHighlightColor(for: date).opacity(0.10)
-                        )
-                    }
-
-                    if !isInlineEditing {
-                        Button {
-                            onEdit()
-                        } label: {
-                            Image(systemName: "pencil")
-                                .foregroundStyle(.secondary)
+                        if !isInlineEditing {
+                            Button {
+                                onEdit()
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .opacity(hovered ? 1.0 : 0.0)
+                            .help(L10n.pick("Edit item", "编辑条目"))
                         }
-                        .buttonStyle(.plain)
-                        .opacity(hovered ? 1.0 : 0.0)
-                        .help(L10n.pick("Edit item", "编辑条目"))
                     }
                 }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                        .fill(rowFill)
+                    if item.kind == .reminder && item.priority > 0 {
+                        RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                            .fill(priorityColor.opacity(0.025))
+                    }
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(rowStroke, lineWidth: isSelected ? 1.5 : 1)
+            )
+            .contentShape(Rectangle())
+
+            if hasLocalPDF {
+                pdfCornerBadge
+                    .padding(.top, 4)
+                    .padding(.trailing, 4)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .fill(rowFill)
-                if item.kind == .reminder && item.priority > 0 {
-                    RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                        .fill(priorityColor.opacity(0.025))
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                .stroke(rowStroke, lineWidth: isSelected ? 1.5 : 1)
-        )
-        .contentShape(Rectangle())
         .onHover { isHovered in
             withAnimation(.easeOut(duration: 0.15)) {
                 hovered = isHovered
             }
         }
+    }
+
+    private var hasLocalPDF: Bool {
+        for paperID in item.linkedPaperIDs {
+            if let paper = PaperStore.shared.papers.first(where: { $0.id == paperID }) {
+                if let path = paper.pdfLocalPath, !path.isEmpty {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private var pdfCornerBadge: some View {
+        Image(systemName: "doc.fill")
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(.green)
+            .frame(width: 16, height: 16)
+            .background(Color.green.opacity(0.13))
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(Color.green.opacity(0.24), lineWidth: 1)
+            )
+            .padding(.top, -1)
     }
 
     private func dateHighlightColor(for date: Date) -> Color {

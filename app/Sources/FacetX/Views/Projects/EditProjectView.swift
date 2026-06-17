@@ -102,6 +102,10 @@ struct EditProjectView: View {
             ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: calendars)
             ProjectEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: calendars)
             ProjectEditorPicker(title: L10n.pick("Literature Calendar", "文献日历"), selection: $literatureCalendarName, options: calendars)
+            if calendarName == literatureCalendarName && !calendarName.isEmpty {
+                ProjectEditorWarning(L10n.pick("Calendar and Literature Calendar should not be the same.",
+                                               "条目日历与文献日历不应相同。"))
+            }
         }
     }
 

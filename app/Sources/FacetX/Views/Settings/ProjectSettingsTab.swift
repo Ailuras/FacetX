@@ -303,6 +303,20 @@ struct ProjectSettingsTab: View {
                                  systemImage: "books.vertical",
                                  selection: $settings.defaultLiteratureCalendarName,
                                  values: enabledCalendarNames)
+                if settings.defaultCalendarName == settings.defaultLiteratureCalendarName && !settings.defaultCalendarName.isEmpty {
+                    compactDivider
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.orange)
+                        Text(L10n.pick("Default Calendar and default Literature Calendar should not be the same.",
+                                       "默认条目日历与默认文献日历不应相同。"))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 4)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 2)
