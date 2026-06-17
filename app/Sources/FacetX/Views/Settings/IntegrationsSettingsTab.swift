@@ -14,7 +14,6 @@ struct IntegrationsSettingsTab: View {
     @State private var connectionMessage: String?
     @State private var connectionIsError = false
     @State private var availableModels: [String] = []
-    @State private var isLoadingModels = false
 
     var body: some View {
         SettingsPage(title: L10n.pick("Integrations", "集成"),
@@ -115,7 +114,7 @@ struct IntegrationsSettingsTab: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.segmented)
-                        .frame(width: 136)
+                        .frame(width: 176)
                         .onChange(of: litSettings.apiProvider) { _, p in
                             litSettings.apiBaseURL = p.defaultBaseURL
                             litSettings.apiModel = p.defaultModel
@@ -133,19 +132,6 @@ struct IntegrationsSettingsTab: View {
                         }
                         .controlSize(.small)
                         .disabled(isTesting || litSettings.apiKey.isEmpty)
-
-                        Button { loadModels() } label: {
-                            if isLoadingModels {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isLoadingModels || litSettings.apiKey.isEmpty)
-                        .help(L10n.pick("Refresh model list", "刷新模型列表"))
                     }
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)
                 }
@@ -425,15 +411,6 @@ struct IntegrationsSettingsTab: View {
                 connectionMessage = L10n.pick("Failed: \(error.localizedDescription)", "失败：\(error.localizedDescription)")
             }
             isTesting = false
-        }
-    }
-
-    private func loadModels() {
-        guard !isLoadingModels else { return }
-        isLoadingModels = true
-        Task {
-            if let models = try? await fetchModels() { apply(models: models) }
-            isLoadingModels = false
         }
     }
 
