@@ -351,59 +351,12 @@ struct ItemRow: View {
                     .stroke(rowStroke, lineWidth: isSelected ? 1.5 : 1)
             )
             .contentShape(Rectangle())
-
-            if hasLocalPDF {
-                Button {
-                    revealFirstPDF()
-                } label: {
-                    pdfCornerBadge
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
-                .padding(.trailing, 4)
-            }
         }
         .onHover { isHovered in
             withAnimation(.easeOut(duration: 0.15)) {
                 hovered = isHovered
             }
         }
-    }
-
-    private func revealFirstPDF() {
-        for paperID in item.linkedPaperIDs {
-            if let paper = PaperStore.shared.papers.first(where: { $0.id == paperID }) {
-                if PdfCoordinator.hasLocalPdf(paper) {
-                    _ = PdfCoordinator.reveal(paper: paper)
-                    return
-                }
-            }
-        }
-    }
-
-    private var hasLocalPDF: Bool {
-        for paperID in item.linkedPaperIDs {
-            if let paper = PaperStore.shared.papers.first(where: { $0.id == paperID }) {
-                if let path = paper.pdfLocalPath, !path.isEmpty {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    private var pdfCornerBadge: some View {
-        Image(systemName: "doc.fill")
-            .font(.system(size: 8, weight: .bold))
-            .foregroundStyle(.green)
-            .frame(width: 16, height: 16)
-            .background(Color.green.opacity(0.13))
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(Color.green.opacity(0.24), lineWidth: 1)
-            )
-            .padding(.top, -1)
     }
 
     private func dateHighlightColor(for date: Date) -> Color {
