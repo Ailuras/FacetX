@@ -549,7 +549,7 @@ struct ProjectDetailView: View {
     private func previewDropEntered(dragged: ProjectItem, target: ProjectItem) {
         if dragged.kind == target.kind {
             moveItem(from: dragged, to: target)
-        } else {
+        } else if dragged.linkedPaperIDs.isEmpty {
             previewKindChange(dragged: dragged, target: target)
         }
     }
@@ -590,6 +590,14 @@ struct ProjectDetailView: View {
     }
 
     private func persistKindChange(original: ProjectItem, current: ProjectItem, snapshot: [ProjectItem]?) {
+        guard original.linkedPaperIDs.isEmpty else {
+            if let snapshot {
+                withAnimation(listAnimation) { items = snapshot }
+            }
+            dragSnapshot = nil
+            draggedItem = nil
+            return
+        }
         Task {
             let newId: String?
             if original.kind == .reminder {

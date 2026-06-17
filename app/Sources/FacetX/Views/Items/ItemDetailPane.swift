@@ -120,12 +120,13 @@ struct ItemDetailPane: View {
     private var titleCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
+                let isLit = !item.linkedPaperIDs.isEmpty
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(kind == .reminder ? Color.green.opacity(0.14) : Color.blue.opacity(0.14))
-                    Image(systemName: kind == .reminder ? "checkmark.circle" : "calendar")
+                        .fill(isLit ? Color.yellow.opacity(0.14) : (kind == .reminder ? Color.green.opacity(0.14) : Color.blue.opacity(0.14)))
+                    Image(systemName: isLit ? "books.vertical" : (kind == .reminder ? "checkmark.circle" : "calendar"))
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(kind == .reminder ? .green : .blue)
+                        .foregroundStyle(isLit ? .yellow : (kind == .reminder ? .green : .blue))
                 }
                 .frame(width: 30, height: 30)
 
@@ -160,16 +161,18 @@ struct ItemDetailPane: View {
     }
 
     @ViewBuilder private var titleActions: some View {
-        Picker("", selection: kindSelection) {
-            Text(L10n.pick("Task", "任务")).tag(ProjectItem.Kind.reminder)
-            Text(L10n.pick("Event", "事件")).tag(ProjectItem.Kind.event)
+        if item.linkedPaperIDs.isEmpty {
+            Picker("", selection: kindSelection) {
+                Text(L10n.pick("Task", "任务")).tag(ProjectItem.Kind.reminder)
+                Text(L10n.pick("Event", "事件")).tag(ProjectItem.Kind.event)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            .frame(width: 116)
+            .disabled(saving)
+            .help(L10n.pick("Choose item type", "选择条目类型"))
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .controlSize(.small)
-        .frame(width: 116)
-        .disabled(saving)
-        .help(L10n.pick("Choose item type", "选择条目类型"))
     }
 
     private var scheduleCard: some View {
@@ -228,8 +231,9 @@ struct ItemDetailPane: View {
             VStack(alignment: .leading, spacing: 10) {
                 if !itemMetadata.paperIDs.isEmpty {
                     linkedPapersSection
+                } else {
+                    linkedCommitsSection
                 }
-                linkedCommitsSection
             }
             .padding(10)
         }
@@ -304,16 +308,18 @@ struct ItemDetailPane: View {
 
             Spacer(minLength: 8)
 
-            Button(role: .destructive) {
-                onRemove()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
+            if item.linkedPaperIDs.isEmpty {
+                Button(role: .destructive) {
+                    onRemove()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .disabled(saving)
+                .help(L10n.pick("Unlink paper", "取消文献关联"))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .disabled(saving)
-            .help(L10n.pick("Unlink paper", "取消文献关联"))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -1002,6 +1008,7 @@ struct ItemDetailPane: View {
     }
 
     private func convertItem(to newKind: ProjectItem.Kind) {
+        guard item.linkedPaperIDs.isEmpty else { return }
         guard newKind != item.kind else { return }
         saving = true
         onReplacementStart()

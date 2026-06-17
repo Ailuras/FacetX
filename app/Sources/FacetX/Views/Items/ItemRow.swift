@@ -257,12 +257,7 @@ struct ItemRow: View {
                                     .clipShape(Capsule())
                             }
 
-                            if !item.linkedPaperIDs.isEmpty {
-                                Image(systemName: "books.vertical")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.yellow)
-                                    .help(L10n.pick("Linked Literature", "已关联文献"))
-                            }
+
 
                             if !item.linkedCommits.isEmpty {
                                 Image(systemName: "source.branch")

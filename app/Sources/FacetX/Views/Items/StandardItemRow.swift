@@ -103,10 +103,12 @@ struct StandardItemRow: View {
                 }
             }
             Button(L10n.pick("Copy Title", "复制标题")) { copyTitle() }
-            Divider()
-            Button(item.kind == .reminder ? L10n.pick("Convert to Event", "转为事件")
-                                          : L10n.pick("Convert to Task", "转为任务")) {
-                convertItemType()
+            if item.linkedPaperIDs.isEmpty {
+                Divider()
+                Button(item.kind == .reminder ? L10n.pick("Convert to Event", "转为事件")
+                                              : L10n.pick("Convert to Task", "转为任务")) {
+                    convertItemType()
+                }
             }
             Divider()
             Button(L10n.pick("Delete", "删除"), role: .destructive) {

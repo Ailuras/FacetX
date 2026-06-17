@@ -473,15 +473,18 @@ struct PaperDetailPane: View {
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 8)
-                            Button(role: .destructive) {
-                                removeLink(from: item)
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 9, weight: .bold))
+                            let isLiteratureEvent = item.kind == .event && !item.linkedPaperIDs.isEmpty
+                            if !isLiteratureEvent {
+                                Button(role: .destructive) {
+                                    removeLink(from: item)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 9, weight: .bold))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .help(L10n.pick("Unlink", "取消关联"))
                             }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                            .help(L10n.pick("Unlink", "取消关联"))
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
