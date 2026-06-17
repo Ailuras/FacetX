@@ -14,6 +14,7 @@ struct PaperDetailPane: View {
     @EnvironmentObject private var toast: ToastController
     @State private var noteText: String = ""
     @State private var isTranslating = false
+    @State private var isFetchingPdf = false
     @State private var showTranslation = false
 
     /// Always read the live copy from the store so status / tag / translation
@@ -272,35 +273,89 @@ struct PaperDetailPane: View {
 
     private var pdfSection: some View {
         FacetDetailSection(title: "PDF", systemImage: "doc") {
-            HStack(spacing: 8) {
-                if PdfCoordinator.hasLocalPdf(paper) {
-                    pdfButton(L10n.pick("Show in Finder", "在访达中显示"), "folder") {
-                        _ = PdfCoordinator.reveal(paper: paper)
-                    }
+            VStack(alignment: .leading, spacing: 8) {
+                if let status = PdfStatus(rawValue: paper.pdfStatus ?? ""), status != .downloaded {
+                    Label(pdfStatusText(status), systemImage: pdfStatusIcon(status))
+                        .font(SettingsUI.smallFont)
+                        .foregroundStyle(status == .notPdf ? .orange : .secondary)
                 }
-                pdfButton(paper.pdfLocalPath == nil ? L10n.pick("Attach PDF", "附加 PDF") : L10n.pick("Replace", "替换"), "plus") {
-                    let panel = NSOpenPanel()
-                    panel.canChooseFiles = true
-                    panel.allowedContentTypes = [.pdf]
-                    if panel.runModal() == .OK, let url = panel.url {
-                        switch PdfCoordinator.setManualPdf(paper: paper, store: store, from: url) {
-                        case .success:
-                            toast.show(L10n.pick("PDF attached", "已附加 PDF"), type: .success, duration: 2)
-                        case .notPDF:
-                            toast.show(L10n.pick("That file is not a PDF", "该文件不是 PDF"), type: .warning)
-                        case .failed:
-                            toast.show(L10n.pick("Failed to attach PDF", "附加 PDF 失败"), type: .error)
+                HStack(spacing: 8) {
+                    pdfButton(isFetchingPdf ? L10n.pick("Finding...", "查找中…") : fetchPdfLabel,
+                              isFetchingPdf ? "hourglass" : "doc.text.magnifyingglass") {
+                        fetchPdf()
+                    }
+                    .disabled(isFetchingPdf)
+
+                    if PdfCoordinator.hasLocalPdf(paper) {
+                        pdfButton(L10n.pick("Show in Finder", "在访达中显示"), "folder") {
+                            if !PdfCoordinator.reveal(paper: paper) {
+                                fetchPdf()
+                            }
                         }
                     }
-                }
-                if paper.pdfLocalPath != nil {
-                    pdfButton(L10n.pick("Remove", "移除"), "trash", role: .destructive) {
-                        PdfCoordinator.removePdf(paper: paper, store: store)
+                    pdfButton(paper.pdfLocalPath == nil ? L10n.pick("Attach PDF", "附加 PDF") : L10n.pick("Replace", "替换"), "plus") {
+                        let panel = NSOpenPanel()
+                        panel.canChooseFiles = true
+                        panel.allowedContentTypes = [.pdf]
+                        if panel.runModal() == .OK, let url = panel.url {
+                            switch PdfCoordinator.setManualPdf(paper: paper, store: store, from: url) {
+                            case .success:
+                                toast.show(L10n.pick("PDF attached", "已附加 PDF"), type: .success, duration: 2)
+                            case .notPDF:
+                                toast.show(L10n.pick("That file is not a PDF", "该文件不是 PDF"), type: .warning)
+                            case .failed:
+                                toast.show(L10n.pick("Failed to attach PDF", "附加 PDF 失败"), type: .error)
+                            }
+                        }
                     }
+                    if paper.pdfLocalPath != nil {
+                        pdfButton(L10n.pick("Remove", "移除"), "trash", role: .destructive) {
+                            PdfCoordinator.removePdf(paper: paper, store: store)
+                        }
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
             }
             .padding(10)
+        }
+    }
+
+    private var fetchPdfLabel: String {
+        PdfCoordinator.hasLocalPdf(paper)
+            ? L10n.pick("Refetch", "重新获取")
+            : L10n.pick("Find PDF", "查找 PDF")
+    }
+
+    private func pdfStatusText(_ status: PdfStatus) -> String {
+        switch status {
+        case .downloaded: return L10n.pick("PDF downloaded", "PDF 已下载")
+        case .notPdf:     return L10n.pick("Last candidate was not a PDF", "上次候选链接不是 PDF")
+        case .dead:       return L10n.pick("No open PDF found yet", "暂未找到开放 PDF")
+        }
+    }
+
+    private func pdfStatusIcon(_ status: PdfStatus) -> String {
+        switch status {
+        case .downloaded: return "checkmark.circle"
+        case .notPdf:     return "exclamationmark.triangle"
+        case .dead:       return "magnifyingglass"
+        }
+    }
+
+    private func fetchPdf() {
+        guard !isFetchingPdf else { return }
+        isFetchingPdf = true
+        Task {
+            let result = await PdfCoordinator.fetch(paper: paper, store: store)
+            isFetchingPdf = false
+            switch result.status {
+            case .downloaded:
+                toast.show(L10n.pick("PDF downloaded", "PDF 已下载"), type: .success, duration: 2)
+            case .notPdf:
+                toast.show(L10n.pick("Found a link, but it was not a PDF", "找到了链接，但不是 PDF"), type: .warning)
+            case .dead:
+                toast.show(L10n.pick("No open PDF found", "未找到开放 PDF"), type: .info)
+            }
         }
     }
 
