@@ -427,14 +427,14 @@ struct TopicDetailView: View {
     private var infoBar: some View {
         HStack(spacing: 10) {
             SummaryChip(value: papersForTopic.count, label: L10n.pick("Papers", "文献"), systemImage: "doc.text")
-            // Starred / Pending counts are only meaningful in the All view; the
+            // Starred / Read counts are only meaningful in the All view; the
             // mode-scoped views (Starred/Read/Skipped) drop them. The All view
             // instead surfaces how many papers are currently recommended.
             if mode == .all {
                 SummaryChip(value: papersForTopic.filter { $0.status == .starred }.count,
                             label: L10n.pick("Starred", "收藏"), systemImage: "star")
-                SummaryChip(value: papersForTopic.filter { $0.status == .pending }.count,
-                            label: L10n.pick("Pending", "待读"), systemImage: "clock")
+                SummaryChip(value: papersForTopic.filter { $0.status == .read }.count,
+                            label: L10n.pick("Read", "已读"), systemImage: "checkmark.circle")
                 SummaryChip(value: papersForTopic.filter { $0.isRecommended }.count,
                             label: L10n.pick("Recommended", "已推荐"), systemImage: "sparkles")
             }

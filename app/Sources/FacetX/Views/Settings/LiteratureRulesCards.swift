@@ -50,13 +50,16 @@ struct VenueRulesCard: View {
         HStack(spacing: 8) {
             Text("Others")
                 .font(SettingsUI.rowFont)
+                .padding(.leading, 10)
                 .frame(width: 70, alignment: .leading)
             Text("—")
                 .foregroundStyle(.tertiary)
+                .padding(.leading, 10)
                 .frame(width: 96, alignment: .leading)
             Text(L10n.pick("Fallback for unmatched venues", "未匹配会议的兜底"))
                 .font(SettingsUI.secondaryFont)
                 .foregroundStyle(.secondary)
+                .padding(.leading, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Picker("", selection: $metadata.othersTier) {
                 Text(L10n.pick("None", "无")).tag(0)
@@ -69,7 +72,6 @@ struct VenueRulesCard: View {
                 .frame(width: 20)
         }
         .padding(.vertical, 4)
-        .padding(.horizontal, 6)
         .background(FacetTheme.panel.opacity(0.4))
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
