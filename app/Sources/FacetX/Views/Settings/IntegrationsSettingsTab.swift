@@ -107,23 +107,50 @@ struct IntegrationsSettingsTab: View {
 
             VStack(spacing: 0) {
                 SettingsRow(title: L10n.pick("Provider", "服务商"), systemImage: "server.rack") {
-                    Picker("", selection: $litSettings.apiProvider) {
-                        ForEach(TranslationProvider.allCases, id: \.self) { p in
-                            Text(p.displayName).tag(p)
+                    HStack(spacing: 8) {
+                        Picker("", selection: $litSettings.apiProvider) {
+                            ForEach(TranslationProvider.allCases, id: \.self) { p in
+                                Text(p.displayName).tag(p)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 136)
+                        .onChange(of: litSettings.apiProvider) { _, p in
+                            litSettings.apiBaseURL = p.defaultBaseURL
+                            litSettings.apiModel = p.defaultModel
+                            availableModels = []
+                            connectionMessage = nil
+                        }
+
+                        Button { testConnection() } label: {
+                            if isTesting {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text(L10n.pick("Test", "测试"))
+                            }
+                        }
+                        .controlSize(.small)
+                        .disabled(isTesting || litSettings.apiKey.isEmpty)
+
+                        Button { loadModels() } label: {
+                            if isLoadingModels {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isLoadingModels || litSettings.apiKey.isEmpty)
+                        .help(L10n.pick("Refresh model list", "刷新模型列表"))
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
                     .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-                    .onChange(of: litSettings.apiProvider) { _, p in
-                        litSettings.apiBaseURL = p.defaultBaseURL
-                        litSettings.apiModel = p.defaultModel
-                        availableModels = []
-                        connectionMessage = nil
-                    }
                 }
                 compactDivider
-                SettingsRow(title: L10n.pick("Endpoint", "接口地址"), systemImage: "link") {
+                SettingsRow(title: L10n.pick("API", "接口"), systemImage: "link") {
                     TextField("", text: $litSettings.apiBaseURL)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: SettingsUI.controlWidth)
@@ -131,49 +158,25 @@ struct IntegrationsSettingsTab: View {
                 }
                 compactDivider
                 SettingsRow(title: L10n.pick("Credential", "凭据"), systemImage: "key") {
-                    HStack(spacing: 8) {
-                        SecureField("", text: $litSettings.apiKey)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 150)
-                            .onChange(of: litSettings.apiKey) { _, _ in connectionMessage = nil }
-                        Button { testConnection() } label: {
-                            if isTesting {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Text(L10n.pick("Test", "测试"))
-                            }
-                        }
-                        .controlSize(.small)
-                        .disabled(isTesting || litSettings.apiKey.isEmpty)
-                    }
+                    SecureField("", text: $litSettings.apiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: SettingsUI.controlWidth)
+                        .onChange(of: litSettings.apiKey) { _, _ in connectionMessage = nil }
                 }
                 compactDivider
                 SettingsRow(title: L10n.pick("Model", "模型"), systemImage: "cpu") {
-                    HStack(spacing: 6) {
-                        Picker("", selection: $litSettings.apiModel) {
-                            if availableModels.isEmpty {
-                                Text(litSettings.apiModel.isEmpty ? L10n.pick("Unavailable", "不可用") : litSettings.apiModel)
-                                    .tag(litSettings.apiModel)
-                            } else {
-                                ForEach(availableModels, id: \.self) { Text($0).tag($0) }
-                            }
+                    Picker("", selection: $litSettings.apiModel) {
+                        if availableModels.isEmpty {
+                            Text(litSettings.apiModel.isEmpty ? L10n.pick("Unavailable", "不可用") : litSettings.apiModel)
+                                .tag(litSettings.apiModel)
+                        } else {
+                            ForEach(availableModels, id: \.self) { Text($0).tag($0) }
                         }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: 172, alignment: .trailing)
-                        .disabled(availableModels.isEmpty)
-                        Button { loadModels() } label: {
-                            if isLoadingModels {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isLoadingModels)
-                        .help(L10n.pick("Refresh model list", "刷新模型列表"))
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                    .disabled(availableModels.isEmpty)
                 }
             }
             .padding(.horizontal, 10)
@@ -251,7 +254,6 @@ struct IntegrationsSettingsTab: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(width: SettingsUI.controlWidth)
             }
-            SettingsDivider()
             SettingsRow(title: L10n.pick("Field Filter", "领域过滤"), systemImage: "line.3.horizontal.decrease.circle") {
                 TextField(L10n.pick("topics.field.id:17", "topics.field.id:17"), text: $litSettings.topicFilter)
                     .textFieldStyle(.roundedBorder)
