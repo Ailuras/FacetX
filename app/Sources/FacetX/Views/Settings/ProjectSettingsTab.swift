@@ -34,7 +34,6 @@ struct ProjectSettingsTab: View {
             projectItemsCard
             swipeActionsCard
             todayViewCard
-            weekGoalsCard
         }
         .onAppear {
             reloadContainers()
@@ -266,27 +265,19 @@ struct ProjectSettingsTab: View {
 
     private var projectItemsCard: some View {
         SettingsCard(title: L10n.pick("Project Items", "项目条目"), systemImage: "tray.and.arrow.down",
-                     subtitle: L10n.pick("Default lists and duration for new items.",
-                                         "新建条目的默认列表与时长。")) {
-            SettingsRow(title: L10n.pick("Tasks", "任务"), systemImage: "checklist") {
-                Picker("", selection: $settings.defaultReminderListName) {
-                    if enabledReminderNames.isEmpty { Text(L10n.pick("None", "无")).tag("") }
-                    ForEach(enabledReminderNames, id: \.self) { Text($0).tag($0) }
+                     subtitle: L10n.pick("Defaults for new items and week goals.",
+                                         "新建条目与周目标的默认设置。")) {
+            SettingsRow(title: L10n.pick("Save Targets", "保存目标"), systemImage: "tray.and.arrow.down") {
+                HStack(spacing: 8) {
+                    compactTargetPicker(title: L10n.pick("Tasks", "任务"),
+                                        systemImage: "checklist",
+                                        selection: $settings.defaultReminderListName,
+                                        values: enabledReminderNames)
+                    compactTargetPicker(title: L10n.pick("Calendar", "日历"),
+                                        systemImage: "calendar",
+                                        selection: $settings.defaultCalendarName,
+                                        values: enabledCalendarNames)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-            }
-
-            SettingsDivider()
-
-            SettingsRow(title: L10n.pick("Calendar", "日历"), systemImage: "calendar") {
-                Picker("", selection: $settings.defaultCalendarName) {
-                    if enabledCalendarNames.isEmpty { Text(L10n.pick("None", "无")).tag("") }
-                    ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
                 .frame(width: SettingsUI.controlWidth, alignment: .trailing)
             }
 
@@ -303,6 +294,35 @@ struct ProjectSettingsTab: View {
                         .controlSize(.mini)
                 }
                 .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+            }
+
+            SettingsDivider()
+
+            weekGoalStoragePreview
+
+            SettingsRow(title: L10n.pick("Week Goals", "周目标"), systemImage: "target") {
+                Picker("", selection: $settings.weekGoalCalendarName) {
+                    if enabledCalendarNames.isEmpty { Text(L10n.pick("None", "无")).tag("") }
+                    ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(FacetTheme.panel.opacity(0.42))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+
+            HStack(spacing: 8) {
+                settingsNote(L10n.pick("Stored as all-day events.", "保存为全天事件。"),
+                             systemImage: "calendar")
+                settingsNote(L10n.pick("Hidden from item lists.", "不显示在普通条目列表。"),
+                             systemImage: "eye.slash")
             }
         }
     }
@@ -361,40 +381,25 @@ struct ProjectSettingsTab: View {
         }
     }
 
-    private var weekGoalsCard: some View {
-        SettingsCard(title: L10n.pick("Week Goals", "周目标"), systemImage: "target",
-                     subtitle: L10n.pick("Calendar used to store shared week goals.",
-                                         "存储共享周目标所用的日历。")) {
-            weekGoalStoragePreview
-
-            SettingsRow(title: L10n.pick("Calendar", "日历"), systemImage: "calendar.badge.clock") {
-                Picker("", selection: $settings.weekGoalCalendarName) {
-                    if enabledCalendarNames.isEmpty { Text(L10n.pick("None", "无")).tag("") }
-                    ForEach(enabledCalendarNames, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 2)
-            .background(FacetTheme.panel.opacity(0.42))
-            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
-
-            HStack(spacing: 8) {
-                settingsNote(L10n.pick("Stored as all-day events.", "保存为全天事件。"),
-                             systemImage: "calendar")
-                settingsNote(L10n.pick("Hidden from item lists.", "不显示在普通条目列表。"),
-                             systemImage: "eye.slash")
-            }
-        }
-    }
-
     // MARK: - Helpers
+
+    private func compactTargetPicker(title: String, systemImage: String,
+                                     selection: Binding<String>, values: [String]) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+            Picker(title, selection: selection) {
+                if values.isEmpty { Text(L10n.pick("None", "无")).tag("") }
+                ForEach(values, id: \.self) { Text($0).tag($0) }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 84, alignment: .trailing)
+        }
+        .frame(width: 111, alignment: .trailing)
+    }
 
     private func swipeActionRow(title: String, systemImage: String, selection: Binding<String>) -> some View {
         SettingsRow(title: title, systemImage: systemImage) {
