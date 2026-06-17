@@ -1,7 +1,19 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
+    private var automationScheduler: AutomationScheduler?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        automationScheduler = AutomationScheduler()
+        automationScheduler?.start()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        automationScheduler?.stop()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }

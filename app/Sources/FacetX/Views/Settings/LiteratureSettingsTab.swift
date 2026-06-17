@@ -4,6 +4,7 @@ import SwiftUI
 struct LiteratureSettingsTab: View {
     @State private var settings = LibrarySettings.shared
     @State private var metadata = MetadataStore.shared
+    @State private var automation = AutomationPreferences.shared
     @EnvironmentObject private var toast: ToastController
 
     var body: some View {
@@ -13,6 +14,7 @@ struct LiteratureSettingsTab: View {
                      warning: nil) {
             fetchCard
             recommendationCard
+            automationCard
             translationCard
             VenueRulesCard(metadata: metadata)
             TierRulesCard(metadata: metadata)
@@ -131,6 +133,65 @@ struct LiteratureSettingsTab: View {
             SettingsDivider()
             stepperRow(L10n.pick("Recent Window (days)", "近期窗口（天）"), systemImage: "calendar.badge.clock",
                        value: $settings.recentDays, range: 1...365)
+        }
+    }
+
+    // MARK: - Automation
+
+    private var automationCard: some View {
+        SettingsCard(title: L10n.pick("Automation", "自动化"), systemImage: "clock.badge.checkmark",
+                     subtitle: L10n.pick("Run literature fetch and recommendation while FacetX is open.",
+                                         "在 FacetX 运行时自动拉取文献并生成推荐。")) {
+            SettingsRow(title: L10n.pick("Enable Automation", "启用自动化"), systemImage: "power") {
+                Toggle("", isOn: $automation.automationEnabled)
+                    .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+            }
+            SettingsDivider()
+            SettingsRow(title: L10n.pick("Monthly Fetch", "每月拉取"), systemImage: "calendar.badge.plus") {
+                HStack(spacing: 8) {
+                    if automation.autoFetchEnabled {
+                        Picker("", selection: clamped($automation.fetchDay, to: 1...28)) {
+                            ForEach(1...28, id: \.self) { day in
+                                Text("\(day)").tag(day)
+                            }
+                        }
+                        .labelsHidden().frame(width: 58)
+                        DatePicker("", selection: $automation.fetchTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden().frame(width: 86)
+                    }
+                    Toggle("", isOn: $automation.autoFetchEnabled)
+                        .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+                }
+                .disabled(!automation.automationEnabled)
+            }
+            SettingsDivider()
+            SettingsRow(title: L10n.pick("Daily Recommend", "每日推荐"), systemImage: "sparkles") {
+                HStack(spacing: 8) {
+                    if automation.autoRecommendEnabled {
+                        DatePicker("", selection: $automation.recommendTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden().frame(width: 86)
+                    }
+                    Toggle("", isOn: $automation.autoRecommendEnabled)
+                        .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+                }
+                .disabled(!automation.automationEnabled)
+            }
+            if automation.lastAutoFetchAt != nil || automation.lastAutoRecommendAt != nil {
+                SettingsDivider()
+                VStack(alignment: .leading, spacing: 5) {
+                    if let last = automation.lastAutoFetchAt {
+                        Text(L10n.pick("Last fetch: \(last.formatted(date: .abbreviated, time: .shortened))",
+                                       "上次拉取：\(last.formatted(date: .abbreviated, time: .shortened))"))
+                    }
+                    if let last = automation.lastAutoRecommendAt {
+                        Text(L10n.pick("Last recommend: \(last.formatted(date: .abbreviated, time: .shortened))",
+                                       "上次推荐：\(last.formatted(date: .abbreviated, time: .shortened))"))
+                    }
+                }
+                .font(SettingsUI.smallFont)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 28)
+            }
         }
     }
 
