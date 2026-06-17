@@ -357,11 +357,18 @@ struct ItemRow: View {
             )
             .contentShape(Rectangle())
 
-            if hasLocalPDF {
-                pdfCornerBadge
-                    .padding(.top, 4)
-                    .padding(.trailing, 4)
+            // Corner badges: literature link (yellow) and/or local PDF (green)
+            HStack(spacing: 3) {
+                if !item.linkedPaperIDs.isEmpty {
+                    literatureCornerBadge
+                }
+                if hasLocalPDF {
+                    pdfCornerBadge
+                }
             }
+            .padding(.top, 4)
+            .padding(.trailing, 4)
+            .opacity(item.linkedPaperIDs.isEmpty && !hasLocalPDF ? 0 : 1)
         }
         .onHover { isHovered in
             withAnimation(.easeOut(duration: 0.15)) {
@@ -381,6 +388,19 @@ struct ItemRow: View {
         return false
     }
 
+    private var literatureCornerBadge: some View {
+        Image(systemName: "books.vertical.fill")
+            .font(.system(size: 7, weight: .bold))
+            .foregroundStyle(.yellow)
+            .frame(width: 16, height: 16)
+            .background(Color.yellow.opacity(0.13))
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(Color.yellow.opacity(0.28), lineWidth: 1)
+            )
+    }
+
     private var pdfCornerBadge: some View {
         Image(systemName: "doc.fill")
             .font(.system(size: 8, weight: .bold))
@@ -392,7 +412,6 @@ struct ItemRow: View {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .stroke(Color.green.opacity(0.24), lineWidth: 1)
             )
-            .padding(.top, -1)
     }
 
     private func dateHighlightColor(for date: Date) -> Color {
