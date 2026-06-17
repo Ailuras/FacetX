@@ -4,6 +4,7 @@ struct GeneralSettingsTab: View {
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
     @State private var metadata = MetadataStore.shared
+    @State private var automation = AutomationPreferences.shared
 
     private var activeTopics: [TrackPref] {
         metadata.topics.filter { !$0.archived }
@@ -100,6 +101,8 @@ struct GeneralSettingsTab: View {
                 }
             }
 
+            automationCard
+
             SettingsCard(title: L10n.t(.storage), systemImage: "externaldrive",
                          subtitle: L10n.pick("Where FacetX keeps its data on disk.",
                                              "FacetX 在磁盘上保存数据的位置。")) {
@@ -119,5 +122,79 @@ struct GeneralSettingsTab: View {
 
     private var persistenceWarning: String? {
         store.persistenceError ?? settings.persistenceError
+    }
+
+    private var automationCard: some View {
+        SettingsCard(title: L10n.pick("Literature Automation", "文献自动化"),
+                     systemImage: "clock.badge.checkmark",
+                     subtitle: L10n.pick("Background fetch and recommendation schedules while FacetX is open.",
+                                         "FacetX 运行时的后台拉取与推荐计划。")) {
+            SettingsRow(title: L10n.pick("Enable Automation", "启用自动化"), systemImage: "power") {
+                Toggle("", isOn: $automation.automationEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
+            SettingsDivider()
+            SettingsRow(title: L10n.pick("Monthly Fetch", "每月拉取"), systemImage: "calendar.badge.plus") {
+                HStack(spacing: 8) {
+                    Toggle("", isOn: $automation.autoFetchEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                    if automation.autoFetchEnabled {
+                        Picker("", selection: clamped($automation.fetchDay, to: 1...28)) {
+                            ForEach(1...28, id: \.self) { day in
+                                Text(L10n.pick("Day \(day)", "\(day) 日")).tag(day)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 84)
+                        DatePicker("", selection: $automation.fetchTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                            .frame(width: 86)
+                    }
+                }
+                .disabled(!automation.automationEnabled)
+            }
+            SettingsDivider()
+            SettingsRow(title: L10n.pick("Daily Recommend", "每日推荐"), systemImage: "sparkles") {
+                HStack(spacing: 8) {
+                    Toggle("", isOn: $automation.autoRecommendEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                    if automation.autoRecommendEnabled {
+                        DatePicker("", selection: $automation.recommendTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                            .frame(width: 86)
+                    }
+                }
+                .disabled(!automation.automationEnabled)
+            }
+            if automation.lastAutoFetchAt != nil || automation.lastAutoRecommendAt != nil {
+                SettingsDivider()
+                VStack(alignment: .leading, spacing: 5) {
+                    if let last = automation.lastAutoFetchAt {
+                        Text(L10n.pick("Last fetch: \(last.formatted(date: .abbreviated, time: .shortened))",
+                                       "上次拉取：\(last.formatted(date: .abbreviated, time: .shortened))"))
+                    }
+                    if let last = automation.lastAutoRecommendAt {
+                        Text(L10n.pick("Last recommend: \(last.formatted(date: .abbreviated, time: .shortened))",
+                                       "上次推荐：\(last.formatted(date: .abbreviated, time: .shortened))"))
+                    }
+                }
+                .font(SettingsUI.smallFont)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 28)
+            }
+        }
+    }
+
+    private func clamped(_ value: Binding<Int>, to range: ClosedRange<Int>) -> Binding<Int> {
+        Binding(
+            get: { value.wrappedValue },
+            set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) }
+        )
     }
 }

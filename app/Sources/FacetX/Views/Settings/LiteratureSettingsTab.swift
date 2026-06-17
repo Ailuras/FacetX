@@ -4,17 +4,15 @@ import SwiftUI
 struct LiteratureSettingsTab: View {
     @State private var settings = LibrarySettings.shared
     @State private var metadata = MetadataStore.shared
-    @State private var automation = AutomationPreferences.shared
     @EnvironmentObject private var toast: ToastController
 
     var body: some View {
         SettingsPage(title: L10n.pick("Literature", "文献"),
-                     subtitle: L10n.pick("Fetching, recommendations and scoring rules", "拉取、推荐与评分规则"),
+                     subtitle: L10n.pick("Fetch scope, recommendation strategy and scoring rules", "拉取范围、推荐策略与评分规则"),
                      systemImage: "books.vertical",
                      warning: nil) {
             fetchCard
             recommendationCard
-            automationCard
             translationCard
             VenueRulesCard(metadata: metadata)
             TierRulesCard(metadata: metadata)
@@ -96,17 +94,23 @@ struct LiteratureSettingsTab: View {
     // MARK: - Fetch
 
     private var fetchCard: some View {
-        SettingsCard(title: L10n.pick("OpenAlex Fetch", "OpenAlex 拉取"), systemImage: "magnifyingglass",
-                     subtitle: L10n.pick("How many results Fetch pulls and how it filters them.",
-                                         "“拉取”获取的结果数量与过滤方式。")) {
-            numberRow(L10n.pick("Results per Page", "每页结果"), systemImage: "list.number",
-                      value: $settings.perPage, range: 1...200)
+        SettingsCard(title: L10n.pick("OpenAlex Fetch Scope", "OpenAlex 拉取范围"), systemImage: "magnifyingglass",
+                     subtitle: L10n.pick("Controls how much each library fetch asks OpenAlex for.",
+                                         "控制每次文献库拉取向 OpenAlex 请求多少内容。")) {
+            stepperRow(L10n.pick("Publication Window", "发表时间窗口"), systemImage: "calendar.badge.clock",
+                       value: $settings.defaultDays, range: 1...365,
+                       unit: L10n.pick("days", "天"), valueWidth: 56)
             SettingsDivider()
-            numberRow(L10n.pick("Max Results", "最大结果数"), systemImage: "number",
-                      value: $settings.defaultMaxResults, range: 1...1000)
+            stepperRow(L10n.pick("Results per Request", "每次请求数量"), systemImage: "list.number",
+                       value: $settings.perPage, range: 1...200,
+                       unit: L10n.pick("items", "条"), valueWidth: 56)
             SettingsDivider()
-            SettingsRow(title: L10n.pick("Topic Filter", "主题过滤"), systemImage: "line.3.horizontal.decrease.circle") {
-                TextField(L10n.pick("optional OpenAlex filter", "可选 OpenAlex 过滤"), text: $settings.topicFilter)
+            stepperRow(L10n.pick("Total Cap per Library", "单库总上限"), systemImage: "number",
+                       value: $settings.defaultMaxResults, range: 1...1000,
+                       unit: L10n.pick("items", "条"), valueWidth: 64)
+            SettingsDivider()
+            SettingsRow(title: L10n.pick("OpenAlex Filter", "OpenAlex 过滤"), systemImage: "line.3.horizontal.decrease.circle") {
+                TextField(L10n.pick("topics.field.id:17", "topics.field.id:17"), text: $settings.topicFilter)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: SettingsUI.controlWidth)
             }
@@ -119,79 +123,24 @@ struct LiteratureSettingsTab: View {
     // MARK: - Recommendations
 
     private var recommendationCard: some View {
-        SettingsCard(title: L10n.pick("Daily Recommendations", "每日推荐"), systemImage: "sparkles",
-                     subtitle: L10n.pick("Tunes how the daily recommendation slots are filled.",
-                                         "调整每日推荐名额的分配方式。")) {
-            stepperRow(L10n.pick("Daily Count", "每日数量"), systemImage: "number.circle",
-                       value: $settings.dailyCount, range: 1...20)
+        SettingsCard(title: L10n.pick("Recommendation Strategy", "推荐策略"), systemImage: "sparkles",
+                     subtitle: L10n.pick("Controls how daily recommendation slots are balanced.",
+                                         "控制每日推荐名额如何分配。")) {
+            stepperRow(L10n.pick("Daily Slots", "每日名额"), systemImage: "number.circle",
+                       value: $settings.dailyCount, range: 1...20,
+                       unit: L10n.pick("papers", "篇"), valueWidth: 48)
             SettingsDivider()
-            stepperRow(L10n.pick("Quality Slots", "高分名额"), systemImage: "star.circle",
-                       value: $settings.qualitySlots, range: 0...20)
+            stepperRow(L10n.pick("High-Score Slots", "高分名额"), systemImage: "star.circle",
+                       value: $settings.qualitySlots, range: 0...20,
+                       unit: L10n.pick("slots", "个"), valueWidth: 48)
             SettingsDivider()
-            stepperRow(L10n.pick("High-Score Threshold", "高分阈值"), systemImage: "chart.line.uptrend.xyaxis",
-                       value: $settings.highScoreThreshold, range: 0...100)
+            stepperRow(L10n.pick("High-Score Minimum", "高分下限"), systemImage: "chart.line.uptrend.xyaxis",
+                       value: $settings.highScoreThreshold, range: 0...100,
+                       unit: L10n.pick("score", "分"), valueWidth: 48)
             SettingsDivider()
-            stepperRow(L10n.pick("Recent Window (days)", "近期窗口（天）"), systemImage: "calendar.badge.clock",
-                       value: $settings.recentDays, range: 1...365)
-        }
-    }
-
-    // MARK: - Automation
-
-    private var automationCard: some View {
-        SettingsCard(title: L10n.pick("Automation", "自动化"), systemImage: "clock.badge.checkmark",
-                     subtitle: L10n.pick("Run literature fetch and recommendation while FacetX is open.",
-                                         "在 FacetX 运行时自动拉取文献并生成推荐。")) {
-            SettingsRow(title: L10n.pick("Enable Automation", "启用自动化"), systemImage: "power") {
-                Toggle("", isOn: $automation.automationEnabled)
-                    .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-            }
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("Monthly Fetch", "每月拉取"), systemImage: "calendar.badge.plus") {
-                HStack(spacing: 8) {
-                    if automation.autoFetchEnabled {
-                        Picker("", selection: clamped($automation.fetchDay, to: 1...28)) {
-                            ForEach(1...28, id: \.self) { day in
-                                Text("\(day)").tag(day)
-                            }
-                        }
-                        .labelsHidden().frame(width: 58)
-                        DatePicker("", selection: $automation.fetchTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden().frame(width: 86)
-                    }
-                    Toggle("", isOn: $automation.autoFetchEnabled)
-                        .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-                }
-                .disabled(!automation.automationEnabled)
-            }
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("Daily Recommend", "每日推荐"), systemImage: "sparkles") {
-                HStack(spacing: 8) {
-                    if automation.autoRecommendEnabled {
-                        DatePicker("", selection: $automation.recommendTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden().frame(width: 86)
-                    }
-                    Toggle("", isOn: $automation.autoRecommendEnabled)
-                        .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-                }
-                .disabled(!automation.automationEnabled)
-            }
-            if automation.lastAutoFetchAt != nil || automation.lastAutoRecommendAt != nil {
-                SettingsDivider()
-                VStack(alignment: .leading, spacing: 5) {
-                    if let last = automation.lastAutoFetchAt {
-                        Text(L10n.pick("Last fetch: \(last.formatted(date: .abbreviated, time: .shortened))",
-                                       "上次拉取：\(last.formatted(date: .abbreviated, time: .shortened))"))
-                    }
-                    if let last = automation.lastAutoRecommendAt {
-                        Text(L10n.pick("Last recommend: \(last.formatted(date: .abbreviated, time: .shortened))",
-                                       "上次推荐：\(last.formatted(date: .abbreviated, time: .shortened))"))
-                    }
-                }
-                .font(SettingsUI.smallFont)
-                .foregroundStyle(.secondary)
-                .padding(.leading, 28)
-            }
+            stepperRow(L10n.pick("Recent Priority Window", "近期优先窗口"), systemImage: "calendar.badge.clock",
+                       value: $settings.recentDays, range: 1...365,
+                       unit: L10n.pick("days", "天"), valueWidth: 56)
         }
     }
 
@@ -216,24 +165,19 @@ struct LiteratureSettingsTab: View {
 
     // MARK: - Helpers
 
-    private func numberRow(_ title: String, systemImage: String,
-                           value: Binding<Int>, range: ClosedRange<Int>) -> some View {
-        SettingsRow(title: title, systemImage: systemImage) {
-            TextField("", value: clamped(value, to: range), format: .number)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 70)
-                .textFieldStyle(.roundedBorder)
-        }
-    }
-
     private func stepperRow(_ title: String, systemImage: String,
-                            value: Binding<Int>, range: ClosedRange<Int>) -> some View {
+                            value: Binding<Int>, range: ClosedRange<Int>,
+                            unit: String, valueWidth: CGFloat) -> some View {
         SettingsRow(title: title, systemImage: systemImage) {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 TextField("", value: clamped(value, to: range), format: .number)
                     .multilineTextAlignment(.trailing)
-                    .frame(width: 48)
+                    .frame(width: valueWidth)
                     .textFieldStyle(.roundedBorder)
+                Text(unit)
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 44, alignment: .leading)
                 Stepper("", value: value, in: range)
                     .labelsHidden().controlSize(.mini)
             }
