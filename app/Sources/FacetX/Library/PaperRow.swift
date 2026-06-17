@@ -10,38 +10,49 @@ struct PaperRow: View {
 
     @State private var hovered = false
 
+    private var hasLocalPDF: Bool {
+        guard let path = paper.pdfLocalPath else { return false }
+        return !path.isEmpty
+    }
+
     private var rowFill: Color {
-        if isSelected { return Color.accentColor.opacity(0.10) }
+        if isSelected { return FacetTheme.softAccent }
         if hovered { return Color.primary.opacity(0.035) }
         return FacetTheme.quietPanel
     }
 
     private var rowStroke: Color {
-        if isSelected { return Color.accentColor.opacity(0.45) }
-        if hovered { return Color.accentColor.opacity(0.32) }
+        if hovered { return Color.primary.opacity(0.12) }
         return FacetTheme.hairline
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top, spacing: 10) {
-                statusDot
-                Text(paper.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .foregroundStyle(.primary)
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .top, spacing: 10) {
+                    statusDot
+                    Text(paper.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundStyle(.primary)
+                        .padding(.trailing, hasLocalPDF ? 22 : 0)
+                }
+
+                HStack(spacing: 8) {
+                    if !paper.authors.isEmpty {
+                        Text(paper.authors.prefix(3).joined(separator: ", "))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    badges
+                }
             }
 
-            HStack(spacing: 8) {
-                if !paper.authors.isEmpty {
-                    Text(paper.authors.prefix(3).joined(separator: ", "))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                badges
+            if hasLocalPDF {
+                pdfCornerBadge
             }
         }
         .padding(.horizontal, 11)
@@ -53,7 +64,7 @@ struct PaperRow: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(rowStroke, lineWidth: isSelected ? 1.5 : 1)
+                .stroke(rowStroke, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onHover { isHovered in
@@ -63,12 +74,29 @@ struct PaperRow: View {
         }
     }
 
+    @ViewBuilder
     private var statusDot: some View {
-        Image(systemName: paper.status.iconName)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(paper.status.iconColor)
-            .frame(width: 18, height: 18)
-            .padding(.top, 1)
+        if paper.status != .starred {
+            Image(systemName: paper.status.iconName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(paper.status.iconColor)
+                .frame(width: 18, height: 18)
+                .padding(.top, 1)
+        }
+    }
+
+    private var pdfCornerBadge: some View {
+        Image(systemName: "doc.fill")
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(.green)
+            .frame(width: 16, height: 16)
+            .background(Color.green.opacity(0.13))
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(Color.green.opacity(0.24), lineWidth: 1)
+            )
+            .padding(.top, -1)
     }
 
     private var badges: some View {
@@ -85,7 +113,7 @@ struct PaperRow: View {
             // unranked papers still read as rated rather than blank.
             FacetInfoBadge(
                 text: "T\(paper.tier)",
-                systemImage: "star",
+                systemImage: "number",
                 tint: metadata.tierColor(paper.tier),
                 fill: metadata.tierColor(paper.tier).opacity(0.12)
             )
@@ -103,14 +131,6 @@ struct PaperRow: View {
                     systemImage: "calendar",
                     tint: .secondary,
                     fill: Color.secondary.opacity(0.08)
-                )
-            }
-            if let path = paper.pdfLocalPath, !path.isEmpty {
-                FacetInfoBadge(
-                    text: "PDF",
-                    systemImage: "doc",
-                    tint: .green,
-                    fill: Color.green.opacity(0.12)
                 )
             }
         }
