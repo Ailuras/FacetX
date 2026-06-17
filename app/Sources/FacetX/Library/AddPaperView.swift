@@ -6,10 +6,11 @@ struct AddPaperView: View {
     @Environment(\.dismiss) private var dismiss
 
     enum Tab: String, CaseIterable {
-        case search, manual
+        case search, pdf, manual
         var title: String {
             switch self {
             case .search: return "OpenAlex"
+            case .pdf:    return "PDF"
             case .manual: return L10n.pick("Manual", "手动")
             }
         }
@@ -22,6 +23,11 @@ struct AddPaperView: View {
     @State private var searchResults: [Paper] = []
     @State private var selectedPaperIDs: Set<String> = []
 
+    // PDF
+    @State private var pdfImportState: PDFImportState = .idle
+    @State private var pendingPdfData: Data?
+    @State private var isPdfDropTargeted = false
+
     // Manual
     @State private var title = ""
     @State private var authorsText = ""
@@ -30,6 +36,15 @@ struct AddPaperView: View {
     @State private var doi = ""
     @State private var url = ""
     @State private var abstract = ""
+
+    enum PDFImportState {
+        case idle
+        case extracting
+        case querying(String)
+        case resolvedOpenAlex(Paper)
+        case resolvedLocal(title: String, authors: [String], abstract: String, year: Int?)
+        case error(String)
+    }
 
     private var fetcher: OpenAlexFetcher {
         OpenAlexFetcher(
@@ -56,6 +71,7 @@ struct AddPaperView: View {
             Group {
                 switch tab {
                 case .search: searchTab
+                case .pdf: pdfTab
                 case .manual: manualTab
                 }
             }
@@ -78,6 +94,10 @@ struct AddPaperView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
+            } else if tab == .pdf, let action = pdfPrimaryAction {
+                Button(pdfPrimaryTitle) { action() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
             } else if tab == .manual, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button(L10n.pick("Add", "添加")) {
                     addManualPaper()
@@ -163,6 +183,272 @@ struct AddPaperView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    // MARK: - PDF Tab
+
+    private var pdfTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            switch pdfImportState {
+            case .idle:
+                pdfDropZone
+            case .extracting:
+                progressRow(L10n.pick("Extracting metadata from PDF...", "正在从 PDF 抽取元数据…"))
+            case .querying(let label):
+                progressRow(L10n.pick("Looking up \(label) on OpenAlex...", "正在 OpenAlex 查询 \(label)…"))
+            case .resolvedOpenAlex(let paper):
+                pdfPreview(
+                    title: L10n.pick("OpenAlex match found", "已匹配 OpenAlex"),
+                    subtitle: L10n.pick("The PDF will be attached to this paper.",
+                                        "该 PDF 将作为附件保存到这篇文献。"),
+                    fields: [
+                        (L10n.pick("Title", "标题"), paper.title),
+                        (L10n.pick("Authors", "作者"), paper.authors.joined(separator: ", ")),
+                        (L10n.pick("Venue", "来源"), paper.venue),
+                        (L10n.pick("Date", "日期"), paper.publicationDate)
+                    ]
+                )
+            case .resolvedLocal(let title, let authors, let abstract, let year):
+                pdfPreview(
+                    title: L10n.pick("Local metadata extracted", "已抽取本地元数据"),
+                    subtitle: L10n.pick("No confident OpenAlex match was found. Review before importing.",
+                                        "未找到可靠的 OpenAlex 匹配；导入前请检查。"),
+                    fields: [
+                        (L10n.pick("Title", "标题"), title),
+                        (L10n.pick("Authors", "作者"), authors.joined(separator: ", ")),
+                        (L10n.pick("Year", "年份"), year.map(String.init) ?? ""),
+                        (L10n.pick("Abstract", "摘要"), abstract)
+                    ]
+                )
+            case .error(let message):
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                    Button(L10n.pick("Choose Another PDF", "选择其他 PDF")) { choosePdf() }
+                }
+            }
+            Spacer()
+        }
+        .padding(20)
+    }
+
+    private var pdfDropZone: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "doc.badge.plus")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(Color.accentColor)
+            Text(L10n.pick("Drop a PDF here", "将 PDF 拖到这里"))
+                .font(.system(size: 14, weight: .semibold))
+            Text(L10n.pick("FacetX will extract DOI, title, authors and abstract, then try to match OpenAlex.",
+                           "FacetX 会抽取 DOI、标题、作者和摘要，并尝试匹配 OpenAlex。"))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                choosePdf()
+            } label: {
+                Label(L10n.pick("Choose PDF", "选择 PDF"), systemImage: "folder")
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, minHeight: 230)
+        .padding(18)
+        .background(isPdfDropTargeted ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isPdfDropTargeted ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.18), lineWidth: 1)
+        )
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            handlePdfFile(at: url)
+            return true
+        } isTargeted: {
+            isPdfDropTargeted = $0
+        }
+    }
+
+    private func progressRow(_ title: String) -> some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text(title).font(.callout).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func pdfPreview(title: String, subtitle: String, fields: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: "doc.text.magnifyingglass")
+                .font(.system(size: 14, weight: .semibold))
+            Text(subtitle)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(fields.filter { !$0.1.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }, id: \.0) { field in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(field.0.uppercased())
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Text(field.1)
+                            .font(.system(size: 12))
+                            .lineLimit(field.0 == L10n.pick("Abstract", "摘要") ? 5 : 2)
+                    }
+                }
+            }
+            Button(L10n.pick("Choose Another PDF", "选择其他 PDF")) { choosePdf() }
+                .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var pdfPrimaryTitle: String {
+        switch pdfImportState {
+        case .resolvedOpenAlex:
+            return L10n.pick("Import & Attach PDF", "导入并附加 PDF")
+        case .resolvedLocal:
+            return L10n.pick("Import Local Paper", "导入本地文献")
+        default:
+            return ""
+        }
+    }
+
+    private var pdfPrimaryAction: (() -> Void)? {
+        switch pdfImportState {
+        case .resolvedOpenAlex(let paper):
+            return { importResolvedOpenAlex(paper) }
+        case .resolvedLocal(let title, let authors, let abstract, let year):
+            return { importResolvedLocal(title: title, authors: authors, abstract: abstract, year: year) }
+        default:
+            return nil
+        }
+    }
+
+    private func choosePdf() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.pdf]
+        if panel.runModal() == .OK, let url = panel.url {
+            handlePdfFile(at: url)
+        }
+    }
+
+    private func handlePdfFile(at url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        let data = try? Data(contentsOf: url)
+        if scoped { url.stopAccessingSecurityScopedResource() }
+
+        guard let data else {
+            pdfImportState = .error(L10n.pick("Could not read this PDF.", "无法读取该 PDF。"))
+            return
+        }
+        handlePdfData(data, filename: url.lastPathComponent)
+    }
+
+    private func handlePdfData(_ data: Data, filename: String) {
+        guard PdfStorage.looksLikePdf(data) else {
+            pdfImportState = .error(L10n.pick("That file does not look like a PDF.", "该文件看起来不是 PDF。"))
+            return
+        }
+
+        pendingPdfData = data
+        pdfImportState = .extracting
+
+        Task {
+            let extracted = PdfMetadataExtractor.extract(from: data)
+
+            if let doi = extracted.doi, !doi.isEmpty {
+                pdfImportState = .querying("DOI \(doi)")
+                if let paper = await fetcher.fetchByDOI(doi) {
+                    paper.track = topicName
+                    pdfImportState = .resolvedOpenAlex(paper)
+                    return
+                }
+            }
+
+            if let title = extracted.title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                pdfImportState = .querying(title)
+                let results = await fetcher.fetchByTitle(title, limit: 3)
+                if let match = results.first(where: { isSimilarTitle($0.title, title) }) {
+                    match.track = topicName
+                    pdfImportState = .resolvedOpenAlex(match)
+                    return
+                }
+            }
+
+            let fallbackTitle = extracted.title
+                ?? filename.replacingOccurrences(of: ".pdf", with: "", options: .caseInsensitive)
+            pdfImportState = .resolvedLocal(
+                title: fallbackTitle,
+                authors: extracted.authors,
+                abstract: extracted.abstract ?? "",
+                year: extracted.year
+            )
+        }
+    }
+
+    private func importResolvedOpenAlex(_ paper: Paper) {
+        guard attachPendingPdf(to: paper) else { return }
+        onAdd([paper])
+        persistAttachedPdf(for: paper)
+        dismiss()
+    }
+
+    private func importResolvedLocal(title: String, authors: [String], abstract: String, year: Int?) {
+        let id = UUID().uuidString
+        let date = year.map(String.init) ?? ""
+        let paper = Paper(
+            id: id,
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            authors: authors,
+            publicationDate: date,
+            publicationYear: year,
+            venue: "",
+            abstract: abstract.trimmingCharacters(in: .whitespacesAndNewlines),
+            landingPageUrl: "",
+            track: topicName,
+            addedAt: Date()
+        )
+        guard attachPendingPdf(to: paper) else { return }
+        onAdd([paper])
+        persistAttachedPdf(for: paper)
+        dismiss()
+    }
+
+    private func attachPendingPdf(to paper: Paper) -> Bool {
+        guard let data = pendingPdfData else {
+            pdfImportState = .error(L10n.pick("No PDF data is available.", "没有可用的 PDF 数据。"))
+            return false
+        }
+        do {
+            let relative = try PdfStorage.current().write(data, forPaperId: paper.id)
+            paper.pdfLocalPath = relative
+            paper.pdfStatus = PdfStatus.downloaded.rawValue
+            return true
+        } catch {
+            pdfImportState = .error(L10n.pick("Could not save the PDF: \(error.localizedDescription)",
+                                             "无法保存 PDF：\(error.localizedDescription)"))
+            return false
+        }
+    }
+
+    private func persistAttachedPdf(for paper: Paper) {
+        guard let path = paper.pdfLocalPath, let data = pendingPdfData else { return }
+        PaperStore.shared.savePdf(id: paper.id, result: PdfFetchResult(
+            status: .downloaded,
+            url: paper.pdfUrl,
+            source: "manual-import",
+            localPath: path,
+            byteSize: data.count,
+            sha256: PdfStorage.sha256Hex(data)
+        ))
+    }
+
+    private func isSimilarTitle(_ a: String, _ b: String) -> Bool {
+        let cleanA = a.lowercased().replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+        let cleanB = b.lowercased().replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+        guard !cleanA.isEmpty, !cleanB.isEmpty else { return false }
+        return cleanA == cleanB || cleanA.contains(cleanB) || cleanB.contains(cleanA)
     }
 
     private func search() {
