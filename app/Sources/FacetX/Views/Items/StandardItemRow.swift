@@ -31,6 +31,7 @@ struct StandardItemRow: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: ProjectStore
+    @State private var noteStore = ItemNoteStore.shared
 
     let item: ProjectItem
     let projectPrefix: String
@@ -69,7 +70,7 @@ struct StandardItemRow: View {
                 inlineEdit.cancelNotesEdit()
             },
             onStartNotesEdit: {
-                inlineEdit.startNotesEdit(for: item)
+                startNotesEdit()
             }
         )
         .swipeActions(edge: .leading, allowsFullSwipe: !leadingAction.isDestructive) {
@@ -274,17 +275,30 @@ struct StandardItemRow: View {
 
     private func commitNotesEdit() {
         Task {
-            _ = await ItemEditHelpers.commitNotesEdit(
-                editingID: inlineEdit.notesID,
-                editingText: inlineEdit.notesText,
-                for: item,
-                projectPrefix: projectPrefix,
-                ek: ek
+            guard inlineEdit.notesID == item.id else { return }
+            let metadata = FacetItemMetadata(
+                itemID: item.facetID ?? UUID().uuidString,
+                noteID: item.noteID ?? UUID().uuidString,
+                paperIDs: item.linkedPaperIDs,
+                commits: item.linkedCommits,
+                tags: item.tags
             )
+            noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
+            noteStore.save(id: metadata.noteID, body: inlineEdit.notesText.trimmingCharacters(in: .whitespacesAndNewlines))
+            _ = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
             await MainActor.run {
                 inlineEdit.notesID = nil
             }
             await onReload()
         }
+    }
+
+    private func startNotesEdit() {
+        if let noteID = item.noteID {
+            inlineEdit.notesText = noteStore.body(for: noteID)
+        } else {
+            inlineEdit.notesText = item.notes ?? ""
+        }
+        inlineEdit.notesID = item.id
     }
 }

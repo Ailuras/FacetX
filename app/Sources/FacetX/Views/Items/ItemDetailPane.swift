@@ -6,6 +6,7 @@ struct ItemDetailPane: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var toast: ToastController
+    @State private var noteStore = ItemNoteStore.shared
 
     let item: ProjectItem
     let project: Project
@@ -30,8 +31,12 @@ struct ItemDetailPane: View {
     @State private var saving = false
     @State private var loadingFields = false
     @State private var autoSaveTask: Task<Void, Never>? = nil
+    @State private var noteAutoSaveTask: Task<Void, Never>? = nil
     @State private var savedEditSignature = ""
+    @State private var savedNoteSignature = ""
     @State private var didEdit = false
+    @State private var itemMetadata = FacetItemMetadata()
+    @State private var metadataNeedsRepair = false
 
     private let labelWidth: CGFloat = 76
     private let scheduleBoxHorizontalPadding: CGFloat = 8
@@ -90,7 +95,7 @@ struct ItemDetailPane: View {
             loadFields()
         }
         .onChange(of: content) { scheduleAutosave() }
-        .onChange(of: notes) { scheduleAutosave() }
+        .onChange(of: notes) { scheduleNoteAutosave() }
         .onChange(of: tagsText) { scheduleAutosave() }
         .onChange(of: priority) { scheduleAutosave() }
         .onChange(of: useDate) { handleUseDateChanged() }
@@ -102,6 +107,8 @@ struct ItemDetailPane: View {
         .onChange(of: isAllDay) { handleAllDayChanged() }
         .onDisappear {
             autoSaveTask?.cancel()
+            noteAutoSaveTask?.cancel()
+            saveLocalNoteIfNeeded()
             if hasChanges {
                 saveChanges()
             }
@@ -216,24 +223,46 @@ struct ItemDetailPane: View {
 
     private var notesCard: some View {
         FacetDetailSection(title: L10n.pick("Notes", "笔记"), systemImage: "doc.text") {
-            ZStack(alignment: .topLeading) {
-                if notes.isEmpty {
-                    Text(L10n.pick("Add notes and details here...", "在此添加笔记和详情…"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 9)
-                        .allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 8) {
+                if metadataNeedsRepair {
+                    HStack(spacing: 8) {
+                        Label(L10n.pick("Metadata needs rebuild", "元数据需要重建"), systemImage: "wrench.and.screwdriver")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.orange)
+                        Spacer()
+                        Button {
+                            rebuildMetadata()
+                        } label: {
+                            Label(L10n.pick("Rebuild", "重建"), systemImage: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .disabled(saving)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.top, 8)
                 }
 
-                TextEditor(text: $notes)
-                    .font(.system(size: 12))
-                    .scrollContentBackground(.hidden)
-                    .scrollIndicators(.hidden)
-                    .hideTextEditorScroller()
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 5)
-                    .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
+                ZStack(alignment: .topLeading) {
+                    if notes.isEmpty {
+                        Text(L10n.pick("Add notes and details here...", "在此添加笔记和详情…"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 9)
+                            .allowsHitTesting(false)
+                    }
+
+                    TextEditor(text: $notes)
+                        .font(.system(size: 12))
+                        .scrollContentBackground(.hidden)
+                        .scrollIndicators(.hidden)
+                        .hideTextEditorScroller()
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
@@ -435,7 +464,17 @@ struct ItemDetailPane: View {
 
         kind = item.kind
         content = item.content
-        notes = item.notes ?? ""
+        itemMetadata = FacetItemMetadata(
+            itemID: item.facetID ?? UUID().uuidString,
+            noteID: item.noteID ?? UUID().uuidString,
+            paperIDs: item.linkedPaperIDs,
+            commits: item.linkedCommits,
+            tags: item.tags
+        )
+        metadataNeedsRepair = item.needsMetadataRepair
+        let localNotes = noteStore.body(for: itemMetadata.noteID)
+        notes = localNotes.isEmpty && metadataNeedsRepair ? (item.notes ?? "") : localNotes
+        savedNoteSignature = notes
         tagsText = item.tags.joined(separator: ", ")
         priority = item.priority
         containerName = item.containerName
@@ -488,7 +527,6 @@ struct ItemDetailPane: View {
         let reminderTimePart = kind == .reminder && useDate ? "\(reminderHasTime)" : "false"
         return [
             content.trimmingCharacters(in: .whitespaces),
-            notes.trimmingCharacters(in: .whitespacesAndNewlines),
             FacetMetadata.tags(from: tagsText).joined(separator: ","),
             "\(priority)",
             "\(useDate)",
@@ -524,6 +562,26 @@ struct ItemDetailPane: View {
                 saveChanges()
             }
         }
+    }
+
+    private func scheduleNoteAutosave() {
+        guard !loadingFields else { return }
+        noteAutoSaveTask?.cancel()
+        guard notes != savedNoteSignature else { return }
+
+        noteAutoSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                saveLocalNoteIfNeeded()
+            }
+        }
+    }
+
+    private func saveLocalNoteIfNeeded() {
+        guard notes != savedNoteSignature else { return }
+        noteStore.save(id: itemMetadata.noteID, body: notes)
+        savedNoteSignature = notes
     }
 
     private func handleUseDateChanged() {
@@ -635,6 +693,9 @@ struct ItemDetailPane: View {
         let tags = FacetMetadata.tags(from: tagsText)
 
         Task {
+            if metadataNeedsRepair {
+                await rebuildMetadata(tags: tags)
+            }
             let ok = await ek.updateItem(
                 id: item.id,
                 project: project.prefix,
@@ -643,7 +704,7 @@ struct ItemDetailPane: View {
                 useDate: shouldUseDate,
                 dateIncludesTime: kind == .reminder && reminderHasTime,
                 containerName: targetContainer,
-                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
+                notes: nil,
                 tags: tags,
                 priority: priority,
                 url: urlParam,
@@ -659,6 +720,32 @@ struct ItemDetailPane: View {
                 toast.show(L10n.pick("Failed to save changes", "保存更改失败"), type: .error)
             }
         }
+    }
+
+    private func rebuildMetadata() {
+        let tags = FacetMetadata.tags(from: tagsText)
+        Task {
+            await rebuildMetadata(tags: tags)
+        }
+    }
+
+    @discardableResult
+    private func rebuildMetadata(tags: [String]) async -> Bool {
+        saveLocalNoteIfNeeded()
+        noteStore.absorbLegacyNotes(id: itemMetadata.noteID, legacyBody: item.notes ?? "")
+        itemMetadata.tags = tags
+        saving = true
+        let ok = await ek.rewriteItemMetadata(id: item.id, metadata: itemMetadata)
+        saving = false
+        if ok {
+            metadataNeedsRepair = false
+            notes = noteStore.body(for: itemMetadata.noteID)
+            savedNoteSignature = notes
+            onUpdate(item.id)
+        } else {
+            toast.show(L10n.pick("Failed to rebuild metadata", "重建元数据失败"), type: .error)
+        }
+        return ok
     }
 
     private func deleteItem() {
@@ -679,6 +766,8 @@ struct ItemDetailPane: View {
         guard newKind != item.kind else { return }
         saving = true
         onReplacementStart()
+        saveLocalNoteIfNeeded()
+        noteStore.absorbLegacyNotes(id: itemMetadata.noteID, legacyBody: item.notes ?? "")
         Task {
             let newId: String?
             if item.kind == .reminder {
@@ -687,8 +776,9 @@ struct ItemDetailPane: View {
                     reminderId: item.id,
                     project: project.prefix,
                     content: item.content,
-                    notes: item.notes,
+                    notes: nil,
                     tags: item.tags,
+                    itemMetadata: itemMetadata,
                     dueDate: item.date,
                     durationMinutes: settings.defaultEventDurationMinutes,
                     calendarName: calName.isEmpty ? settings.defaultCalendarName : calName,
@@ -700,8 +790,9 @@ struct ItemDetailPane: View {
                     eventId: item.id,
                     project: project.prefix,
                     content: item.content,
-                    notes: item.notes,
+                    notes: nil,
                     tags: item.tags,
+                    itemMetadata: itemMetadata,
                     priority: item.priority,
                     startDate: item.date,
                     hasTime: item.hasTime,

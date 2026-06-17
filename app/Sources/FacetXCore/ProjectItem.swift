@@ -23,12 +23,20 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let hasTime: Bool       // true when the date carries an explicit time component
     public let isAllDay: Bool      // true for all-day events (events only; always false for reminders)
     public let endDate: Date?      // end date for events (nil for reminders)
+    public let facetID: String?    // stable FacetX item identity stored in EventKit notes metadata
+    public let noteID: String?     // local note record id stored in EventKit notes metadata
+    public let linkedPaperIDs: [String]
+    public let linkedCommits: [String]
+    public let needsMetadataRepair: Bool
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
                  content: String, containerName: String, isCompleted: Bool, date: Date?,
                  notes: String?, tags: [String] = [], priority: Int, url: URL?,
                  hasTime: Bool = false,
-                 isAllDay: Bool = false, endDate: Date? = nil) {
+                 isAllDay: Bool = false, endDate: Date? = nil,
+                 facetID: String? = nil, noteID: String? = nil,
+                 linkedPaperIDs: [String] = [], linkedCommits: [String] = [],
+                 needsMetadataRepair: Bool = false) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
@@ -44,6 +52,11 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.hasTime = hasTime
         self.isAllDay = isAllDay
         self.endDate = endDate
+        self.facetID = facetID
+        self.noteID = noteID
+        self.linkedPaperIDs = linkedPaperIDs
+        self.linkedCommits = linkedCommits
+        self.needsMetadataRepair = needsMetadataRepair
     }
 
     /// Build a copy with a different kind. Used as a drag-preview placeholder
@@ -65,7 +78,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             url: url,
             hasTime: hasTime,
             isAllDay: isAllDay,
-            endDate: endDate
+            endDate: endDate,
+            facetID: facetID,
+            noteID: noteID,
+            linkedPaperIDs: linkedPaperIDs,
+            linkedCommits: linkedCommits,
+            needsMetadataRepair: needsMetadataRepair
         )
     }
 
@@ -85,7 +103,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             url: url,
             hasTime: hasTime ?? self.hasTime,
             isAllDay: isAllDay,
-            endDate: endDate ?? self.endDate
+            endDate: endDate ?? self.endDate,
+            facetID: facetID,
+            noteID: noteID,
+            linkedPaperIDs: linkedPaperIDs,
+            linkedCommits: linkedCommits,
+            needsMetadataRepair: needsMetadataRepair
         )
     }
 

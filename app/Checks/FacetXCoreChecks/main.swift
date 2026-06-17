@@ -60,6 +60,27 @@ check(FacetMetadata.compose(userNotes: "  ", metadata: FacetMetadata()) == nil,
 check(FacetMetadata.tags(from: "#deep, waiting\nship") == ["deep", "waiting", "ship"],
       "tag parser should accept hashes, commas, and newlines")
 
+let itemMetadata = FacetItemMetadata(
+    itemID: "item-1",
+    noteID: "note-1",
+    paperIDs: ["https://openalex.org/W1", "doi:10.1/a,b"],
+    commits: ["owner/repo@abcdef", "owner/repo@abcdef"],
+    tags: ["read"]
+)
+let itemNativeNotes = FacetMetadata.compose(userNotes: "", metadata: itemMetadata.facetMetadata()) ?? ""
+let parsedItemNativeMetadata = FacetMetadata.parse(notes: itemNativeNotes)
+let parsedItemMetadata = FacetItemMetadata.parse(parsedItemNativeMetadata)
+check(parsedItemMetadata?.itemID == "item-1", "item metadata should preserve stable item id")
+check(parsedItemMetadata?.noteID == "note-1", "item metadata should preserve local note id")
+check(parsedItemMetadata?.paperIDs == ["https://openalex.org/W1", "doi:10.1/a,b"],
+      "item metadata should round-trip linked paper ids")
+check(parsedItemMetadata?.commits == ["owner/repo@abcdef"],
+      "item metadata should de-duplicate linked commits")
+check(FacetItemMetadata.isCanonical(parsedItemNativeMetadata),
+      "item metadata with empty user notes should be canonical")
+check(!FacetItemMetadata.isCanonical(FacetMetadata.parse(notes: "legacy\n\n\(itemNativeNotes)")),
+      "item metadata with legacy user notes should need repair")
+
 let june = MonthYear(year: 2026, month: 6)
 guard let juneStart = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)),
       let juneEnd = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 23)),
