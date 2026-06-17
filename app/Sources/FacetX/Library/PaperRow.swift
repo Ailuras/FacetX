@@ -22,20 +22,11 @@ struct PaperRow: View {
         (linkedProjectPrefixes.isEmpty ? 0 : 1) + (hasLocalPDF ? 1 : 0)
     }
 
-    private var projectBadgeWidth: CGFloat {
-        linkedProjectPrefixes.isEmpty ? 0 : 28
-    }
-
-    private var pdfBadgeWidth: CGFloat {
-        hasLocalPDF ? 16 : 0
-    }
-
     /// Extra trailing padding on the title text so it doesn't slide under the
-    /// floating corner badges.
+    /// floating corner badges. Each badge is 16 pt wide with 3 pt inter-gap.
     private var titleTrailingPadding: CGFloat {
-        let count = (linkedProjectPrefixes.isEmpty ? 0 : 1) + (hasLocalPDF ? 1 : 0)
-        guard count > 0 else { return 0 }
-        return projectBadgeWidth + pdfBadgeWidth + CGFloat(count - 1) * 3 + 4
+        guard badgeCount > 0 else { return 0 }
+        return CGFloat(badgeCount) * 16 + CGFloat(badgeCount - 1) * 3 + 4
     }
 
     private var rowFill: Color {
@@ -117,32 +108,16 @@ struct PaperRow: View {
     }
 
     private var projectCornerBadge: some View {
-        Button {
-            navigateToProject()
-        } label: {
-            HStack(spacing: 2) {
-                Image(systemName: "folder.fill")
-                Image(systemName: "arrow.up.right")
-            }
+        Image(systemName: "folder.fill")
             .font(.system(size: 8, weight: .bold))
             .foregroundStyle(.yellow)
-            .padding(.horizontal, 4)
-            .frame(height: 16)
+            .frame(width: 16, height: 16)
             .background(Color.yellow.opacity(0.13))
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .stroke(Color.yellow.opacity(0.28), lineWidth: 1)
             )
-        }
-        .buttonStyle(.plain)
-        .hoverCursor(.pointingHand)
-    }
-
-    private func navigateToProject() {
-        if let first = linkedProjectPrefixes.first {
-            NotificationCenter.default.post(name: .navigateToProjectPrefix, object: nil, userInfo: ["prefix": first])
-        }
     }
 
     private var pdfCornerBadge: some View {

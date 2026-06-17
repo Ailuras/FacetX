@@ -106,6 +106,12 @@ struct ProjectDetailView: View {
             }
         }
         .task(id: project.id) { await reload() }
+        .onReceive(NotificationCenter.default.publisher(for: .selectItemInProjectDetail)) { notification in
+            guard let itemID = notification.userInfo?["itemID"] as? String else { return }
+            if let target = items.first(where: { $0.id == itemID }) {
+                selectedDetailItem = target
+            }
+        }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
         .onChange(of: showCompleted) {

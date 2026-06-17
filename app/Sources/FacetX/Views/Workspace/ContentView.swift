@@ -171,6 +171,16 @@ struct ContentView: View {
                     selection = .project(project.id)
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .selectItemInProject)) { notification in
+                guard let prefix = notification.userInfo?["projectPrefix"] as? String,
+                      let itemID = notification.userInfo?["itemID"] as? String else { return }
+                if let project = store.activeProjects.first(where: { $0.prefix == prefix }) {
+                    selection = .project(project.id)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        NotificationCenter.default.post(name: .selectItemInProjectDetail, object: nil, userInfo: ["itemID": itemID])
+                    }
+                }
+            }
             .task {
                 applyStartupSelection()
                 keyboard.registerLocalShortcuts()

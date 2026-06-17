@@ -473,6 +473,21 @@ struct PaperDetailPane: View {
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 8)
+                            Button {
+                                NotificationCenter.default.post(
+                                    name: .selectItemInProject,
+                                    object: nil,
+                                    userInfo: ["projectPrefix": item.projectPrefix, "itemID": item.id]
+                                )
+                            } label: {
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                            .help(L10n.pick("View in Project", "在项目中查看"))
+                            .hoverCursor(.pointingHand)
+
                             let isLiteratureEvent = item.kind == .event && !item.linkedPaperIDs.isEmpty
                             if !isLiteratureEvent {
                                 Button(role: .destructive) {

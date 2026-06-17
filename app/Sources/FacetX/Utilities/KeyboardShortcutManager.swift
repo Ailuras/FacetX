@@ -7,6 +7,8 @@ extension Notification.Name {
     static let navigateToPaper = Notification.Name("com.facetx.navigateToPaper")
     static let selectPaperInTopic = Notification.Name("com.facetx.selectPaperInTopic")
     static let navigateToProjectPrefix = Notification.Name("com.facetx.navigateToProjectPrefix")
+    static let selectItemInProject = Notification.Name("com.facetx.selectItemInProject")
+    static let selectItemInProjectDetail = Notification.Name("com.facetx.selectItemInProjectDetail")
 }
 
 /// Commands emitted by the keyboard shortcut system.
