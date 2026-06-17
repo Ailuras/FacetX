@@ -311,21 +311,27 @@ struct ProjectSettingsTab: View {
         SettingsCard(title: L10n.pick("Swipe Actions", "滑动操作"), systemImage: "hand.draw",
                      subtitle: L10n.pick("Quick actions revealed by swiping a list item.",
                                          "滑动列表条目时显示的快捷操作。")) {
-            SettingsRow(title: L10n.pick("Swipe right", "右滑"), systemImage: "arrow.right") {
-                swipePicker(selection: $settings.leadingSwipeAction)
+            VStack(spacing: 0) {
+                swipeActionRow(title: L10n.pick("Swipe right", "右滑"),
+                               systemImage: "arrow.right",
+                               selection: $settings.leadingSwipeAction)
+                compactDivider
+                swipeActionRow(title: L10n.pick("Swipe left", "左滑"),
+                               systemImage: "arrow.left",
+                               selection: $settings.trailingSwipeAction)
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(FacetTheme.panel.opacity(0.42))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
 
-            SettingsDivider()
-
-            SettingsRow(title: L10n.pick("Swipe left", "左滑"), systemImage: "arrow.left") {
-                swipePicker(selection: $settings.trailingSwipeAction)
-            }
-
-            Text(L10n.pick("Quick actions revealed by swiping an item left or right in the All, Today and Week lists. Complete applies to tasks only.",
-                           "在全部、今天和周视图列表中左右滑动条目时显示的快捷操作。完成仅对任务生效。"))
-                .font(SettingsUI.secondaryFont)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            settingsNote(L10n.pick("Complete applies to tasks only. Other actions are shared by All, Today and Week.",
+                                   "完成仅对任务生效。其他操作在全部、今天和周视图中共用。"),
+                         systemImage: "info.circle")
         }
     }
 
@@ -333,42 +339,25 @@ struct ProjectSettingsTab: View {
         SettingsCard(title: L10n.pick("Today View", "今天视图"), systemImage: "calendar.day.timeline.left",
                      subtitle: L10n.pick("Visible hour range on the Today timeline.",
                                          "今天时间线显示的小时范围。")) {
-            SettingsRow(title: L10n.pick("Timeline range", "时间线范围"), systemImage: "clock") {
-                HStack(spacing: 16) {
-                    HStack(spacing: 6) {
-                        Text(L10n.pick("From", "从"))
-                            .font(SettingsUI.secondaryFont)
-                            .foregroundStyle(.secondary)
-                        Text("\(settings.todayTimelineStartHour):00")
-                            .font(SettingsUI.rowFont)
-                            .monospacedDigit()
-                            .frame(width: 42, alignment: .trailing)
-                        Stepper("", value: $settings.todayTimelineStartHour, in: 0...22)
-                            .labelsHidden()
-                            .controlSize(.mini)
-                    }
+            timelinePreview
 
-                    HStack(spacing: 6) {
-                        Text(L10n.pick("To", "到"))
-                            .font(SettingsUI.secondaryFont)
-                            .foregroundStyle(.secondary)
-                        Text("\(settings.todayTimelineEndHour):00")
-                            .font(SettingsUI.rowFont)
-                            .monospacedDigit()
-                            .frame(width: 42, alignment: .trailing)
-                        Stepper("", value: $settings.todayTimelineEndHour, in: 1...23)
-                            .labelsHidden()
-                            .controlSize(.mini)
-                    }
+            VStack(spacing: 0) {
+                SettingsRow(title: L10n.pick("Start Hour", "开始时间"), systemImage: "sunrise") {
+                    hourStepper(value: $settings.todayTimelineStartHour, range: 0...22)
                 }
-                .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                compactDivider
+                SettingsRow(title: L10n.pick("End Hour", "结束时间"), systemImage: "sunset") {
+                    hourStepper(value: $settings.todayTimelineEndHour, range: 1...23)
+                }
             }
-
-            Text(L10n.pick("Defines the visible hours on the Today timeline sidebar.",
-                           "设置今天时间线侧栏显示的小时区间。"))
-                .font(SettingsUI.secondaryFont)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(FacetTheme.panel.opacity(0.42))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
         }
     }
 
@@ -376,6 +365,8 @@ struct ProjectSettingsTab: View {
         SettingsCard(title: L10n.pick("Week Goals", "周目标"), systemImage: "target",
                      subtitle: L10n.pick("Calendar used to store shared week goals.",
                                          "存储共享周目标所用的日历。")) {
+            weekGoalStoragePreview
+
             SettingsRow(title: L10n.pick("Calendar", "日历"), systemImage: "calendar.badge.clock") {
                 Picker("", selection: $settings.weekGoalCalendarName) {
                     if enabledCalendarNames.isEmpty { Text(L10n.pick("None", "无")).tag("") }
@@ -385,26 +376,191 @@ struct ProjectSettingsTab: View {
                 .pickerStyle(.menu)
                 .frame(width: SettingsUI.controlWidth, alignment: .trailing)
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(FacetTheme.panel.opacity(0.42))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
 
-            Text(L10n.pick("Week goals are all-day events shared across projects. They are kept out of normal project item lists.",
-                           "周目标是跨项目共享的全天事件，不会出现在普通项目条目列表中。"))
-                .font(SettingsUI.secondaryFont)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                settingsNote(L10n.pick("Stored as all-day events.", "保存为全天事件。"),
+                             systemImage: "calendar")
+                settingsNote(L10n.pick("Hidden from item lists.", "不显示在普通条目列表。"),
+                             systemImage: "eye.slash")
+            }
         }
     }
 
     // MARK: - Helpers
 
+    private func swipeActionRow(title: String, systemImage: String, selection: Binding<String>) -> some View {
+        SettingsRow(title: title, systemImage: systemImage) {
+            let action = SwipeAction(rawValue: selection.wrappedValue) ?? .none
+            HStack(spacing: 8) {
+                actionBadge(action)
+                swipePicker(selection: selection)
+                    .frame(width: 126, alignment: .trailing)
+            }
+            .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+        }
+        .padding(.vertical, 1)
+    }
+
     private func swipePicker(selection: Binding<String>) -> some View {
         Picker("", selection: selection) {
             ForEach(SwipeAction.allCases) { action in
-                Text(action.title).tag(action.rawValue)
+                Text(swipeActionTitle(action)).tag(action.rawValue)
             }
         }
         .labelsHidden()
         .pickerStyle(.menu)
+    }
+
+    private func actionBadge(_ action: SwipeAction) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: action.systemImage)
+                .font(.system(size: 10, weight: .semibold))
+                .frame(width: 12)
+            Text(swipeActionTitle(action))
+                .font(SettingsUI.smallFont.weight(.semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(action.tint)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(width: 92, alignment: .leading)
+        .background(action.tint.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    private var timelinePreview: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.blue.opacity(0.12))
+                Image(systemName: "clock")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.blue)
+            }
+            .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L10n.pick("Visible Timeline", "可见时间线"))
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                Text("\(formattedHour(settings.todayTimelineStartHour)) - \(formattedHour(settings.todayTimelineEndHour))")
+                    .font(.system(size: 13, weight: .semibold))
+                    .monospacedDigit()
+            }
+
+            Spacer()
+
+            Text(L10n.pick("\(timelineHourCount) hours", "\(timelineHourCount) 小时"))
+                .font(SettingsUI.smallFont.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(FacetTheme.quietPanel)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(FacetTheme.hairline, lineWidth: 1)
+                )
+        }
+        .padding(10)
+        .background(FacetTheme.panel.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private var weekGoalStoragePreview: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.purple.opacity(0.12))
+                Image(systemName: "target")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.purple)
+            }
+            .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L10n.pick("Storage Calendar", "存储日历"))
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                Text(settings.weekGoalCalendarName.isEmpty ? L10n.pick("None", "无") : settings.weekGoalCalendarName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+        }
+        .padding(10)
+        .background(FacetTheme.panel.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func hourStepper(value: Binding<Int>, range: ClosedRange<Int>) -> some View {
+        HStack(spacing: 8) {
+            Text(formattedHour(value.wrappedValue))
+                .font(SettingsUI.rowFont)
+                .monospacedDigit()
+                .frame(width: 52, alignment: .trailing)
+            Stepper("", value: value, in: range)
+                .labelsHidden()
+                .controlSize(.mini)
+        }
         .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+    }
+
+    private func settingsNote(_ text: String, systemImage: String) -> some View {
+        Label {
+            Text(text)
+                .font(SettingsUI.smallFont)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FacetTheme.panel.opacity(0.34))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(FacetTheme.hairline.opacity(0.72), lineWidth: 1)
+        )
+    }
+
+    private var timelineHourCount: Int {
+        max(settings.todayTimelineEndHour - settings.todayTimelineStartHour, 1)
+    }
+
+    private func formattedHour(_ hour: Int) -> String {
+        String(format: "%02d:00", hour)
+    }
+
+    private func swipeActionTitle(_ action: SwipeAction) -> String {
+        switch action {
+        case .none: return L10n.pick("None", "无")
+        case .today: return L10n.pick("Today", "今天")
+        case .tomorrow: return L10n.pick("Tomorrow", "明天")
+        case .complete: return L10n.pick("Complete", "完成")
+        case .delete: return L10n.pick("Delete", "删除")
+        case .convert: return L10n.pick("Convert", "转换")
+        }
     }
 
     private func reloadContainers() {
