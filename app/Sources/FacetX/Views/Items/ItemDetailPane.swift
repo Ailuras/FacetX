@@ -266,10 +266,7 @@ struct ItemDetailPane: View {
             if let year = paper?.publicationDate, !year.isEmpty { parts.append(year) }
             return parts.joined(separator: " · ")
         }()
-        let landingUrl: URL? = {
-            guard let s = paper?.landingPageUrl, !s.isEmpty else { return nil }
-            return URL(string: s)
-        }()
+
 
         return HStack(spacing: 8) {
             Image(systemName: "books.vertical.fill")
@@ -285,22 +282,10 @@ struct ItemDetailPane: View {
                         .font(.system(size: 11, weight: .medium))
                         .lineLimit(1)
 
-                    if let url = landingUrl {
-                        Button {
-                            NSWorkspace.shared.open(url)
-                        } label: {
-                            Image(systemName: "arrow.up.right")
-                                .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        .buttonStyle(.plain)
-                        .help(L10n.pick("Open paper page", "打开论文页面"))
-                    }
-
                     Button {
                         NotificationCenter.default.post(name: .navigateToPaper, object: nil, userInfo: ["paperID": paperID])
                     } label: {
-                        Image(systemName: "books.vertical")
+                        Image(systemName: "arrow.up.right")
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(Color.accentColor)
                     }
