@@ -226,11 +226,102 @@ struct ItemDetailPane: View {
     private var resourcesCard: some View {
         FacetDetailSection(title: L10n.pick("Linked Resources", "关联资源"), systemImage: "link.badge.plus") {
             VStack(alignment: .leading, spacing: 10) {
+                if !itemMetadata.paperIDs.isEmpty {
+                    linkedPapersSection
+                }
                 linkedCommitsSection
             }
             .padding(10)
         }
     }
+
+    // MARK: - Literature section
+
+    private var linkedPapersSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            resourceHeader(
+                title: L10n.pick("Literature", "文献"),
+                count: itemMetadata.paperIDs.count,
+                systemImage: "books.vertical"
+            ) {
+                EmptyView()
+            }
+            ForEach(itemMetadata.paperIDs, id: \.self) { paperID in
+                paperResourceRow(paperID: paperID) {
+                    updateItemMetadata(itemMetadata.removingPaper(paperID))
+                }
+            }
+        }
+    }
+
+    private func paperResourceRow(paperID: String, onRemove: @escaping () -> Void) -> some View {
+        let paper = paperStore.papers.first(where: { $0.id == paperID })
+        let subtitle: String = {
+            var parts: [String] = []
+            if let first = paper?.authors.first { parts.append(first) }
+            if let year = paper?.publicationDate, !year.isEmpty { parts.append(year) }
+            return parts.joined(separator: " · ")
+        }()
+        let landingUrl: URL? = {
+            guard let s = paper?.landingPageUrl, !s.isEmpty else { return nil }
+            return URL(string: s)
+        }()
+
+        return HStack(spacing: 8) {
+            Image(systemName: "books.vertical.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.yellow)
+                .frame(width: 16, height: 16)
+                .background(Color.yellow.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(paper?.title ?? paperID)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+
+                    if let url = landingUrl {
+                        Button {
+                            NSWorkspace.shared.open(url)
+                        } label: {
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .help(L10n.pick("Open paper page", "打开论文页面"))
+                    }
+                }
+
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Button(role: .destructive) {
+                onRemove()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(saving)
+            .help(L10n.pick("Unlink paper", "取消文献关联"))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+
+    // MARK: - Commits section
 
     private var linkedCommitsSection: some View {
         VStack(alignment: .leading, spacing: 7) {

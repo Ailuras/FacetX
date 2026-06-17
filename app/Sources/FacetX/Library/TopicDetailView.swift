@@ -247,7 +247,8 @@ struct TopicDetailView: View {
 
             ForEach(papers) { paper in
                 PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
-                         metadata: metadata, version: store.paperVersion)
+                         metadata: metadata, version: store.paperVersion,
+                         linkedProjectCount: (paperLinks[paper.id] ?? []).count)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
@@ -753,21 +754,9 @@ struct TopicDetailView: View {
             return
         }
 
-        let paperUrlString = paper.landingPageUrl
-        let paperUrl = URL(string: paperUrlString)
+        let paperUrl = URL(string: paper.landingPageUrl)
 
-        var userNotes = "\(paper.title)\n"
-        if !paper.authors.isEmpty {
-            userNotes += "Authors: \(paper.authors.joined(separator: ", "))\n"
-        }
-        if !paper.venue.isEmpty {
-            userNotes += "Venue: \(paper.venue)\n"
-        }
-        if !paper.abstract.isEmpty {
-            userNotes += "\nAbstract:\n\(paper.abstract)\n"
-        }
-
-        let metadata = FacetItemMetadata(
+        let eventMetadata = FacetItemMetadata(
             itemID: UUID().uuidString,
             noteID: UUID().uuidString,
             paperIDs: [paper.id],
@@ -775,7 +764,9 @@ struct TopicDetailView: View {
             tags: []
         )
 
-        let composedNotes = FacetMetadata.compose(userNotes: userNotes, metadata: metadata.facetMetadata())
+        // Notes: keep the event notes canonical (metadata-only, no user text).
+        // The paper's bibliographic details are accessible via the linked paper ID.
+        let composedNotes = FacetMetadata.compose(userNotes: "", metadata: eventMetadata.facetMetadata())
 
         Task {
             let eventId = await ek.createEvent(

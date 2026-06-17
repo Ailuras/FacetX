@@ -7,12 +7,26 @@ struct PaperRow: View {
     /// `Paper` is a class; passing the store's version gives the row a value to
     /// diff on so in-place status/badge edits re-render it. (See PaperDetailPane.)
     var version: Int = 0
+    /// Number of projects this paper has been linked to (passed from the parent
+    /// view which holds the `paperLinks` map). Shows a folder corner badge.
+    var linkedProjectCount: Int = 0
 
     @State private var hovered = false
 
     private var hasLocalPDF: Bool {
         guard let path = paper.pdfLocalPath else { return false }
         return !path.isEmpty
+    }
+
+    private var badgeCount: Int {
+        (linkedProjectCount > 0 ? 1 : 0) + (hasLocalPDF ? 1 : 0)
+    }
+
+    /// Extra trailing padding on the title text so it doesn't slide under the
+    /// floating corner badges. Each badge is 16 pt wide with 3 pt inter-gap.
+    private var titleTrailingPadding: CGFloat {
+        guard badgeCount > 0 else { return 0 }
+        return CGFloat(badgeCount) * 16 + CGFloat(badgeCount - 1) * 3 + 4
     }
 
     private var rowFill: Color {
@@ -36,7 +50,7 @@ struct PaperRow: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .foregroundStyle(.primary)
-                        .padding(.trailing, hasLocalPDF ? 22 : 0)
+                        .padding(.trailing, titleTrailingPadding)
                 }
 
                 HStack(spacing: 8) {
@@ -51,9 +65,17 @@ struct PaperRow: View {
                 }
             }
 
-            if hasLocalPDF {
-                pdfCornerBadge
+            // Corner badges: project link (yellow folder) and/or local PDF (green doc).
+            // Placed in an HStack so they sit side-by-side in the topTrailing corner.
+            HStack(spacing: 3) {
+                if linkedProjectCount > 0 {
+                    projectCornerBadge
+                }
+                if hasLocalPDF {
+                    pdfCornerBadge
+                }
             }
+            .opacity(badgeCount > 0 ? 1 : 0)
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 9)
@@ -83,6 +105,19 @@ struct PaperRow: View {
                 .frame(width: 18, height: 18)
                 .padding(.top, 1)
         }
+    }
+
+    private var projectCornerBadge: some View {
+        Image(systemName: "folder.fill")
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(.yellow)
+            .frame(width: 16, height: 16)
+            .background(Color.yellow.opacity(0.13))
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(Color.yellow.opacity(0.28), lineWidth: 1)
+            )
     }
 
     private var pdfCornerBadge: some View {
