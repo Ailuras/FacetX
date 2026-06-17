@@ -136,59 +136,99 @@ struct GeneralSettingsTab: View {
                     .controlSize(.mini)
             }
             SettingsDivider()
-            SettingsRow(title: L10n.pick("Monthly Fetch", "每月拉取"), systemImage: "calendar.badge.plus") {
-                HStack(spacing: 8) {
-                    Toggle("", isOn: $automation.autoFetchEnabled)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
-                    if automation.autoFetchEnabled {
+
+            HStack(spacing: 10) {
+                automationPlan(title: L10n.pick("Monthly Fetch", "每月拉取"),
+                               enabled: $automation.autoFetchEnabled,
+                               enabledValue: automation.autoFetchEnabled,
+                               systemImage: "calendar.badge.plus",
+                               tint: .blue,
+                               lastRun: automation.lastAutoFetchAt) {
+                    HStack(spacing: 8) {
                         Picker("", selection: clamped($automation.fetchDay, to: 1...28)) {
                             ForEach(1...28, id: \.self) { day in
                                 Text(L10n.pick("Day \(day)", "\(day) 日")).tag(day)
                             }
                         }
                         .labelsHidden()
-                        .frame(width: 84)
+                        .frame(width: 92)
                         DatePicker("", selection: $automation.fetchTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
-                            .frame(width: 86)
+                            .frame(width: 88)
                     }
                 }
-                .disabled(!automation.automationEnabled)
-            }
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("Daily Recommend", "每日推荐"), systemImage: "sparkles") {
-                HStack(spacing: 8) {
-                    Toggle("", isOn: $automation.autoRecommendEnabled)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
-                    if automation.autoRecommendEnabled {
+
+                automationPlan(title: L10n.pick("Daily Recommend", "每日推荐"),
+                               enabled: $automation.autoRecommendEnabled,
+                               enabledValue: automation.autoRecommendEnabled,
+                               systemImage: "sparkles",
+                               tint: .purple,
+                               lastRun: automation.lastAutoRecommendAt) {
+                    HStack(spacing: 8) {
                         DatePicker("", selection: $automation.recommendTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
-                            .frame(width: 86)
+                            .frame(width: 88)
+                        Spacer()
                     }
                 }
-                .disabled(!automation.automationEnabled)
             }
-            if automation.lastAutoFetchAt != nil || automation.lastAutoRecommendAt != nil {
-                SettingsDivider()
-                VStack(alignment: .leading, spacing: 5) {
-                    if let last = automation.lastAutoFetchAt {
-                        Text(L10n.pick("Last fetch: \(last.formatted(date: .abbreviated, time: .shortened))",
-                                       "上次拉取：\(last.formatted(date: .abbreviated, time: .shortened))"))
-                    }
-                    if let last = automation.lastAutoRecommendAt {
-                        Text(L10n.pick("Last recommend: \(last.formatted(date: .abbreviated, time: .shortened))",
-                                       "上次推荐：\(last.formatted(date: .abbreviated, time: .shortened))"))
-                    }
+            .disabled(!automation.automationEnabled)
+        }
+    }
+
+    private func automationPlan<Content: View>(title: String,
+                                               enabled: Binding<Bool>,
+                                               enabledValue: Bool,
+                                               systemImage: String,
+                                               tint: Color,
+                                               lastRun: Date?,
+                                               @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(tint.opacity(0.12))
+                    Image(systemName: systemImage)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(tint)
                 }
-                .font(SettingsUI.smallFont)
-                .foregroundStyle(.secondary)
-                .padding(.leading, 28)
+                .frame(width: 24, height: 24)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(SettingsUI.smallFont)
+                        .foregroundStyle(.secondary)
+                    Text(enabledValue ? L10n.pick("On", "已启用") : L10n.pick("Off", "未启用"))
+                        .font(.system(size: 13, weight: .semibold))
+                }
+
+                Spacer()
+
+                Toggle("", isOn: enabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
+
+            content()
+                .opacity(enabledValue ? 1 : 0.45)
+                .disabled(!enabledValue)
+
+            if let lastRun {
+                Label(lastRun.formatted(date: .abbreviated, time: .shortened), systemImage: "clock.arrow.circlepath")
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(FacetTheme.panel.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
     }
 
     private func clamped(_ value: Binding<Int>, to range: ClosedRange<Int>) -> Binding<Int> {

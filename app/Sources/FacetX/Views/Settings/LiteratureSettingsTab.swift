@@ -8,10 +8,9 @@ struct LiteratureSettingsTab: View {
 
     var body: some View {
         SettingsPage(title: L10n.pick("Literature", "文献"),
-                     subtitle: L10n.pick("Fetch scope, recommendation strategy and scoring rules", "拉取范围、推荐策略与评分规则"),
+                     subtitle: L10n.pick("Recommendation strategy, translation and scoring rules", "推荐策略、翻译与评分规则"),
                      systemImage: "books.vertical",
                      warning: nil) {
-            fetchCard
             recommendationCard
             translationCard
             VenueRulesCard(metadata: metadata)
@@ -91,56 +90,51 @@ struct LiteratureSettingsTab: View {
         }
     }
 
-    // MARK: - Fetch
-
-    private var fetchCard: some View {
-        SettingsCard(title: L10n.pick("OpenAlex Fetch Scope", "OpenAlex 拉取范围"), systemImage: "magnifyingglass",
-                     subtitle: L10n.pick("Controls how much each library fetch asks OpenAlex for.",
-                                         "控制每次文献库拉取向 OpenAlex 请求多少内容。")) {
-            stepperRow(L10n.pick("Publication Window", "发表时间窗口"), systemImage: "calendar.badge.clock",
-                       value: $settings.defaultDays, range: 1...365,
-                       unit: L10n.pick("days", "天"), valueWidth: 56)
-            SettingsDivider()
-            stepperRow(L10n.pick("Results per Request", "每次请求数量"), systemImage: "list.number",
-                       value: $settings.perPage, range: 1...200,
-                       unit: L10n.pick("items", "条"), valueWidth: 56)
-            SettingsDivider()
-            stepperRow(L10n.pick("Total Cap per Library", "单库总上限"), systemImage: "number",
-                       value: $settings.defaultMaxResults, range: 1...1000,
-                       unit: L10n.pick("items", "条"), valueWidth: 64)
-            SettingsDivider()
-            SettingsRow(title: L10n.pick("OpenAlex Filter", "OpenAlex 过滤"), systemImage: "line.3.horizontal.decrease.circle") {
-                TextField(L10n.pick("topics.field.id:17", "topics.field.id:17"), text: $settings.topicFilter)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: SettingsUI.controlWidth)
-            }
-            ProjectEditorHelp(L10n.pick("The contact email lives in Integrations → OpenAlex.",
-                                        "联系邮箱位于「集成 → OpenAlex」。"))
-                .padding(.leading, 28)
-        }
-    }
-
     // MARK: - Recommendations
 
     private var recommendationCard: some View {
         SettingsCard(title: L10n.pick("Recommendation Strategy", "推荐策略"), systemImage: "sparkles",
-                     subtitle: L10n.pick("Controls how daily recommendation slots are balanced.",
-                                         "控制每日推荐名额如何分配。")) {
-            stepperRow(L10n.pick("Daily Slots", "每日名额"), systemImage: "number.circle",
-                       value: $settings.dailyCount, range: 1...20,
-                       unit: L10n.pick("papers", "篇"), valueWidth: 48)
-            SettingsDivider()
-            stepperRow(L10n.pick("High-Score Slots", "高分名额"), systemImage: "star.circle",
-                       value: $settings.qualitySlots, range: 0...20,
-                       unit: L10n.pick("slots", "个"), valueWidth: 48)
-            SettingsDivider()
-            stepperRow(L10n.pick("High-Score Minimum", "高分下限"), systemImage: "chart.line.uptrend.xyaxis",
-                       value: $settings.highScoreThreshold, range: 0...100,
-                       unit: L10n.pick("score", "分"), valueWidth: 48)
-            SettingsDivider()
-            stepperRow(L10n.pick("Recent Priority Window", "近期优先窗口"), systemImage: "calendar.badge.clock",
-                       value: $settings.recentDays, range: 1...365,
-                       unit: L10n.pick("days", "天"), valueWidth: 56)
+                     subtitle: L10n.pick("Set how many high-score and recent papers are recommended each day.",
+                                         "分别设置每天推荐几篇高分文献和近期文献。")) {
+            HStack(spacing: 10) {
+                recommendationLane(title: L10n.pick("High Score", "高分"),
+                                   value: "\(settings.qualitySlots)",
+                                   systemImage: "star.fill",
+                                   tint: .yellow) {
+                    compactStepperRow(L10n.pick("Papers", "篇数"),
+                                      value: $settings.qualitySlots,
+                                      range: 0...20,
+                                      unit: L10n.pick("papers", "篇"),
+                                      valueWidth: 42)
+                    compactDivider
+                    compactStepperRow(L10n.pick("Minimum", "分数下限"),
+                                      value: $settings.highScoreThreshold,
+                                      range: 0...100,
+                                      unit: L10n.pick("score", "分"),
+                                      valueWidth: 42)
+                }
+
+                recommendationLane(title: L10n.pick("Recent", "近期"),
+                                   value: "\(settings.recentSlots)",
+                                   systemImage: "clock.badge",
+                                   tint: .blue) {
+                    compactStepperRow(L10n.pick("Papers", "篇数"),
+                                      value: $settings.recentSlots,
+                                      range: 0...20,
+                                      unit: L10n.pick("papers", "篇"),
+                                      valueWidth: 42)
+                    compactDivider
+                    compactStepperRow(L10n.pick("Window", "时间窗口"),
+                                      value: $settings.recentDays,
+                                      range: 1...365,
+                                      unit: L10n.pick("days", "天"),
+                                      valueWidth: 52)
+                }
+            }
+
+            ProjectEditorHelp(L10n.pick("Daily total: \(settings.qualitySlots + settings.recentSlots) papers. High-score picks use the score threshold; recent picks use the publication-date window.",
+                                        "每日总数：\(settings.qualitySlots + settings.recentSlots) 篇。高分推荐使用分数下限；近期推荐使用发表时间窗口。"))
+                .padding(.leading, 28)
         }
     }
 
@@ -165,29 +159,87 @@ struct LiteratureSettingsTab: View {
 
     // MARK: - Helpers
 
-    private func stepperRow(_ title: String, systemImage: String,
-                            value: Binding<Int>, range: ClosedRange<Int>,
-                            unit: String, valueWidth: CGFloat) -> some View {
-        SettingsRow(title: title, systemImage: systemImage) {
-            HStack(spacing: 6) {
-                TextField("", value: clamped(value, to: range), format: .number)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: valueWidth)
-                    .textFieldStyle(.roundedBorder)
-                Text(unit)
-                    .font(SettingsUI.smallFont)
-                    .foregroundStyle(.secondary)
-                    .frame(minWidth: 44, alignment: .leading)
-                Stepper("", value: value, in: range)
-                    .labelsHidden().controlSize(.mini)
-            }
-        }
-    }
-
     private func clamped(_ value: Binding<Int>, to range: ClosedRange<Int>) -> Binding<Int> {
         Binding(
             get: { value.wrappedValue },
             set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) }
         )
+    }
+
+    private func recommendationLane<Content: View>(title: String, value: String,
+                                                   systemImage: String, tint: Color,
+                                                   @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(tint.opacity(0.14))
+                    Image(systemName: systemImage)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: 24, height: 24)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(SettingsUI.smallFont)
+                        .foregroundStyle(.secondary)
+                    Text(L10n.pick("\(value) papers", "\(value) 篇"))
+                        .font(.system(size: 13, weight: .semibold))
+                        .monospacedDigit()
+                }
+
+                Spacer()
+            }
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(FacetTheme.panel.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func compactStepperRow(_ title: String,
+                                   value: Binding<Int>, range: ClosedRange<Int>,
+                                   unit: String, valueWidth: CGFloat) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(SettingsUI.rowFont)
+                .lineLimit(1)
+            Spacer()
+            TextField("", value: clamped(value, to: range), format: .number)
+                .multilineTextAlignment(.trailing)
+                .frame(width: valueWidth)
+                .textFieldStyle(.roundedBorder)
+            Text(unit)
+                .font(SettingsUI.smallFont)
+                .foregroundStyle(.secondary)
+                .frame(width: 32, alignment: .leading)
+            Stepper("", value: value, in: range)
+                .labelsHidden()
+                .controlSize(.mini)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var compactDivider: some View {
+        Divider()
+            .opacity(0.36)
+            .padding(.leading, 2)
     }
 }

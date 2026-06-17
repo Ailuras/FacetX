@@ -24,8 +24,8 @@ struct ScoringConfig {
 }
 
 struct RecommendationConfig {
-    var daily_count: Int
     var quality_slots: Int
+    var recent_slots: Int
     var high_score_threshold: Int
     var recent_days: Int
 }
@@ -177,8 +177,8 @@ class ConfigManager {
         cfg.scoring.others_tier = metadata.othersTier
 
         cfg.recommendation = RecommendationConfig(
-            daily_count: s.dailyCount,
             quality_slots: s.qualitySlots,
+            recent_slots: s.recentSlots,
             high_score_threshold: s.highScoreThreshold,
             recent_days: s.recentDays
         )

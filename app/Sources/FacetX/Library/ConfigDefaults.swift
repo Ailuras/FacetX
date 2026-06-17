@@ -27,8 +27,8 @@ extension AppConfig {
                 max_citation_points: 40
             ),
             recommendation: RecommendationConfig(
-                daily_count: 3,
                 quality_slots: 1,
+                recent_slots: 2,
                 high_score_threshold: 5,
                 recent_days: 30
             ),

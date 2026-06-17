@@ -23,14 +23,14 @@ struct RecommendEngine {
         return pubDate >= cutoff
     }
 
-    func recommend(papers: [Paper], count: Int? = nil) -> [RecommendationResult] {
+    func recommend(papers: [Paper]) -> [RecommendationResult] {
         let recConfig = config.recommendation
-        let dailyCount = count ?? recConfig.daily_count
-        let qualitySlots = min(recConfig.quality_slots, dailyCount)
+        let qualitySlots = recConfig.quality_slots
+        let recentSlots = recConfig.recent_slots
         let highThreshold = Double(recConfig.high_score_threshold)
         let recentDays = recConfig.recent_days
 
-        guard !papers.isEmpty, dailyCount > 0 else { return [] }
+        guard !papers.isEmpty, qualitySlots + recentSlots > 0 else { return [] }
 
         let calendar = Calendar.current
         guard let cutoffDate = calendar.date(byAdding: .day, value: -recentDays, to: Date()) else {
@@ -69,7 +69,7 @@ struct RecommendEngine {
         }
 
         // 2. Recency priority slots
-        for i in qualitySlots..<dailyCount {
+        for i in qualitySlots..<(qualitySlots + recentSlots) {
             var px = popRandom(from: recentPendingPool)
             if px == nil { px = popRandom(from: pendingPool) }
             if px == nil { px = popRandom(from: recentFallbackPool) }

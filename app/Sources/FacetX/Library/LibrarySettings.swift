@@ -58,8 +58,8 @@ final class LibrarySettings {
     var topicFilter: String { didSet { save() } }
 
     // Daily recommendation params
-    var dailyCount: Int { didSet { save() } }
     var qualitySlots: Int { didSet { save() } }
+    var recentSlots: Int { didSet { save() } }
     var highScoreThreshold: Int { didSet { save() } }
     var recentDays: Int { didSet { save() } }
 
@@ -108,8 +108,8 @@ final class LibrarySettings {
         defaultDays        = stored?.defaultDays ?? d.openalex.default_days
         defaultMaxResults  = stored?.defaultMaxResults ?? d.openalex.default_max_results
         topicFilter        = stored?.topicFilter ?? d.openalex.topic_filter
-        dailyCount         = stored?.dailyCount ?? d.recommendation.daily_count
         qualitySlots       = stored?.qualitySlots ?? d.recommendation.quality_slots
+        recentSlots        = stored?.recentSlots ?? d.recommendation.recent_slots
         highScoreThreshold = stored?.highScoreThreshold ?? d.recommendation.high_score_threshold
         recentDays         = stored?.recentDays ?? d.recommendation.recent_days
         sortKeyRaw         = stored?.sortKeyRaw ?? SortKey.score.rawValue
@@ -132,8 +132,8 @@ final class LibrarySettings {
         var defaultDays: Int?
         var defaultMaxResults: Int?
         var topicFilter: String?
-        var dailyCount: Int?
         var qualitySlots: Int?
+        var recentSlots: Int?
         var highScoreThreshold: Int?
         var recentDays: Int?
         var sortKeyRaw: String?
@@ -156,8 +156,8 @@ final class LibrarySettings {
             defaultDays: defaultDays,
             defaultMaxResults: defaultMaxResults,
             topicFilter: topicFilter,
-            dailyCount: dailyCount,
             qualitySlots: qualitySlots,
+            recentSlots: recentSlots,
             highScoreThreshold: highScoreThreshold,
             recentDays: recentDays,
             sortKeyRaw: sortKeyRaw,

@@ -161,17 +161,137 @@ struct IntegrationsSettingsTab: View {
 
     private var openAlexCard: some View {
         SettingsCard(title: "OpenAlex", systemImage: "magnifyingglass",
-                     subtitle: L10n.pick("Contact email sent with OpenAlex requests.",
-                                         "随 OpenAlex 请求发送的联系邮箱。")) {
+                     subtitle: L10n.pick("Fetch scope, field filter and request identity.",
+                                         "拉取范围、领域过滤与请求身份。")) {
+            HStack(spacing: 8) {
+                serviceMetric(title: L10n.pick("Window", "时间窗口"),
+                              value: L10n.pick("\(litSettings.defaultDays) days", "\(litSettings.defaultDays) 天"),
+                              systemImage: "calendar.badge.clock",
+                              tint: .blue)
+                serviceMetric(title: L10n.pick("Per Request", "每次请求"),
+                              value: "\(litSettings.perPage)",
+                              systemImage: "list.number",
+                              tint: .green)
+                serviceMetric(title: L10n.pick("Library Cap", "单库上限"),
+                              value: "\(litSettings.defaultMaxResults)",
+                              systemImage: "number",
+                              tint: .orange)
+            }
+
+            VStack(spacing: 0) {
+                compactStepperRow(L10n.pick("Publication Window", "发表时间窗口"),
+                                  value: $litSettings.defaultDays,
+                                  range: 1...365,
+                                  unit: L10n.pick("days", "天"),
+                                  valueWidth: 56)
+                compactDivider
+                compactStepperRow(L10n.pick("Results per Request", "每次请求数量"),
+                                  value: $litSettings.perPage,
+                                  range: 1...200,
+                                  unit: L10n.pick("items", "条"),
+                                  valueWidth: 56)
+                compactDivider
+                compactStepperRow(L10n.pick("Total Cap per Library", "单库总上限"),
+                                  value: $litSettings.defaultMaxResults,
+                                  range: 1...1000,
+                                  unit: L10n.pick("items", "条"),
+                                  valueWidth: 64)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(FacetTheme.panel.opacity(0.42))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+
             SettingsRow(title: L10n.pick("Contact Email", "联系邮箱"), systemImage: "envelope") {
                 TextField("", text: $litSettings.openAlexMailto)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: SettingsUI.controlWidth)
             }
-            ProjectEditorHelp(L10n.pick("Recommended by OpenAlex for higher rate limits.",
-                                        "OpenAlex 建议填写以提升速率限制。"))
+            SettingsDivider()
+            SettingsRow(title: L10n.pick("Field Filter", "领域过滤"), systemImage: "line.3.horizontal.decrease.circle") {
+                TextField(L10n.pick("topics.field.id:17", "topics.field.id:17"), text: $litSettings.topicFilter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: SettingsUI.controlWidth)
+            }
+            ProjectEditorHelp(L10n.pick("OpenAlex receives this as an extra filter expression on every fetch. The preset topics.field.id:17 limits results to Computer Science. Contact email is recommended by OpenAlex for higher rate limits.",
+                                        "FacetX 会把它作为额外 filter 表达式附加到每次 OpenAlex 拉取。预设 topics.field.id:17 表示限制在计算机科学领域；联系邮箱有助于获得更好的速率限制。"))
                 .padding(.leading, 28)
         }
+    }
+
+    // MARK: - Shared controls
+
+    private func serviceMetric(title: String, value: String, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(tint.opacity(0.12))
+                Image(systemName: systemImage)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(SettingsUI.smallFont)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.system(size: 12, weight: .semibold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(FacetTheme.panel.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func compactStepperRow(_ title: String,
+                                   value: Binding<Int>, range: ClosedRange<Int>,
+                                   unit: String, valueWidth: CGFloat) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(SettingsUI.rowFont)
+                .lineLimit(1)
+            Spacer()
+            TextField("", value: clamped(value, to: range), format: .number)
+                .multilineTextAlignment(.trailing)
+                .frame(width: valueWidth)
+                .textFieldStyle(.roundedBorder)
+            Text(unit)
+                .font(SettingsUI.smallFont)
+                .foregroundStyle(.secondary)
+                .frame(width: 32, alignment: .leading)
+            Stepper("", value: value, in: range)
+                .labelsHidden()
+                .controlSize(.mini)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var compactDivider: some View {
+        Divider()
+            .opacity(0.36)
+            .padding(.leading, 2)
+    }
+
+    private func clamped(_ value: Binding<Int>, to range: ClosedRange<Int>) -> Binding<Int> {
+        Binding(
+            get: { value.wrappedValue },
+            set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) }
+        )
     }
 
     // MARK: - GitHub helpers
