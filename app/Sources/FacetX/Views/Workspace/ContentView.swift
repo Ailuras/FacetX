@@ -165,6 +165,12 @@ struct ContentView: View {
                     NotificationCenter.default.post(name: .selectPaperInTopic, object: nil, userInfo: ["paperID": paperID])
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToProjectPrefix)) { notification in
+                guard let prefix = notification.userInfo?["prefix"] as? String else { return }
+                if let project = store.activeProjects.first(where: { $0.prefix == prefix }) {
+                    selection = .project(project.id)
+                }
+            }
             .task {
                 applyStartupSelection()
                 keyboard.registerLocalShortcuts()

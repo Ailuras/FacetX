@@ -291,6 +291,7 @@ struct ItemDetailPane: View {
                     }
                     .buttonStyle(.plain)
                     .help(L10n.pick("View in Library", "在文献库中查看"))
+                    .hoverCursor(.pointingHand)
                 }
 
                 if !subtitle.isEmpty {

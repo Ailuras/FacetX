@@ -254,7 +254,7 @@ struct TopicDetailView: View {
             ForEach(papers) { paper in
                 PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
                          metadata: metadata, version: store.paperVersion,
-                         linkedProjectCount: (paperLinks[paper.id] ?? []).count)
+                         linkedProjectPrefixes: paperLinks[paper.id] ?? [])
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
