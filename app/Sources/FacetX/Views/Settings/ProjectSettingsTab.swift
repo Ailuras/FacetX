@@ -388,15 +388,14 @@ struct ProjectSettingsTab: View {
                                                               : selection.wrappedValue,
                                placeholder: selection.wrappedValue.isEmpty)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
+            .menuStyle(.button)
+            .buttonStyle(.plain)
         }
         .padding(.vertical, 1)
     }
 
-    /// A fixed-width menu label so every dropdown in the defaults card lines up,
-    /// regardless of the selected value's length.
+    /// A fixed-width menu label matching the project editor's save-location
+    /// pickers, so every dropdown in the defaults card shares one width/style.
     private func fixedMenuLabel(_ text: String, placeholder: Bool) -> some View {
         HStack(spacing: 8) {
             Text(text)
@@ -413,11 +412,6 @@ struct ProjectSettingsTab: View {
         .frame(width: SettingsUI.controlWidth, height: 24)
         .background(FacetTheme.panel.opacity(0.70))
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
     }
 
     // MARK: - Duration picker
@@ -447,9 +441,8 @@ struct ProjectSettingsTab: View {
             } label: {
                 fixedMenuLabel(durationLabel(selection.wrappedValue), placeholder: false)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
+            .menuStyle(.button)
+            .buttonStyle(.plain)
         }
         .padding(.vertical, 1)
     }
