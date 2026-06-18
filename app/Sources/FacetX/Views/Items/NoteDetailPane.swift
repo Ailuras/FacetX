@@ -15,7 +15,7 @@ struct NoteDetailPane: View {
     @State private var editing = false
     @StateObject private var editorController = MarkdownEditorController()
 
-    private var dataDirectory: String { project.dataDirectory ?? "" }
+    private var dataDirectory: String { project.effectiveDataDirectory }
     private var facetID: String? { item.facetID }
 
     var body: some View {

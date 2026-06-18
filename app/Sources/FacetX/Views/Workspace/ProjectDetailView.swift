@@ -216,9 +216,8 @@ struct ProjectDetailView: View {
             Button(L10n.t(.cancel), role: .cancel) { itemToDelete = nil }
             Button(L10n.t(.delete), role: .destructive) {
                 if let item = itemToDelete {
-                    if item.facetKind == .note, let facetID = item.facetID,
-                       let dir = project.dataDirectory, !dir.isEmpty {
-                        NoteStore.shared.delete(dataDirectory: dir, facetID: facetID)
+                    if item.facetKind == .note, let facetID = item.facetID {
+                        NoteStore.shared.delete(dataDirectory: project.effectiveDataDirectory, facetID: facetID)
                     }
                     Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
                 }
@@ -352,8 +351,7 @@ struct ProjectDetailView: View {
             showCompleted: $showCompleted,
             animation: listAnimation,
             onAdd: { beginCreate(kind: .task) },
-            onCreateKind: { kind in beginCreate(kind: kind) },
-            canCreateNote: !(project.dataDirectory ?? "").isEmpty
+            onCreateKind: { kind in beginCreate(kind: kind) }
         ) {
             sortPill
         }
@@ -836,11 +834,7 @@ struct ProjectDetailView: View {
     }
 
     private func createNoteItem(initialDate: Date?) {
-        let dataDirectory = project.dataDirectory ?? ""
-        guard !dataDirectory.isEmpty else {
-            toast.show(L10n.pick("Set a project data folder first", "请先为项目设置数据目录"), type: .error)
-            return
-        }
+        let dataDirectory = project.effectiveDataDirectory
         let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
         guard !calName.isEmpty else {
             toast.show(L10n.pick("Choose a calendar first", "请先选择一个日历"), type: .error)

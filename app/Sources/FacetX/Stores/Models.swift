@@ -49,6 +49,17 @@ struct Project: Identifiable, Codable, Hashable {
         self.githubRepo = githubRepo
     }
 
+    /// The folder notes are read/written from: the user-chosen `dataDirectory`
+    /// when set, otherwise a per-project default under Application Support so
+    /// notes work even before a custom location is picked.
+    var effectiveDataDirectory: String {
+        if let dataDirectory, !dataDirectory.isEmpty { return dataDirectory }
+        let safePrefix = prefix.replacingOccurrences(of: "/", with: "-")
+        return AppSupport.directory()
+            .appendingPathComponent("ProjectData", isDirectory: true)
+            .appendingPathComponent(safePrefix.isEmpty ? id.uuidString : safePrefix, isDirectory: true)
+            .path
+    }
 }
 
 /// A per-week goal attached to a project. ISO week id like "2026-W22".
