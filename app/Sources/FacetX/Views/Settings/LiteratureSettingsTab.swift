@@ -9,18 +9,17 @@ struct LiteratureSettingsTab: View {
                      subtitle: L10n.pick("Recommendation strategy and abstract translation", "推荐策略与摘要翻译"),
                      systemImage: "books.vertical",
                      warning: nil) {
-            recommendationCard
+            recommendationAndAutomationCard
             translationCard
-            automationCard
         }
     }
 
     // MARK: - Recommendations
 
-    private var recommendationCard: some View {
-        SettingsCard(title: L10n.pick("Recommendation Strategy", "推荐策略"), systemImage: "sparkles",
-                     subtitle: L10n.pick("Set how many high-score and recent papers are recommended each day.",
-                                         "分别设置每天推荐几篇高分文献和近期文献。")) {
+    private var recommendationAndAutomationCard: some View {
+        SettingsCard(title: L10n.pick("Strategy & Automation", "推荐策略与自动化"), systemImage: "sparkles",
+                     subtitle: L10n.pick("Configure daily recommendation rules and automate background tasks.",
+                                         "配置每日文献推荐规则，并设置后台自动运行计划。")) {
             HStack(spacing: 10) {
                 recommendationLane(title: L10n.pick("High Score", "高分"),
                                    value: "\(settings.qualitySlots)",
@@ -56,6 +55,53 @@ struct LiteratureSettingsTab: View {
                                       valueWidth: recommendationValueWidth)
                 }
             }
+
+            SettingsDivider()
+
+            SettingsRow(title: L10n.pick("Enable Automation", "启用自动化"), systemImage: "power") {
+                Toggle("", isOn: $automation.automationEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
+            SettingsDivider()
+
+            HStack(spacing: 10) {
+                automationPlan(title: L10n.pick("Monthly Fetch", "每月拉取"),
+                               enabled: $automation.autoFetchEnabled,
+                               enabledValue: automation.autoFetchEnabled,
+                               systemImage: "calendar.badge.plus",
+                               tint: .blue,
+                               lastRun: automation.lastAutoFetchAt) {
+                    HStack(spacing: 8) {
+                        Picker("", selection: clamped($automation.fetchDay, to: 1...28)) {
+                            ForEach(1...28, id: \.self) { day in
+                                Text(L10n.pick("Day \(day)", "\(day) 日")).tag(day)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 92)
+                        DatePicker("", selection: $automation.fetchTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                            .frame(width: 88)
+                    }
+                }
+
+                automationPlan(title: L10n.pick("Daily Recommend", "每日推荐"),
+                               enabled: $automation.autoRecommendEnabled,
+                               enabledValue: automation.autoRecommendEnabled,
+                               systemImage: "sparkles",
+                               tint: .purple,
+                               lastRun: automation.lastAutoRecommendAt) {
+                    HStack(spacing: 8) {
+                        DatePicker("", selection: $automation.recommendTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                            .frame(width: 88)
+                        Spacer()
+                    }
+                }
+            }
+            .disabled(!automation.automationEnabled)
         }
     }
 
@@ -170,57 +216,7 @@ struct LiteratureSettingsTab: View {
             .padding(.leading, 2)
     }
 
-    private var automationCard: some View {
-        SettingsCard(title: L10n.pick("Literature Automation", "文献自动化"),
-                     systemImage: "clock.badge.checkmark",
-                     subtitle: L10n.pick("Background fetch and recommendation schedules while FacetX is open.",
-                                         "FacetX 运行时的后台拉取与推荐计划。")) {
-            SettingsRow(title: L10n.pick("Enable Automation", "启用自动化"), systemImage: "power") {
-                Toggle("", isOn: $automation.automationEnabled)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-            }
-            SettingsDivider()
 
-            HStack(spacing: 10) {
-                automationPlan(title: L10n.pick("Monthly Fetch", "每月拉取"),
-                               enabled: $automation.autoFetchEnabled,
-                               enabledValue: automation.autoFetchEnabled,
-                               systemImage: "calendar.badge.plus",
-                               tint: .blue,
-                               lastRun: automation.lastAutoFetchAt) {
-                    HStack(spacing: 8) {
-                        Picker("", selection: clamped($automation.fetchDay, to: 1...28)) {
-                            ForEach(1...28, id: \.self) { day in
-                                Text(L10n.pick("Day \(day)", "\(day) 日")).tag(day)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(width: 92)
-                        DatePicker("", selection: $automation.fetchTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .frame(width: 88)
-                    }
-                }
-
-                automationPlan(title: L10n.pick("Daily Recommend", "每日推荐"),
-                               enabled: $automation.autoRecommendEnabled,
-                               enabledValue: automation.autoRecommendEnabled,
-                               systemImage: "sparkles",
-                               tint: .purple,
-                               lastRun: automation.lastAutoRecommendAt) {
-                    HStack(spacing: 8) {
-                        DatePicker("", selection: $automation.recommendTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .frame(width: 88)
-                        Spacer()
-                    }
-                }
-            }
-            .disabled(!automation.automationEnabled)
-        }
-    }
 
     private func automationPlan<Content: View>(title: String,
                                                enabled: Binding<Bool>,
