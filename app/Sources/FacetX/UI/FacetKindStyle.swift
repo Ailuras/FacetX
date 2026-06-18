@@ -43,3 +43,19 @@ extension FacetKind {
         }
     }
 }
+
+/// One template for an item's row/calendar visuals so every surface (All, Week,
+/// Month, Today) stays consistent and new code doesn't re-derive icon/color.
+extension ProjectItem {
+    /// Tint by element type; tasks keep priority emphasis when prioritized.
+    var rowTint: Color {
+        if facetKind == .task, priority > 0 { return FacetTheme.priorityColor(priority) }
+        return facetKind.color
+    }
+
+    /// Leading glyph: tasks reflect completion; others use their kind glyph.
+    var rowSystemImage: String {
+        facetKind == .task ? (isCompleted ? "checkmark.circle.fill" : "circle")
+                           : facetKind.systemImage
+    }
+}

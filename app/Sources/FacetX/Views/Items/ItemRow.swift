@@ -132,16 +132,7 @@ struct ItemRow: View {
     }
 
     private var borderHighlightColor: Color {
-        if !item.linkedPaperIDs.isEmpty {
-            return .yellow
-        }
-        if !item.linkedCommits.isEmpty {
-            return .purple
-        }
-        if item.kind == .reminder {
-            return item.priority > 0 ? priorityColor : .green
-        }
-        return .blue
+        item.rowTint
     }
 
     private var rowFill: Color {
@@ -208,7 +199,7 @@ struct ItemRow: View {
                         }
                     }
 
-                    if item.kind == .reminder {
+                    if item.facetKind == .task {
                         Button { onToggle(!item.isCompleted) } label: {
                             Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 16, weight: .medium))
@@ -217,18 +208,10 @@ struct ItemRow: View {
                         .buttonStyle(.plain)
                         .help(item.isCompleted ? L10n.pick("Mark incomplete", "标记为未完成")
                                                : L10n.pick("Mark complete", "标记为完成"))
-                    } else if !item.linkedPaperIDs.isEmpty {
-                        Image(systemName: "books.vertical")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.yellow)
-                    } else if !item.linkedCommits.isEmpty {
-                        Image(systemName: "source.branch")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.purple)
                     } else {
-                        Image(systemName: "calendar")
+                        Image(systemName: item.facetKind.systemImage)
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(item.facetKind.color)
                     }
 
                     if isInlineEditing, let inlineEditingText {

@@ -463,22 +463,8 @@ struct MonthView: View {
     }
 
     private func dayItemRow(item: ProjectItem) -> some View {
-        let color: Color
-        let systemImage: String
-
-        if !item.linkedPaperIDs.isEmpty {
-            color = .yellow
-            systemImage = "books.vertical"
-        } else if !item.linkedCommits.isEmpty {
-            color = .purple
-            systemImage = "source.branch"
-        } else if item.kind == .event {
-            color = .blue
-            systemImage = "calendar"
-        } else {
-            color = FacetTheme.priorityColor(item.priority)
-            systemImage = item.isCompleted ? "checkmark.circle.fill" : "circle"
-        }
+        let color = item.rowTint
+        let systemImage = item.rowSystemImage
 
         return HStack(spacing: 3) {
             Image(systemName: systemImage)
