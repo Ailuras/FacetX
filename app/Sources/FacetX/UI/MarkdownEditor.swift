@@ -79,33 +79,50 @@ struct MarkdownEditor: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSTextView.scrollableTextView()
-        guard let textView = scroll.documentView as? NSTextView else { return scroll }
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.borderType = .noBorder
+        scroll.autohidesScrollers = true
 
-        let formatting = FormattingTextView(frame: textView.frame, textContainer: textView.textContainer)
+        // Build the text system manually so the view is a proper first responder
+        // and tracks the scroll view's width.
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+        let container = NSTextContainer(containerSize: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        container.widthTracksTextView = true
+        layoutManager.addTextContainer(container)
+
+        let formatting = FormattingTextView(frame: NSRect(origin: .zero, size: scroll.contentSize),
+                                            textContainer: container)
         formatting.controller = controller
         formatting.delegate = context.coordinator
-        formatting.textStorage?.delegate = context.coordinator.highlighter
-        formatting.string = text
-        formatting.font = MarkdownSyntaxHighlighter.bodyFont
-        formatting.typingAttributes = [
-            .font: MarkdownSyntaxHighlighter.bodyFont,
-            .foregroundColor: NSColor.labelColor
-        ]
+        textStorage.delegate = context.coordinator.highlighter
+        formatting.isEditable = true
+        formatting.isSelectable = true
         formatting.isRichText = false
         formatting.allowsUndo = true
         formatting.isAutomaticQuoteSubstitutionEnabled = false
         formatting.isAutomaticDashSubstitutionEnabled = false
+        formatting.font = MarkdownSyntaxHighlighter.bodyFont
+        let typingAttributes: [NSAttributedString.Key: Any] = [
+            .font: MarkdownSyntaxHighlighter.bodyFont,
+            .foregroundColor: NSColor.labelColor
+        ]
+        formatting.typingAttributes = typingAttributes
         formatting.textContainerInset = NSSize(width: 6, height: 8)
-        formatting.autoresizingMask = [.width]
         formatting.drawsBackground = false
+        formatting.minSize = NSSize(width: 0, height: 0)
+        formatting.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        formatting.isVerticallyResizable = true
+        formatting.isHorizontallyResizable = false
+        formatting.autoresizingMask = [NSView.AutoresizingMask.width]
+        formatting.string = text
 
         scroll.documentView = formatting
-        scroll.drawsBackground = false
         controller.textView = formatting
-        if let storage = formatting.textStorage {
-            context.coordinator.highlighter.highlight(storage)
-        }
+        context.coordinator.highlighter.highlight(formatting.textStorage!)
         return scroll
     }
 
