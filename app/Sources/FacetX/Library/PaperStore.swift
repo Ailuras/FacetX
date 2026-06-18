@@ -188,31 +188,6 @@ class PaperStore {
             print("Error creating tables: \(error)")
             sqlite3_free(errorMsg)
         }
-
-        migratePdfSchema()
-    }
-
-    private func migratePdfSchema() {
-        var existing = Set<String>()
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "PRAGMA table_info(paper_pdfs)", -1, &stmt, nil) == SQLITE_OK {
-            while sqlite3_step(stmt) == SQLITE_ROW {
-                existing.insert(columnString(stmt, 1))
-            }
-        }
-        sqlite3_finalize(stmt)
-
-        let columns: [(String, String)] = [
-            ("pdf_path", "TEXT"),
-            ("pdf_status", "TEXT"),
-            ("byte_size", "INTEGER"),
-            ("sha256", "TEXT"),
-            ("checked_at", "INTEGER"),
-            ("fetched_at", "INTEGER")
-        ]
-        for (name, type) in columns where !existing.contains(name) {
-            sqlite3_exec(db, "ALTER TABLE paper_pdfs ADD COLUMN \(name) \(type)", nil, nil, nil)
-        }
     }
 
     func loadPapers() {

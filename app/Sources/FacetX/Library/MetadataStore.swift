@@ -263,7 +263,8 @@ final class MetadataStore {
         CREATE TABLE IF NOT EXISTS metadata_scoring (
             id INTEGER PRIMARY KEY DEFAULT 1,
             citation_breakpoints_json TEXT NOT NULL DEFAULT '[]',
-            max_citation_points INTEGER NOT NULL DEFAULT 0
+            max_citation_points INTEGER NOT NULL DEFAULT 0,
+            others_tier INTEGER NOT NULL DEFAULT 0
         );
         """
 
@@ -274,8 +275,6 @@ final class MetadataStore {
             sqlite3_free(errorMsg)
         }
 
-        // Added after the initial release; ignore the error if it already exists.
-        sqlite3_exec(db, "ALTER TABLE metadata_scoring ADD COLUMN others_tier INTEGER NOT NULL DEFAULT 0", nil, nil, nil)
     }
 
     private func seedDefaultsIfNeeded() {
