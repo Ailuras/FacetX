@@ -74,8 +74,12 @@ struct TopicDetailView: View {
     /// Daily recommendations, pinned at the top of the All view.
     private var recommendedPapers: [Paper] {
         guard mode == .all, showRecommended else { return [] }
+        let calendar = Calendar.current
         return papersForTopic
-            .filter { $0.isRecommended && matchesFilters($0) }
+            .filter { paper in
+                guard paper.isRecommended, let date = paper.recommendedAt else { return false }
+                return calendar.isDateInToday(date) && matchesFilters(paper)
+            }
             .sorted { $0.score > $1.score }
     }
 
@@ -480,7 +484,10 @@ struct TopicDetailView: View {
                             label: L10n.pick("Starred", "收藏"), systemImage: "star")
                 SummaryChip(value: papersForTopic.filter { $0.status == .read }.count,
                             label: L10n.pick("Read", "已读"), systemImage: "checkmark.circle")
-                SummaryChip(value: papersForTopic.filter { $0.isRecommended }.count,
+                SummaryChip(value: papersForTopic.filter { paper in
+                                guard paper.isRecommended, let date = paper.recommendedAt else { return false }
+                                return Calendar.current.isDateInToday(date)
+                            }.count,
                             label: L10n.pick("Recommended", "已推荐"), systemImage: "sparkles")
             }
 
