@@ -10,7 +10,7 @@
 set -euo pipefail
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$APP_DIR/.." && pwd)"
-source "$REPO/scripts/lib/facetx-build.sh"
+source "$REPO/scripts/build-env.sh"
 cd "$APP_DIR"
 
 CONFIG="${1:-release}"

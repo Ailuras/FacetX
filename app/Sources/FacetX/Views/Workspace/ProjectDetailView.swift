@@ -217,7 +217,6 @@ struct ProjectDetailView: View {
         FacetSidebarPane(
             title: selectedItem.kind == .reminder ? L10n.t(.paneReminder) : L10n.t(.paneSchedule),
             systemImage: selectedItem.kind == .reminder ? "checklist" : "calendar",
-            subtitle: selectedItem.content,
             onClose: {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil

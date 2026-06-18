@@ -45,7 +45,6 @@ struct TodayTimelinePanel: View {
         FacetSidebarPane(
             title: L10n.t(.today),
             systemImage: "sun.max.fill",
-            subtitle: todayDateLabel,
             closeHelp: L10n.t(.closeTodayPanel),
             onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } }
         ) {

@@ -624,7 +624,7 @@ struct ItemDetailPane: View {
             .help(L10n.pick("Delete item", "删除条目"))
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.vertical, 8)
         .background(FacetTheme.canvas)
     }
 
