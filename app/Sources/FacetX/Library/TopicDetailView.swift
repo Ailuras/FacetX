@@ -49,7 +49,7 @@ struct TopicDetailView: View {
         }
     }
 
-    // MARK: - Derived collections
+    // MARK: - Derived Lists
 
     private var papersForTopic: [Paper] {
         store.papers.filter { paper in

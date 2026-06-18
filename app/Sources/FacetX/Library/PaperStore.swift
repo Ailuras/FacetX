@@ -841,8 +841,14 @@ class PaperStore {
         paperVersion += 1
     }
 
-    func deletePapers(ids: [String]) {
-        guard !ids.isEmpty else { return }
+    @discardableResult
+    func deletePapers(ids: [String]) -> Bool {
+        deletePapers(ids: ids, reload: true)
+    }
+
+    @discardableResult
+    private func deletePapers(ids: [String], reload: Bool) -> Bool {
+        guard !ids.isEmpty else { return true }
         let tables: [(table: String, column: String)] = [
             ("paper_topics", "paper_id"),
             ("paper_pdfs", "paper_id"),
@@ -872,7 +878,8 @@ class PaperStore {
             if !succeeded { break }
         }
         sqlite3_exec(db, succeeded ? "COMMIT" : "ROLLBACK", nil, nil, nil)
-        if succeeded { loadPapers() }
+        if succeeded && reload { loadPapers() }
+        return succeeded
     }
 
     func paperIdsSolelyInTopic(_ topicName: String) -> [String] {
@@ -891,9 +898,11 @@ class PaperStore {
         return ids
     }
 
-    func purgeTopicPapers(_ topicName: String) {
-        let sole = paperIdsSolelyInTopic(topicName)
-        if !sole.isEmpty { deletePapers(ids: sole) }
+    func purgeTopicPapers(_ topicName: String, deletingSolePaperIDs solePaperIDs: [String]) {
+        guard deletePapers(ids: solePaperIDs, reload: false) else {
+            loadPapers()
+            return
+        }
         let sql = "DELETE FROM paper_topics WHERE topic_name = ?"
         var stmt: OpaquePointer?
         if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {

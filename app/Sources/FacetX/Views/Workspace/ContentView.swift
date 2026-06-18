@@ -366,7 +366,7 @@ struct ContentView: View {
                 appSettings: settings,
                 ek: ek
             )
-            litStore.purgeTopicPapers(topic.name)
+            litStore.purgeTopicPapers(topic.name, deletingSolePaperIDs: deletedPaperIDs)
             litMeta.deleteTopic(id: topic.id)
             if case .topic(let id) = selection, id == topic.id {
                 selection = nil
