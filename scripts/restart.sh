@@ -5,7 +5,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
-source "$REPO/scripts/lib/facetx-build.sh"
+source "$REPO/scripts/build-env.sh"
 
 CONFIG="${1:-debug}"
 VARIANT_ARG="${2:-}"
