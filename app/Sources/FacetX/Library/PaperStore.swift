@@ -180,21 +180,6 @@ class PaperStore {
             PRIMARY KEY (paper_id, topic_name)
         );
 
-        CREATE TABLE IF NOT EXISTS collections (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            color TEXT,
-            icon TEXT,
-            parent_id TEXT,
-            notes TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS collection_papers (
-            collection_id TEXT NOT NULL,
-            paper_id TEXT NOT NULL,
-            added_at TEXT DEFAULT (datetime('now')),
-            PRIMARY KEY (collection_id, paper_id)
-        );
         """
 
         var errorMsg: UnsafeMutablePointer<Int8>?
@@ -205,7 +190,6 @@ class PaperStore {
         }
 
         migratePdfSchema()
-        migrateCollectionsSchema()
     }
 
     private func migratePdfSchema() {
@@ -229,10 +213,6 @@ class PaperStore {
         for (name, type) in columns where !existing.contains(name) {
             sqlite3_exec(db, "ALTER TABLE paper_pdfs ADD COLUMN \(name) \(type)", nil, nil, nil)
         }
-    }
-
-    private func migrateCollectionsSchema() {
-        sqlite3_exec(db, "ALTER TABLE collections ADD COLUMN notes TEXT", nil, nil, nil)
     }
 
     func loadPapers() {
@@ -263,16 +243,7 @@ class PaperStore {
                         ORDER BY lower(tag), tag
                     )
                  ), ''), '') as tags,
-                COALESCE(NULLIF((
-                    SELECT group_concat(collection_id, ', ')
-                    FROM (
-                        SELECT cp2.collection_id
-                        FROM collection_papers cp2
-                        WHERE cp2.paper_id = p.id
-                        ORDER BY cp2.added_at, cp2.collection_id
-                    )
-                ), ''), '') as collections,
-                 COALESCE(pn.note, '') as note, COALESCE(pt.abstract_zh, '') as abstract_zh,
+                COALESCE(pn.note, '') as note, COALESCE(pt.abstract_zh, '') as abstract_zh,
                 ps.status_changed_at, p.added_at,
                 f.pdf_path, f.pdf_status
          FROM papers p
@@ -323,13 +294,12 @@ class PaperStore {
             let recommendedAt = recommendedAtRaw.flatMap(Self.parseSQLiteDate)
             let recommendationReason = columnString(stmt, 17)
             let tags = Self.splitCSV(columnString(stmt, 18))
-            let collectionIds = Self.splitCSV(columnString(stmt, 19))
-            let note = columnString(stmt, 20)
-            let abstractZh = columnString(stmt, 21)
-            let statusChangedAt = columnOptionalString(stmt, 22).flatMap(Self.parseSQLiteDate)
-            let addedAt = columnOptionalString(stmt, 23).flatMap(Self.parseSQLiteDate)
-            let pdfLocalPath = columnOptionalString(stmt, 24)
-            let pdfStatus = columnOptionalString(stmt, 25)
+            let note = columnString(stmt, 19)
+            let abstractZh = columnString(stmt, 20)
+            let statusChangedAt = columnOptionalString(stmt, 21).flatMap(Self.parseSQLiteDate)
+            let addedAt = columnOptionalString(stmt, 22).flatMap(Self.parseSQLiteDate)
+            let pdfLocalPath = columnOptionalString(stmt, 23)
+            let pdfStatus = columnOptionalString(stmt, 24)
 
             var pubYear: Int? = nil
             if pubDate.count >= 4 {
@@ -359,7 +329,6 @@ class PaperStore {
                 recommendedAt: recommendedAt,
                 recommendationReason: recommendationReason,
                 tags: tags,
-                collectionIds: collectionIds,
                 note: note,
                 abstractZh: abstractZh,
                 statusChangedAt: statusChangedAt,
@@ -872,51 +841,9 @@ class PaperStore {
         paperVersion += 1
     }
 
-    // MARK: - Collections (schema kept, UI not exposed)
-
-    var allCollections: [PaperCollection] {
-        let sql = "SELECT id, name, color, icon, parent_id FROM collections ORDER BY lower(name), name"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_finalize(stmt) }
-
-        var rows: [PaperCollection] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            let id = columnString(stmt, 0)
-            let name = columnString(stmt, 1)
-            let color = columnOptionalString(stmt, 2)
-            let icon = columnOptionalString(stmt, 3)
-            let parentId = columnOptionalString(stmt, 4)
-            rows.append(PaperCollection(id: id, name: name, color: color, icon: icon, parentId: parentId))
-        }
-        return rows
-    }
-
-    func collectionSubtreeIds(_ id: String) -> Set<String> {
-        let sql = """
-        WITH RECURSIVE sub(id) AS (
-            SELECT id FROM collections WHERE id = ?1
-            UNION ALL
-            SELECT c.id FROM collections c JOIN sub ON c.parent_id = sub.id
-        )
-        SELECT id FROM sub
-        """
-        var stmt: OpaquePointer?
-        var ids = Set<String>()
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-            while sqlite3_step(stmt) == SQLITE_ROW {
-                ids.insert(columnString(stmt, 0))
-            }
-        }
-        sqlite3_finalize(stmt)
-        return ids
-    }
-
     func deletePapers(ids: [String]) {
         guard !ids.isEmpty else { return }
         let tables: [(table: String, column: String)] = [
-            ("collection_papers", "paper_id"),
             ("paper_topics", "paper_id"),
             ("paper_pdfs", "paper_id"),
             ("paper_translations", "paper_id"),

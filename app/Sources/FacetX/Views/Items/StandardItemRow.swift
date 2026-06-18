@@ -282,13 +282,7 @@ struct StandardItemRow: View {
     private func commitNotesEdit() {
         Task {
             guard inlineEdit.notesID == item.id else { return }
-            let metadata = FacetItemMetadata(
-                itemID: item.facetID ?? UUID().uuidString,
-                noteID: item.noteID ?? UUID().uuidString,
-                paperIDs: item.linkedPaperIDs,
-                commits: item.linkedCommits,
-                tags: item.tags
-            )
+            let metadata = item.facetItemMetadata()
             noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
             noteStore.save(id: metadata.noteID, body: inlineEdit.notesText.trimmingCharacters(in: .whitespacesAndNewlines))
             _ = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)

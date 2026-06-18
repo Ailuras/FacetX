@@ -1,22 +1,6 @@
 import Foundation
 import SwiftUI
 
-struct PaperCollection: Identifiable, Equatable {
-    var id: String
-    var name: String
-    var color: String?
-    var icon: String?
-    var parentId: String?
-    init(id: String = UUID().uuidString, name: String, color: String? = nil,
-         icon: String? = nil, parentId: String? = nil) {
-        self.id = id
-        self.name = name
-        self.color = color
-        self.icon = icon
-        self.parentId = parentId
-    }
-}
-
 enum PaperStatus: String, Codable, CaseIterable {
     case pending = "pending"
     case read = "read"
@@ -76,7 +60,6 @@ final class Paper: Identifiable {
     var recommendedAt: Date?
     var recommendationReason: String
     var tags: [String]     { didSet { _searchText = nil } }
-    var collectionIds: [String]
     var note: String       { didSet { _searchText = nil } }
     var abstractZh: String
     var statusChangedAt: Date?
@@ -115,7 +98,6 @@ final class Paper: Identifiable {
         isRecommended: Bool = false, recommendedAt: Date? = nil,
         recommendationReason: String = "",
         tags: [String] = [],
-        collectionIds: [String] = [],
         note: String = "", abstractZh: String = "",
         statusChangedAt: Date? = nil, addedAt: Date? = nil
     ) {
@@ -141,7 +123,6 @@ final class Paper: Identifiable {
         self.recommendedAt = recommendedAt
         self.recommendationReason = recommendationReason
         self.tags = tags
-        self.collectionIds = collectionIds
         self.note = note
         self.abstractZh = abstractZh
         self.statusChangedAt = statusChangedAt

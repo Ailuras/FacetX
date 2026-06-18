@@ -43,38 +43,6 @@ enum ItemEditHelpers {
         return false
     }
 
-    /// Commit a notes edit. Returns `true` if a mutation occurred.
-    @discardableResult
-    static func commitNotesEdit(
-        editingID: String?,
-        editingText: String,
-        for item: ProjectItem,
-        projectPrefix: String,
-        ek: EventKitService
-    ) async -> Bool {
-        guard editingID == item.id else { return false }
-        let newNotes = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let notesParam = newNotes.isEmpty ? nil : newNotes
-
-        if notesParam != item.notes {
-            _ = await ek.updateItem(
-                id: item.id,
-                project: projectPrefix,
-                content: item.content,
-                date: item.date,
-                useDate: item.kind == .event || item.date != nil,
-                dateIncludesTime: item.hasTime,
-                containerName: item.containerName,
-                notes: notesParam,
-                tags: item.tags,
-                priority: item.priority,
-                isAllDay: item.kind == .event ? item.isAllDay : nil,
-                endDate: item.kind == .event ? item.endDate : nil
-            )
-            return true
-        }
-        return false
-    }
 }
 
 // MARK: - Selection Helpers

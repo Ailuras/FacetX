@@ -773,13 +773,7 @@ struct CommitsView: View {
 
     private func updateCommitLink(_ commit: GitHubCommit, item: ProjectItem, add: Bool) {
         let linkID = commitLinkID(commit)
-        var metadata = FacetItemMetadata(
-            itemID: item.facetID ?? UUID().uuidString,
-            noteID: item.noteID ?? UUID().uuidString,
-            paperIDs: item.linkedPaperIDs,
-            commits: item.linkedCommits,
-            tags: item.tags
-        )
+        var metadata = item.facetItemMetadata()
         metadata = add ? metadata.addingCommit(linkID) : metadata.removingCommit(linkID)
         noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
         Task {

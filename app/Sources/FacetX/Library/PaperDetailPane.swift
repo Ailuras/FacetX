@@ -525,13 +525,7 @@ struct PaperDetailPane: View {
     }
 
     private func removeLink(from item: ProjectItem) {
-        var metadata = FacetItemMetadata(
-            itemID: item.facetID ?? UUID().uuidString,
-            noteID: item.noteID ?? UUID().uuidString,
-            paperIDs: item.linkedPaperIDs,
-            commits: item.linkedCommits,
-            tags: item.tags
-        )
+        var metadata = item.facetItemMetadata()
         metadata = metadata.removingPaper(paper.id)
         noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
         Task {
