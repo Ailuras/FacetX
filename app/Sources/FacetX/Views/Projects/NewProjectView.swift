@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NewProjectView: View {
     let draft: ProjectDraft
-    let onCreate: (String, String?, String, String?, String?, String?, String?, String, String, String?) -> Void
+    let onCreate: (String, String?, String, String?, String?, String?, String?, String?, String, String, String?) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
@@ -12,12 +12,13 @@ struct NewProjectView: View {
     @State private var calendarName: String
     @State private var weekGoalCalendarName: String
     @State private var literatureListName: String
+    @State private var dataDirectory: String
     @State private var githubRepo: String
     @State private var colorName: String
     @State private var iconName: String
 
     init(draft: ProjectDraft,
-         onCreate: @escaping (String, String?, String, String?, String?, String?, String?, String, String, String?) -> Void,
+         onCreate: @escaping (String, String?, String, String?, String?, String?, String?, String?, String, String, String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.draft = draft
         self.onCreate = onCreate
@@ -29,6 +30,7 @@ struct NewProjectView: View {
         _calendarName = State(initialValue: draft.calendarName)
         _weekGoalCalendarName = State(initialValue: draft.weekGoalCalendarName)
         _literatureListName = State(initialValue: draft.literatureListName)
+        _dataDirectory = State(initialValue: draft.dataDirectory)
         _githubRepo = State(initialValue: draft.githubRepo)
         _colorName = State(initialValue: draft.colorName)
         _iconName = State(initialValue: draft.iconName)
@@ -98,6 +100,10 @@ struct NewProjectView: View {
                 ProjectEditorWarning(L10n.pick("Reminders and Paper List should not be the same.",
                                                "提醒事项列表与文献列表不应相同。"))
             }
+            Divider().opacity(0.42)
+            ProjectEditorDirectoryPicker(title: L10n.pick("Data Folder", "数据目录"), path: $dataDirectory)
+            ProjectEditorHelp(L10n.pick("Where notes and other local files for this project are stored.",
+                                        "该项目的笔记及其他本地文件的存放位置。"))
         }
     }
 
@@ -131,6 +137,7 @@ struct NewProjectView: View {
                  calendarName.isEmpty ? nil : calendarName,
                  weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName,
                  literatureListName.isEmpty ? nil : literatureListName,
+                 dataDirectory.isEmpty ? nil : dataDirectory,
                  colorName,
                  iconName,
                  repo.isEmpty ? nil : repo)

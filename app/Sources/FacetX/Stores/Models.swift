@@ -16,6 +16,10 @@ struct Project: Identifiable, Codable, Hashable {
     var calendarName: String?
     var weekGoalCalendarName: String?
     var literatureListName: String?
+    /// Absolute path to the project's local data folder (markdown notes and
+    /// future file-backed content live here). The app is not sandboxed, so the
+    /// plain path is stored directly.
+    var dataDirectory: String?
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
     var itemOrder: [String] = []
@@ -29,6 +33,7 @@ struct Project: Identifiable, Codable, Hashable {
     init(name: String, prefix: String? = nil, tagline: String = "",
          reminderListName: String? = nil, calendarName: String? = nil,
          weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
+         dataDirectory: String? = nil,
          colorName: String? = nil, iconName: String? = nil,
          githubRepo: String? = nil) {
         self.name = name
@@ -38,6 +43,7 @@ struct Project: Identifiable, Codable, Hashable {
         self.calendarName = calendarName
         self.weekGoalCalendarName = weekGoalCalendarName
         self.literatureListName = literatureListName
+        self.dataDirectory = dataDirectory
         self.colorName = colorName
         self.iconName = iconName
         self.githubRepo = githubRepo
@@ -97,12 +103,14 @@ final class ProjectStore: ObservableObject {
     func createProject(name: String, prefix: String? = nil, tagline: String = "",
                        reminderListName: String? = nil, calendarName: String? = nil,
                        weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
+                       dataDirectory: String? = nil,
                        colorName: String? = nil, iconName: String? = nil,
                        githubRepo: String? = nil) -> Project.ID {
         let maxOrder = projects.map(\.sortOrder).max() ?? -1
         var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
                               weekGoalCalendarName: weekGoalCalendarName, literatureListName: literatureListName,
+                              dataDirectory: dataDirectory,
                               colorName: colorName, iconName: iconName,
                               githubRepo: githubRepo)
         project.sortOrder = maxOrder + 1
