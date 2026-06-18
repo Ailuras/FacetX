@@ -778,7 +778,7 @@ struct TopicDetailView: View {
                 content: paper.title,
                 calendarName: calendarName,
                 startDate: Date(),
-                durationMinutes: 60,
+                durationMinutes: appSettings.defaultEventDurationMinutes,
                 itemMetadata: eventMetadata,
                 url: paperUrl,
                 isAllDay: true,

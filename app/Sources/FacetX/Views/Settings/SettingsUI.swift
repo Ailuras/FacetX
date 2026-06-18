@@ -120,12 +120,14 @@ struct SettingsCard<Content: View>: View {
 struct SettingsRow<Content: View>: View {
     let title: String
     let systemImage: String
+    var subtitle: String? = nil
     let content: () -> Content
 
-    init(title: String, systemImage: String,
+    init(title: String, systemImage: String, subtitle: String? = nil,
          @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.systemImage = systemImage
+        self.subtitle = subtitle
         self.content = content
     }
 
@@ -135,8 +137,15 @@ struct SettingsRow<Content: View>: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
-            Text(title)
-                .font(SettingsUI.rowFont)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(SettingsUI.rowFont)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+            }
             Spacer()
             content()
         }

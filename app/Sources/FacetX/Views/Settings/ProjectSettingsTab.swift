@@ -278,7 +278,28 @@ struct ProjectSettingsTab: View {
                                  selection: $settings.defaultCalendarName,
                                  values: enabledCalendarNames)
                 compactDivider
-                SettingsRow(title: L10n.pick("Event Duration", "事件时长"), systemImage: "clock") {
+                defaultPickerRow(title: L10n.pick("Literature Calendar", "文献日历"),
+                                 systemImage: "books.vertical",
+                                 selection: $settings.defaultLiteratureCalendarName,
+                                 values: enabledCalendarNames)
+                if settings.defaultCalendarName == settings.defaultLiteratureCalendarName && !settings.defaultCalendarName.isEmpty {
+                    compactDivider
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.orange)
+                        Text(L10n.pick("Default Calendar and default Literature Calendar should not be the same.",
+                                       "默认条目日历与默认文献日历不应相同。"))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 4)
+                }
+                compactDivider
+                SettingsRow(title: L10n.pick("Event Duration", "事件时长"), systemImage: "clock",
+                            subtitle: L10n.pick("Applies to Item Calendar and Literature Calendar.",
+                                               "适用于条目日历与文献日历。")) {
                     HStack(spacing: 8) {
                         Text(L10n.pick("\(settings.defaultEventDurationMinutes) min",
                                        "\(settings.defaultEventDurationMinutes) 分钟"))
@@ -298,25 +319,6 @@ struct ProjectSettingsTab: View {
                                  systemImage: "target",
                                  selection: $settings.weekGoalCalendarName,
                                  values: enabledCalendarNames)
-                compactDivider
-                defaultPickerRow(title: L10n.pick("Literature Calendar", "文献日历"),
-                                 systemImage: "books.vertical",
-                                 selection: $settings.defaultLiteratureCalendarName,
-                                 values: enabledCalendarNames)
-                if settings.defaultCalendarName == settings.defaultLiteratureCalendarName && !settings.defaultCalendarName.isEmpty {
-                    compactDivider
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.orange)
-                        Text(L10n.pick("Default Calendar and default Literature Calendar should not be the same.",
-                                       "默认条目日历与默认文献日历不应相同。"))
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 4)
-                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 2)
