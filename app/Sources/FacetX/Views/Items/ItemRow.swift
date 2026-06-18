@@ -372,34 +372,47 @@ struct ItemRow: View {
 
     private func formattedDate(_ date: Date) -> String {
         let calendar = Calendar.current
-        let formatter = DateFormatter()
-
         let hasTime = item.kind == .event ? !item.isAllDay : item.hasTime
 
         if calendar.isDateInToday(date) {
             if hasTime {
-                formatter.dateFormat = "HH:mm"
-                return "Today " + formatter.string(from: date)
+                return "\(L10n.pick("Today", "今天")) \(timeString(date))"
             } else {
-                return "Today"
+                return L10n.pick("Today", "今天")
             }
         } else if calendar.isDateInTomorrow(date) {
             if hasTime {
-                formatter.dateFormat = "HH:mm"
-                return "Tomorrow " + formatter.string(from: date)
+                return "\(L10n.pick("Tomorrow", "明天")) \(timeString(date))"
             } else {
-                return "Tomorrow"
+                return L10n.pick("Tomorrow", "明天")
             }
         } else if calendar.isDateInYesterday(date) {
-            return "Yesterday"
+            return L10n.pick("Yesterday", "昨天")
         } else {
             if hasTime {
-                formatter.dateFormat = "MMM d HH:mm"
+                return "\(shortDateString(date, calendar: calendar)) \(timeString(date))"
             } else {
-                formatter.dateFormat = "MMM d"
+                return shortDateString(date, calendar: calendar)
             }
-            return formatter.string(from: date)
         }
+    }
+
+    private func shortDateString(_ date: Date, calendar: Calendar) -> String {
+        if L10n.language == "zh" {
+            let month = calendar.component(.month, from: date)
+            let day = calendar.component(.day, from: date)
+            return "\(month)月\(day)日"
+        }
+
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter.string(from: date)
+    }
+
+    private func timeString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 }
 
