@@ -378,15 +378,46 @@ struct ProjectSettingsTab: View {
     private func defaultPickerRow(title: String, systemImage: String,
                                   selection: Binding<String>, values: [String]) -> some View {
         SettingsRow(title: title, systemImage: systemImage) {
-            Picker(title, selection: selection) {
-                if values.isEmpty { Text(L10n.pick("None", "无")).tag("") }
-                ForEach(values, id: \.self) { Text($0).tag($0) }
+            Menu {
+                if values.isEmpty { Button(L10n.pick("None", "无")) { selection.wrappedValue = "" } }
+                ForEach(values, id: \.self) { value in
+                    Button(value) { selection.wrappedValue = value }
+                }
+            } label: {
+                fixedMenuLabel(selection.wrappedValue.isEmpty ? L10n.pick("None", "无")
+                                                              : selection.wrappedValue,
+                               placeholder: selection.wrappedValue.isEmpty)
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
         }
         .padding(.vertical, 1)
+    }
+
+    /// A fixed-width menu label so every dropdown in the defaults card lines up,
+    /// regardless of the selected value's length.
+    private func fixedMenuLabel(_ text: String, placeholder: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(text)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(placeholder ? .secondary : .primary)
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 9)
+        .frame(width: SettingsUI.controlWidth, height: 24)
+        .background(FacetTheme.panel.opacity(0.70))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
     }
 
     // MARK: - Duration picker
@@ -409,14 +440,16 @@ struct ProjectSettingsTab: View {
                                    subtitle: String? = nil,
                                    selection: Binding<Int>) -> some View {
         SettingsRow(title: title, systemImage: systemImage, subtitle: subtitle) {
-            Picker(title, selection: selection) {
+            Menu {
                 ForEach(Self.durationPresets, id: \.self) { minutes in
-                    Text(durationLabel(minutes)).tag(minutes)
+                    Button(durationLabel(minutes)) { selection.wrappedValue = minutes }
                 }
+            } label: {
+                fixedMenuLabel(durationLabel(selection.wrappedValue), placeholder: false)
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
         }
         .padding(.vertical, 1)
     }
