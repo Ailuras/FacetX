@@ -32,6 +32,8 @@ struct ProjectDetailView: View {
     @State private var sortOption: SortOption = .manual
     @State private var itemFilter = ItemListFilter()
     @State private var noteStore = ItemStore.shared
+    /// Element-type sections collapsed in the All view (header click or badge isolate).
+    @State private var collapsedKinds: Set<FacetKind> = []
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
@@ -462,22 +464,32 @@ struct ProjectDetailView: View {
 
     @ViewBuilder private func itemKindSection(kind: FacetKind, items: [ProjectItem]) -> some View {
         if !items.isEmpty {
-            itemKindHeader(kind: kind, count: items.count)
+            let collapsed = collapsedKinds.contains(kind)
+            itemKindHeader(kind: kind, count: items.count, collapsed: collapsed)
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation(listAnimation) { toggleCollapse(kind) } }
+                .hoverCursor(.pointingHand)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
 
-            ForEach(items) { item in
-                projectItemRow(item)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+            if !collapsed {
+                ForEach(items) { item in
+                    projectItemRow(item)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+                }
             }
         }
     }
 
-    private func itemKindHeader(kind: FacetKind, count: Int) -> some View {
+    private func itemKindHeader(kind: FacetKind, count: Int, collapsed: Bool) -> some View {
         HStack(spacing: 7) {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(collapsed ? 0 : 90))
             Image(systemName: kind.systemImage)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(kind.color)
@@ -495,6 +507,39 @@ struct ProjectDetailView: View {
         .foregroundStyle(.primary.opacity(0.86))
     }
 
+    private func toggleCollapse(_ kind: FacetKind) {
+        if collapsedKinds.contains(kind) { collapsedKinds.remove(kind) }
+        else { collapsedKinds.insert(kind) }
+    }
+
+    /// All four element types, in display order.
+    private var orderedKinds: [FacetKind] { [.task, .event, .paper, .note] }
+
+    /// True when `kind` is the only present (non-empty) section left expanded.
+    private func isIsolated(_ kind: FacetKind) -> Bool {
+        let present = orderedKinds.filter { sectionCount($0) > 0 }
+        let expanded = present.filter { !collapsedKinds.contains($0) }
+        return expanded == [kind]
+    }
+
+    /// Collapse every other section so only `kind` shows; clicking again restores all.
+    private func toggleIsolate(_ kind: FacetKind) {
+        if isIsolated(kind) {
+            collapsedKinds = []
+        } else {
+            collapsedKinds = Set(orderedKinds).subtracting([kind])
+        }
+    }
+
+    private func sectionCount(_ kind: FacetKind) -> Int {
+        switch kind {
+        case .task:  return itemCounts.taskOpenCount + itemCounts.taskCompletedCount
+        case .event: return itemCounts.eventCount
+        case .paper: return itemCounts.paperCount
+        case .note:  return itemCounts.noteCount
+        }
+    }
+
     private var emptyMessage: String {
         if hasActiveSearch {
             return L10n.pick("No items match “\(searchText)”.", "没有匹配“\(searchText)”的条目。")
@@ -505,11 +550,25 @@ struct ProjectDetailView: View {
 
     private var summaryCluster: some View {
         HStack(spacing: 6) {
-            SummaryChip(value: itemCounts.taskOpenCount, label: FacetKind.task.title, systemImage: FacetKind.task.systemImage)
-            SummaryChip(value: itemCounts.eventCount, label: FacetKind.event.title, systemImage: FacetKind.event.systemImage)
-            SummaryChip(value: itemCounts.paperCount, label: FacetKind.paper.title, systemImage: FacetKind.paper.systemImage)
-            SummaryChip(value: itemCounts.noteCount, label: FacetKind.note.title, systemImage: FacetKind.note.systemImage)
+            SummaryChip(value: itemCounts.allCount,
+                        label: L10n.pick("All", "全部"),
+                        systemImage: "square.grid.2x2",
+                        isActive: collapsedKinds.isEmpty,
+                        onTap: { withAnimation(listAnimation) { collapsedKinds = [] } })
+            kindChip(.task, value: itemCounts.taskOpenCount)
+            kindChip(.event, value: itemCounts.eventCount)
+            kindChip(.paper, value: itemCounts.paperCount)
+            kindChip(.note, value: itemCounts.noteCount)
         }
+    }
+
+    private func kindChip(_ kind: FacetKind, value: Int) -> some View {
+        SummaryChip(value: value,
+                    label: kind.title,
+                    systemImage: kind.systemImage,
+                    tint: kind.color,
+                    isActive: isIsolated(kind),
+                    onTap: { withAnimation(listAnimation) { toggleIsolate(kind) } })
     }
 
     private var hiddenReminderCount: Int {
