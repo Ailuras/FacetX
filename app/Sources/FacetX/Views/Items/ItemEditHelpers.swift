@@ -151,7 +151,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
         switch self {
         case .none: return false
         case .complete: return item.kind == .reminder
-        case .convert: return item.linkedPaperIDs.isEmpty
+        case .convert: return item.linkedPaperIDs.isEmpty && !item.isNote
         default: return true
         }
     }

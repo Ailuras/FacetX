@@ -80,8 +80,8 @@ struct ProjectDetailView: View {
                 Group {
                     switch mode {
                     case .all: allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
-                    case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: beginCreate)
+                    case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
+                    case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
                     case .commits:
                         CommitsView(project: project, items: items, searchText: searchText, refreshTrigger: refreshTrigger) {
                             await reload()
@@ -168,7 +168,7 @@ struct ProjectDetailView: View {
             case .modeWeek:    mode = .week
             case .modeMonth:   mode = .month
             case .modeGit:     mode = .commits
-            case .newItem:     beginCreate()
+            case .newItem:     beginCreate(kind: .task)
             case .refresh:
                 refreshTrigger += 1
                 toast.show(L10n.t(.refreshed), type: .success, duration: 1.5)
@@ -208,6 +208,10 @@ struct ProjectDetailView: View {
             Button(L10n.t(.cancel), role: .cancel) { itemToDelete = nil }
             Button(L10n.t(.delete), role: .destructive) {
                 if let item = itemToDelete {
+                    if item.facetKind == .note, let facetID = item.facetID,
+                       let dir = project.dataDirectory, !dir.isEmpty {
+                        NoteStore.shared.delete(dataDirectory: dir, facetID: facetID)
+                    }
                     Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
                 }
                 itemToDelete = nil
@@ -228,6 +232,11 @@ struct ProjectDetailView: View {
                 }
             }
         ) {
+            if selectedItem.facetKind == .note {
+                NoteDetailPane(item: selectedItem, project: project) {
+                    withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
+                }
+            } else {
             ItemDetailPane(item: selectedItem,
                            project: project,
                            focusTitleOnAppear: selectedItem.id == focusTitleItemID,
@@ -245,6 +254,7 @@ struct ProjectDetailView: View {
                     await reload(selecting: selectionID, endingReplacement: selectionID != nil)
                 }
             })
+            }
         }
     }
 
@@ -312,9 +322,14 @@ struct ProjectDetailView: View {
     }
 
     private var actionCluster: some View {
-        ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
-            beginCreate()
-        } accessory: {
+        ItemActionCluster(
+            itemFilter: $itemFilter,
+            showCompleted: $showCompleted,
+            animation: listAnimation,
+            onAdd: { beginCreate(kind: .task) },
+            onCreateKind: { kind in beginCreate(kind: kind) },
+            canCreateNote: !(project.dataDirectory ?? "").isEmpty
+        ) {
             sortPill
         }
     }
@@ -544,7 +559,7 @@ struct ProjectDetailView: View {
     private func previewDropEntered(dragged: ProjectItem, target: ProjectItem) {
         if dragged.kind == target.kind {
             moveItem(from: dragged, to: target)
-        } else if dragged.linkedPaperIDs.isEmpty {
+        } else if dragged.linkedPaperIDs.isEmpty && !dragged.isNote && !target.isNote {
             previewKindChange(dragged: dragged, target: target)
         }
     }
@@ -585,7 +600,7 @@ struct ProjectDetailView: View {
     }
 
     private func persistKindChange(original: ProjectItem, current: ProjectItem, snapshot: [ProjectItem]?) {
-        guard original.linkedPaperIDs.isEmpty else {
+        guard original.linkedPaperIDs.isEmpty && !original.isNote else {
             if let snapshot {
                 withAnimation(listAnimation) { items = snapshot }
             }
@@ -681,7 +696,16 @@ struct ProjectDetailView: View {
         loading = false
     }
 
-    private func beginCreate(initialDate: Date? = nil) {
+    private func beginCreate(kind: FacetKind, initialDate: Date? = nil) {
+        switch kind {
+        case .task:  createTask(initialDate: initialDate)
+        case .event: createEventItem(initialDate: initialDate)
+        case .note:  createNoteItem(initialDate: initialDate)
+        case .paper: break // papers are added only from the literature view
+        }
+    }
+
+    private func createTask(initialDate: Date?) {
         let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
         guard !listName.isEmpty else {
             toast.show(L10n.pick("Choose a reminder list first", "请先选择一个提醒事项列表"), type: .error)
@@ -698,6 +722,59 @@ struct ProjectDetailView: View {
                 enabledLists: settings.effectiveReminderListNames
             ) else {
                 toast.show(L10n.pick("Could not create item", "无法创建条目"), type: .error)
+                return
+            }
+            refreshTrigger += 1
+            await reload(selecting: id, focusTitle: true)
+        }
+    }
+
+    private func createEventItem(initialDate: Date?) {
+        let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
+        guard !calName.isEmpty else {
+            toast.show(L10n.pick("Choose a calendar first", "请先选择一个日历"), type: .error)
+            return
+        }
+        Task {
+            let start = FacetDateDefaults.dayDefault(reference: initialDate ?? Date())
+            guard let id = await ek.createEvent(
+                project: project.prefix,
+                content: L10n.pick("New Event", "新事件"),
+                calendarName: calName,
+                startDate: start,
+                durationMinutes: settings.defaultEventDurationMinutes,
+                enabledCalendars: settings.effectiveCalendarNames
+            ) else {
+                toast.show(L10n.pick("Could not create item", "无法创建条目"), type: .error)
+                return
+            }
+            refreshTrigger += 1
+            await reload(selecting: id, focusTitle: true)
+        }
+    }
+
+    private func createNoteItem(initialDate: Date?) {
+        let dataDirectory = project.dataDirectory ?? ""
+        guard !dataDirectory.isEmpty else {
+            toast.show(L10n.pick("Set a project data folder first", "请先为项目设置数据目录"), type: .error)
+            return
+        }
+        let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
+        guard !calName.isEmpty else {
+            toast.show(L10n.pick("Choose a calendar first", "请先选择一个日历"), type: .error)
+            return
+        }
+        Task {
+            let start = initialDate ?? Date()
+            guard let id = await ek.createNote(
+                project: project.prefix,
+                content: L10n.pick("New Note", "新笔记"),
+                calendarName: calName,
+                startDate: start,
+                dataDirectory: dataDirectory,
+                enabledCalendars: settings.effectiveCalendarNames
+            ) else {
+                toast.show(L10n.pick("Could not create note", "无法创建笔记"), type: .error)
                 return
             }
             refreshTrigger += 1

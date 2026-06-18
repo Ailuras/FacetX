@@ -168,6 +168,11 @@ struct ItemActionCluster<Accessory: View>: View {
     @Binding var showCompleted: Bool
     var animation: Animation = FacetTheme.listSpring
     let onAdd: () -> Void
+    /// When set, the "+" becomes a menu letting the user pick what to create.
+    /// `nil` keeps the plain add button (used by Week/Month, which add by date).
+    var onCreateKind: ((FacetKind) -> Void)?
+    /// Whether the "New Note" option is selectable (needs a project data folder).
+    var canCreateNote: Bool = true
     private let accessory: Accessory
 
     init(
@@ -175,12 +180,16 @@ struct ItemActionCluster<Accessory: View>: View {
         showCompleted: Binding<Bool>,
         animation: Animation = FacetTheme.listSpring,
         onAdd: @escaping () -> Void,
+        onCreateKind: ((FacetKind) -> Void)? = nil,
+        canCreateNote: Bool = true,
         @ViewBuilder accessory: () -> Accessory
     ) {
         self._itemFilter = itemFilter
         self._showCompleted = showCompleted
         self.animation = animation
         self.onAdd = onAdd
+        self.onCreateKind = onCreateKind
+        self.canCreateNote = canCreateNote
         self.accessory = accessory()
     }
 
@@ -196,11 +205,36 @@ struct ItemActionCluster<Accessory: View>: View {
             ) {
                 withAnimation(animation) { showCompleted.toggle() }
             }
-            FilterPillButton(systemName: "plus",
-                             help: L10n.pick("Add an item to this project", "向该项目添加条目"),
-                             action: onAdd)
+            if let onCreateKind {
+                createMenu(onCreateKind)
+            } else {
+                FilterPillButton(systemName: "plus",
+                                 help: L10n.pick("Add an item to this project", "向该项目添加条目"),
+                                 action: onAdd)
+            }
         }
         .pillGroupContainer()
+    }
+
+    private func createMenu(_ onCreateKind: @escaping (FacetKind) -> Void) -> some View {
+        Menu {
+            Button { onCreateKind(.task) } label: { Label(FacetKind.task.singularTitle, systemImage: FacetKind.task.systemImage) }
+            Button { onCreateKind(.event) } label: { Label(FacetKind.event.singularTitle, systemImage: FacetKind.event.systemImage) }
+            Button { onCreateKind(.note) } label: { Label(FacetKind.note.singularTitle, systemImage: FacetKind.note.systemImage) }
+                .disabled(!canCreateNote)
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: FacetTheme.chipHeight)
+                .contentShape(Rectangle())
+        } primaryAction: {
+            onCreateKind(.task)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L10n.pick("Add an item to this project", "向该项目添加条目"))
     }
 }
 

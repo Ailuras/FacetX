@@ -95,7 +95,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     let tags = store.tags(for: facetID)
                     let papers = store.paperIDs(for: facetID)
                     let commits = store.commits(for: facetID)
-                    return item.withMergedMetadata(notes: body.isEmpty ? nil : body, tags: tags, paperIDs: papers, commits: commits)
+                    let isNote = item.kind == .event && store.isNote(for: facetID)
+                    return item.withMergedMetadata(notes: body.isEmpty ? nil : body, tags: tags, paperIDs: papers, commits: commits, isNote: isNote)
                 } else {
                     return item
                 }
@@ -339,6 +340,34 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         } catch {
             return nil
         }
+    }
+
+    /// Create a note: an all-day calendar event anchor flagged as a note, with
+    /// an empty markdown file seeded in the project's data folder. Returns the
+    /// anchor event identifier on success.
+    @discardableResult
+    func createNote(project: String, content: String,
+                    calendarName: String, startDate: Date,
+                    dataDirectory: String?,
+                    enabledCalendars: Set<String>? = nil) async -> String? {
+        let metadata = FacetItemMetadata(itemID: UUID().uuidString)
+        let eventId = await createEvent(
+            project: project,
+            content: content,
+            calendarName: calendarName,
+            startDate: startDate,
+            itemMetadata: metadata,
+            isAllDay: true,
+            enabledCalendars: enabledCalendars
+        )
+        guard eventId != nil else { return nil }
+        await MainActor.run {
+            ItemStore.shared.setIsNote(true, for: metadata.itemID)
+            if let dataDirectory, !dataDirectory.isEmpty {
+                NoteStore.shared.save(dataDirectory: dataDirectory, facetID: metadata.itemID, body: "")
+            }
+        }
+        return eventId
     }
 
     // ── Conversion helpers ───────────────────────────────────────────────────

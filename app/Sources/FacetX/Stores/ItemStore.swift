@@ -47,6 +47,45 @@ final class ItemStore {
         return found
     }
 
+    func isNote(for id: String) -> Bool {
+        let sql = "SELECT is_note FROM items WHERE id = ? LIMIT 1"
+        var stmt: OpaquePointer?
+        var value = false
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                value = sqlite3_column_int(stmt, 0) != 0
+            }
+        }
+        sqlite3_finalize(stmt)
+        return value
+    }
+
+    func setIsNote(_ isNote: Bool, for id: String) {
+        let sql = """
+        INSERT INTO items (id, is_note, created_at, updated_at, last_seen_at)
+        VALUES (?, ?, datetime('now'), datetime('now'), datetime('now'))
+        ON CONFLICT(id) DO UPDATE SET
+            is_note = excluded.is_note,
+            updated_at = datetime('now'),
+            last_seen_at = datetime('now')
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            persistenceError = databaseError("prepare save is_note")
+            return
+        }
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 2, isNote ? 1 : 0)
+        if sqlite3_step(stmt) == SQLITE_DONE {
+            persistenceError = nil
+            version += 1
+        } else {
+            persistenceError = databaseError("save is_note")
+        }
+        sqlite3_finalize(stmt)
+    }
+
     func body(for id: String) -> String {
         let sql = "SELECT note_body FROM items WHERE id = ? LIMIT 1"
         var stmt: OpaquePointer?
@@ -301,6 +340,7 @@ final class ItemStore {
             id TEXT PRIMARY KEY,
             note_body TEXT NOT NULL DEFAULT '',
             tags_json TEXT NOT NULL DEFAULT '[]',
+            is_note INTEGER NOT NULL DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
             last_seen_at TEXT DEFAULT (datetime('now'))
@@ -328,6 +368,9 @@ final class ItemStore {
             persistenceError = errorMsg.map { String(cString: $0) } ?? "Could not create tables."
             sqlite3_free(errorMsg)
         }
+        // Migrate older databases that predate the is_note column. The ALTER
+        // fails harmlessly with "duplicate column" once the column exists.
+        _ = sqlite3_exec(db, "ALTER TABLE items ADD COLUMN is_note INTEGER NOT NULL DEFAULT 0;", nil, nil, nil)
     }
 
     private func columnString(_ stmt: OpaquePointer?, _ index: Int32) -> String {
