@@ -750,21 +750,21 @@ struct TopicDetailView: View {
     }
 
     private func addPaperToProject(_ paper: Paper, project: Project) {
-        let calendarName: String
-        if let projCal = project.literatureCalendarName, !projCal.isEmpty {
-            calendarName = projCal
-        } else if !appSettings.defaultLiteratureCalendarName.isEmpty {
-            calendarName = appSettings.defaultLiteratureCalendarName
-        } else if !appSettings.defaultCalendarName.isEmpty {
-            calendarName = appSettings.defaultCalendarName
+        let listName: String
+        if let projList = project.literatureListName, !projList.isEmpty {
+            listName = projList
+        } else if !appSettings.defaultLiteratureListName.isEmpty {
+            listName = appSettings.defaultLiteratureListName
+        } else if !appSettings.defaultReminderListName.isEmpty {
+            listName = appSettings.defaultReminderListName
         } else {
-            toast.show(L10n.pick("No literature calendar configured. Please set a default or project calendar.", "未配置文献日历，请在设置或项目属性中指定。"), type: .warning)
+            toast.show(L10n.pick("No paper list configured. Please set a default or project paper list.", "未配置文献列表，请在设置或项目属性中指定。"), type: .warning)
             return
         }
 
         let paperUrl = URL(string: paper.landingPageUrl)
 
-        let eventMetadata = FacetItemMetadata(
+        let reminderMetadata = FacetItemMetadata(
             itemID: UUID().uuidString,
             paperIDs: [paper.id],
             commits: [],
@@ -772,25 +772,24 @@ struct TopicDetailView: View {
         )
 
         Task {
-            let eventId = await ek.createEvent(
+            let reminderId = await ek.createReminder(
                 project: project.prefix,
                 content: paper.title,
-                calendarName: calendarName,
-                startDate: Date(),
-                durationMinutes: appSettings.defaultEventDurationMinutes,
-                itemMetadata: eventMetadata,
+                listName: listName,
+                dueDate: nil,
+                dueIncludesTime: false,
+                itemMetadata: reminderMetadata,
                 url: paperUrl,
-                isAllDay: true,
-                enabledCalendars: appSettings.effectiveCalendarNames
+                enabledLists: appSettings.effectiveReminderListNames
             )
 
-            if eventId != nil {
-                toast.show(L10n.pick("Added literature to project “\(project.name)” as event", "已将文献作为日历日程添加到项目“\(project.name)”"), type: .success, duration: 2)
+            if reminderId != nil {
+                toast.show(L10n.pick("Added paper to project “\(project.name)”", "已将文献添加到项目“\(project.name)”"), type: .success, duration: 2)
                 await MainActor.run {
                     loadPaperLinks()
                 }
             } else {
-                toast.show(L10n.pick("Failed to create calendar event", "创建日历日程失败"), type: .error)
+                toast.show(L10n.pick("Failed to add paper", "添加文献失败"), type: .error)
             }
         }
     }

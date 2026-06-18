@@ -11,7 +11,7 @@ struct NewProjectView: View {
     @State private var reminderListName: String
     @State private var calendarName: String
     @State private var weekGoalCalendarName: String
-    @State private var literatureCalendarName: String
+    @State private var literatureListName: String
     @State private var githubRepo: String
     @State private var colorName: String
     @State private var iconName: String
@@ -28,7 +28,7 @@ struct NewProjectView: View {
         _reminderListName = State(initialValue: draft.reminderListName)
         _calendarName = State(initialValue: draft.calendarName)
         _weekGoalCalendarName = State(initialValue: draft.weekGoalCalendarName)
-        _literatureCalendarName = State(initialValue: draft.literatureCalendarName)
+        _literatureListName = State(initialValue: draft.literatureListName)
         _githubRepo = State(initialValue: draft.githubRepo)
         _colorName = State(initialValue: draft.colorName)
         _iconName = State(initialValue: draft.iconName)
@@ -93,10 +93,10 @@ struct NewProjectView: View {
             ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: draft.reminderLists)
             ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: draft.calendars)
             ProjectEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: draft.calendars)
-            ProjectEditorPicker(title: L10n.pick("Literature Calendar", "文献日历"), selection: $literatureCalendarName, options: draft.calendars)
-            if calendarName == literatureCalendarName && !calendarName.isEmpty {
-                ProjectEditorWarning(L10n.pick("Calendar and Literature Calendar should not be the same.",
-                                               "条目日历与文献日历不应相同。"))
+            ProjectEditorPicker(title: L10n.pick("Paper List", "文献列表"), selection: $literatureListName, options: draft.reminderLists)
+            if reminderListName == literatureListName && !reminderListName.isEmpty {
+                ProjectEditorWarning(L10n.pick("Reminders and Paper List should not be the same.",
+                                               "提醒事项列表与文献列表不应相同。"))
             }
         }
     }
@@ -130,7 +130,7 @@ struct NewProjectView: View {
                  reminderListName.isEmpty ? nil : reminderListName,
                  calendarName.isEmpty ? nil : calendarName,
                  weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName,
-                 literatureCalendarName.isEmpty ? nil : literatureCalendarName,
+                 literatureListName.isEmpty ? nil : literatureListName,
                  colorName,
                  iconName,
                  repo.isEmpty ? nil : repo)

@@ -232,7 +232,7 @@ struct ContentView: View {
                     let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
                                                   reminderListName: reminderList, calendarName: calendar,
                                                   weekGoalCalendarName: goalCalendar,
-                                                  literatureCalendarName: literatureCalendar,
+                                                  literatureListName: literatureCalendar,
                                                   colorName: colorName,
                                                   iconName: iconName,
                                                   githubRepo: githubRepo)
@@ -351,7 +351,7 @@ struct ContentView: View {
             reminderListName: defaultName(settings.defaultReminderListName, in: reminderLists),
             calendarName: defaultName(settings.defaultCalendarName, in: calendars),
             weekGoalCalendarName: defaultName(settings.weekGoalCalendarName, in: calendars),
-            literatureCalendarName: defaultName(settings.defaultLiteratureCalendarName, in: calendars),
+            literatureListName: defaultName(settings.defaultLiteratureListName, in: reminderLists),
             reminderLists: reminderLists,
             calendars: calendars
         )

@@ -278,18 +278,18 @@ struct ProjectSettingsTab: View {
                                  selection: $settings.defaultCalendarName,
                                  values: enabledCalendarNames)
                 compactDivider
-                defaultPickerRow(title: L10n.pick("Literature Calendar", "文献日历"),
+                defaultPickerRow(title: L10n.pick("Paper List", "文献列表"),
                                  systemImage: "books.vertical",
-                                 selection: $settings.defaultLiteratureCalendarName,
-                                 values: enabledCalendarNames)
-                if settings.defaultCalendarName == settings.defaultLiteratureCalendarName && !settings.defaultCalendarName.isEmpty {
+                                 selection: $settings.defaultLiteratureListName,
+                                 values: enabledReminderNames)
+                if settings.defaultReminderListName == settings.defaultLiteratureListName && !settings.defaultReminderListName.isEmpty {
                     compactDivider
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.orange)
-                        Text(L10n.pick("Default Calendar and default Literature Calendar should not be the same.",
-                                       "默认条目日历与默认文献日历不应相同。"))
+                        Text(L10n.pick("Default Task List and default Paper List should not be the same.",
+                                       "默认任务列表与默认文献列表不应相同。"))
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                     }
@@ -605,11 +605,11 @@ struct ProjectSettingsTab: View {
                 ? (enabledCalendarNames.first ?? "")
                 : settings.defaultCalendarName
         }
-        if settings.defaultLiteratureCalendarName.isEmpty
-            || !enabledCalendarNames.contains(settings.defaultLiteratureCalendarName) {
-            settings.defaultLiteratureCalendarName = settings.defaultCalendarName.isEmpty
-                ? (enabledCalendarNames.first ?? "")
-                : settings.defaultCalendarName
+        if settings.defaultLiteratureListName.isEmpty
+            || !enabledReminderNames.contains(settings.defaultLiteratureListName) {
+            settings.defaultLiteratureListName = settings.defaultReminderListName.isEmpty
+                ? (enabledReminderNames.first ?? "")
+                : settings.defaultReminderListName
         }
         if settings.defaultEventDurationMinutes < 5 {
             settings.defaultEventDurationMinutes = 5

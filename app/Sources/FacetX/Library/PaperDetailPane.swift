@@ -488,8 +488,8 @@ struct PaperDetailPane: View {
                             .help(L10n.pick("View in Project", "在项目中查看"))
                             .hoverCursor(.pointingHand)
 
-                            let isLiteratureEvent = item.kind == .event && !item.linkedPaperIDs.isEmpty
-                            if !isLiteratureEvent {
+                            let isPaperAnchor = item.facetKind == .paper
+                            if !isPaperAnchor {
                                 Button(role: .destructive) {
                                     removeLink(from: item)
                                 } label: {

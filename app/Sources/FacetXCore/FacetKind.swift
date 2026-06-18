@@ -19,10 +19,9 @@ public extension ProjectItem {
     var facetKind: FacetKind {
         switch kind {
         case .reminder:
-            return .task
+            return linkedPaperIDs.isEmpty ? .task : .paper
         case .event:
-            if isNote { return .note }
-            return linkedPaperIDs.isEmpty ? .event : .paper
+            return isNote ? .note : .event
         }
     }
 }

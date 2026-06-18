@@ -219,8 +219,8 @@ struct ProjectDetailView: View {
 
     private func detailPane(for selectedItem: ProjectItem) -> some View {
         FacetSidebarPane(
-            title: selectedItem.kind == .reminder ? L10n.t(.paneReminder) : L10n.t(.paneSchedule),
-            systemImage: selectedItem.kind == .reminder ? "checklist" : "calendar",
+            title: selectedItem.facetKind.singularTitle,
+            systemImage: selectedItem.facetKind.systemImage,
             onClose: {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
