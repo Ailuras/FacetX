@@ -13,6 +13,7 @@ struct NoteDetailPane: View {
     @State private var text: String = ""
     @State private var loaded = false
     @State private var editing = false
+    @StateObject private var editorController = MarkdownEditorController()
 
     private var dataDirectory: String { project.dataDirectory ?? "" }
     private var facetID: String? { item.facetID }
@@ -89,11 +90,20 @@ struct NoteDetailPane: View {
             .padding(.vertical, 8)
 
             if editing {
-                TextEditor(text: $text)
-                    .font(.system(size: 13, design: .monospaced))
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 12)
+                formattingToolbar
+                Divider()
+                MarkdownEditor(text: $text, controller: editorController)
+                    .frame(maxHeight: .infinity)
                     .onChange(of: text) { _, _ in persist() }
+                Divider()
+                // Live render of what is being typed.
+                ScrollView {
+                    MarkdownPreview(text: text)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+                .background(FacetTheme.quietPanel.opacity(0.4))
             } else {
                 ScrollView {
                     if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -111,6 +121,34 @@ struct NoteDetailPane: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var formattingToolbar: some View {
+        HStack(spacing: 2) {
+            toolbarButton("bold", help: "Bold ⌘B") { editorController.bold() }
+            toolbarButton("italic", help: "Italic ⌘I") { editorController.italic() }
+            toolbarButton("chevron.left.forwardslash.chevron.right", help: L10n.pick("Code", "代码")) { editorController.code() }
+            Divider().frame(height: 14)
+            toolbarButton("number", help: L10n.pick("Heading", "标题")) { editorController.heading() }
+            toolbarButton("list.bullet", help: L10n.pick("List", "列表")) { editorController.bulletList() }
+            toolbarButton("text.quote", help: L10n.pick("Quote", "引用")) { editorController.quote() }
+            toolbarButton("link", help: "Link ⌘K") { editorController.link() }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private func toolbarButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     // ── Persistence ───────────────────────────────────────────────────────────
