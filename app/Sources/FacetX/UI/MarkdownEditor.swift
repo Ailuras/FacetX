@@ -122,6 +122,7 @@ struct MarkdownEditor: NSViewRepresentable {
 
         scroll.documentView = formatting
         controller.textView = formatting
+        context.coordinator.highlighter.textView = formatting
         context.coordinator.highlighter.highlight(formatting.textStorage!)
         return scroll
     }

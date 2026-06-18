@@ -11,6 +11,9 @@ final class MarkdownSyntaxHighlighter: NSObject, NSTextStorageDelegate {
     /// Re-entrancy guard: editing attributes inside the delegate callback would
     /// otherwise trigger another didProcessEditing pass.
     private var isHighlighting = false
+    /// The editor, so we can skip restyling while an input method is composing
+    /// marked text (otherwise Chinese/Japanese/etc. composition is broken).
+    weak var textView: NSTextView?
 
     static var bodyFont: NSFont { NSFont.systemFont(ofSize: 13) }
 
@@ -27,6 +30,9 @@ final class MarkdownSyntaxHighlighter: NSObject, NSTextStorageDelegate {
                      range editedRange: NSRange,
                      changeInLength delta: Int) {
         guard editedMask.contains(.editedCharacters), !isHighlighting else { return }
+        // Don't touch the storage mid-composition or the input method's marked
+        // text gets torn down on every keystroke (breaks Chinese/Japanese input).
+        if textView?.hasMarkedText() == true { return }
         isHighlighting = true
         defer { isHighlighting = false }
         highlight(textStorage)
