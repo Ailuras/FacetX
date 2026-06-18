@@ -211,6 +211,8 @@ struct StandardItemRow: View {
 
     private func convertItemType() {
         let proj = store.activeProjects.first { $0.prefix == projectPrefix }
+        let metadata = item.facetItemMetadata()
+        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
         Task {
             let newId: String?
             if item.kind == .reminder {
@@ -219,8 +221,9 @@ struct StandardItemRow: View {
                     reminderId: item.id,
                     project: item.projectPrefix,
                     content: item.content,
-                    notes: item.notes,
+                    notes: nil,
                     tags: item.tags,
+                    itemMetadata: metadata,
                     dueDate: item.date,
                     durationMinutes: settings.defaultEventDurationMinutes,
                     calendarName: calName.isEmpty ? settings.defaultCalendarName : calName
@@ -231,8 +234,9 @@ struct StandardItemRow: View {
                     eventId: item.id,
                     project: item.projectPrefix,
                     content: item.content,
-                    notes: item.notes,
+                    notes: nil,
                     tags: item.tags,
+                    itemMetadata: metadata,
                     priority: item.priority,
                     startDate: item.date,
                     hasTime: item.hasTime,

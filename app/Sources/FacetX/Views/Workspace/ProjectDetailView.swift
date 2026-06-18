@@ -31,6 +31,7 @@ struct ProjectDetailView: View {
     @State private var refreshTrigger = 0
     @State private var sortOption: SortOption = .manual
     @State private var itemFilter = ItemListFilter()
+    @State private var noteStore = ItemNoteStore.shared
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
@@ -609,6 +610,8 @@ struct ProjectDetailView: View {
             draggedItem = nil
             return
         }
+        let metadata = original.facetItemMetadata()
+        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: original.notes ?? "")
         Task {
             let newId: String?
             if original.kind == .reminder {
@@ -617,8 +620,9 @@ struct ProjectDetailView: View {
                     reminderId: original.id,
                     project: project.prefix,
                     content: original.content,
-                    notes: original.notes,
+                    notes: nil,
                     tags: original.tags,
+                    itemMetadata: metadata,
                     dueDate: original.date,
                     durationMinutes: settings.defaultEventDurationMinutes,
                     calendarName: calName.isEmpty ? settings.defaultCalendarName : calName,
@@ -630,8 +634,9 @@ struct ProjectDetailView: View {
                     eventId: original.id,
                     project: project.prefix,
                     content: original.content,
-                    notes: original.notes,
+                    notes: nil,
                     tags: original.tags,
+                    itemMetadata: metadata,
                     priority: original.priority,
                     startDate: original.date,
                     hasTime: original.hasTime,

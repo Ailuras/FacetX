@@ -112,6 +112,16 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         )
     }
 
+    public func facetItemMetadata() -> FacetItemMetadata {
+        FacetItemMetadata(
+            itemID: facetID ?? UUID().uuidString,
+            noteID: noteID ?? UUID().uuidString,
+            paperIDs: linkedPaperIDs,
+            commits: linkedCommits,
+            tags: tags
+        )
+    }
+
     /// Whether this item matches a free-text search over its content, notes and
     /// container name. An empty/whitespace query matches everything, so callers
     /// can filter unconditionally.

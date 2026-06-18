@@ -686,13 +686,7 @@ struct ItemDetailPane: View {
 
         kind = item.kind
         content = item.content
-        itemMetadata = FacetItemMetadata(
-            itemID: item.facetID ?? UUID().uuidString,
-            noteID: item.noteID ?? UUID().uuidString,
-            paperIDs: item.linkedPaperIDs,
-            commits: item.linkedCommits,
-            tags: item.tags
-        )
+        itemMetadata = item.facetItemMetadata()
         metadataNeedsRepair = item.needsMetadataRepair
         let localNotes = noteStore.body(for: itemMetadata.noteID)
         notes = localNotes.isEmpty && metadataNeedsRepair ? (item.notes ?? "") : localNotes
