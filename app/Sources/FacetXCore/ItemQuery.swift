@@ -1,16 +1,23 @@
 import Foundation
 
 public struct ItemCounts: Equatable, Sendable {
-    public let openReminderCount: Int
-    public let completedReminderCount: Int
+    public let taskOpenCount: Int
+    public let taskCompletedCount: Int
     public let eventCount: Int
-    public let literatureCount: Int
+    public let paperCount: Int
+    public let noteCount: Int
 
-    public init(openReminderCount: Int, completedReminderCount: Int, eventCount: Int, literatureCount: Int) {
-        self.openReminderCount = openReminderCount
-        self.completedReminderCount = completedReminderCount
+    public init(taskOpenCount: Int, taskCompletedCount: Int, eventCount: Int, paperCount: Int, noteCount: Int) {
+        self.taskOpenCount = taskOpenCount
+        self.taskCompletedCount = taskCompletedCount
         self.eventCount = eventCount
-        self.literatureCount = literatureCount
+        self.paperCount = paperCount
+        self.noteCount = noteCount
+    }
+
+    /// Total across every element type (open + completed tasks included).
+    public var allCount: Int {
+        taskOpenCount + taskCompletedCount + eventCount + paperCount + noteCount
     }
 }
 
@@ -55,10 +62,11 @@ public enum ItemQuery {
 
     public static func counts(for items: [ProjectItem]) -> ItemCounts {
         ItemCounts(
-            openReminderCount: items.filter { $0.kind == .reminder && !$0.isCompleted }.count,
-            completedReminderCount: items.filter { $0.kind == .reminder && $0.isCompleted }.count,
-            eventCount: items.filter { $0.kind == .event && $0.linkedPaperIDs.isEmpty }.count,
-            literatureCount: items.filter { $0.kind == .event && !$0.linkedPaperIDs.isEmpty }.count
+            taskOpenCount: items.filter { $0.facetKind == .task && !$0.isCompleted }.count,
+            taskCompletedCount: items.filter { $0.facetKind == .task && $0.isCompleted }.count,
+            eventCount: items.filter { $0.facetKind == .event }.count,
+            paperCount: items.filter { $0.facetKind == .paper }.count,
+            noteCount: items.filter { $0.facetKind == .note }.count
         )
     }
 

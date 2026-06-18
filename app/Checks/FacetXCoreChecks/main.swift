@@ -246,8 +246,8 @@ check(ItemQuery.filtered(filterItems, by: ItemListFilter(dateScope: .nextSevenDa
       "item filter should keep dated items in the next seven days")
 
 let counts = ItemQuery.counts(for: queryItems)
-check(counts.openReminderCount == 1, "counts should include open reminders")
-check(counts.completedReminderCount == 1, "counts should include completed reminders")
+check(counts.taskOpenCount == 1, "counts should include open tasks")
+check(counts.taskCompletedCount == 1, "counts should include completed tasks")
 check(counts.eventCount == 1, "counts should include events")
 check(ItemQuery.projectPrefixCount(for: [todayOpen, todayEvent, tomorrowOpen]) == 2,
       "projectPrefixCount should count distinct project prefixes")

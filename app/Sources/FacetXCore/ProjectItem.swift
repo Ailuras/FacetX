@@ -26,6 +26,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let facetID: String?    // stable FacetX item identity stored in EventKit notes metadata
     public let linkedPaperIDs: [String]
     public let linkedCommits: [String]
+    public let isNote: Bool        // true when this event anchors a local markdown note
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
                  content: String, containerName: String, isCompleted: Bool, date: Date?,
@@ -33,7 +34,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
                  hasTime: Bool = false,
                  isAllDay: Bool = false, endDate: Date? = nil,
                  facetID: String? = nil,
-                 linkedPaperIDs: [String] = [], linkedCommits: [String] = []) {
+                 linkedPaperIDs: [String] = [], linkedCommits: [String] = [],
+                 isNote: Bool = false) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
@@ -52,6 +54,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.facetID = facetID
         self.linkedPaperIDs = linkedPaperIDs
         self.linkedCommits = linkedCommits
+        self.isNote = isNote
     }
 
     /// Build a copy with a different kind. Used as a drag-preview placeholder
@@ -76,7 +79,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             endDate: endDate,
             facetID: facetID,
             linkedPaperIDs: linkedPaperIDs,
-            linkedCommits: linkedCommits
+            linkedCommits: linkedCommits,
+            isNote: isNote
         )
     }
 
@@ -99,7 +103,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             endDate: endDate ?? self.endDate,
             facetID: facetID,
             linkedPaperIDs: linkedPaperIDs,
-            linkedCommits: linkedCommits
+            linkedCommits: linkedCommits,
+            isNote: isNote
         )
     }
 
@@ -112,7 +117,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         )
     }
 
-    public func withMergedMetadata(notes: String?, tags: [String], paperIDs: [String], commits: [String]) -> ProjectItem {
+    public func withMergedMetadata(notes: String?, tags: [String], paperIDs: [String], commits: [String], isNote: Bool? = nil) -> ProjectItem {
         ProjectItem(
             id: id,
             kind: kind,
@@ -131,7 +136,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             endDate: endDate,
             facetID: facetID,
             linkedPaperIDs: paperIDs,
-            linkedCommits: commits
+            linkedCommits: commits,
+            isNote: isNote ?? self.isNote
         )
     }
 

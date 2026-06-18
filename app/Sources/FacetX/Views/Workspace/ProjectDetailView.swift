@@ -55,15 +55,19 @@ struct ProjectDetailView: View {
     }
 
     private var taskItems: [ProjectItem] {
-        visibleItems.filter { $0.kind == .reminder }
+        visibleItems.filter { $0.facetKind == .task }
     }
 
     private var scheduleItems: [ProjectItem] {
-        visibleItems.filter { $0.kind == .event && $0.linkedPaperIDs.isEmpty }
+        visibleItems.filter { $0.facetKind == .event }
     }
 
     private var literatureItems: [ProjectItem] {
-        visibleItems.filter { $0.kind == .event && !$0.linkedPaperIDs.isEmpty }
+        visibleItems.filter { $0.facetKind == .paper }
+    }
+
+    private var noteItems: [ProjectItem] {
+        visibleItems.filter { $0.facetKind == .note }
     }
 
     private var itemCounts: ItemCounts {
@@ -414,12 +418,10 @@ struct ProjectDetailView: View {
                 emptyAllItemsView
             } else {
                 List {
-                    itemKindSection(title: L10n.pick("Tasks", "任务"), systemImage: "checklist",
-                                    count: taskItems.count, color: .green, items: taskItems)
-                    itemKindSection(title: L10n.pick("Events", "事件"), systemImage: "calendar",
-                                    count: scheduleItems.count, color: .blue, items: scheduleItems)
-                    itemKindSection(title: L10n.pick("Literature", "文献"), systemImage: "books.vertical",
-                                    count: literatureItems.count, color: .yellow, items: literatureItems)
+                    itemKindSection(kind: .task, items: taskItems)
+                    itemKindSection(kind: .event, items: scheduleItems)
+                    itemKindSection(kind: .paper, items: literatureItems)
+                    itemKindSection(kind: .note, items: noteItems)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -443,11 +445,9 @@ struct ProjectDetailView: View {
                              : L10n.pick("Completed items hidden", "已隐藏完成的条目")
     }
 
-    @ViewBuilder private func itemKindSection(title: String, systemImage: String,
-                                              count: Int, color: Color,
-                                              items: [ProjectItem]) -> some View {
+    @ViewBuilder private func itemKindSection(kind: FacetKind, items: [ProjectItem]) -> some View {
         if !items.isEmpty {
-            itemKindHeader(title: title, systemImage: systemImage, count: count, color: color)
+            itemKindHeader(kind: kind, count: items.count)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
@@ -461,19 +461,19 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func itemKindHeader(title: String, systemImage: String, count: Int, color: Color) -> some View {
+    private func itemKindHeader(kind: FacetKind, count: Int) -> some View {
         HStack(spacing: 7) {
-            Image(systemName: systemImage)
+            Image(systemName: kind.systemImage)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(color)
-            Text(title)
+                .foregroundStyle(kind.color)
+            Text(kind.title)
                 .font(.system(size: 12, weight: .semibold))
             Text("\(count)")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(color)
+                .foregroundStyle(kind.color)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(color.opacity(0.12))
+                .background(kind.color.opacity(0.12))
                 .clipShape(Capsule())
             Spacer()
         }
@@ -490,32 +490,16 @@ struct ProjectDetailView: View {
 
     private var summaryCluster: some View {
         HStack(spacing: 6) {
-            SummaryChip(value: openTaskCount, label: L10n.pick("Tasks", "任务"), systemImage: "circle")
-            SummaryChip(value: eventCount, label: L10n.pick("Events", "事件"), systemImage: "calendar")
-            SummaryChip(value: literatureCount, label: L10n.pick("Literature", "文献"), systemImage: "books.vertical")
-            SummaryChip(value: completedReminderCount, label: L10n.pick("Done", "已完成"), systemImage: "checkmark.circle")
+            SummaryChip(value: itemCounts.taskOpenCount, label: FacetKind.task.title, systemImage: FacetKind.task.systemImage)
+            SummaryChip(value: itemCounts.eventCount, label: FacetKind.event.title, systemImage: FacetKind.event.systemImage)
+            SummaryChip(value: itemCounts.paperCount, label: FacetKind.paper.title, systemImage: FacetKind.paper.systemImage)
+            SummaryChip(value: itemCounts.noteCount, label: FacetKind.note.title, systemImage: FacetKind.note.systemImage)
         }
-    }
-
-    private var openTaskCount: Int {
-        itemCounts.openReminderCount
-    }
-
-    private var eventCount: Int {
-        itemCounts.eventCount
-    }
-
-    private var literatureCount: Int {
-        itemCounts.literatureCount
-    }
-
-    private var completedReminderCount: Int {
-        itemCounts.completedReminderCount
     }
 
     private var hiddenReminderCount: Int {
         guard !showCompleted else { return 0 }
-        return allScopedItems.filter { $0.kind == .reminder && $0.isCompleted }.count
+        return allScopedItems.filter { $0.facetKind == .task && $0.isCompleted }.count
     }
 
     private func projectItemRow(_ item: ProjectItem) -> some View {
