@@ -297,23 +297,11 @@ struct ProjectSettingsTab: View {
                     .padding(.horizontal, 4)
                 }
                 compactDivider
-                SettingsRow(title: L10n.pick("Event Duration", "事件时长"), systemImage: "clock",
-                            subtitle: L10n.pick("Applies to Item Calendar and Literature Calendar.",
-                                               "适用于条目日历与文献日历。")) {
-                    HStack(spacing: 8) {
-                        Text(L10n.pick("\(settings.defaultEventDurationMinutes) min",
-                                       "\(settings.defaultEventDurationMinutes) 分钟"))
-                            .font(SettingsUI.smallFont.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                            .frame(width: 72, alignment: .trailing)
-                        Stepper("", value: $settings.defaultEventDurationMinutes, in: 5...1440, step: 15)
-                            .labelsHidden()
-                            .controlSize(.mini)
-                    }
-                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-                }
-                .padding(.vertical, 1)
+                durationPickerRow(title: L10n.pick("Event Duration", "事件时长"),
+                                  systemImage: "clock",
+                                  subtitle: L10n.pick("Applies to Item Calendar and Literature Calendar.",
+                                                     "适用于条目日历与文献日历。"),
+                                  selection: $settings.defaultEventDurationMinutes)
                 compactDivider
                 defaultPickerRow(title: L10n.pick("Week Goal Calendar", "周目标日历"),
                                  systemImage: "target",
@@ -393,6 +381,38 @@ struct ProjectSettingsTab: View {
             Picker(title, selection: selection) {
                 if values.isEmpty { Text(L10n.pick("None", "无")).tag("") }
                 ForEach(values, id: \.self) { Text($0).tag($0) }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+        }
+        .padding(.vertical, 1)
+    }
+
+    // MARK: - Duration picker
+
+    private static let durationPresets = [15, 30, 45, 60, 90, 120, 180, 240]
+
+    private func durationLabel(_ minutes: Int) -> String {
+        if minutes < 60 {
+            return L10n.pick("\(minutes) min", "\(minutes) 分钟")
+        }
+        let h = minutes / 60
+        let m = minutes % 60
+        if m == 0 {
+            return L10n.pick("\(h) hr", "\(h) 小时")
+        }
+        return L10n.pick("\(h) hr \(m) min", "\(h) 小时 \(m) 分钟")
+    }
+
+    private func durationPickerRow(title: String, systemImage: String,
+                                   subtitle: String? = nil,
+                                   selection: Binding<Int>) -> some View {
+        SettingsRow(title: title, systemImage: systemImage, subtitle: subtitle) {
+            Picker(title, selection: selection) {
+                ForEach(Self.durationPresets, id: \.self) { minutes in
+                    Text(durationLabel(minutes)).tag(minutes)
+                }
             }
             .labelsHidden()
             .pickerStyle(.menu)

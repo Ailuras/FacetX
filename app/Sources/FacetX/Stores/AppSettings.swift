@@ -150,7 +150,9 @@ final class AppSettings: ObservableObject {
         self.lastOpenedProjectID = stored.lastOpenedProjectID ?? ""
         self.lastOpenedKind = stored.lastOpenedKind ?? "project"
         self.lastOpenedTopicID = stored.lastOpenedTopicID ?? ""
-        self.defaultEventDurationMinutes = stored.defaultEventDurationMinutes
+        let durationPresets = [15, 30, 45, 60, 90, 120, 180, 240]
+        let rawDuration = stored.defaultEventDurationMinutes
+        self.defaultEventDurationMinutes = durationPresets.min(by: { abs($0 - rawDuration) < abs($1 - rawDuration) }) ?? 60
         self.todayViewMode = stored.todayViewMode
         self.todayTimelineStartHour = stored.todayTimelineStartHour
         self.todayTimelineEndHour = stored.todayTimelineEndHour
