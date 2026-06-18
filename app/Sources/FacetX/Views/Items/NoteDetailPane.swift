@@ -12,7 +12,6 @@ struct NoteDetailPane: View {
 
     @State private var text: String = ""
     @State private var loaded = false
-    @State private var editing = false
     @StateObject private var editorController = MarkdownEditorController()
 
     private var dataDirectory: String { project.effectiveDataDirectory }
@@ -28,7 +27,6 @@ struct NoteDetailPane: View {
         .onAppear(perform: load)
         .onChange(of: item.id) { _, _ in
             loaded = false
-            editing = false
             load()
         }
         .onDisappear(perform: persist)
@@ -75,42 +73,12 @@ struct NoteDetailPane: View {
 
     @ViewBuilder private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Spacer()
-                Picker("", selection: $editing) {
-                    Text(L10n.pick("Preview", "预览")).tag(false)
-                    Text(L10n.pick("Edit", "编辑")).tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .controlSize(.small)
-                .fixedSize()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-
-            if editing {
-                formattingToolbar
-                Divider()
-                // Single editor that renders markdown inline as you type.
-                MarkdownEditor(text: $text, controller: editorController)
-                    .frame(maxHeight: .infinity)
-                    .onChange(of: text) { _, _ in persist() }
-            } else {
-                ScrollView {
-                    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(L10n.pick("Empty note. Switch to Edit to start writing.",
-                                       "空笔记。切换到编辑开始书写。"))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(16)
-                    } else {
-                        MarkdownPreview(text: text)
-                            .padding(16)
-                    }
-                }
-            }
+            formattingToolbar
+            Divider()
+            // Single live-rendering editor — renders markdown inline as you type.
+            MarkdownEditor(text: $text, controller: editorController)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onChange(of: text) { _, _ in persist() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
