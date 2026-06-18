@@ -85,8 +85,13 @@ struct MarkdownEditor: NSViewRepresentable {
         let formatting = FormattingTextView(frame: textView.frame, textContainer: textView.textContainer)
         formatting.controller = controller
         formatting.delegate = context.coordinator
+        formatting.textStorage?.delegate = context.coordinator.highlighter
         formatting.string = text
-        formatting.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+        formatting.font = MarkdownSyntaxHighlighter.bodyFont
+        formatting.typingAttributes = [
+            .font: MarkdownSyntaxHighlighter.bodyFont,
+            .foregroundColor: NSColor.labelColor
+        ]
         formatting.isRichText = false
         formatting.allowsUndo = true
         formatting.isAutomaticQuoteSubstitutionEnabled = false
@@ -98,6 +103,9 @@ struct MarkdownEditor: NSViewRepresentable {
         scroll.documentView = formatting
         scroll.drawsBackground = false
         controller.textView = formatting
+        if let storage = formatting.textStorage {
+            context.coordinator.highlighter.highlight(storage)
+        }
         return scroll
     }
 
@@ -113,6 +121,7 @@ struct MarkdownEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         let parent: MarkdownEditor
+        let highlighter = MarkdownSyntaxHighlighter()
         init(_ parent: MarkdownEditor) { self.parent = parent }
 
         func textDidChange(_ notification: Notification) {

@@ -92,18 +92,10 @@ struct NoteDetailPane: View {
             if editing {
                 formattingToolbar
                 Divider()
+                // Single editor that renders markdown inline as you type.
                 MarkdownEditor(text: $text, controller: editorController)
                     .frame(maxHeight: .infinity)
                     .onChange(of: text) { _, _ in persist() }
-                Divider()
-                // Live render of what is being typed.
-                ScrollView {
-                    MarkdownPreview(text: text)
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 180)
-                .background(FacetTheme.quietPanel.opacity(0.4))
             } else {
                 ScrollView {
                     if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
