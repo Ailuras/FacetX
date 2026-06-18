@@ -539,7 +539,6 @@ struct TopicDetailView: View {
         FacetSidebarPane(
             title: L10n.pick("Paper", "文献"),
             systemImage: "doc.text",
-            subtitle: paper.title,
             onClose: {
                 withAnimation(detailPaneAnimation) { selectedPaper = nil }
             }

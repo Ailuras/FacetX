@@ -21,7 +21,6 @@ enum FacetSidebarStyle {
 struct FacetSidebarPane<Accessory: View, Content: View>: View {
     let title: String
     let systemImage: String
-    let subtitle: String?
     let closeHelp: String
     let onClose: () -> Void
     private let accessory: Accessory
@@ -34,7 +33,6 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
     init(
         title: String,
         systemImage: String,
-        subtitle: String? = nil,
         closeHelp: String = "Close sidebar",
         onClose: @escaping () -> Void,
         @ViewBuilder accessory: () -> Accessory,
@@ -42,7 +40,6 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
     ) {
         self.title = title
         self.systemImage = systemImage
-        self.subtitle = subtitle
         self.closeHelp = closeHelp
         self.onClose = onClose
         self.accessory = accessory()
@@ -54,7 +51,6 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
             FacetSidebarHeader(
                 title: title,
                 systemImage: systemImage,
-                subtitle: subtitle,
                 closeHelp: closeHelp,
                 onClose: onClose,
                 accessory: { accessory }
@@ -120,7 +116,6 @@ extension FacetSidebarPane where Accessory == EmptyView {
     init(
         title: String,
         systemImage: String,
-        subtitle: String? = nil,
         closeHelp: String = "Close sidebar",
         onClose: @escaping () -> Void,
         @ViewBuilder content: () -> Content
@@ -128,7 +123,6 @@ extension FacetSidebarPane where Accessory == EmptyView {
         self.init(
             title: title,
             systemImage: systemImage,
-            subtitle: subtitle,
             closeHelp: closeHelp,
             onClose: onClose,
             accessory: { EmptyView() },
@@ -140,7 +134,6 @@ extension FacetSidebarPane where Accessory == EmptyView {
 private struct FacetSidebarHeader<Accessory: View>: View {
     let title: String
     let systemImage: String
-    let subtitle: String?
     let closeHelp: String
     let onClose: () -> Void
     let accessory: Accessory
@@ -148,14 +141,12 @@ private struct FacetSidebarHeader<Accessory: View>: View {
     init(
         title: String,
         systemImage: String,
-        subtitle: String?,
         closeHelp: String,
         onClose: @escaping () -> Void,
         @ViewBuilder accessory: () -> Accessory
     ) {
         self.title = title
         self.systemImage = systemImage
-        self.subtitle = subtitle
         self.closeHelp = closeHelp
         self.onClose = onClose
         self.accessory = accessory()
@@ -173,15 +164,6 @@ private struct FacetSidebarHeader<Accessory: View>: View {
 
             Spacer(minLength: 8)
 
-            if let subtitle = cleanSubtitle {
-                Text(subtitle)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 126, alignment: .trailing)
-            }
-
             accessory
 
             Button(action: onClose) {
@@ -195,14 +177,6 @@ private struct FacetSidebarHeader<Accessory: View>: View {
             .help(closeHelp)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-    }
-
-    private var cleanSubtitle: String? {
-        guard let subtitle = subtitle?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !subtitle.isEmpty else {
-            return nil
-        }
-        return subtitle
+        .padding(.vertical, 8)
     }
 }
