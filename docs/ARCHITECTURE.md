@@ -77,21 +77,13 @@ item-notes.db
     updated_at
 ```
 
-Reminder and calendar notes hold only FacetX metadata for normal project items.
-The user-facing work note body lives in the local item note database and is
-referenced by `note-id`.
+Reminder and calendar notes hold only a stable `item-id` (UUID) for normal project items.
+The user-facing note body, tags, and relationship links (linked papers and commits) live in the local `ItemStore` SQLite database under the `item-id` key.
 
-Canonical item metadata:
+Canonical item metadata in EventKit notes:
 
 ```text
-FacetX-Metadata-Begin
-commits: owner/repo@sha,...
-facetx-kind: item-v1
-item-id: stable-facetx-item-uuid
-note-id: local-note-uuid
-papers: paper-id,...
-tags: tag, tag
-FacetX-Metadata-End
+stable-facetx-item-uuid
 ```
 
 The `item-id` is the stable FacetX identity for the task/event. It is preserved
@@ -100,14 +92,15 @@ when a reminder is converted to a calendar event or vice versa. The EventKit
 must use metadata carried inside the item notes, not the EventKit identifier
 alone.
 
-FacetX does not maintain a separate link table for item relationships. Linked
-paper ids and commit ids are stored in the item metadata. This keeps task/event
-links portable with the EventKit item and avoids a second source of truth for
-relationships.
+FacetX maintains relationship link tables and metadata tables inside a local SQLite database (`item-notes.db` managed by `ItemStore`):
+- `items` maps `id` to `note_body` and `tags_json`.
+- `item_papers` maps `item_id` to `paper_id`.
+- `item_commits` maps `item_id` to `commit_id`.
 
-Current items write canonical metadata when they are created or first edited.
-FacetX does not keep a legacy notes-repair path; local beta data is disposable
-and can be rebuilt against the current schema.
+This avoids polluting EventKit notes with serialized CSV arrays of relationships (commits, literature papers) and makes filtering, querying, and relationship cleanups robust.
+
+Current items write stable UUID references when they are created or first edited.
+FacetX provides an Index Reconstruction utility under settings to rebuild and migrate legacy metadata formats into local SQLite.
 
 ## EventKit Concurrency
 
