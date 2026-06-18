@@ -56,15 +56,12 @@ struct LiteratureSettingsTab: View {
                 }
             }
 
-            SettingsDivider()
-
             SettingsRow(title: L10n.pick("Enable Automation", "启用自动化"), systemImage: "power") {
                 Toggle("", isOn: $automation.automationEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
             }
-            SettingsDivider()
 
             HStack(spacing: 10) {
                 automationPlan(title: L10n.pick("Monthly Fetch", "每月拉取"),
@@ -202,7 +199,7 @@ struct LiteratureSettingsTab: View {
             Text(unit)
                 .font(SettingsUI.smallFont)
                 .foregroundStyle(.secondary)
-                .frame(width: 32, alignment: .leading)
+                .frame(width: 48, alignment: .leading)
             Stepper("", value: value, in: range)
                 .labelsHidden()
                 .controlSize(.mini)
