@@ -3,8 +3,11 @@ import SwiftUI
 struct GeneralSettingsTab: View {
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var eventKit: EventKitService
     @State private var metadata = MetadataStore.shared
     @State private var automation = AutomationPreferences.shared
+    @State private var rebuildingIndex = false
+    @State private var resultMessage: String? = nil
 
     private var activeTopics: [TrackPref] {
         metadata.topics.filter { !$0.archived }
@@ -116,6 +119,38 @@ struct GeneralSettingsTab: View {
                         .textSelection(.enabled)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            SettingsCard(title: L10n.pick("Index Reconstruction", "索引重建"), systemImage: "arrow.counterclockwise.circle",
+                         subtitle: L10n.pick("Rebuild EventKit index, cleaning up legacy notes metadata.",
+                                             "重建 EventKit 索引，清理历史 notes 元数据。")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L10n.pick("This will scan all project items in EventKit, move legacy metadata to the local SQLite database, and rewrite EventKit notes to contain only stable item IDs.",
+                                   "此操作将扫描 EventKit 中的所有项目条目，将历史元数据移至本地 SQLite 数据库，并重写 EventKit notes 为纯净的 stable item ID。"))
+                        .font(SettingsUI.secondaryFont)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+
+                    HStack {
+                        Button {
+                            runReconstructIndex()
+                        } label: {
+                            if rebuildingIndex {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text(L10n.pick("Reconstruct Index Now", "立即重建索引"))
+                            }
+                        }
+                        .disabled(rebuildingIndex)
+
+                        if let resultMessage {
+                            Text(resultMessage)
+                                .font(SettingsUI.smallFont)
+                                .foregroundStyle(.green)
+                        }
+                    }
+                }
             }
         }
     }
@@ -229,6 +264,23 @@ struct GeneralSettingsTab: View {
             RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
+    }
+
+    private func runReconstructIndex() {
+        rebuildingIndex = true
+        resultMessage = nil
+        Task {
+            let prefixes = Set(store.projects.map(\.prefix))
+            let count = await eventKit.reconstructNotesIndex(
+                prefixes: prefixes,
+                enabledReminderLists: settings.effectiveReminderListNames,
+                enabledCalendars: settings.effectiveCalendarNames
+            )
+            await MainActor.run {
+                rebuildingIndex = false
+                resultMessage = L10n.pick("Done! Migrated \(count) items.", "完成！已迁移 \(count) 个条目。")
+            }
+        }
     }
 
     private func clamped(_ value: Binding<Int>, to range: ClosedRange<Int>) -> Binding<Int> {

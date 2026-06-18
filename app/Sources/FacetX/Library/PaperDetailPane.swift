@@ -14,7 +14,7 @@ struct PaperDetailPane: View {
     @EnvironmentObject private var toast: ToastController
     @EnvironmentObject private var projectStore: ProjectStore
     @EnvironmentObject private var ek: EventKitService
-    @State private var noteStore = ItemNoteStore.shared
+    @State private var noteStore = ItemStore.shared
     @State private var associatedItems: [ProjectItem] = []
     @State private var noteText: String = ""
     @State private var isTranslating = false
@@ -525,16 +525,12 @@ struct PaperDetailPane: View {
     }
 
     private func removeLink(from item: ProjectItem) {
-        var metadata = item.facetItemMetadata()
-        metadata = metadata.removingPaper(paper.id)
+        guard let facetID = item.facetID else { return }
+        let remainingPapers = item.linkedPaperIDs.filter { $0 != paper.id }
         Task {
-            let ok = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
-            if ok {
-                loadAssociatedItems()
-                toast.show(L10n.pick("Link removed", "已取消关联"), type: .success, duration: 1.6)
-            } else {
-                toast.show(L10n.pick("Failed to remove link", "取消关联失败"), type: .error)
-            }
+            ItemStore.shared.setPaperIDs(remainingPapers, for: facetID)
+            loadAssociatedItems()
+            toast.show(L10n.pick("Link removed", "已取消关联"), type: .success, duration: 1.6)
         }
     }
 }

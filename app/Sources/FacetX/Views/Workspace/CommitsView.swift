@@ -5,7 +5,7 @@ import SwiftUI
 struct CommitsView: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
-    @State private var noteStore = ItemNoteStore.shared
+    @State private var noteStore = ItemStore.shared
 
     let project: Project
     let items: [ProjectItem]
@@ -773,10 +773,19 @@ struct CommitsView: View {
 
     private func updateCommitLink(_ commit: GitHubCommit, item: ProjectItem, add: Bool) {
         let linkID = commitLinkID(commit)
-        var metadata = item.facetItemMetadata()
-        metadata = add ? metadata.addingCommit(linkID) : metadata.removingCommit(linkID)
+        let stableID = item.facetID ?? UUID().uuidString
+        var commits = item.linkedCommits
+        if add {
+            if !commits.contains(linkID) { commits.append(linkID) }
+        } else {
+            commits.removeAll { $0 == linkID }
+        }
         Task {
-            let ok = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
+            ItemStore.shared.setCommits(commits, for: stableID)
+            var ok = true
+            if item.facetID == nil {
+                ok = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: stableID))
+            }
             if ok {
                 await onItemsChanged()
             } else {

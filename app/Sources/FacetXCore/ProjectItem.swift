@@ -17,14 +17,13 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let isCompleted: Bool
     public let date: Date?         // due date (reminder) or start date (event)
     public let notes: String?      // user-facing notes / description, metadata stripped
-    public let tags: [String]      // FacetX tags parsed from the native notes metadata block
+    public let tags: [String]      // FacetX tags parsed from local database
     public let priority: Int       // priority value (0 = none, 1-4 = high, 5 = med, 9 = low)
     public let url: URL?           // URL associated with the item
     public let hasTime: Bool       // true when the date carries an explicit time component
     public let isAllDay: Bool      // true for all-day events (events only; always false for reminders)
     public let endDate: Date?      // end date for events (nil for reminders)
     public let facetID: String?    // stable FacetX item identity stored in EventKit notes metadata
-    public let noteID: String?     // local note record id stored in EventKit notes metadata
     public let linkedPaperIDs: [String]
     public let linkedCommits: [String]
 
@@ -33,7 +32,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
                  notes: String?, tags: [String] = [], priority: Int, url: URL?,
                  hasTime: Bool = false,
                  isAllDay: Bool = false, endDate: Date? = nil,
-                 facetID: String? = nil, noteID: String? = nil,
+                 facetID: String? = nil,
                  linkedPaperIDs: [String] = [], linkedCommits: [String] = []) {
         self.id = id
         self.kind = kind
@@ -51,7 +50,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.isAllDay = isAllDay
         self.endDate = endDate
         self.facetID = facetID
-        self.noteID = noteID
         self.linkedPaperIDs = linkedPaperIDs
         self.linkedCommits = linkedCommits
     }
@@ -77,7 +75,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             isAllDay: isAllDay,
             endDate: endDate,
             facetID: facetID,
-            noteID: noteID,
             linkedPaperIDs: linkedPaperIDs,
             linkedCommits: linkedCommits
         )
@@ -101,7 +98,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             isAllDay: isAllDay,
             endDate: endDate ?? self.endDate,
             facetID: facetID,
-            noteID: noteID,
             linkedPaperIDs: linkedPaperIDs,
             linkedCommits: linkedCommits
         )
@@ -110,10 +106,32 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public func facetItemMetadata() -> FacetItemMetadata {
         FacetItemMetadata(
             itemID: facetID ?? UUID().uuidString,
-            noteID: noteID ?? UUID().uuidString,
             paperIDs: linkedPaperIDs,
             commits: linkedCommits,
             tags: tags
+        )
+    }
+
+    public func withMergedMetadata(notes: String?, tags: [String], paperIDs: [String], commits: [String]) -> ProjectItem {
+        ProjectItem(
+            id: id,
+            kind: kind,
+            rawTitle: rawTitle,
+            projectPrefix: projectPrefix,
+            content: content,
+            containerName: containerName,
+            isCompleted: isCompleted,
+            date: date,
+            notes: notes,
+            tags: tags,
+            priority: priority,
+            url: url,
+            hasTime: hasTime,
+            isAllDay: isAllDay,
+            endDate: endDate,
+            facetID: facetID,
+            linkedPaperIDs: paperIDs,
+            linkedCommits: commits
         )
     }
 

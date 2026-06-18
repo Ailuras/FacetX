@@ -6,7 +6,7 @@ struct ItemDetailPane: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var toast: ToastController
-    @State private var noteStore = ItemNoteStore.shared
+    @State private var noteStore = ItemStore.shared
     @State private var paperStore = PaperStore.shared
 
     let item: ProjectItem
@@ -666,7 +666,8 @@ struct ItemDetailPane: View {
         kind = item.kind
         content = item.content
         itemMetadata = item.facetItemMetadata()
-        notes = noteStore.body(for: itemMetadata.noteID)
+        let stableID = item.facetID ?? itemMetadata.itemID
+        notes = noteStore.body(for: stableID)
         savedNoteSignature = notes
         tagsText = item.tags.joined(separator: ", ")
         priority = item.priority
@@ -773,8 +774,15 @@ struct ItemDetailPane: View {
 
     private func saveLocalNoteIfNeeded() {
         guard notes != savedNoteSignature else { return }
-        noteStore.save(id: itemMetadata.noteID, body: notes)
+        let stableID = item.facetID ?? itemMetadata.itemID
+        noteStore.save(id: stableID, body: notes)
         savedNoteSignature = notes
+        if item.facetID == nil {
+            Task {
+                _ = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: stableID))
+                onUpdate(item.id)
+            }
+        }
     }
 
     private func handleUseDateChanged() {
@@ -917,7 +925,18 @@ struct ItemDetailPane: View {
         updated.tags = FacetMetadata.tags(from: tagsText)
         saving = true
         Task {
-            let ok = await ek.rewriteItemMetadata(id: item.id, metadata: updated)
+            let stableID = item.facetID ?? updated.itemID
+            ItemStore.shared.saveAll(
+                id: stableID,
+                body: notes,
+                tags: updated.tags,
+                paperIDs: updated.paperIDs,
+                commits: updated.commits
+            )
+            var ok = true
+            if item.facetID == nil {
+                ok = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: stableID))
+            }
             saving = false
             if ok {
                 itemMetadata = updated

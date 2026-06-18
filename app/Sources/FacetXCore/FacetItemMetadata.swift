@@ -1,62 +1,41 @@
 import Foundation
 
-/// Item-level FacetX metadata embedded in a Reminder/Calendar notes field.
-///
-/// EventKit remains the owner of the task/event. FacetX stores only durable
-/// references here: a stable local item id, a local note id, and resource links.
 public struct FacetItemMetadata: Equatable, Sendable {
-    public static let kindValue = "item-v1"
-
-    public static let kindKey = "facetx-kind"
-    public static let itemIDKey = "item-id"
-    public static let noteIDKey = "note-id"
-    public static let papersKey = "papers"
-    public static let commitsKey = "commits"
-
     public var itemID: String
-    public var noteID: String
+
+    // For convenience / compatibility with callers, we keep these properties in the struct
+    // so method signatures and initialization don't require churn:
     public var paperIDs: [String]
     public var commits: [String]
     public var tags: [String]
 
     public init(itemID: String = UUID().uuidString,
-                noteID: String = UUID().uuidString,
                 paperIDs: [String] = [],
                 commits: [String] = [],
                 tags: [String] = []) {
         self.itemID = itemID
-        self.noteID = noteID
         self.paperIDs = Self.normalizedList(paperIDs)
         self.commits = Self.normalizedList(commits)
         self.tags = FacetMetadata.normalizedTags(tags)
     }
 
-    public static func parse(_ metadata: FacetMetadata) -> FacetItemMetadata? {
-        guard metadata.fields[kindKey] == kindValue,
-              let itemID = nonEmpty(metadata.fields[itemIDKey]),
-              let noteID = nonEmpty(metadata.fields[noteIDKey]) else {
-            return nil
+    public static func parse(notes: String?) -> FacetItemMetadata? {
+        guard let notes = notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty else { return nil }
+        if UUID(uuidString: notes) != nil {
+            return FacetItemMetadata(itemID: notes)
         }
-        return FacetItemMetadata(
-            itemID: itemID,
-            noteID: noteID,
-            paperIDs: decodeList(metadata.fields[papersKey] ?? ""),
-            commits: decodeList(metadata.fields[commitsKey] ?? ""),
-            tags: metadata.tags
-        )
-    }
-
-    public func facetMetadata() -> FacetMetadata {
-        var fields: [String: String] = [
-            Self.kindKey: Self.kindValue,
-            Self.itemIDKey: itemID,
-            Self.noteIDKey: noteID
-        ]
-        let papers = Self.encodeList(paperIDs)
-        if !papers.isEmpty { fields[Self.papersKey] = papers }
-        let commits = Self.encodeList(commits)
-        if !commits.isEmpty { fields[Self.commitsKey] = commits }
-        return FacetMetadata(tags: tags, fields: fields)
+        if notes.contains("FacetX-Metadata-Begin") {
+            let parsed = FacetMetadata.parse(notes: notes)
+            if let itemID = parsed.fields["item-id"] ?? parsed.fields["note-id"] {
+                return FacetItemMetadata(
+                    itemID: itemID,
+                    paperIDs: [],
+                    commits: [],
+                    tags: parsed.tags
+                )
+            }
+        }
+        return nil
     }
 
     public func addingPaper(_ id: String) -> FacetItemMetadata {
@@ -83,20 +62,6 @@ public struct FacetItemMetadata: Equatable, Sendable {
         return copy
     }
 
-    public static func encodeList(_ values: [String]) -> String {
-        normalizedList(values)
-            .map { percentEncode($0) }
-            .joined(separator: ",")
-    }
-
-    public static func decodeList(_ value: String) -> [String] {
-        normalizedList(
-            value.split(separator: ",")
-                .map(String.init)
-                .map { $0.removingPercentEncoding ?? $0 }
-        )
-    }
-
     private static func normalizedList(_ values: [String]) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
@@ -107,19 +72,5 @@ public struct FacetItemMetadata: Equatable, Sendable {
             result.append(trimmed)
         }
         return result
-    }
-
-    private static func percentEncode(_ value: String) -> String {
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: ",")
-        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
-    }
-
-    private static func nonEmpty(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty else {
-            return nil
-        }
-        return trimmed
     }
 }

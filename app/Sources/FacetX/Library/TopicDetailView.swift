@@ -767,7 +767,6 @@ struct TopicDetailView: View {
 
         let eventMetadata = FacetItemMetadata(
             itemID: UUID().uuidString,
-            noteID: UUID().uuidString,
             paperIDs: [paper.id],
             commits: [],
             tags: []

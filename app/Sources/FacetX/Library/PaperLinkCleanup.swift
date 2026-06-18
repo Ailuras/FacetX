@@ -7,7 +7,7 @@ enum PaperLinkCleanup {
                                projectStore: ProjectStore,
                                appSettings: AppSettings,
                                ek: EventKitService,
-                               noteStore: ItemNoteStore = .shared) async -> Int {
+                               itemStore: ItemStore = .shared) async -> Int {
         let targetIDs = Set(paperIDs)
         guard !targetIDs.isEmpty else { return 0 }
 
@@ -23,10 +23,8 @@ enum PaperLinkCleanup {
             let remainingPaperIDs = item.linkedPaperIDs.filter { !targetIDs.contains($0) }
             guard remainingPaperIDs.count != item.linkedPaperIDs.count else { continue }
 
-            var metadata = item.facetItemMetadata()
-            metadata.paperIDs = remainingPaperIDs
-
-            if await ek.rewriteItemMetadata(id: item.id, metadata: metadata) {
+            if let facetID = item.facetID {
+                itemStore.setPaperIDs(remainingPaperIDs, for: facetID)
                 changed += 1
             }
         }

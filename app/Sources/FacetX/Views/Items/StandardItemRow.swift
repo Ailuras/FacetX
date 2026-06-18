@@ -26,7 +26,7 @@ struct StandardItemRow: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: ProjectStore
-    @State private var noteStore = ItemNoteStore.shared
+    @State private var noteStore = ItemStore.shared
 
     let item: ProjectItem
     let projectPrefix: String
@@ -274,9 +274,11 @@ struct StandardItemRow: View {
     private func commitNotesEdit() {
         Task {
             guard inlineEdit.notesID == item.id else { return }
-            let metadata = item.facetItemMetadata()
-            noteStore.save(id: metadata.noteID, body: inlineEdit.notesText.trimmingCharacters(in: .whitespacesAndNewlines))
-            _ = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
+            let facetID = item.facetID ?? UUID().uuidString
+            noteStore.save(id: facetID, body: inlineEdit.notesText.trimmingCharacters(in: .whitespacesAndNewlines))
+            if item.facetID == nil {
+                _ = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: facetID))
+            }
             await MainActor.run {
                 inlineEdit.notesID = nil
             }
@@ -285,8 +287,8 @@ struct StandardItemRow: View {
     }
 
     private func startNotesEdit() {
-        if let noteID = item.noteID {
-            inlineEdit.notesText = noteStore.body(for: noteID)
+        if let facetID = item.facetID {
+            inlineEdit.notesText = noteStore.body(for: facetID)
         } else {
             inlineEdit.notesText = ""
         }

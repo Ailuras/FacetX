@@ -31,7 +31,7 @@ struct ProjectDetailView: View {
     @State private var refreshTrigger = 0
     @State private var sortOption: SortOption = .manual
     @State private var itemFilter = ItemListFilter()
-    @State private var noteStore = ItemNoteStore.shared
+    @State private var noteStore = ItemStore.shared
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
