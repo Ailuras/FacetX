@@ -160,7 +160,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                         containerName: r.calendar?.title ?? "?",
                         isCompleted: r.isCompleted,
                         date: r.dueDateComponents?.date,
-                        notes: metadata.userNotes.isEmpty ? nil : metadata.userNotes,
+                        notes: nil,
                         tags: metadata.tags,
                         priority: r.priority,
                         url: r.url,
@@ -213,7 +213,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                 containerName: e.calendar.title,
                 isCompleted: false,
                 date: e.startDate,
-                notes: metadata.userNotes.isEmpty ? nil : metadata.userNotes,
+                notes: nil,
                 tags: metadata.tags,
                 priority: 0,
                 url: e.url,
@@ -290,7 +290,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     @discardableResult
     func createReminder(project: String, content: String,
                         listName: String, dueDate: Date?, dueIncludesTime: Bool,
-                        notes: String? = nil,
+                        tags: [String] = [],
+                        itemMetadata: FacetItemMetadata? = nil,
                         priority: Int = 0, url: URL? = nil,
                         enabledLists: Set<String>? = nil) async -> String? {
         let lists = filtered(store.calendars(for: .reminder), by: enabledLists)
@@ -299,7 +300,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         let r = EKReminder(eventStore: store)
         r.title = ProjectPrefix.makeTitle(project: project, content: content)
         r.calendar = list
-        r.notes = notes
+        r.notes = composeItemNotes(tags: tags, itemMetadata: itemMetadata)
         r.priority = priority
         r.url = url
         if let due = dueDate {
@@ -318,7 +319,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     @discardableResult
     func createEvent(project: String, content: String,
                      calendarName: String, startDate: Date,
-                     durationMinutes: Int = 60, notes: String? = nil,
+                     durationMinutes: Int = 60,
+                     tags: [String] = [],
+                     itemMetadata: FacetItemMetadata? = nil,
                      url: URL? = nil,
                      isAllDay: Bool = false, enabledCalendars: Set<String>? = nil) async -> String? {
         let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
@@ -327,7 +330,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         let e = EKEvent(eventStore: store)
         e.title = ProjectPrefix.makeTitle(project: project, content: content)
         e.calendar = cal
-        e.notes = notes
+        e.notes = composeItemNotes(tags: tags, itemMetadata: itemMetadata)
         e.url = url
         e.isAllDay = isAllDay
         if isAllDay {
@@ -348,18 +351,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     // ── Conversion helpers ───────────────────────────────────────────────────
 
-    /// Compose a notes string that embeds tags as FacetMetadata, mirroring the
-    /// pattern used in `updateItem`. Returns nil when both notes and tags are empty.
-    private func composeNotes(userNotes: String?, tags: [String], itemMetadata: FacetItemMetadata? = nil) -> String? {
-        let notes = userNotes ?? ""
-        let metadata: FacetMetadata
-        if var itemMetadata {
-            itemMetadata.tags = tags
-            metadata = itemMetadata.facetMetadata()
-        } else {
-            metadata = FacetMetadata(userNotes: notes, tags: tags)
-        }
-        return FacetMetadata.compose(userNotes: notes, metadata: metadata)
+    private func composeItemNotes(tags: [String], itemMetadata: FacetItemMetadata? = nil) -> String? {
+        var metadata = itemMetadata ?? FacetItemMetadata()
+        metadata.tags = tags
+        return FacetMetadata.compose(userNotes: "", metadata: metadata.facetMetadata())
     }
 
     /// Delete a reminder and create a calendar event with the same content.
@@ -369,7 +364,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         reminderId: String,
         project: String,
         content: String,
-        notes: String?,
         tags: [String],
         itemMetadata: FacetItemMetadata? = nil,
         dueDate: Date?,
@@ -378,14 +372,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         enabledCalendars: Set<String>? = nil
     ) async -> String? {
         let startDate = dueDate ?? Calendar.current.startOfDay(for: Date())
-        let composedNotes = composeNotes(userNotes: notes, tags: tags, itemMetadata: itemMetadata)
         let createdId = await createEvent(
             project: project,
             content: content,
             calendarName: calendarName,
             startDate: startDate,
             durationMinutes: max(durationMinutes, 15),
-            notes: composedNotes,
+            tags: tags,
+            itemMetadata: itemMetadata,
             enabledCalendars: enabledCalendars
         )
         guard let createdId else { return nil }
@@ -399,7 +393,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         eventId: String,
         project: String,
         content: String,
-        notes: String?,
         tags: [String],
         itemMetadata: FacetItemMetadata? = nil,
         priority: Int,
@@ -408,14 +401,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         listName: String,
         enabledLists: Set<String>? = nil
     ) async -> String? {
-        let composedNotes = composeNotes(userNotes: notes, tags: tags, itemMetadata: itemMetadata)
         let newId = await createReminder(
             project: project,
             content: content,
             listName: listName,
             dueDate: startDate,
             dueIncludesTime: hasTime,
-            notes: composedNotes,
+            tags: tags,
+            itemMetadata: itemMetadata,
             priority: priority,
             enabledLists: enabledLists
         )
@@ -548,14 +541,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Update an existing item (reminder or event)'s content, date, container, notes, and priority.
+    /// Update an existing item (reminder or event)'s content, date, container, metadata, and priority.
     ///
     /// `url` is only written when `updateURL` is true. Callers that don't edit the
     /// URL (inline title/notes edits, the edit sheet) leave it untouched — passing
     /// the default would otherwise silently erase an item's existing link.
     func updateItem(id: String, project: String, content: String,
                     date: Date?, useDate: Bool, dateIncludesTime: Bool,
-                    containerName: String, notes: String?, tags: [String]? = nil, priority: Int,
+                    containerName: String, tags: [String]? = nil, priority: Int,
                     url: URL? = nil, updateURL: Bool = false,
                     isAllDay: Bool? = nil, endDate: Date? = nil) async -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
@@ -563,10 +556,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         let newTitle = ProjectPrefix.makeTitle(project: project, content: content)
         item.title = newTitle
         let existingMetadata = FacetMetadata.parse(notes: item.notes)
-        let metadata = FacetMetadata(userNotes: notes ?? "",
-                                     tags: tags ?? existingMetadata.tags,
-                                     fields: existingMetadata.fields)
-        item.notes = FacetMetadata.compose(userNotes: notes ?? "", metadata: metadata)
+        var itemMetadata = FacetItemMetadata.parse(existingMetadata) ?? FacetItemMetadata()
+        itemMetadata.tags = tags ?? existingMetadata.tags
+        item.notes = FacetMetadata.compose(userNotes: "", metadata: itemMetadata.facetMetadata())
         if updateURL { item.url = url }
 
         if let reminder = item as? EKReminder {

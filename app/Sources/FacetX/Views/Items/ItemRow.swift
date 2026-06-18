@@ -266,12 +266,6 @@ struct ItemRow: View {
                                     .help(L10n.pick("Linked Commits", "已关联提交"))
                             }
 
-                            if let notes = item.notes, !notes.isEmpty {
-                                Image(systemName: "doc.text")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.tertiary)
-                            }
-
                             ForEach(item.tags, id: \.self) { tag in
                                 let tagColor = settings.tagColor(for: tag)
                                 HStack(spacing: 2) {

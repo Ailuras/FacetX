@@ -244,7 +244,6 @@ extension WeekView {
                 useDate: true,
                 dateIncludesTime: current.hasTime,
                 containerName: current.containerName,
-                notes: current.notes,
                 tags: current.tags,
                 priority: current.priority,
                 url: current.url,

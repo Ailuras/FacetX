@@ -773,10 +773,6 @@ struct TopicDetailView: View {
             tags: []
         )
 
-        // Notes: keep the event notes canonical (metadata-only, no user text).
-        // The paper's bibliographic details are accessible via the linked paper ID.
-        let composedNotes = FacetMetadata.compose(userNotes: "", metadata: eventMetadata.facetMetadata())
-
         Task {
             let eventId = await ek.createEvent(
                 project: project.prefix,
@@ -784,7 +780,7 @@ struct TopicDetailView: View {
                 calendarName: calendarName,
                 startDate: Date(),
                 durationMinutes: 60,
-                notes: composedNotes,
+                itemMetadata: eventMetadata,
                 url: paperUrl,
                 isAllDay: true,
                 enabledCalendars: appSettings.effectiveCalendarNames

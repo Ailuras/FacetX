@@ -17,11 +17,6 @@ struct ItemInlineEditState {
         titleID = nil
     }
 
-    mutating func startNotesEdit(for item: ProjectItem) {
-        notesText = item.notes ?? ""
-        notesID = item.id
-    }
-
     mutating func cancelNotesEdit() {
         notesID = nil
     }
@@ -220,7 +215,6 @@ struct StandardItemRow: View {
                     reminderId: item.id,
                     project: item.projectPrefix,
                     content: item.content,
-                    notes: nil,
                     tags: item.tags,
                     itemMetadata: metadata,
                     dueDate: item.date,
@@ -233,7 +227,6 @@ struct StandardItemRow: View {
                     eventId: item.id,
                     project: item.projectPrefix,
                     content: item.content,
-                    notes: nil,
                     tags: item.tags,
                     itemMetadata: metadata,
                     priority: item.priority,

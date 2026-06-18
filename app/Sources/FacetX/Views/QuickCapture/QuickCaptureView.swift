@@ -271,7 +271,6 @@ struct QuickCaptureView: View {
         guard !content.isEmpty else { return }
 
         let tags = FacetMetadata.tags(from: tagsText)
-        let notes = FacetMetadata.compose(userNotes: "", metadata: FacetMetadata(userNotes: "", tags: tags))
         let day = quickDate.date
         error = nil
 
@@ -287,7 +286,7 @@ struct QuickCaptureView: View {
                 created = await ek.createReminder(
                     project: project.prefix, content: content,
                     listName: listName, dueDate: day, dueIncludesTime: false,
-                    notes: notes,
+                    tags: tags,
                     enabledLists: settings.effectiveReminderListNames
                 )
             case .event:
@@ -301,7 +300,8 @@ struct QuickCaptureView: View {
                     project: project.prefix, content: content,
                     calendarName: calName, startDate: start,
                     durationMinutes: settings.defaultEventDurationMinutes,
-                    notes: notes, isAllDay: true,
+                    tags: tags,
+                    isAllDay: true,
                     enabledCalendars: settings.effectiveCalendarNames
                 )
             }
