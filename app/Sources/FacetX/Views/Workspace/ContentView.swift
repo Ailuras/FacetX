@@ -270,12 +270,7 @@ struct ContentView: View {
                 Button(L10n.t(.cancel), role: .cancel) { topicToDelete = nil }
                 Button(L10n.t(.delete), role: .destructive) {
                     if let topic = topicToDelete {
-                        litStore.purgeTopicPapers(topic.name)
-                        litMeta.deleteTopic(id: topic.id)
-                        if case .topic(let id) = selection, id == topic.id {
-                            selection = nil
-                        }
-                        toast.show(L10n.pick("Library deleted", "文献库已删除"), type: .success)
+                        deleteTopic(topic)
                     }
                     topicToDelete = nil
                 }
@@ -358,6 +353,24 @@ struct ContentView: View {
             reminderLists: reminderLists,
             calendars: calendars
         )
+    }
+
+    private func deleteTopic(_ topic: TrackPref) {
+        Task {
+            let deletedPaperIDs = litStore.paperIdsSolelyInTopic(topic.name)
+            _ = await PaperLinkCleanup.removePaperIDs(
+                deletedPaperIDs,
+                projectStore: store,
+                appSettings: settings,
+                ek: ek
+            )
+            litStore.purgeTopicPapers(topic.name)
+            litMeta.deleteTopic(id: topic.id)
+            if case .topic(let id) = selection, id == topic.id {
+                selection = nil
+            }
+            toast.show(L10n.pick("Library deleted", "文献库已删除"), type: .success)
+        }
     }
 
     private func uniqueProjectName(in existing: Set<String>) -> String {

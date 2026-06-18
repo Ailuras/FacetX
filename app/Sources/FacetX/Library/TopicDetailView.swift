@@ -198,11 +198,7 @@ struct TopicDetailView: View {
             Button(L10n.pick("Cancel", "取消"), role: .cancel) { paperToDelete = nil }
             Button(L10n.pick("Delete", "删除"), role: .destructive) {
                 if let paper = paperToDelete {
-                    if selectedPaper?.id == paper.id {
-                        withAnimation(detailPaneAnimation) { selectedPaper = nil }
-                    }
-                    store.deletePapers(ids: [paper.id])
-                    toast.show(L10n.pick("Paper deleted", "已删除文献"), type: .success, duration: 2)
+                    deletePaper(paper)
                 }
                 paperToDelete = nil
             }
@@ -802,6 +798,22 @@ struct TopicDetailView: View {
             } else {
                 toast.show(L10n.pick("Failed to create calendar event", "创建日历日程失败"), type: .error)
             }
+        }
+    }
+
+    private func deletePaper(_ paper: Paper) {
+        if selectedPaper?.id == paper.id {
+            withAnimation(detailPaneAnimation) { selectedPaper = nil }
+        }
+        Task {
+            _ = await PaperLinkCleanup.removePaperIDs(
+                [paper.id],
+                projectStore: projectStore,
+                appSettings: appSettings,
+                ek: ek
+            )
+            store.deletePapers(ids: [paper.id])
+            toast.show(L10n.pick("Paper deleted", "已删除文献"), type: .success, duration: 2)
         }
     }
 
