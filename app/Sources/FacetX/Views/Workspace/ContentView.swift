@@ -228,10 +228,11 @@ struct ContentView: View {
                 Text("“\(projectToDelete?.name ?? "")” \(L10n.t(.deleteProjectMessage))")
             }
             .sheet(item: $draftProject) { draft in
-                NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, colorName, iconName, githubRepo in
+                NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, literatureCalendar, colorName, iconName, githubRepo in
                     let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
                                                   reminderListName: reminderList, calendarName: calendar,
                                                   weekGoalCalendarName: goalCalendar,
+                                                  literatureCalendarName: literatureCalendar,
                                                   colorName: colorName,
                                                   iconName: iconName,
                                                   githubRepo: githubRepo)
@@ -350,6 +351,7 @@ struct ContentView: View {
             reminderListName: defaultName(settings.defaultReminderListName, in: reminderLists),
             calendarName: defaultName(settings.defaultCalendarName, in: calendars),
             weekGoalCalendarName: defaultName(settings.weekGoalCalendarName, in: calendars),
+            literatureCalendarName: defaultName(settings.defaultLiteratureCalendarName, in: calendars),
             reminderLists: reminderLists,
             calendars: calendars
         )
