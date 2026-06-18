@@ -125,9 +125,11 @@ struct TodayTimelinePanel: View {
                             }
                         }
 
-                        // Item cards
-                        ForEach(itemPositions.indices, id: \.self) { idx in
-                            compactTimelineCard(itemPositions[idx])
+                        // Item cards — laid out in overlap columns within the area width.
+                        GeometryReader { geo in
+                            ForEach(itemPositions.indices, id: \.self) { idx in
+                                compactTimelineCard(itemPositions[idx], containerWidth: geo.size.width)
+                            }
                         }
 
                         // Live drag time indicator
@@ -191,8 +193,14 @@ struct TodayTimelinePanel: View {
         let item: ProjectItem
         let yOffset: CGFloat
         let height: CGFloat
+        /// Lane index and total lanes in this item's overlap cluster, used to lay
+        /// overlapping items out in side-by-side columns rather than stacking.
+        var column: Int = 0
+        var columnCount: Int = 1
     }
 
+    /// Lay items at their true time positions, then split overlapping items into
+    /// side-by-side columns (calendar-style) instead of pushing them downward.
     private func compactPositionedItems(startHour: Int, hourHeight: CGFloat) -> [PositionedTimelineItem] {
         let cal = Calendar.current
         let startH = Double(startHour)
@@ -209,36 +217,73 @@ struct TodayTimelinePanel: View {
             return (item, h, max(dur, 0.5))
         }.sorted { $0.start < $1.start }
 
-        var result: [PositionedTimelineItem] = []
-
-        for item in sorted {
-            let y = (item.start - startH) * Double(hourHeight)
-            let h = item.item.kind == .reminder ? 20.0 : item.duration * Double(hourHeight)
-            var finalY = y
-
-            for prev in result {
-                let prevBottom = prev.yOffset + prev.height
-                if finalY < prevBottom && prev.yOffset < finalY + CGFloat(h) {
-                    finalY = prevBottom + 3
-                }
-            }
-
-            result.append(PositionedTimelineItem(item: item.item, yOffset: CGFloat(finalY), height: CGFloat(h)))
+        var result: [PositionedTimelineItem] = sorted.map { entry in
+            let y = (entry.start - startH) * Double(hourHeight)
+            let h = entry.item.kind == .reminder ? 20.0 : entry.duration * Double(hourHeight)
+            return PositionedTimelineItem(item: entry.item, yOffset: CGFloat(y), height: CGFloat(h))
         }
 
+        assignColumns(&result)
         return result
+    }
+
+    /// Greedy lane assignment: walk items top-to-bottom, reuse a freed lane when
+    /// one exists, otherwise open a new one. A cluster ends once an item starts at
+    /// or below every active lane's bottom; every item in a cluster shares the
+    /// cluster's lane count so their widths match.
+    private func assignColumns(_ items: inout [PositionedTimelineItem]) {
+        let order = items.indices.sorted {
+            items[$0].yOffset != items[$1].yOffset
+                ? items[$0].yOffset < items[$1].yOffset
+                : items[$0].height > items[$1].height
+        }
+
+        var laneBottoms: [CGFloat] = []   // current bottom y of each active lane
+        var cluster: [Int] = []           // result indices in the current cluster
+        var clusterLanes = 0
+
+        func flush() {
+            for i in cluster { items[i].columnCount = max(clusterLanes, 1) }
+            cluster.removeAll()
+            laneBottoms.removeAll()
+            clusterLanes = 0
+        }
+
+        for idx in order {
+            let top = items[idx].yOffset
+            let bottom = top + items[idx].height
+            if !laneBottoms.isEmpty, top >= (laneBottoms.max() ?? 0) {
+                flush()
+            }
+            var lane = laneBottoms.firstIndex(where: { $0 <= top }) ?? -1
+            if lane == -1 {
+                laneBottoms.append(bottom)
+                lane = laneBottoms.count - 1
+            } else {
+                laneBottoms[lane] = bottom
+            }
+            items[idx].column = lane
+            cluster.append(idx)
+            clusterLanes = max(clusterLanes, laneBottoms.count)
+        }
+        flush()
     }
 
     // MARK: – Timeline card
 
-    private func compactTimelineCard(_ pos: PositionedTimelineItem) -> some View {
+    private func compactTimelineCard(_ pos: PositionedTimelineItem, containerWidth: CGFloat) -> some View {
         let item = pos.item
         let isSelected = item.id == selectedItem?.id
         let project = projectsByPrefix[item.projectPrefix]
-        let tint: Color = item.kind == .reminder ? .green : .blue
+        let tint: Color = item.facetKind.color
         let cardBg = isSelected ? tint.opacity(0.16) : tint.opacity(0.12)
         let cardStroke = isSelected ? tint.opacity(0.68) : tint.opacity(0.34)
         let isReminder = item.kind == .reminder
+
+        let gutter: CGFloat = 3
+        let columnCount = max(pos.columnCount, 1)
+        let cardWidth = max((containerWidth - gutter * CGFloat(columnCount - 1)) / CGFloat(columnCount), 1)
+        let xOffset = CGFloat(pos.column) * (cardWidth + gutter)
 
         return Button {
             selectedItem = selectedItem?.id == item.id ? nil : item
@@ -253,7 +298,7 @@ struct TodayTimelinePanel: View {
                 } else {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Image(systemName: "calendar")
+                            Image(systemName: item.facetKind.systemImage)
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(tint)
 
@@ -291,8 +336,8 @@ struct TodayTimelinePanel: View {
         }
         .buttonStyle(.plain)
         .id(item.id)
-        .frame(height: max(pos.height, isReminder ? 20 : 26))
-        .offset(y: pos.yOffset + (draggingItemID == item.id ? dragOffsetY : 0))
+        .frame(width: cardWidth, height: max(pos.height, isReminder ? 20 : 26), alignment: .topLeading)
+        .offset(x: xOffset, y: pos.yOffset + (draggingItemID == item.id ? dragOffsetY : 0))
         .simultaneousGesture(
             DragGesture(minimumDistance: 6)
                 .onChanged { val in
@@ -318,7 +363,6 @@ struct TodayTimelinePanel: View {
                 }
         )
         .zIndex(draggingItemID == item.id ? 1 : 0)
-        .padding(.horizontal, 4)
     }
 
     private func timeRangeString(start: Date, end: Date) -> String {
