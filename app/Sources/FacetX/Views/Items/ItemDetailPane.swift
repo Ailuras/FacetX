@@ -443,11 +443,11 @@ struct ItemDetailPane: View {
     }
 
     private var notesCard: some View {
-        FacetDetailSection(title: L10n.pick("Notes", "笔记"), systemImage: "doc.text") {
+        FacetDetailSection(title: L10n.pick("Notes", "备注"), systemImage: "doc.text") {
             VStack(alignment: .leading, spacing: 8) {
                 ZStack(alignment: .topLeading) {
                     if notes.isEmpty {
-                        Text(L10n.pick("Add notes and details here...", "在此添加笔记和详情…"))
+                        Text(L10n.pick("Add notes and details here...", "在此添加备注和详情…"))
                             .font(.system(size: 12))
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 10)

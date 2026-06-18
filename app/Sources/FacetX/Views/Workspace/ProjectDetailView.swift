@@ -34,6 +34,8 @@ struct ProjectDetailView: View {
     @State private var noteStore = ItemStore.shared
     /// Element-type sections collapsed in the All view (header click or badge isolate).
     @State private var collapsedKinds: Set<FacetKind> = []
+    /// When true the detail pane hides the middle list and fills the area.
+    @State private var detailFullscreen = false
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
@@ -79,24 +81,27 @@ struct ProjectDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                Group {
-                    switch mode {
-                    case .all: allItemsView
-                    case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
-                    case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
-                    case .commits:
-                        CommitsView(project: project, items: items, searchText: searchText, refreshTrigger: refreshTrigger) {
-                            await reload()
+                if !detailFullscreen {
+                    Group {
+                        switch mode {
+                        case .all: allItemsView
+                        case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
+                        case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
+                        case .commits:
+                            CommitsView(project: project, items: items, searchText: searchText, refreshTrigger: refreshTrigger) {
+                                await reload()
+                            }
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let selectedItem = selectedDetailItem {
                     detailPane(for: selectedItem)
                 }
             }
             .animation(detailPaneAnimation, value: selectedDetailItem != nil)
+            .animation(detailPaneAnimation, value: detailFullscreen)
         }
         .background(FacetTheme.canvas)
         .navigationTitle(project.name)
@@ -154,6 +159,7 @@ struct ProjectDetailView: View {
             } else {
                 focusTitleItemID = nil
                 preserveSelectionDuringReplacement = false
+                detailFullscreen = false
             }
         }
         .onChange(of: showTodayPanel.wrappedValue) { _, newValue in
@@ -227,12 +233,14 @@ struct ProjectDetailView: View {
         FacetSidebarPane(
             title: selectedItem.facetKind.singularTitle,
             systemImage: selectedItem.facetKind.systemImage,
+            fillWidth: detailFullscreen,
             onClose: {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
                     preserveSelectionDuringReplacement = false
                 }
-            }
+            },
+            accessory: { fullscreenToggle }
         ) {
             if selectedItem.facetKind == .note {
                 NoteDetailPane(item: selectedItem, project: project) {
@@ -258,6 +266,21 @@ struct ProjectDetailView: View {
             })
             }
         }
+    }
+
+    private var fullscreenToggle: some View {
+        Button {
+            withAnimation(detailPaneAnimation) { detailFullscreen.toggle() }
+        } label: {
+            Image(systemName: detailFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(detailFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")
+                               : L10n.pick("Fullscreen", "全屏"))
     }
 
     private var modePicker: some View {

@@ -23,6 +23,9 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
     let systemImage: String
     let closeHelp: String
     let onClose: () -> Void
+    /// When true the pane fills the available width (used by the note fullscreen
+    /// mode) instead of its fixed, draggable width.
+    let fillWidth: Bool
     private let accessory: Accessory
     private let content: Content
 
@@ -34,6 +37,7 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
         title: String,
         systemImage: String,
         closeHelp: String = "Close sidebar",
+        fillWidth: Bool = false,
         onClose: @escaping () -> Void,
         @ViewBuilder accessory: () -> Accessory,
         @ViewBuilder content: () -> Content
@@ -41,6 +45,7 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
         self.title = title
         self.systemImage = systemImage
         self.closeHelp = closeHelp
+        self.fillWidth = fillWidth
         self.onClose = onClose
         self.accessory = accessory()
         self.content = content()
@@ -60,7 +65,8 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
 
             content
         }
-        .frame(width: clampedWidth)
+        .frame(maxWidth: fillWidth ? .infinity : nil)
+        .frame(width: fillWidth ? nil : clampedWidth)
         .frame(maxHeight: .infinity)
         .background(FacetTheme.canvas)
         .clipShape(RoundedRectangle(cornerRadius: FacetSidebarStyle.cornerRadius, style: .continuous))
@@ -68,7 +74,7 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
             RoundedRectangle(cornerRadius: FacetSidebarStyle.cornerRadius, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
-        .overlay(alignment: .leading) { resizeHandle }
+        .overlay(alignment: .leading) { if !fillWidth { resizeHandle } }
         .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
         .padding(FacetSidebarStyle.padding)
         .transition(FacetSidebarStyle.transition)
@@ -117,6 +123,7 @@ extension FacetSidebarPane where Accessory == EmptyView {
         title: String,
         systemImage: String,
         closeHelp: String = "Close sidebar",
+        fillWidth: Bool = false,
         onClose: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
@@ -124,6 +131,7 @@ extension FacetSidebarPane where Accessory == EmptyView {
             title: title,
             systemImage: systemImage,
             closeHelp: closeHelp,
+            fillWidth: fillWidth,
             onClose: onClose,
             accessory: { EmptyView() },
             content: content
