@@ -228,8 +228,6 @@ struct ItemActionCluster<Accessory: View>: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 26, height: FacetTheme.chipHeight)
                 .contentShape(Rectangle())
-        } primaryAction: {
-            onCreateKind(.task)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
