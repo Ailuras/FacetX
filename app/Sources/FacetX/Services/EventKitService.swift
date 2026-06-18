@@ -170,8 +170,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                         facetID: itemMetadata?.itemID,
                         noteID: itemMetadata?.noteID,
                         linkedPaperIDs: itemMetadata?.paperIDs ?? [],
-                        linkedCommits: itemMetadata?.commits ?? [],
-                        needsMetadataRepair: !FacetItemMetadata.isCanonical(metadata)
+                        linkedCommits: itemMetadata?.commits ?? []
                     )
                 }
                 cont.resume(returning: items)
@@ -224,8 +223,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                 facetID: itemMetadata?.itemID,
                 noteID: itemMetadata?.noteID,
                 linkedPaperIDs: itemMetadata?.paperIDs ?? [],
-                linkedCommits: itemMetadata?.commits ?? [],
-                needsMetadataRepair: !FacetItemMetadata.isCanonical(metadata)
+                linkedCommits: itemMetadata?.commits ?? []
             )
         }
     }

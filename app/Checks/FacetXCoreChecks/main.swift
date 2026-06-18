@@ -76,11 +76,6 @@ check(parsedItemMetadata?.paperIDs == ["https://openalex.org/W1", "doi:10.1/a,b"
       "item metadata should round-trip linked paper ids")
 check(parsedItemMetadata?.commits == ["owner/repo@abcdef"],
       "item metadata should de-duplicate linked commits")
-check(FacetItemMetadata.isCanonical(parsedItemNativeMetadata),
-      "item metadata with empty user notes should be canonical")
-check(!FacetItemMetadata.isCanonical(FacetMetadata.parse(notes: "legacy\n\n\(itemNativeNotes)")),
-      "item metadata with legacy user notes should need repair")
-
 let june = MonthYear(year: 2026, month: 6)
 guard let juneStart = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)),
       let juneEnd = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 23)),

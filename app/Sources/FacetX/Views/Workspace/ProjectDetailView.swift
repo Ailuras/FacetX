@@ -611,7 +611,6 @@ struct ProjectDetailView: View {
             return
         }
         let metadata = original.facetItemMetadata()
-        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: original.notes ?? "")
         Task {
             let newId: String?
             if original.kind == .reminder {

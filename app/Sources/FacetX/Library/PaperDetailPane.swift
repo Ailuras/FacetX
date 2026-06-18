@@ -527,7 +527,6 @@ struct PaperDetailPane: View {
     private func removeLink(from item: ProjectItem) {
         var metadata = item.facetItemMetadata()
         metadata = metadata.removingPaper(paper.id)
-        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
         Task {
             let ok = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
             if ok {

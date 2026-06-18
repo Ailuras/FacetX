@@ -212,7 +212,6 @@ struct StandardItemRow: View {
     private func convertItemType() {
         let proj = store.activeProjects.first { $0.prefix == projectPrefix }
         let metadata = item.facetItemMetadata()
-        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
         Task {
             let newId: String?
             if item.kind == .reminder {
@@ -283,7 +282,6 @@ struct StandardItemRow: View {
         Task {
             guard inlineEdit.notesID == item.id else { return }
             let metadata = item.facetItemMetadata()
-            noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
             noteStore.save(id: metadata.noteID, body: inlineEdit.notesText.trimmingCharacters(in: .whitespacesAndNewlines))
             _ = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
             await MainActor.run {
@@ -297,7 +295,7 @@ struct StandardItemRow: View {
         if let noteID = item.noteID {
             inlineEdit.notesText = noteStore.body(for: noteID)
         } else {
-            inlineEdit.notesText = item.notes ?? ""
+            inlineEdit.notesText = ""
         }
         inlineEdit.notesID = item.id
     }

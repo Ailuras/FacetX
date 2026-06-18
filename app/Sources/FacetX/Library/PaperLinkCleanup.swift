@@ -25,7 +25,6 @@ enum PaperLinkCleanup {
 
             var metadata = item.facetItemMetadata()
             metadata.paperIDs = remainingPaperIDs
-            noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
 
             if await ek.rewriteItemMetadata(id: item.id, metadata: metadata) {
                 changed += 1

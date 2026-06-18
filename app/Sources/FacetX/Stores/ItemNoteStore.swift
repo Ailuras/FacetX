@@ -69,25 +69,6 @@ final class ItemNoteStore {
         sqlite3_finalize(stmt)
     }
 
-    /// Preserve existing local notes. If both existing and legacy bodies exist,
-    /// append the legacy text once instead of overwriting newer local edits.
-    func absorbLegacyNotes(id: String, legacyBody: String) {
-        let legacy = legacyBody.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !legacy.isEmpty else {
-            if body(for: id).isEmpty {
-                save(id: id, body: "")
-            }
-            return
-        }
-
-        let existing = body(for: id).trimmingCharacters(in: .whitespacesAndNewlines)
-        if existing.isEmpty {
-            save(id: id, body: legacy)
-        } else if !existing.contains(legacy) {
-            save(id: id, body: "\(existing)\n\n\(legacy)")
-        }
-    }
-
     private func openDatabase() {
         let url = dbURL
         try? FileManager.default.createDirectory(

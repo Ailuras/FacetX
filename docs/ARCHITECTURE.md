@@ -105,10 +105,9 @@ paper ids and commit ids are stored in the item metadata. This keeps task/event
 links portable with the EventKit item and avoids a second source of truth for
 relationships.
 
-If an existing item has plain notes or an incomplete metadata block, the item
-detail pane offers a rebuild action. Rebuild absorbs the old user-facing notes
-into `item-notes.db`, then rewrites the EventKit notes field as canonical
-metadata.
+Current items write canonical metadata when they are created or first edited.
+FacetX does not keep a legacy notes-repair path; local beta data is disposable
+and can be rebuilt against the current schema.
 
 ## EventKit Concurrency
 

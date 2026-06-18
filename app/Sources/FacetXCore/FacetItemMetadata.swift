@@ -46,23 +46,6 @@ public struct FacetItemMetadata: Equatable, Sendable {
         )
     }
 
-    public static func repairing(_ metadata: FacetMetadata) -> FacetItemMetadata {
-        if let parsed = parse(metadata) {
-            return parsed
-        }
-        return FacetItemMetadata(
-            itemID: nonEmpty(metadata.fields[itemIDKey]) ?? UUID().uuidString,
-            noteID: nonEmpty(metadata.fields[noteIDKey]) ?? UUID().uuidString,
-            paperIDs: decodeList(metadata.fields[papersKey] ?? ""),
-            commits: decodeList(metadata.fields[commitsKey] ?? ""),
-            tags: metadata.tags
-        )
-    }
-
-    public static func isCanonical(_ metadata: FacetMetadata) -> Bool {
-        parse(metadata) != nil && metadata.userNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     public func facetMetadata() -> FacetMetadata {
         var fields: [String: String] = [
             Self.kindKey: Self.kindValue,

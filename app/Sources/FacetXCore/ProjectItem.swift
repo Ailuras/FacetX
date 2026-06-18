@@ -27,7 +27,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let noteID: String?     // local note record id stored in EventKit notes metadata
     public let linkedPaperIDs: [String]
     public let linkedCommits: [String]
-    public let needsMetadataRepair: Bool
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
                  content: String, containerName: String, isCompleted: Bool, date: Date?,
@@ -35,8 +34,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
                  hasTime: Bool = false,
                  isAllDay: Bool = false, endDate: Date? = nil,
                  facetID: String? = nil, noteID: String? = nil,
-                 linkedPaperIDs: [String] = [], linkedCommits: [String] = [],
-                 needsMetadataRepair: Bool = false) {
+                 linkedPaperIDs: [String] = [], linkedCommits: [String] = []) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
@@ -56,7 +54,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.noteID = noteID
         self.linkedPaperIDs = linkedPaperIDs
         self.linkedCommits = linkedCommits
-        self.needsMetadataRepair = needsMetadataRepair
     }
 
     /// Build a copy with a different kind. Used as a drag-preview placeholder
@@ -82,8 +79,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             facetID: facetID,
             noteID: noteID,
             linkedPaperIDs: linkedPaperIDs,
-            linkedCommits: linkedCommits,
-            needsMetadataRepair: needsMetadataRepair
+            linkedCommits: linkedCommits
         )
     }
 
@@ -107,8 +103,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             facetID: facetID,
             noteID: noteID,
             linkedPaperIDs: linkedPaperIDs,
-            linkedCommits: linkedCommits,
-            needsMetadataRepair: needsMetadataRepair
+            linkedCommits: linkedCommits
         )
     }
 

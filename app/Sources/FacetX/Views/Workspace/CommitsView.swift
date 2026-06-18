@@ -775,7 +775,6 @@ struct CommitsView: View {
         let linkID = commitLinkID(commit)
         var metadata = item.facetItemMetadata()
         metadata = add ? metadata.addingCommit(linkID) : metadata.removingCommit(linkID)
-        noteStore.absorbLegacyNotes(id: metadata.noteID, legacyBody: item.notes ?? "")
         Task {
             let ok = await ek.rewriteItemMetadata(id: item.id, metadata: metadata)
             if ok {
