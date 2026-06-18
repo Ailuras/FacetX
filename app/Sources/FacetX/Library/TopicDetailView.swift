@@ -808,7 +808,7 @@ struct TopicDetailView: View {
     private func loadPaperLinks() {
         Task {
             let prefixes = Set(projectStore.activeProjects.map(\.prefix))
-            let allItems = await ek.items(
+            let allItems = await ek.itemsLinkedToPapers(
                 forProjects: prefixes,
                 enabledReminderLists: appSettings.effectiveReminderListNames,
                 enabledCalendars: appSettings.effectiveCalendarNames

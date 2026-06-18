@@ -89,6 +89,29 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return result.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
+    /// Paper backlinks are resource relationships, not schedule queries. Use a
+    /// wide event range so old literature events still count as linked.
+    func itemsLinkedToPapers(forProjects prefixes: Set<String>,
+                             enabledReminderLists: Set<String>? = nil,
+                             enabledCalendars: Set<String>? = nil) async -> [ProjectItem] {
+        guard !prefixes.isEmpty else { return [] }
+        let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
+        var result: [ProjectItem] = []
+        if rem {
+            result += await reminders(forProjects: prefixes, enabled: enabledReminderLists)
+                .filter { !$0.linkedPaperIDs.isEmpty }
+        }
+        if cal {
+            result += events(forProjects: prefixes,
+                             enabled: enabledCalendars,
+                             startDate: Self.paperLinkScanStartDate,
+                             endDate: Self.paperLinkScanEndDate,
+                             windowDays: 0)
+                .filter { !$0.linkedPaperIDs.isEmpty }
+        }
+        return result.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
+    }
+
     /// Distinct project names discovered across enabled reminders + recent events.
     func discoverProjectNames(enabledReminderLists: Set<String>? = nil,
                               enabledCalendars: Set<String>? = nil,
@@ -624,6 +647,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     private static func hasReminderTime(_ components: DateComponents?) -> Bool {
         guard let components else { return false }
         return components.hour != nil || components.minute != nil || components.second != nil
+    }
+
+    private static var paperLinkScanStartDate: Date {
+        Calendar.current.date(byAdding: .year, value: -50, to: Date()) ?? .distantPast
+    }
+
+    private static var paperLinkScanEndDate: Date {
+        Calendar.current.date(byAdding: .year, value: 50, to: Date()) ?? .distantFuture
     }
 
     private static func reminderDueComponents(from date: Date, includesTime: Bool) -> DateComponents {

@@ -515,7 +515,7 @@ struct PaperDetailPane: View {
     private func loadAssociatedItems() {
         Task {
             let prefixes = Set(projectStore.activeProjects.map(\.prefix))
-            let allItems = await ek.items(
+            let allItems = await ek.itemsLinkedToPapers(
                 forProjects: prefixes,
                 enabledReminderLists: appSettings.effectiveReminderListNames,
                 enabledCalendars: appSettings.effectiveCalendarNames
