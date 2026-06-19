@@ -29,6 +29,7 @@ struct WeekView: View {
     @State var draggedItem: ProjectItem?
     @State var dragSnapshot: [ProjectItem]?
     @State var dropTargetDate: Date?
+    @State var sortOption: WeekSortOption = .manual
 
     var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -75,6 +76,34 @@ struct WeekView: View {
 
     var reloadKey: String {
         "\(project.id.uuidString)-\(week.id)"
+    }
+
+    var currentManualOrder: [String] {
+        store.activeProjects.first(where: { $0.id == project.id })?.itemOrder ?? project.itemOrder
+    }
+
+    func sortedItems(_ items: [ProjectItem],
+                     option: WeekSortOption? = nil,
+                     savedOrder: [String]? = nil) -> [ProjectItem] {
+        let selectedOption = option ?? sortOption
+        let order = savedOrder ?? (selectedOption == .manual ? currentManualOrder : allItems.map(\.id))
+        return ItemArrangement.sorted(items, by: selectedOption, savedOrder: order)
+    }
+
+    func setSortOption(_ option: WeekSortOption) {
+        guard sortOption != option else { return }
+        let currentOrder = allItems.map(\.id)
+        sortOption = option
+        store.setItemOrder(projectID: project.id, orderedIDs: option == .manual ? currentOrder : [])
+        withAnimation(listAnimation) {
+            allItems = sortedItems(allItems, option: option, savedOrder: currentOrder)
+        }
+    }
+
+    func switchToManualSortFromCurrentOrder() {
+        guard sortOption != .manual else { return }
+        sortOption = .manual
+        store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
     }
 
     var dayGroups: [DayGroup] {

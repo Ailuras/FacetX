@@ -281,12 +281,22 @@ let noPriEvent = ProjectItem(id: "evt", kind: .event, rawTitle: "P: c",
                              priority: 0, url: nil)
 let mixed = [medTodo, noPriEvent, highTodo]
 
-check(ItemArrangement.sorted(mixed, by: .priorityDesc).map(\.id) == ["high", "med", "evt"],
+check(ItemArrangement.sorted(mixed, by: SortOption.priorityDesc).map(\.id) == ["high", "med", "evt"],
       "priorityDesc should put highest priority first")
-check(ItemArrangement.sorted(mixed, by: .nameAsc).map(\.id) == ["high", "med", "evt"],
+check(ItemArrangement.sorted(mixed, by: SortOption.nameAsc).map(\.id) == ["high", "med", "evt"],
       "nameAsc should sort by content alphabetically")
-check(ItemArrangement.sorted(mixed, by: .dateAsc).first?.id != "high",
+check(ItemArrangement.sorted(mixed, by: SortOption.dateAsc).first?.id != "high",
       "dateAsc should not put tomorrow's item first")
+check(ItemArrangement.sorted(mixed, by: WeekSortOption.scheduleAsc, savedOrder: ["evt", "med", "high"]).map(\.id) == ["evt", "med", "high"],
+      "week schedule sort should use date first and manual order for same-time ties")
+check(ItemArrangement.sorted(mixed, by: WeekSortOption.priorityDesc).map(\.id) == ["high", "med", "evt"],
+      "week priority sort should put highest priority first")
+check(ItemArrangement.sorted(mixed, by: WeekSortOption.kindAsc).first?.id == "evt",
+      "week type sort should put events before reminders")
+check(ItemArrangement.sorted(mixed, by: MonthSortOption.dateAsc, savedOrder: ["evt", "med", "high"]).map(\.id) == ["evt", "med", "high"],
+      "month date sort should order by calendar date with manual same-day ties")
+check(ItemArrangement.sorted(mixed, by: MonthSortOption.titleAsc).map(\.id) == ["high", "med", "evt"],
+      "month title sort should order by item title")
 
 let alphaOnly = TagFilter(included: ["alpha"])
 check(ItemQuery.filtered(mixed, by: alphaOnly).map(\.id).sorted() == ["high", "med"],

@@ -141,7 +141,8 @@ extension WeekView {
             selectedItem: $selectedItem,
             inlineEdit: $inlineEdit,
             onDragStart: {
-                ItemDragHelpers.startDrag(
+                switchToManualSortFromCurrentOrder()
+                return ItemDragHelpers.startDrag(
                     item: item,
                     items: allItems,
                     draggedItem: &draggedItem,
@@ -201,6 +202,7 @@ extension WeekView {
     }
 
     private func commitItemOrder() {
+        sortOption = .manual
         store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
     }
 

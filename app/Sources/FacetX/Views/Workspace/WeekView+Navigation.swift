@@ -44,6 +44,7 @@ extension WeekView {
                             fill: Color.accentColor.opacity(0.08)
                         )
                     }
+                    WeekSortMenu(selection: $sortOption, onSelect: setSortOption)
                     ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
                         onCreateItem(week.startDate)
                     }

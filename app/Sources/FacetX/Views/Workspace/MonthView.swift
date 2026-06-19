@@ -25,6 +25,7 @@ struct MonthView: View {
     @State private var itemToDelete: ProjectItem? = nil
     @State private var draggedItem: ProjectItem? = nil
     @State private var dragSnapshot: [ProjectItem]? = nil
+    @State private var sortOption: MonthSortOption = .manual
 
     private var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -131,6 +132,34 @@ struct MonthView: View {
         "\(project.id.uuidString)-\(month.id)"
     }
 
+    private var currentManualOrder: [String] {
+        store.activeProjects.first(where: { $0.id == project.id })?.itemOrder ?? project.itemOrder
+    }
+
+    private func sortedItems(_ items: [ProjectItem],
+                             option: MonthSortOption? = nil,
+                             savedOrder: [String]? = nil) -> [ProjectItem] {
+        let selectedOption = option ?? sortOption
+        let order = savedOrder ?? (selectedOption == .manual ? currentManualOrder : allItems.map(\.id))
+        return ItemArrangement.sorted(items, by: selectedOption, savedOrder: order)
+    }
+
+    private func setSortOption(_ option: MonthSortOption) {
+        guard sortOption != option else { return }
+        let currentOrder = allItems.map(\.id)
+        sortOption = option
+        store.setItemOrder(projectID: project.id, orderedIDs: option == .manual ? currentOrder : [])
+        withAnimation(listAnimation) {
+            allItems = sortedItems(allItems, option: option, savedOrder: currentOrder)
+        }
+    }
+
+    private func switchToManualSortFromCurrentOrder() {
+        guard sortOption != .manual else { return }
+        sortOption = .manual
+        store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
+    }
+
     // ── Month navigation ─────────────────────────────────────────────────────
     private var monthNav: some View {
         PeriodNavigationBar(
@@ -174,6 +203,7 @@ struct MonthView: View {
                             fill: Color.accentColor.opacity(0.08)
                         )
                     }
+                    MonthSortMenu(selection: $sortOption, onSelect: setSortOption)
                     ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
                         if let selectedDay, let date = month.dateForDay(selectedDay) {
                             onCreateItem(date)
@@ -466,7 +496,8 @@ struct MonthView: View {
             selectedItem: $selectedItem,
             inlineEdit: $inlineEdit,
             onDragStart: {
-                ItemDragHelpers.startDrag(
+                switchToManualSortFromCurrentOrder()
+                return ItemDragHelpers.startDrag(
                     item: item,
                     items: allItems,
                     draggedItem: &draggedItem,
@@ -503,6 +534,7 @@ struct MonthView: View {
 
     private func finishDrag() {
         guard draggedItem != nil else { return }
+        sortOption = .manual
         store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
         dragSnapshot = nil
         draggedItem = nil
@@ -589,7 +621,11 @@ struct MonthView: View {
                                       eventStartDate: requestedMonth.startDate,
                                       eventEndDate: requestedMonth.endDate)
         guard !Task.isCancelled, requestedMonth == month else { return }
-        let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
+        let tieOrder = allItems.isEmpty ? currentManualOrder : allItems.map(\.id)
+        let sortedItems = sortedItems(
+            fetched,
+            savedOrder: sortOption == .manual ? currentManualOrder : tieOrder
+        )
         store.reportTags(projectID: project.id, items: sortedItems)
         if allItems.isEmpty {
             allItems = sortedItems

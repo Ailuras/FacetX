@@ -20,6 +20,25 @@ public enum SortOption: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+public enum WeekSortOption: String, CaseIterable, Identifiable, Sendable {
+    case manual = "Manual"
+    case scheduleAsc = "Schedule"
+    case priorityDesc = "Priority"
+    case kindAsc = "Type"
+
+    public var id: String { rawValue }
+}
+
+public enum MonthSortOption: String, CaseIterable, Identifiable, Sendable {
+    case manual = "Manual"
+    case dateAsc = "Date"
+    case priorityDesc = "Priority"
+    case kindAsc = "Type"
+    case titleAsc = "Title"
+
+    public var id: String { rawValue }
+}
+
 /// Pure ordering, grouping and week-filtering for a project's items. Kept free
 /// of SwiftUI and EventKit so it can be unit-checked in FacetXCoreChecks — these
 /// are the rules most prone to silent regressions.
@@ -64,6 +83,34 @@ public enum ItemArrangement {
                 if cmp != .orderedSame { return cmp == .orderedAscending }
                 return (a.date ?? .distantFuture) < (b.date ?? .distantFuture)
             }
+        }
+    }
+
+    public static func sorted(_ items: [ProjectItem], by option: WeekSortOption, savedOrder: [String] = []) -> [ProjectItem] {
+        switch option {
+        case .manual:
+            return arranged(items, savedOrder: savedOrder)
+        case .scheduleAsc:
+            return items.sorted(by: weekScheduleComparator(savedOrder: savedOrder))
+        case .priorityDesc:
+            return items.sorted(by: priorityComparator(savedOrder: savedOrder))
+        case .kindAsc:
+            return items.sorted(by: kindComparator(savedOrder: savedOrder))
+        }
+    }
+
+    public static func sorted(_ items: [ProjectItem], by option: MonthSortOption, savedOrder: [String] = []) -> [ProjectItem] {
+        switch option {
+        case .manual:
+            return arranged(items, savedOrder: savedOrder)
+        case .dateAsc:
+            return items.sorted(by: dateComparator(savedOrder: savedOrder))
+        case .priorityDesc:
+            return items.sorted(by: priorityComparator(savedOrder: savedOrder))
+        case .kindAsc:
+            return items.sorted(by: kindComparator(savedOrder: savedOrder))
+        case .titleAsc:
+            return items.sorted(by: titleComparator(savedOrder: savedOrder))
         }
     }
 
@@ -114,5 +161,114 @@ public enum ItemArrangement {
             guard let d = item.date else { return false }
             return month.contains(d)
         })
+    }
+
+    private static func completionRank(_ item: ProjectItem) -> Int {
+        item.isCompleted ? 1 : 0
+    }
+
+    private static func manualRanks(_ savedOrder: [String]) -> [String: Int] {
+        var rank = [String: Int](minimumCapacity: savedOrder.count)
+        for (index, id) in savedOrder.enumerated() { rank[id] = index }
+        return rank
+    }
+
+    private static func manualRank(_ item: ProjectItem, ranks: [String: Int]) -> Int {
+        ranks[item.id] ?? Int.max
+    }
+
+    private static func priorityRank(_ item: ProjectItem) -> Int {
+        item.priority == 0 ? Int.max : item.priority
+    }
+
+    private static func kindRank(_ item: ProjectItem) -> Int {
+        switch item.kind {
+        case .event: return 0
+        case .reminder: return 1
+        }
+    }
+
+    private static func compareFallback(_ a: ProjectItem, _ b: ProjectItem, ranks: [String: Int]) -> Bool {
+        let ra = manualRank(a, ranks: ranks)
+        let rb = manualRank(b, ranks: ranks)
+        if ra != rb { return ra < rb }
+        let cmp = a.content.localizedStandardCompare(b.content)
+        if cmp != .orderedSame { return cmp == .orderedAscending }
+        return a.id < b.id
+    }
+
+    private static func dateComparator(savedOrder: [String]) -> (ProjectItem, ProjectItem) -> Bool {
+        let ranks = manualRanks(savedOrder)
+        return { a, b in
+            let ca = completionRank(a)
+            let cb = completionRank(b)
+            if ca != cb { return ca < cb }
+            let da = a.date ?? .distantFuture
+            let db = b.date ?? .distantFuture
+            if da != db { return da < db }
+            return compareFallback(a, b, ranks: ranks)
+        }
+    }
+
+    private static func weekScheduleComparator(savedOrder: [String]) -> (ProjectItem, ProjectItem) -> Bool {
+        let ranks = manualRanks(savedOrder)
+        return { a, b in
+            let ca = completionRank(a)
+            let cb = completionRank(b)
+            if ca != cb { return ca < cb }
+            let da = a.date ?? .distantFuture
+            let db = b.date ?? .distantFuture
+            if da != db { return da < db }
+            if a.hasTime != b.hasTime { return a.hasTime && !b.hasTime }
+            if a.isAllDay != b.isAllDay { return !a.isAllDay && b.isAllDay }
+            return compareFallback(a, b, ranks: ranks)
+        }
+    }
+
+    private static func priorityComparator(savedOrder: [String]) -> (ProjectItem, ProjectItem) -> Bool {
+        let ranks = manualRanks(savedOrder)
+        return { a, b in
+            let ca = completionRank(a)
+            let cb = completionRank(b)
+            if ca != cb { return ca < cb }
+            let pa = priorityRank(a)
+            let pb = priorityRank(b)
+            if pa != pb { return pa < pb }
+            let da = a.date ?? .distantFuture
+            let db = b.date ?? .distantFuture
+            if da != db { return da < db }
+            return compareFallback(a, b, ranks: ranks)
+        }
+    }
+
+    private static func kindComparator(savedOrder: [String]) -> (ProjectItem, ProjectItem) -> Bool {
+        let ranks = manualRanks(savedOrder)
+        return { a, b in
+            let ca = completionRank(a)
+            let cb = completionRank(b)
+            if ca != cb { return ca < cb }
+            let ka = kindRank(a)
+            let kb = kindRank(b)
+            if ka != kb { return ka < kb }
+            let da = a.date ?? .distantFuture
+            let db = b.date ?? .distantFuture
+            if da != db { return da < db }
+            return compareFallback(a, b, ranks: ranks)
+        }
+    }
+
+    private static func titleComparator(savedOrder: [String]) -> (ProjectItem, ProjectItem) -> Bool {
+        let ranks = manualRanks(savedOrder)
+        return { a, b in
+            let ca = completionRank(a)
+            let cb = completionRank(b)
+            if ca != cb { return ca < cb }
+            let cmp = a.content.localizedStandardCompare(b.content)
+            if cmp != .orderedSame { return cmp == .orderedAscending }
+            let da = a.date ?? .distantFuture
+            let db = b.date ?? .distantFuture
+            if da != db { return da < db }
+            return compareFallback(a, b, ranks: ranks)
+        }
     }
 }
