@@ -180,6 +180,13 @@ struct PaperGraphView: View {
                 .offset(offset)
                 .gesture(panGesture)
                 .gesture(zoomGesture)
+                .overlay(alignment: .topTrailing) {
+                    if let node = activeInfoNode {
+                        graphInfoCard(for: node)
+                            .padding(12)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
             }
         }
         .coordinateSpace(name: "paperGraphCanvas")
@@ -261,7 +268,7 @@ struct PaperGraphView: View {
         let hovered = hoveredNodeID == node.id
         let focused = focusedIDs.contains(node.id)
         let color = node.color
-        let showLabel = shouldShowLabel(node)
+        let showLabel = shouldShowInlineLabel(node)
         let dimmed = selectedNodeID != nil && !focused
 
         return HStack(spacing: showLabel ? 7 : 0) {
@@ -308,14 +315,111 @@ struct PaperGraphView: View {
                     if draggedNodeID == nil {
                         draggedNodeID = node.id
                     }
-                    if let idx = nodes.firstIndex(where: { $0.id == node.id }) {
-                        nodes[idx].position = modelPoint(from: value.location)
-                    }
+                    moveNode(node.id, to: modelPoint(from: value.location))
                 }
                 .onEnded { _ in
                     draggedNodeID = nil
                 }
         )
+    }
+
+    private var activeInfoNode: PaperGraphNode? {
+        guard let activeID = draggedNodeID ?? hoveredNodeID ?? selectedNodeID else { return nil }
+        return nodes.first { $0.id == activeID }
+    }
+
+    private func graphInfoCard(for node: PaperGraphNode) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                Image(systemName: node.type == .tag ? "tag.fill" : "doc.text.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(node.color)
+                Text(node.type == .tag ? L10n.pick("Tag", "标签") : L10n.pick("Paper", "文献"))
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+            }
+
+            Text(node.fullLabel)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            switch node.type {
+            case .tag:
+                tagInfoRows(for: node)
+            case .paper:
+                paperInfoRows(for: node)
+            }
+        }
+        .padding(11)
+        .frame(width: 268, alignment: .leading)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(node.color.opacity(0.24), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 8)
+        .allowsHitTesting(false)
+    }
+
+    private func tagInfoRows(for node: PaperGraphNode) -> some View {
+        let count = filteredPapers.filter { $0.tags.contains(node.fullLabel) }.count
+        return VStack(alignment: .leading, spacing: 5) {
+            infoLine(systemImage: "doc.text", text: L10n.pick("\(count) linked papers", "\(count) 篇关联文献"))
+        }
+    }
+
+    private func paperInfoRows(for node: PaperGraphNode) -> some View {
+        guard let paper = node.paper else { return AnyView(EmptyView()) }
+        return AnyView(
+            VStack(alignment: .leading, spacing: 5) {
+                if !paper.authors.isEmpty {
+                    infoLine(systemImage: "person.2", text: paper.authors.prefix(3).joined(separator: ", "))
+                }
+                HStack(spacing: 6) {
+                    if !paper.venueAbbr.isEmpty {
+                        FacetInfoBadge(
+                            text: paper.venueAbbr,
+                            systemImage: "building.2",
+                            tint: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)),
+                            fill: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)).opacity(0.12)
+                        )
+                    }
+                    FacetInfoBadge(
+                        text: statusTitle(paper.status),
+                        systemImage: paper.status.iconName,
+                        tint: paper.status.iconColor,
+                        fill: paper.status.iconColor.opacity(0.12)
+                    )
+                    if paper.score > 0 {
+                        FacetInfoBadge(
+                            text: String(format: "%.0f", paper.score),
+                            systemImage: "chart.bar.fill",
+                            tint: .secondary,
+                            fill: Color.secondary.opacity(0.10)
+                        )
+                    }
+                }
+                if !paper.tags.isEmpty {
+                    infoLine(systemImage: "tag", text: paper.tags.prefix(4).joined(separator: ", "))
+                }
+            }
+        )
+    }
+
+    private func infoLine(systemImage: String, text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+            Text(text)
+                .font(.system(size: 10))
+                .lineLimit(2)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func detailPanel(for node: PaperGraphNode) -> some View {
@@ -535,9 +639,8 @@ struct PaperGraphView: View {
         return ids
     }
 
-    private func shouldShowLabel(_ node: PaperGraphNode) -> Bool {
+    private func shouldShowInlineLabel(_ node: PaperGraphNode) -> Bool {
         if node.type == .tag { return true }
-        if selectedNodeID == node.id || hoveredNodeID == node.id { return true }
         if let selectedNodeID, focusedIDs.contains(node.id), selectedNodeID != node.id { return scale >= 0.72 }
         if scale >= 1.45 { return true }
         if scale >= 1.0 { return node.labelPriority >= 0.78 }
@@ -545,10 +648,107 @@ struct PaperGraphView: View {
     }
 
     private func labelText(for node: PaperGraphNode) -> String {
-        if selectedNodeID == node.id || hoveredNodeID == node.id || scale > 1.65 {
+        if node.type == .tag || scale > 1.65 {
             return node.fullLabel
         }
         return node.shortLabel
+    }
+
+    private func moveNode(_ id: String, to point: CGPoint) {
+        guard let index = nodes.firstIndex(where: { $0.id == id }) else { return }
+        nodes[index].position = clampedGraphPoint(point, radius: nodes[index].collisionRadius)
+        relaxDraggedNeighborhood(fixedID: id)
+    }
+
+    private func relaxDraggedNeighborhood(fixedID: String) {
+        guard !nodes.isEmpty else { return }
+        let size = lastCanvasSize
+        let iterations = nodes.count > 90 ? 4 : 7
+
+        for _ in 0..<iterations {
+            var deltas = Array(repeating: CGSize.zero, count: nodes.count)
+
+            for i in 0..<nodes.count {
+                for j in (i + 1)..<nodes.count {
+                    let firstFixed = nodes[i].id == fixedID
+                    let secondFixed = nodes[j].id == fixedID
+                    let p1 = nodes[i].position
+                    let p2 = nodes[j].position
+                    var dx = p2.x - p1.x
+                    var dy = p2.y - p1.y
+                    var distance = sqrt(dx * dx + dy * dy)
+                    if distance < 0.1 {
+                        dx = CGFloat(((i * 23 + j * 31) % 9) - 4)
+                        dy = CGFloat(((i * 29 + j * 13) % 9) - 4)
+                        distance = max(1, sqrt(dx * dx + dy * dy))
+                    }
+
+                    let minimum = nodes[i].collisionRadius + nodes[j].collisionRadius
+                    guard distance < minimum else { continue }
+                    let overlap = (minimum - distance) * (firstFixed || secondFixed ? 0.92 : 0.34)
+                    let fx = dx / distance * overlap
+                    let fy = dy / distance * overlap
+
+                    if firstFixed {
+                        deltas[j].width += fx
+                        deltas[j].height += fy
+                    } else if secondFixed {
+                        deltas[i].width -= fx
+                        deltas[i].height -= fy
+                    } else {
+                        deltas[i].width -= fx * 0.5
+                        deltas[i].height -= fy * 0.5
+                        deltas[j].width += fx * 0.5
+                        deltas[j].height += fy * 0.5
+                    }
+                }
+            }
+
+            for link in links {
+                guard let fromIndex = nodes.firstIndex(where: { $0.id == link.from }),
+                      let toIndex = nodes.firstIndex(where: { $0.id == link.to }) else { continue }
+                let fromFixed = nodes[fromIndex].id == fixedID
+                let toFixed = nodes[toIndex].id == fixedID
+                let from = nodes[fromIndex].position
+                let to = nodes[toIndex].position
+                let dx = to.x - from.x
+                let dy = to.y - from.y
+                let distance = max(1, sqrt(dx * dx + dy * dy))
+                let target: CGFloat = nodes[fromIndex].type == .paper ? 96 : 76
+                let force = (distance - target) * 0.006
+                let fx = dx / distance * force
+                let fy = dy / distance * force
+                if !fromFixed {
+                    deltas[fromIndex].width += fx
+                    deltas[fromIndex].height += fy
+                }
+                if !toFixed {
+                    deltas[toIndex].width -= fx
+                    deltas[toIndex].height -= fy
+                }
+            }
+
+            for i in nodes.indices where nodes[i].id != fixedID {
+                let limit: CGFloat = 14
+                let dx = clamp(deltas[i].width, min: -limit, max: limit)
+                let dy = clamp(deltas[i].height, min: -limit, max: limit)
+                nodes[i].position = clampedGraphPoint(
+                    CGPoint(x: nodes[i].position.x + dx, y: nodes[i].position.y + dy),
+                    radius: nodes[i].collisionRadius,
+                    size: size
+                )
+            }
+        }
+    }
+
+    private func clampedGraphPoint(_ point: CGPoint, radius: CGFloat, size: CGSize? = nil) -> CGPoint {
+        let bounds = size ?? lastCanvasSize
+        guard bounds.width > 0, bounds.height > 0 else { return point }
+        let margin = radius + 18
+        return CGPoint(
+            x: clamp(point.x, min: margin, max: bounds.width - margin),
+            y: clamp(point.y, min: margin, max: bounds.height - margin)
+        )
     }
 
     private func statusTitle(_ status: PaperStatus) -> String {
