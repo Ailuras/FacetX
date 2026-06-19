@@ -29,6 +29,17 @@ class TranslationService {
         return try await chatCompletion(systemPrompt: abstractPrompt, userContent: abstract)
     }
 
+    func translateText(
+        _ text: String
+    ) async throws -> String {
+        let provider = config.translate.provider
+        let targetLang = config.translate.target_language
+        let prompt = "You are a professional academic translator. Translate the following text into \(targetLang). Preserve technical terms in English where appropriate. Return ONLY the translated text, no explanations."
+
+        print("Translating text to \(targetLang) via \(provider.displayName)...")
+        return try await chatCompletion(systemPrompt: prompt, userContent: text)
+    }
+
     func fetchModels() async throws -> [String] {
         let provider = config.translate.provider
         guard !apiKey.isEmpty else {

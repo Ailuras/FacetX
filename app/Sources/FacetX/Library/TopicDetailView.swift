@@ -31,6 +31,10 @@ struct TopicDetailView: View {
     @State private var pdfSearchText = ""
     @State private var showPdfSidebar = false
     @State private var pdfSidebarTab: PdfSidebarTab = .outline
+    @State private var showTranslationPopover = false
+    @State private var isTranslatingSelection = false
+    @State private var translatedSelectionText = ""
+    @State private var translationSelectionError: String? = nil
 
     enum PdfSidebarTab: String, CaseIterable, Identifiable {
         case outline, annotations
@@ -426,6 +430,17 @@ struct TopicDetailView: View {
                 .disabled(!reader.hasSelection)
                 .opacity(reader.hasSelection ? 1.0 : 0.35)
 
+                FilterPillButton(systemName: "globe",
+                                 help: L10n.pick("Translate Selection", "翻译选中文本"),
+                                 active: showTranslationPopover) {
+                    translateSelectedText()
+                }
+                .disabled(!reader.hasSelection)
+                .opacity(reader.hasSelection ? 1.0 : 0.35)
+                .popover(isPresented: $showTranslationPopover) {
+                    translationPopoverView
+                }
+
                 if reader.activeAnnotation != nil {
                     FilterPillButton(systemName: "trash",
                                      help: L10n.pick("Delete Annotation", "删除选中的批注"),
@@ -473,6 +488,79 @@ struct TopicDetailView: View {
         .frame(height: FacetTheme.chipHeight)
         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(FacetTheme.quietPanel))
         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
+    }
+
+    private func translateSelectedText() {
+        guard let selectionString = reader.pdfView.currentSelection?.string, !selectionString.isEmpty else {
+            translationSelectionError = L10n.pick("No text selected", "未选中文本")
+            showTranslationPopover = true
+            return
+        }
+
+        isTranslatingSelection = true
+        translationSelectionError = nil
+        translatedSelectionText = ""
+        showTranslationPopover = true
+
+        let settings = LibrarySettings.shared
+        let config = ConfigManager.shared.effectiveConfig
+
+        Task { @MainActor in
+            do {
+                let translator = TranslationService(config: config, apiKey: settings.apiKey)
+                let result = try await translator.translateText(selectionString)
+                self.translatedSelectionText = result
+                self.isTranslatingSelection = false
+            } catch {
+                self.translationSelectionError = error.localizedDescription
+                self.isTranslatingSelection = false
+            }
+        }
+    }
+
+    private var translationPopoverView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.pick("Translation Result", "翻译结果"))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.secondary)
+
+            if isTranslatingSelection {
+                HStack {
+                    Spacer()
+                    ProgressView().controlSize(.small)
+                    Spacer()
+                }
+                .frame(minHeight: 60)
+            } else if let error = translationSelectionError {
+                Text(error)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .frame(minWidth: 220)
+            } else {
+                ScrollView {
+                    Text(translatedSelectionText)
+                        .font(.system(size: 11))
+                        .lineSpacing(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+
+                HStack {
+                    Spacer()
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(translatedSelectionText, forType: .string)
+                    } label: {
+                        Label(L10n.pick("Copy", "复制"), systemImage: "doc.on.doc")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 260)
     }
 
     private var pdfSidebarPanel: some View {
