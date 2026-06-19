@@ -663,6 +663,8 @@ struct PaperGraphView: View {
     private func relaxDraggedNeighborhood(fixedID: String) {
         guard !nodes.isEmpty else { return }
         let size = lastCanvasSize
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let ballRadius = PaperGraphBuilder.ballRadius(for: size)
         let iterations = nodes.count > 90 ? 4 : 7
 
         for _ in 0..<iterations {
@@ -729,6 +731,16 @@ struct PaperGraphView: View {
             }
 
             for i in nodes.indices where nodes[i].id != fixedID {
+                let p = nodes[i].position
+                deltas[i].width += (center.x - p.x) * 0.010
+                deltas[i].height += (center.y - p.y) * 0.010
+                addBallContainmentDelta(
+                    for: nodes[i],
+                    center: center,
+                    ballRadius: ballRadius,
+                    into: &deltas[i]
+                )
+
                 let limit: CGFloat = 14
                 let dx = clamp(deltas[i].width, min: -limit, max: limit)
                 let dy = clamp(deltas[i].height, min: -limit, max: limit)
@@ -739,6 +751,20 @@ struct PaperGraphView: View {
                 )
             }
         }
+    }
+
+    private func addBallContainmentDelta(for node: PaperGraphNode,
+                                         center: CGPoint,
+                                         ballRadius: CGFloat,
+                                         into delta: inout CGSize) {
+        let px = node.position.x - center.x
+        let py = node.position.y - center.y
+        let distance = max(1, sqrt(px * px + py * py))
+        let allowed = max(48, ballRadius - node.collisionRadius)
+        guard distance > allowed else { return }
+        let pull = (distance - allowed) * 0.11
+        delta.width -= px / distance * pull
+        delta.height -= py / distance * pull
     }
 
     private func clampedGraphPoint(_ point: CGPoint, radius: CGFloat, size: CGSize? = nil) -> CGPoint {
@@ -771,7 +797,9 @@ private enum PaperGraphBuilder {
 
         let width = max(size.width, 520)
         let height = max(size.height, 360)
+        let graphSize = CGSize(width: width, height: height)
         let center = CGPoint(x: width / 2, y: height / 2)
+        let ballRadius = ballRadius(for: graphSize)
         let tagCounts = Dictionary(grouping: papers.flatMap(\.tags), by: { $0 })
             .mapValues(\.count)
         let selectedTags = tagCounts
@@ -787,8 +815,8 @@ private enum PaperGraphBuilder {
         }
         let clusterNames = selectedTags + (needsUntagged ? [PaperGraphNode.untaggedLabel] : [])
         let clusterCount = max(1, clusterNames.count)
-        let tagRadius = min(width, height) * (clusterCount <= 4 ? 0.23 : 0.31)
-        let paperRadius = min(width, height) * 0.12
+        let tagRadius = ballRadius * (clusterCount <= 4 ? 0.30 : 0.42)
+        let paperRadius = max(44, ballRadius * 0.18)
         var clusterAnchors: [String: CGPoint] = [:]
         var nodes: [PaperGraphNode] = []
         var links: [PaperGraphLink] = []
@@ -826,11 +854,11 @@ private enum PaperGraphBuilder {
                     return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
                 }
             let anchor = clusterAnchors[cluster] ?? center
-            let spread = max(paperRadius, CGFloat(clusterPapers.count) * 8)
+            let spread = min(max(paperRadius, CGFloat(clusterPapers.count) * 5 + 24), ballRadius * 0.34)
 
             for (idx, paper) in clusterPapers.enumerated() {
                 let angle = clusterAngle(index: idx, count: max(1, clusterPapers.count))
-                let ring = spread + CGFloat(idx % 4) * 18
+                let ring = spread + CGFloat(idx % 4) * 10
                 let position = CGPoint(
                     x: anchor.x + cos(angle) * ring,
                     y: anchor.y + sin(angle) * ring
@@ -854,27 +882,39 @@ private enum PaperGraphBuilder {
             }
         }
 
-        let laidOut = relax(nodes: nodes, links: links, anchors: clusterAnchors, center: center, size: CGSize(width: width, height: height))
+        let laidOut = relax(nodes: nodes, links: links, anchors: clusterAnchors, center: center, size: graphSize, ballRadius: ballRadius)
         return (laidOut, links)
+    }
+
+    static func ballRadius(for size: CGSize) -> CGFloat {
+        max(150, min(size.width, size.height) * 0.42)
     }
 
     private static func relax(nodes: [PaperGraphNode],
                               links: [PaperGraphLink],
                               anchors: [String: CGPoint],
                               center: CGPoint,
-                              size: CGSize) -> [PaperGraphNode] {
+                              size: CGSize,
+                              ballRadius: CGFloat) -> [PaperGraphNode] {
         var result = nodes
         let indexByID = Dictionary(uniqueKeysWithValues: result.enumerated().map { ($0.element.id, $0.offset) })
-        let iterations = result.count > 90 ? 54 : 72
+        let iterations = result.count > 110 ? 72 : 96
 
-        for _ in 0..<iterations {
+        for iteration in 0..<iterations {
             var deltas = Array(repeating: CGSize.zero, count: result.count)
+            let progress = CGFloat(iteration) / CGFloat(max(1, iterations - 1))
+            let cooling = 1 - progress * 0.42
 
             for i in result.indices {
                 let anchor = anchors[result[i].clusterKey] ?? center
-                let strength: CGFloat = result[i].type == .tag ? 0.032 : 0.018
+                let strength: CGFloat = result[i].type == .tag ? 0.012 : 0.004
                 deltas[i].width += (anchor.x - result[i].position.x) * strength
                 deltas[i].height += (anchor.y - result[i].position.y) * strength
+
+                let gravity: CGFloat = result[i].type == .tag ? 0.014 : 0.010
+                deltas[i].width += (center.x - result[i].position.x) * gravity
+                deltas[i].height += (center.y - result[i].position.y) * gravity
+                addBallContainmentDelta(for: result[i], center: center, ballRadius: ballRadius, into: &deltas[i])
             }
 
             for link in links {
@@ -884,8 +924,8 @@ private enum PaperGraphBuilder {
                 let dx = to.x - from.x
                 let dy = to.y - from.y
                 let distance = max(1, sqrt(dx * dx + dy * dy))
-                let target: CGFloat = result[fromIndex].type == .paper ? 92 : 72
-                let force = (distance - target) * 0.010
+                let target: CGFloat = result[fromIndex].type == .paper ? 78 : 64
+                let force = (distance - target) * 0.013
                 let fx = dx / distance * force
                 let fy = dy / distance * force
                 deltas[fromIndex].width += fx
@@ -908,7 +948,7 @@ private enum PaperGraphBuilder {
                     }
                     let minimum = result[i].collisionRadius + result[j].collisionRadius
                     guard distance < minimum else { continue }
-                    let overlap = (minimum - distance) * 0.52
+                    let overlap = (minimum - distance) * 0.66
                     let fx = dx / distance * overlap
                     let fy = dy / distance * overlap
                     deltas[i].width -= fx
@@ -919,9 +959,7 @@ private enum PaperGraphBuilder {
             }
 
             for i in result.indices {
-                deltas[i].width += (center.x - result[i].position.x) * 0.002
-                deltas[i].height += (center.y - result[i].position.y) * 0.002
-                let limit: CGFloat = 18
+                let limit: CGFloat = 20 * cooling
                 let dx = max(-limit, min(limit, deltas[i].width))
                 let dy = max(-limit, min(limit, deltas[i].height))
                 let margin = result[i].collisionRadius + 18
@@ -933,6 +971,20 @@ private enum PaperGraphBuilder {
         }
 
         return result
+    }
+
+    private static func addBallContainmentDelta(for node: PaperGraphNode,
+                                                center: CGPoint,
+                                                ballRadius: CGFloat,
+                                                into delta: inout CGSize) {
+        let px = node.position.x - center.x
+        let py = node.position.y - center.y
+        let distance = max(1, sqrt(px * px + py * py))
+        let allowed = max(52, ballRadius - node.collisionRadius)
+        guard distance > allowed else { return }
+        let pull = (distance - allowed) * 0.16
+        delta.width -= px / distance * pull
+        delta.height -= py / distance * pull
     }
 
     private static func primaryCluster(for paper: Paper, selectedTags: [String]) -> String? {
