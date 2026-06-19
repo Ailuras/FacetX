@@ -121,8 +121,19 @@ final class PdfReaderModel {
         guard let selection = pdfView.currentSelection,
               let page = selection.pages.first else { return }
         
-        let bounds = selection.bounds(for: page)
+        // Highlight the selected text lines under the note
+        let lineSelections = selection.selectionsByLine()
+        for line in lineSelections {
+            for linePage in line.pages {
+                let lineBounds = line.bounds(for: linePage)
+                let highlight = PDFAnnotation(bounds: lineBounds, forType: .highlight, withProperties: nil)
+                highlight.color = .systemYellow
+                linePage.addAnnotation(highlight)
+            }
+        }
+        
         // Position the note bubble near the top-right of the selection bounds
+        let bounds = selection.bounds(for: page)
         let noteBounds = CGRect(x: bounds.maxX + 4, y: bounds.maxY - 12, width: 20, height: 20)
         let annotation = PDFAnnotation(bounds: noteBounds, forType: .text, withProperties: nil)
         annotation.color = .systemYellow

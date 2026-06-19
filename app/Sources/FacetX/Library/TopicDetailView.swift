@@ -321,28 +321,24 @@ struct TopicDetailView: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 Image(systemName: "doc.text")
                     .font(.system(size: 11))
                     .foregroundStyle(Color.accentColor)
-                Text(readingPaper?.title ?? L10n.pick("Select a paper", "选择文献"))
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                    .frame(maxWidth: 380, alignment: .leading)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 9)
-            .frame(height: FacetTheme.chipHeight)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(FacetTheme.quietPanel))
+            .frame(width: 36, height: 24)
+            .background(FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help(L10n.pick("Choose a paper to read", "选择要阅读的文献"))
+        .help(readingPaper?.title ?? L10n.pick("Choose a paper to read", "选择要阅读的文献"))
     }
 
     private var pdfToolCluster: some View {
@@ -415,10 +411,19 @@ struct TopicDetailView: View {
             .pillGroupContainer()
 
             HStack(spacing: 2) {
-                FilterPillButton(systemName: "sidebar.right",
-                                 help: L10n.pick("Open paper details", "打开文献详情")) {
+                FilterPillButton(
+                    systemName: "sidebar.right",
+                    help: L10n.pick("Toggle paper details", "切换文献详情"),
+                    active: selectedPaper?.id == readingPaper?.id
+                ) {
                     if let paper = readingPaper {
-                        withAnimation(detailPaneAnimation) { selectedPaper = paper }
+                        withAnimation(detailPaneAnimation) {
+                            if selectedPaper?.id == paper.id {
+                                selectedPaper = nil
+                            } else {
+                                selectedPaper = paper
+                            }
+                        }
                     }
                 }
             }
@@ -434,7 +439,7 @@ struct TopicDetailView: View {
             TextField(L10n.pick("Find in PDF", "在 PDF 中查找"), text: $pdfSearchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
-                .frame(width: 130)
+                .frame(width: 100)
                 .onSubmit { reader.find(pdfSearchText) }
         }
         .padding(.horizontal, 8)
