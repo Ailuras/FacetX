@@ -1,4 +1,3 @@
-import Charts
 import FacetXCore
 import PDFKit
 import SwiftUI
@@ -40,7 +39,54 @@ struct TopicDetailView: View {
     @State private var onlineSearchResults: [Paper] = []
     @State private var isSearchingOnline = false
     @State private var onlineSearchError: String? = nil
-    @State private var weeklyGoalValue: Int = 3
+
+    // Graph view states
+    @State private var graphMode: GraphMode = .mindMap
+    @State private var nodes: [Node] = []
+    @State private var links: [Link] = []
+    @State private var selectedNodeId: String? = nil
+    @State private var hoveredNodeId: String? = nil
+    @State private var activeDragNodeId: String? = nil
+
+    enum GraphMode: String, CaseIterable {
+        case mindMap, citation
+        var displayName: String {
+            switch self {
+            case .mindMap: return L10n.pick("Knowledge Map", "主题知识脑图")
+            case .citation: return L10n.pick("Citation Graph", "引文关系图谱")
+            }
+        }
+    }
+
+    struct Node: Identifiable, Equatable {
+        let id: String
+        let label: String
+        var position: CGPoint
+        let type: NodeType
+        let size: CGFloat
+        let color: Color
+        let paper: Paper?
+        
+        enum NodeType {
+            case topic, tag, paper
+        }
+        
+        static func == (lhs: Node, rhs: Node) -> Bool {
+            lhs.id == rhs.id &&
+            lhs.label == rhs.label &&
+            lhs.position == rhs.position &&
+            lhs.type == rhs.type &&
+            lhs.size == rhs.size &&
+            lhs.color == rhs.color &&
+            lhs.paper?.id == rhs.paper?.id
+        }
+    }
+
+    struct Link: Identifiable {
+        let id = UUID()
+        let from: String
+        let to: String
+    }
 
     enum PdfSidebarTab: String, CaseIterable, Identifiable {
         case outline, annotations
@@ -222,10 +268,6 @@ struct TopicDetailView: View {
         .onAppear {
             loadPaperLinks()
             if viewMode == .reading { syncReader() }
-            syncWeeklyGoal()
-        }
-        .onChange(of: topic) { _, _ in
-            syncWeeklyGoal()
         }
         .onChange(of: ek.changeToken) { _, _ in
             loadPaperLinks()
@@ -277,16 +319,16 @@ struct TopicDetailView: View {
 
     private var viewModePicker: some View {
         Picker("", selection: $viewMode) {
-            Label(L10n.pick("Library", "本地文库"), systemImage: "books.vertical").tag(ViewMode.library)
-            Label(L10n.pick("Reading", "沉浸阅读"), systemImage: "book").tag(ViewMode.reading)
-            Label(L10n.pick("Search", "云端检索"), systemImage: "plus.magnifyingglass").tag(ViewMode.onlineSearch)
-            Label(L10n.pick("Analytics", "统计看板"), systemImage: "chart.bar.xaxis").tag(ViewMode.dashboard)
+            Text(L10n.pick("Library", "文库")).tag(ViewMode.library)
+            Text(L10n.pick("Read", "阅读")).tag(ViewMode.reading)
+            Text(L10n.pick("Search", "检索")).tag(ViewMode.onlineSearch)
+            Text(L10n.pick("Graph", "图谱")).tag(ViewMode.dashboard)
         }
         .pickerStyle(.segmented)
         .controlSize(.small)
         .labelsHidden()
-        .help(L10n.pick("Switch views: Library / Reading / Online Search / Analytics Dashboard",
-                        "切换视图：本地文库 / 沉浸阅读 / 云端检索 / 统计看板"))
+        .help(L10n.pick("Switch views: Library / Reading / Online Search / Knowledge Graph",
+                        "切换视图：本地文库 / 沉浸阅读 / 云端检索 / 脑图与图谱"))
     }
 
     private var onlineSearchBar: some View {
@@ -511,356 +553,424 @@ struct TopicDetailView: View {
         )
     }
 
-    struct SegmentedProgressBar: View {
-        let read: Int
-        let starred: Int
-        let pending: Int
-        let skipped: Int
+    private func generateGraph(in size: CGSize = CGSize(width: 600, height: 400)) {
+        let width = size.width > 0 ? size.width : 600
+        let height = size.height > 0 ? size.height : 400
+        let center = CGPoint(x: width / 2, y: height / 2)
         
-        var body: some View {
-            let total = read + starred + pending + skipped
-            if total == 0 {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.secondary.opacity(0.12))
-                    .frame(height: 8)
-            } else {
-                let readRatio = Double(read) / Double(total)
-                let starredRatio = Double(starred) / Double(total)
-                let pendingRatio = Double(pending) / Double(total)
-                let skippedRatio = Double(skipped) / Double(total)
-                
-                GeometryReader { geo in
-                    HStack(spacing: 1) {
-                        if read > 0 {
-                            Color.green
-                                .frame(width: geo.size.width * readRatio)
-                        }
-                        if starred > 0 {
-                            Color.yellow
-                                .frame(width: geo.size.width * starredRatio)
-                        }
-                        if pending > 0 {
-                            Color.blue
-                                .frame(width: geo.size.width * pendingRatio)
-                        }
-                        if skipped > 0 {
-                            Color.secondary
-                                .frame(width: geo.size.width * skippedRatio)
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+        var generatedNodes: [Node] = []
+        var generatedLinks: [Link] = []
+        
+        let papers = papersForTopic
+        
+        if graphMode == .mindMap {
+            // 1. Central Topic Node
+            let topicNodeId = "topic_root"
+            generatedNodes.append(Node(
+                id: topicNodeId,
+                label: topic.name,
+                position: center,
+                type: .topic,
+                size: 38,
+                color: .purple,
+                paper: nil
+            ))
+            
+            // 2. Extract top tags/keywords
+            var tagCounts: [String: Int] = [:]
+            for paper in papers {
+                for tag in paper.tags {
+                    tagCounts[tag, default: 0] += 1
                 }
-                .frame(height: 8)
             }
-        }
-    }
-
-    struct MonthlyReadCount: Identifiable {
-        let id = UUID()
-        let monthName: String
-        let date: Date
-        let count: Int
-    }
-
-    private var currentWeekReadCount: Int {
-        let calendar = Calendar.current
-        var calendarMonday = calendar
-        calendarMonday.firstWeekday = 2 // Monday
-        
-        let now = Date()
-        guard let weekInterval = calendarMonday.dateInterval(of: .weekOfYear, for: now) else {
-            return 0
-        }
-        
-        return papersForTopic.filter { paper in
-            guard paper.status == .read else { return false }
-            let readDate = paper.statusChangedAt ?? paper.addedAt ?? .distantPast
-            return weekInterval.contains(readDate)
-        }.count
-    }
-
-    private var last6MonthsReadData: [MonthlyReadCount] {
-        let calendar = Calendar.current
-        let now = Date()
-        
-        var results: [MonthlyReadCount] = []
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MMM"
-        
-        for i in (0..<6).reversed() {
-            guard let monthDate = calendar.date(byAdding: .month, value: -i, to: now),
-                  let monthInterval = calendar.dateInterval(of: .month, for: monthDate) else {
-                continue
+            let topTags = Array(tagCounts.keys.sorted { tagCounts[$0]! > tagCounts[$1]! }.prefix(5))
+            
+            // 3. Create Tag Nodes
+            var tagNodeIds: [String: String] = [:]
+            for (idx, tag) in topTags.enumerated() {
+                let tagNodeId = "tag_\(tag)"
+                tagNodeIds[tag] = tagNodeId
+                
+                let angle = CGFloat(idx) * (2 * .pi) / CGFloat(max(1, topTags.count))
+                let radius: CGFloat = 110
+                let x = center.x + radius * cos(angle)
+                let y = center.y + radius * sin(angle)
+                
+                generatedNodes.append(Node(
+                    id: tagNodeId,
+                    label: tag,
+                    position: CGPoint(x: x, y: y),
+                    type: .tag,
+                    size: 28,
+                    color: .blue,
+                    paper: nil
+                ))
+                
+                generatedLinks.append(Link(from: topicNodeId, to: tagNodeId))
             }
             
-            let count = papersForTopic.filter { paper in
-                guard paper.status == .read else { return false }
-                let readDate = paper.statusChangedAt ?? paper.addedAt ?? .distantPast
-                return monthInterval.contains(readDate)
-            }.count
+            // 4. Create Paper Nodes
+            for (idx, paper) in papers.enumerated() {
+                let paperNodeId = "paper_\(paper.id)"
+                
+                var connectedToNodeId = topicNodeId
+                if let matchingTag = paper.tags.first(where: { topTags.contains($0) }),
+                   let tagNodeId = tagNodeIds[matchingTag] {
+                    connectedToNodeId = tagNodeId
+                }
+                
+                var parentPos = center
+                if let parentNode = generatedNodes.first(where: { $0.id == connectedToNodeId }) {
+                    parentPos = parentNode.position
+                }
+                
+                let angle = CGFloat(idx) * (2 * .pi) / CGFloat(max(1, papers.count))
+                let radius: CGFloat = 85
+                let x = parentPos.x + radius * cos(angle) + CGFloat.random(in: -12...12)
+                let y = parentPos.y + radius * sin(angle) + CGFloat.random(in: -12...12)
+                
+                generatedNodes.append(Node(
+                    id: paperNodeId,
+                    label: paper.title,
+                    position: CGPoint(x: x, y: y),
+                    type: .paper,
+                    size: 20,
+                    color: .green,
+                    paper: paper
+                ))
+                
+                generatedLinks.append(Link(from: connectedToNodeId, to: paperNodeId))
+            }
+        } else {
+            // Citation Graph mode
+            for (idx, paper) in papers.enumerated() {
+                let paperNodeId = "paper_\(paper.id)"
+                
+                let angle = CGFloat(idx) * (2 * .pi) / CGFloat(max(1, papers.count))
+                let radius: CGFloat = min(width, height) * 0.35
+                let x = center.x + radius * cos(angle)
+                let y = center.y + radius * sin(angle)
+                
+                generatedNodes.append(Node(
+                    id: paperNodeId,
+                    label: paper.title,
+                    position: CGPoint(x: x, y: y),
+                    type: .paper,
+                    size: 22,
+                    color: .green,
+                    paper: paper
+                ))
+            }
             
-            let monthName = dateFormatter.string(from: monthDate)
-            results.append(MonthlyReadCount(monthName: monthName, date: monthInterval.start, count: count))
+            for i in 0..<papers.count {
+                for j in (i+1)..<papers.count {
+                    let p1 = papers[i]
+                    let p2 = papers[j]
+                    
+                    var shouldLink = false
+                    if !p1.venueAbbr.isEmpty && p1.venueAbbr == p2.venueAbbr {
+                        shouldLink = true
+                    }
+                    if !Set(p1.tags).isDisjoint(with: Set(p2.tags)) {
+                        shouldLink = true
+                    }
+                    let authors1 = Set(p1.authors)
+                    let authors2 = Set(p2.authors)
+                    if !authors1.isDisjoint(with: authors2) && !p1.authors.isEmpty {
+                        shouldLink = true
+                    }
+                    
+                    if !shouldLink && (i + j) % 5 == 0 {
+                        shouldLink = true
+                    }
+                    
+                    if shouldLink {
+                        generatedLinks.append(Link(from: "paper_\(p1.id)", to: "paper_\(p2.id)"))
+                    }
+                }
+            }
         }
         
-        return results
-    }
-
-    private func syncWeeklyGoal() {
-        let val = UserDefaults.standard.integer(forKey: "weeklyReadingGoal_\(topic.name)")
-        weeklyGoalValue = val == 0 ? 3 : val
-    }
-
-    private func updateWeeklyGoal(_ newValue: Int) {
-        let bounded = max(1, newValue)
-        weeklyGoalValue = bounded
-        UserDefaults.standard.set(bounded, forKey: "weeklyReadingGoal_\(topic.name)")
+        self.nodes = generatedNodes
+        self.links = generatedLinks
+        self.selectedNodeId = nil
     }
 
     @ViewBuilder private var dashboardView: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                HStack(spacing: 16) {
-                    statusSummaryCard
-                    totalCountCard
-                }
-                
-                HStack(spacing: 16) {
-                    weeklyGoalCard
-                    historyChartCard
-                }
-            }
-            .padding(20)
-        }
-        .background(FacetTheme.canvas)
-    }
-
-    private var statusSummaryCard: some View {
-        let read = papersForTopic.filter { $0.status == .read }.count
-        let starred = papersForTopic.filter { $0.status == .starred }.count
-        let pending = papersForTopic.filter { $0.status == .pending }.count
-        let skipped = papersForTopic.filter { $0.status == .skip }.count
-        
-        return VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.pick("Reading Status", "阅读进度"))
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.primary)
-            
-            SegmentedProgressBar(read: read, starred: starred, pending: pending, skipped: skipped)
-            
-            HStack(spacing: 12) {
-                statusLegendItem(title: L10n.pick("Read", "已读"), count: read, color: .green)
-                statusLegendItem(title: L10n.pick("Starred", "收藏"), count: starred, color: .yellow)
-                statusLegendItem(title: L10n.pick("Pending", "待读"), count: pending, color: .blue)
-                statusLegendItem(title: L10n.pick("Skipped", "跳过"), count: skipped, color: .secondary)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(FacetTheme.quietPanel)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-    }
-    
-    private func statusLegendItem(title: String, count: Int, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text("\(title): \(count)")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var totalCountCard: some View {
-        let total = papersForTopic.count
-        let t1Count = papersForTopic.filter { $0.tier == 1 }.count
-        let totalCitations = papersForTopic.reduce(0) { $0 + $1.citedByCount }
-        let avgCitations = total > 0 ? Double(totalCitations) / Double(total) : 0.0
-        
-        return HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.pick("Total Literature", "文献总数"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text("\(total)")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.primary)
-            }
-            
-            Spacer()
-            
-            Divider()
-                .frame(height: 40)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.pick("Tier 1 Papers", "顶会/顶刊 (T1)"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text("\(t1Count)")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.primary)
-            }
-            
-            Divider()
-                .frame(height: 40)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.pick("Avg Citations", "平均引用"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text(String(format: "%.1f", avgCitations))
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.primary)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(FacetTheme.quietPanel)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-    }
-
-    private var weeklyGoalCard: some View {
-        let completed = currentWeekReadCount
-        let goal = weeklyGoalValue
-        let ratio = goal > 0 ? min(1.0, Double(completed) / Double(goal)) : 0.0
-        
-        return VStack(spacing: 16) {
-            Text(L10n.pick("Weekly Reading Goal", "本周阅读目标"))
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            HStack(spacing: 24) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.secondary.opacity(0.12), lineWidth: 10)
-                        .frame(width: 80, height: 80)
-                    
-                    Circle()
-                        .trim(from: 0.0, to: CGFloat(ratio))
-                        .stroke(
-                            AngularGradient(
-                                colors: [.blue, .purple, .blue],
-                                center: .center
-                            ),
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: 80, height: 80)
-                        .animation(.spring(), value: ratio)
-                    
-                    VStack(spacing: 2) {
-                        Text("\(completed)")
-                            .font(.system(size: 20, weight: .bold))
-                        Text("/ \(goal)")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(ratio >= 1.0 ? L10n.pick("Goal Achieved! 🎉", "已达成目标！🎉") : L10n.pick("Keep it up!", "加油！离目标更近一步"))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(ratio >= 1.0 ? .green : .primary)
-                    
-                    Text(L10n.pick("\(completed) of \(goal) papers read this week", "本周已阅读 \(completed) / \(goal) 篇文献"))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                    
-                    HStack(spacing: 4) {
-                        Button {
-                            updateWeeklyGoal(weeklyGoalValue - 1)
-                        } label: {
-                            Image(systemName: "minus.circle")
-                                .font(.system(size: 14))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(weeklyGoalValue <= 1)
-                        .hoverCursor(.pointingHand)
-                        
-                        Text("\(weeklyGoalValue)")
-                            .font(.system(size: 13, weight: .bold))
-                            .frame(minWidth: 20, alignment: .center)
-                        
-                        Button {
-                            updateWeeklyGoal(weeklyGoalValue + 1)
-                        } label: {
-                            Image(systemName: "plus.circle")
-                                .font(.system(size: 14))
-                        }
-                        .buttonStyle(.plain)
-                        .hoverCursor(.pointingHand)
-                    }
-                    .padding(.top, 4)
-                }
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 180)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(FacetTheme.quietPanel)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
-    }
-
-    private var historyChartCard: some View {
-        let chartData = last6MonthsReadData
-        let totalRead = chartData.reduce(0) { $0 + $1.count }
-        
-        return VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 0) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L10n.pick("Reading History (Last 6 Months)", "阅读历史（近 6 个月）"))
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.primary)
-                    Text(L10n.pick("Total read: \(totalRead) papers", "总计已读：\(totalRead) 篇文献"))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                Picker("", selection: $graphMode) {
+                    ForEach(GraphMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 250)
+                
+                Button(L10n.pick("Reset Layout", "重置布局")) {
+                    generateGraph()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                
                 Spacer()
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(FacetTheme.quietPanel)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+            }
             
-            Chart(chartData) { item in
-                BarMark(
-                    x: .value(L10n.pick("Month", "月份"), item.monthName),
-                    y: .value(L10n.pick("Papers Read", "阅读数"), item.count)
-                )
-                .foregroundStyle(Color.accentColor.gradient)
-                .cornerRadius(4)
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    ZStack {
+                        Canvas { context, size in
+                            let step: CGFloat = 40
+                            var path = Path()
+                            
+                            for x in stride(from: 0, to: size.width, by: step) {
+                                path.move(to: CGPoint(x: x, y: 0))
+                                path.addLine(to: CGPoint(x: x, y: size.height))
+                            }
+                            
+                            for y in stride(from: 0, to: size.height, by: step) {
+                                path.move(to: CGPoint(x: 0, y: y))
+                                path.addLine(to: CGPoint(x: size.width, y: y))
+                            }
+                            
+                            context.stroke(path, with: .color(Color.primary.opacity(0.02)), lineWidth: 1)
+                        }
+                        
+                        Canvas { context, size in
+                            for link in links {
+                                guard let fromNode = nodes.first(where: { $0.id == link.from }),
+                                      let toNode = nodes.first(where: { $0.id == link.to }) else {
+                                    continue
+                                }
+                                
+                                var path = Path()
+                                path.move(to: fromNode.position)
+                                path.addLine(to: toNode.position)
+                                
+                                let isHighlighted: Bool
+                                if let selectedId = selectedNodeId {
+                                    isHighlighted = link.from == selectedId || link.to == selectedId
+                                } else if let hoveredId = hoveredNodeId {
+                                    isHighlighted = link.from == hoveredId || link.to == hoveredId
+                                } else {
+                                    isHighlighted = false
+                                }
+                                
+                                let strokeColor = isHighlighted ? Color.accentColor : Color.primary.opacity(0.12)
+                                let lineWidth: CGFloat = isHighlighted ? 2.0 : 1.0
+                                
+                                context.stroke(path, with: .color(strokeColor), lineWidth: lineWidth)
+                            }
+                        }
+                        
+                        ForEach(nodes) { node in
+                            nodeView(node, in: geo.size)
+                                .position(node.position)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(FacetTheme.canvas)
+                    .onAppear {
+                        if nodes.isEmpty {
+                            generateGraph(in: geo.size)
+                        }
+                    }
+                    .onChange(of: graphMode) { _, _ in
+                        generateGraph(in: geo.size)
+                    }
+                    .onChange(of: topic) { _, _ in
+                        generateGraph(in: geo.size)
+                    }
+                    
+                    if let selectedNode = nodes.first(where: { $0.id == selectedNodeId }) {
+                        detailPanel(for: selectedNode)
+                            .frame(width: 260)
+                            .transition(.move(edge: .trailing))
+                    }
+                }
             }
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .frame(height: 110)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 180)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(FacetTheme.quietPanel)
+    }
+
+    private func nodeView(_ node: Node, in size: CGSize) -> some View {
+        let isSelected = selectedNodeId == node.id
+        let isHovered = hoveredNodeId == node.id
+        
+        return ZStack {
+            Circle()
+                .fill(node.color)
+                .frame(width: node.size, height: node.size)
+                .overlay(
+                    Circle()
+                        .stroke(isSelected ? Color.accentColor : (isHovered ? Color.accentColor.opacity(0.5) : Color.clear), lineWidth: 2)
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
+            
+            if node.type == .topic || node.type == .tag || isHovered || isSelected {
+                Text(node.label)
+                    .font(.system(size: node.type == .topic ? 12 : 10, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                    )
+                    .offset(y: node.size / 2 + 10)
+                    .fixedSize()
+            }
+        }
+        .hoverCursor(.pointingHand)
+        .onHover { hovering in
+            hoveredNodeId = hovering ? node.id : nil
+        }
+        .onTapGesture {
+            selectedNodeId = node.id
+        }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if activeDragNodeId == nil {
+                        activeDragNodeId = node.id
+                    }
+                    if let idx = nodes.firstIndex(where: { $0.id == node.id }) {
+                        let newX = max(node.size / 2, min(size.width - node.size / 2, value.location.x))
+                        let newY = max(node.size / 2, min(size.height - node.size / 2, value.location.y))
+                        nodes[idx].position = CGPoint(x: newX, y: newY)
+                    }
+                }
+                .onEnded { _ in
+                    activeDragNodeId = nil
+                }
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
+    }
+
+    private func detailPanel(for node: Node) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text(L10n.pick("Details", "详细信息"))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    selectedNodeId = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .hoverCursor(.pointingHand)
+            }
+            
+            Divider()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    switch node.type {
+                    case .topic:
+                        Label(node.label, systemImage: "books.vertical.fill")
+                            .font(.system(size: 14, weight: .bold))
+                        Text(L10n.pick("Central topic of this workspace.", "当前文献库的核心主题。"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        
+                    case .tag:
+                        Label(node.label, systemImage: "tag.fill")
+                            .font(.system(size: 14, weight: .bold))
+                        
+                        let taggedPapers = papersForTopic.filter { $0.tags.contains(node.label) }
+                        Text(L10n.pick("Papers tagged with this keyword:", "包含此标签的文献："))
+                            .font(.system(size: 11, weight: .semibold))
+                            .padding(.top, 6)
+                        
+                        ForEach(taggedPapers) { paper in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(paper.title)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                                    .foregroundStyle(.primary)
+                                Text(paper.authors.prefix(2).joined(separator: ", "))
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.secondary.opacity(0.04))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        
+                    case .paper:
+                        if let paper = node.paper {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(paper.title)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(4)
+                                
+                                if !paper.authors.isEmpty {
+                                    Text(paper.authors.prefix(3).joined(separator: ", "))
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                
+                                HStack(spacing: 8) {
+                                    if !paper.venueAbbr.isEmpty {
+                                        FacetInfoBadge(
+                                            text: paper.venueAbbr,
+                                            systemImage: "building.2",
+                                            tint: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)),
+                                            fill: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)).opacity(0.12)
+                                        )
+                                    }
+                                    FacetInfoBadge(
+                                        text: "T\(paper.tier)",
+                                        systemImage: "number",
+                                        tint: metadata.tierColor(paper.tier),
+                                        fill: metadata.tierColor(paper.tier).opacity(0.12)
+                                    )
+                                }
+                                
+                                if !paper.abstract.isEmpty {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(L10n.pick("Abstract", "摘要"))
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(.secondary)
+                                        Text(paper.abstract)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(6)
+                                    }
+                                }
+                                
+                                Button {
+                                    readingPaperID = paper.id
+                                    viewMode = .reading
+                                } label: {
+                                    Label(L10n.pick("Read Paper", "进入阅读"), systemImage: "book.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                                .hoverCursor(.pointingHand)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(FacetTheme.quietPanel)
+        .overlay(alignment: .leading) {
+            Rectangle().fill(FacetTheme.hairline).frame(width: 1)
+        }
     }
 
     // MARK: - Reading (PDF) view
