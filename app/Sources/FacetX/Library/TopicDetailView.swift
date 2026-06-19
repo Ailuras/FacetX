@@ -306,6 +306,20 @@ struct TopicDetailView: View {
 
     private var readingBar: some View {
         HStack(spacing: 10) {
+            if reader.pageCount > 0 {
+                HStack(spacing: 2) {
+                    FilterPillButton(
+                        systemName: "sidebar.left",
+                        help: L10n.pick("Toggle PDF Sidebar", "切换 PDF 大纲与批注"),
+                        active: showPdfSidebar
+                    ) {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            showPdfSidebar.toggle()
+                        }
+                    }
+                }
+                .pillGroupContainer()
+            }
             paperDropdown
             Spacer()
             if reader.pageCount > 0 {
@@ -361,19 +375,6 @@ struct TopicDetailView: View {
 
     private var pdfToolCluster: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 2) {
-                FilterPillButton(
-                    systemName: "sidebar.left",
-                    help: L10n.pick("Toggle PDF Sidebar", "切换 PDF 大纲与批注"),
-                    active: showPdfSidebar
-                ) {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        showPdfSidebar.toggle()
-                    }
-                }
-            }
-            .pillGroupContainer()
-
             HStack(spacing: 2) {
                 pdfSearchField
                 FilterPillButton(systemName: "chevron.left",
