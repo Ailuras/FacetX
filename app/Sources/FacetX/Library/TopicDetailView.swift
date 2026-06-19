@@ -800,8 +800,13 @@ struct TopicDetailView: View {
     }
 
     private func toggleSelection(_ paper: Paper) {
-        withAnimation(detailPaneAnimation) {
-            selectedPaper = (selectedPaper?.id == paper.id) ? nil : paper
+        if PdfCoordinator.hasLocalPdf(paper) {
+            readingPaperID = paper.id
+            viewMode = .reading
+        } else {
+            withAnimation(detailPaneAnimation) {
+                selectedPaper = (selectedPaper?.id == paper.id) ? nil : paper
+            }
         }
     }
 
