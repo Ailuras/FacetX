@@ -20,11 +20,15 @@ struct TopicDetailView: View {
     @State private var showAddSheet = false
     @State private var isRecommending = false
     @State private var isFetching = false
-    @State private var showRecommended = true
+    @State private var collapsedSections: Set<ListSection> = []
     @State private var mode: Mode = .all
     @State private var paperToDelete: Paper?
 
     private let detailPaneAnimation = FacetTheme.detailSpring
+
+    /// The collapsible sections of the paper list. Clicking a header toggles
+    /// membership in `collapsedSections`, mirroring the project All view.
+    enum ListSection: Hashable { case recommended, papers }
 
     enum Mode: String, CaseIterable, Identifiable {
         case all, starred, read, skipped
@@ -35,7 +39,7 @@ struct TopicDetailView: View {
             case .all:     return L10n.pick("All", "全部")
             case .starred: return L10n.pick("Starred", "收藏")
             case .read:    return L10n.pick("Read", "已读")
-            case .skipped: return L10n.pick("Skipped", "忽略")
+            case .skipped: return L10n.pick("Skipped", "已忽略")
             }
         }
 
@@ -73,7 +77,7 @@ struct TopicDetailView: View {
 
     /// Daily recommendations, pinned at the top of the All view.
     private var recommendedPapers: [Paper] {
-        guard mode == .all, showRecommended else { return [] }
+        guard mode == .all else { return [] }
         let calendar = Calendar.current
         return papersForTopic
             .filter { paper in
@@ -154,9 +158,6 @@ struct TopicDetailView: View {
         .background(FacetTheme.canvas)
         .navigationTitle(topic.name)
         .toolbar {
-            ToolbarItem(placement: .status) {
-                modePicker
-            }
             ToolbarItem(placement: .automatic) {
                 ToolbarSearchField(text: $searchText, placeholder: L10n.t(.searchItems))
                     .frame(width: 220, height: 24)
@@ -223,6 +224,7 @@ struct TopicDetailView: View {
             List {
                 if !recommendedPapers.isEmpty {
                     paperSection(
+                        section: .recommended,
                         title: L10n.pick("Daily Recommendations", "每日推荐"),
                         systemImage: "sparkles",
                         color: .orange,
@@ -230,6 +232,7 @@ struct TopicDetailView: View {
                     )
                 }
                 paperSection(
+                    section: .papers,
                     title: mode == .all ? L10n.pick("Papers", "文献") : mode.title,
                     systemImage: mode == .all ? "doc.text" : (mode.status?.iconName ?? "doc.text"),
                     color: .accentColor,
@@ -243,29 +246,46 @@ struct TopicDetailView: View {
     }
 
     @ViewBuilder
-    private func paperSection(title: String, systemImage: String, color: Color,
-                              papers: [Paper]) -> some View {
+    private func paperSection(section: ListSection, title: String, systemImage: String,
+                              color: Color, papers: [Paper]) -> some View {
         if !papers.isEmpty {
-            sectionHeader(title: title, systemImage: systemImage, count: papers.count, color: color)
+            let collapsed = collapsedSections.contains(section)
+            sectionHeader(title: title, systemImage: systemImage, count: papers.count,
+                          color: color, collapsed: collapsed)
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation(detailPaneAnimation) { toggleCollapse(section) } }
+                .hoverCursor(.pointingHand)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
 
-            ForEach(papers) { paper in
-                PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
-                         metadata: metadata, version: store.paperVersion,
-                         linkedProjectPrefixes: paperLinks[paper.id] ?? [])
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
-                    .onTapGesture { toggleSelection(paper) }
-                    .contextMenu { paperContextMenu(for: paper) }
+            if !collapsed {
+                ForEach(papers) { paper in
+                    PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
+                             metadata: metadata, version: store.paperVersion,
+                             linkedProjectPrefixes: paperLinks[paper.id] ?? [])
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
+                        .onTapGesture { toggleSelection(paper) }
+                        .contextMenu { paperContextMenu(for: paper) }
+                }
             }
         }
     }
 
-    private func sectionHeader(title: String, systemImage: String, count: Int, color: Color) -> some View {
+    private func toggleCollapse(_ section: ListSection) {
+        if collapsedSections.contains(section) { collapsedSections.remove(section) }
+        else { collapsedSections.insert(section) }
+    }
+
+    private func sectionHeader(title: String, systemImage: String, count: Int,
+                              color: Color, collapsed: Bool) -> some View {
         HStack(spacing: 7) {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(collapsed ? 0 : 90))
             Image(systemName: systemImage)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(color)
@@ -471,21 +491,7 @@ struct TopicDetailView: View {
 
     private var infoBar: some View {
         HStack(spacing: 10) {
-            SummaryChip(value: papersForTopic.count, label: L10n.pick("Papers", "文献"), systemImage: "doc.text")
-            // Starred / Read counts are only meaningful in the All view; the
-            // mode-scoped views (Starred/Read/Skipped) drop them. The All view
-            // instead surfaces how many papers are currently recommended.
-            if mode == .all {
-                SummaryChip(value: papersForTopic.filter { $0.status == .starred }.count,
-                            label: L10n.pick("Starred", "收藏"), systemImage: "star")
-                SummaryChip(value: papersForTopic.filter { $0.status == .read }.count,
-                            label: L10n.pick("Read", "已读"), systemImage: "checkmark.circle")
-                SummaryChip(value: papersForTopic.filter { paper in
-                                guard paper.isRecommended, let date = paper.recommendedAt else { return false }
-                                return Calendar.current.isDateInToday(date)
-                            }.count,
-                            label: L10n.pick("Recommended", "已推荐"), systemImage: "sparkles")
-            }
+            modeCluster
 
             if !tagFilter.isEmpty {
                 ActiveTagFilterBar(tagFilter: $tagFilter)
@@ -513,18 +519,44 @@ struct TopicDetailView: View {
         }
     }
 
+    /// Clickable count badges that replace the old segmented mode picker: the
+    /// "All" chip clears the status filter, and each status chip isolates papers
+    /// of that status (clicking the active one returns to All). Mirrors the
+    /// project All view's summary cluster.
+    private var modeCluster: some View {
+        HStack(spacing: 6) {
+            SummaryChip(value: papersForTopic.count,
+                        label: L10n.pick("All", "全部"),
+                        systemImage: "square.grid.2x2",
+                        isActive: mode == .all,
+                        onTap: { setMode(.all) })
+            modeChip(.starred)
+            modeChip(.read)
+            modeChip(.skipped)
+        }
+    }
+
+    private func modeChip(_ m: Mode) -> some View {
+        let status = m.status
+        let count = papersForTopic.filter { $0.status == status }.count
+        return SummaryChip(value: count,
+                           label: m.title,
+                           systemImage: status?.iconName ?? "doc.text",
+                           tint: status?.iconColor,
+                           isActive: mode == m,
+                           onTap: { setMode(m) })
+    }
+
+    /// Click a chip to focus that status; click the active chip again to reset.
+    private func setMode(_ m: Mode) {
+        withAnimation(detailPaneAnimation) {
+            mode = (mode == m) ? .all : m
+        }
+    }
+
     private var actionCluster: some View {
         HStack(spacing: 2) {
             sortMenu
-            FilterPillButton(
-                systemName: showRecommended ? "checkmark.circle.fill" : "checkmark.circle",
-                help: showRecommended
-                    ? L10n.pick("Hide recommendations", "隐藏推荐")
-                    : L10n.pick("Show recommendations", "显示推荐"),
-                active: showRecommended
-            ) {
-                showRecommended.toggle()
-            }
             FilterPillButton(systemName: "plus",
                              help: L10n.pick("Add paper", "添加文献")) {
                 showAddSheet = true
@@ -548,18 +580,6 @@ struct TopicDetailView: View {
     }
 
     // MARK: - Toolbar
-
-    private var modePicker: some View {
-        Picker("", selection: $mode) {
-            ForEach(Mode.allCases) { m in
-                Text(m.title).tag(m)
-            }
-        }
-        .pickerStyle(.segmented)
-        .controlSize(.small)
-        .labelsHidden()
-        .help(L10n.pick("Filter papers", "筛选文献"))
-    }
 
     private var toolbarActions: some View {
         HStack(spacing: 3) {
