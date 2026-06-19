@@ -928,7 +928,13 @@ struct TopicDetailView: View {
             HStack(spacing: 0) {
                 if showPdfSidebar {
                     pdfSidebarPanel
-                        .frame(width: 220)
+                        .resizableSidebarWidth(
+                            storageKey: "facetPdfSidebarWidth",
+                            defaultWidth: 220,
+                            minWidth: 180,
+                            maxWidth: 420,
+                            handleEdge: .trailing
+                        )
                         .transition(.move(edge: .leading))
 
                     Rectangle()

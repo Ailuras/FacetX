@@ -29,10 +29,6 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
     private let accessory: Accessory
     private let content: Content
 
-    @AppStorage("facetSidebarPaneWidth") private var storedWidth: Double = Double(FacetSidebarStyle.width)
-    @State private var dragWidth: Double?
-    @State private var dragStartWidth: Double?
-
     init(
         title: String,
         systemImage: String,
@@ -66,7 +62,14 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
             content
         }
         .frame(maxWidth: fillWidth ? .infinity : nil)
-        .frame(width: fillWidth ? nil : clampedWidth)
+        .resizableSidebarWidth(
+            storageKey: "facetSidebarPaneWidth",
+            defaultWidth: FacetSidebarStyle.width,
+            minWidth: FacetSidebarStyle.minWidth,
+            maxWidth: FacetSidebarStyle.maxWidth,
+            handleEdge: .leading,
+            disabled: fillWidth
+        )
         .frame(maxHeight: .infinity)
         .background(FacetTheme.canvas)
         .clipShape(RoundedRectangle(cornerRadius: FacetSidebarStyle.cornerRadius, style: .continuous))
@@ -74,47 +77,9 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
             RoundedRectangle(cornerRadius: FacetSidebarStyle.cornerRadius, style: .continuous)
                 .stroke(FacetTheme.hairline, lineWidth: 1)
         )
-        .overlay(alignment: .leading) { if !fillWidth { resizeHandle } }
         .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
         .padding(FacetSidebarStyle.padding)
         .transition(FacetSidebarStyle.transition)
-    }
-
-    private var clampedWidth: CGFloat {
-        let raw = dragWidth ?? storedWidth
-        return min(max(CGFloat(raw), FacetSidebarStyle.minWidth), FacetSidebarStyle.maxWidth)
-    }
-
-    /// A thin draggable strip on the pane's leading edge. Dragging left widens
-    /// the pane (it lives on the trailing side), the width persists per app.
-    ///
-    /// The drag is measured in the *global* coordinate space: a local space
-    /// would move with the handle as the pane resizes, feeding the translation
-    /// back into itself and producing severe jitter.
-    private var resizeHandle: some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(width: 10)
-            .contentShape(Rectangle())
-            .onHover { inside in
-                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                    .onChanged { value in
-                        let base = dragStartWidth ?? storedWidth
-                        if dragStartWidth == nil { dragStartWidth = base }
-                        let proposed = base - Double(value.translation.width)
-                        dragWidth = min(max(proposed,
-                                            Double(FacetSidebarStyle.minWidth)),
-                                        Double(FacetSidebarStyle.maxWidth))
-                    }
-                    .onEnded { _ in
-                        if let dragWidth { storedWidth = dragWidth }
-                        dragWidth = nil
-                        dragStartWidth = nil
-                    }
-            )
     }
 }
 
@@ -186,5 +151,94 @@ private struct FacetSidebarHeader<Accessory: View>: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+}
+
+extension View {
+    func resizableSidebarWidth(storageKey: String,
+                               defaultWidth: CGFloat,
+                               minWidth: CGFloat,
+                               maxWidth: CGFloat,
+                               handleEdge: HorizontalEdge,
+                               disabled: Bool = false) -> some View {
+        modifier(ResizableSidebarWidthModifier(
+            storageKey: storageKey,
+            defaultWidth: defaultWidth,
+            minWidth: minWidth,
+            maxWidth: maxWidth,
+            handleEdge: handleEdge,
+            disabled: disabled
+        ))
+    }
+}
+
+private struct ResizableSidebarWidthModifier: ViewModifier {
+    let defaultWidth: CGFloat
+    let minWidth: CGFloat
+    let maxWidth: CGFloat
+    let handleEdge: HorizontalEdge
+    let disabled: Bool
+
+    @AppStorage private var storedWidth: Double
+    @State private var dragWidth: Double?
+    @State private var dragStartWidth: Double?
+
+    init(storageKey: String,
+         defaultWidth: CGFloat,
+         minWidth: CGFloat,
+         maxWidth: CGFloat,
+         handleEdge: HorizontalEdge,
+         disabled: Bool) {
+        self.defaultWidth = defaultWidth
+        self.minWidth = minWidth
+        self.maxWidth = maxWidth
+        self.handleEdge = handleEdge
+        self.disabled = disabled
+        self._storedWidth = AppStorage(wrappedValue: Double(defaultWidth), storageKey)
+    }
+
+    func body(content: Content) -> some View {
+        if disabled {
+            content
+        } else {
+            content
+                .frame(width: clampedWidth)
+                .overlay(alignment: handleEdge == .leading ? .leading : .trailing) {
+                    resizeHandle
+                }
+        }
+    }
+
+    private var clampedWidth: CGFloat {
+        let raw = dragWidth ?? storedWidth
+        return min(max(CGFloat(raw), minWidth), maxWidth)
+    }
+
+    /// The drag is measured in global coordinates; a local coordinate space would
+    /// move with the handle as the pane resizes and feed jitter back into itself.
+    private var resizeHandle: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 10)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let base = dragStartWidth ?? storedWidth
+                        if dragStartWidth == nil { dragStartWidth = base }
+                        let delta = handleEdge == .leading
+                            ? -Double(value.translation.width)
+                            : Double(value.translation.width)
+                        dragWidth = min(max(base + delta, Double(minWidth)), Double(maxWidth))
+                    }
+                    .onEnded { _ in
+                        if let dragWidth { storedWidth = dragWidth }
+                        dragWidth = nil
+                        dragStartWidth = nil
+                    }
+            )
     }
 }
