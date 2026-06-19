@@ -249,8 +249,8 @@ struct TopicDetailView: View {
             Text(L10n.pick("Read", "阅读")).tag(ViewMode.reading)
         }
         .pickerStyle(.segmented)
+        .controlSize(.small)
         .labelsHidden()
-        .frame(width: 150)
         .help(L10n.pick("Switch between the library list and the PDF reader", "在文库列表与 PDF 阅读器之间切换"))
     }
 
