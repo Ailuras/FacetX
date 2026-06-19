@@ -67,10 +67,10 @@ extension WeekView {
                 }
             )
             SummaryChip(
-                value: weekBaseItems.filter { $0.kind == .reminder }.count,
+                value: weekBaseItems.filter { $0.facetKind == .task }.count,
                 label: L10n.pick("Tasks", "任务"),
-                systemImage: "checklist",
-                tint: .green,
+                systemImage: FacetKind.task.systemImage,
+                tint: FacetKind.task.color,
                 isActive: itemFilter.kindScope == .tasks,
                 help: L10n.pick("Show only tasks", "仅显示任务"),
                 onTap: {
@@ -80,15 +80,41 @@ extension WeekView {
                 }
             )
             SummaryChip(
-                value: weekBaseItems.filter { $0.kind == .event }.count,
+                value: weekBaseItems.filter { $0.facetKind == .event }.count,
                 label: L10n.pick("Events", "事件"),
-                systemImage: "calendar",
-                tint: .blue,
+                systemImage: FacetKind.event.systemImage,
+                tint: FacetKind.event.color,
                 isActive: itemFilter.kindScope == .events,
                 help: L10n.pick("Show only events", "仅显示事件"),
                 onTap: {
                     withAnimation(listAnimation) {
                         itemFilter.kindScope = (itemFilter.kindScope == .events) ? .all : .events
+                    }
+                }
+            )
+            SummaryChip(
+                value: weekBaseItems.filter { $0.facetKind == .paper }.count,
+                label: L10n.pick("Literature", "文献"),
+                systemImage: FacetKind.paper.systemImage,
+                tint: FacetKind.paper.color,
+                isActive: itemFilter.kindScope == .papers,
+                help: L10n.pick("Show only literature", "仅显示文献"),
+                onTap: {
+                    withAnimation(listAnimation) {
+                        itemFilter.kindScope = (itemFilter.kindScope == .papers) ? .all : .papers
+                    }
+                }
+            )
+            SummaryChip(
+                value: weekBaseItems.filter { $0.facetKind == .note }.count,
+                label: L10n.pick("Notes", "笔记"),
+                systemImage: FacetKind.note.systemImage,
+                tint: FacetKind.note.color,
+                isActive: itemFilter.kindScope == .notes,
+                help: L10n.pick("Show only notes", "仅显示笔记"),
+                onTap: {
+                    withAnimation(listAnimation) {
+                        itemFilter.kindScope = (itemFilter.kindScope == .notes) ? .all : .notes
                     }
                 }
             )

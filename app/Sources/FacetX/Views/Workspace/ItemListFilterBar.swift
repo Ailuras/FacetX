@@ -89,6 +89,8 @@ struct ItemFilterMenuButton: View {
                 kindButton(.all)
                 kindButton(.tasks)
                 kindButton(.events)
+                kindButton(.papers)
+                kindButton(.notes)
             }
             Section(L10n.pick("Date", "日期")) {
                 dateButton(.all)
@@ -124,6 +126,8 @@ struct ItemFilterMenuButton: View {
         case .all:    return L10n.pick("All", "全部")
         case .tasks:  return L10n.pick("Tasks", "任务")
         case .events: return L10n.pick("Events", "事件")
+        case .papers: return L10n.pick("Literature", "文献")
+        case .notes:  return L10n.pick("Notes", "笔记")
         }
     }
 
