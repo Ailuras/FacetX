@@ -36,6 +36,11 @@ struct ContentView: View {
                             ForEach(store.activeProjects) { project in
                                 ProjectSidebarRow(project: project)
                                     .tag(SidebarItem.project(project.id))
+                                    .listRowBackground(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(project.appearanceColor.opacity(0.08))
+                                            .padding(.vertical, 1)
+                                    )
                                     .contextMenu {
                                         Button(L10n.t(.editProject)) {
                                             selection = .project(project.id)
@@ -58,10 +63,17 @@ struct ContentView: View {
                         if !litMeta.topics.filter({ !$0.archived }).isEmpty {
                             Section(L10n.pick("Literature", "文献")) {
                                 ForEach(litMeta.topics.filter { !$0.archived }) { topic in
-                                    LiteratureSidebarRow(topic: topic, paperCount: litStore.papers.filter { p in
+                                    let tint = MetadataStore.shared.topicColor(topic.name)
+                                    let count = litStore.papers.filter { p in
                                         p.track.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.contains(topic.name)
-                                    }.count)
+                                    }.count
+                                    LiteratureSidebarRow(topic: topic, paperCount: count)
                                         .tag(SidebarItem.topic(topic.id))
+                                        .listRowBackground(
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .fill(tint.opacity(0.08))
+                                                .padding(.vertical, 1)
+                                        )
                                         .contextMenu {
                                             Button(L10n.pick("Edit Library", "编辑文献库")) {
                                                 editingTopic = topic
@@ -78,6 +90,9 @@ struct ContentView: View {
                                                 topicToDelete = topic
                                             }
                                         }
+                                }
+                                .onMove { indices, newOffset in
+                                    litMeta.reorderTopics(from: indices, to: newOffset)
                                 }
                             }
                         }

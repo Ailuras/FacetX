@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Shared sidebar row shell
+
 struct WorkspaceSidebarRow: View {
     enum Badge {
         case text(String)
@@ -46,11 +48,49 @@ struct WorkspaceSidebarRow: View {
     }
 }
 
+// MARK: - Drag preview card
+
+/// A self-contained card rendered as the drag ghost when a sidebar row is
+/// being reordered. Assign via `.draggable(_:preview:)` or render standalone.
+struct SidebarDragPreview: View {
+    let title: String
+    let subtitle: String
+    let badge: WorkspaceSidebarRow.Badge
+    let tint: Color
+
+    var body: some View {
+        WorkspaceSidebarRow(title: title, subtitle: subtitle, badge: badge, tint: tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(width: 210, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.regularMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(tint.opacity(0.4), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 5)
+    }
+}
+
+// MARK: - Concrete rows
+
 struct ProjectSidebarRow: View {
     let project: Project
 
     var body: some View {
         WorkspaceSidebarRow(
+            title: project.name,
+            subtitle: project.tagline.isEmpty ? project.prefix : project.tagline,
+            badge: .symbol(project.appearanceIconName),
+            tint: project.appearanceColor
+        )
+    }
+
+    var dragPreview: some View {
+        SidebarDragPreview(
             title: project.name,
             subtitle: project.tagline.isEmpty ? project.prefix : project.tagline,
             badge: .symbol(project.appearanceIconName),

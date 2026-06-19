@@ -351,6 +351,13 @@ final class MetadataStore {
         topics.removeAll { $0.id == id }
     }
 
+    func reorderTopics(from source: IndexSet, to destination: Int) {
+        var active = topics.filter { !$0.archived }
+        active.move(fromOffsets: source, toOffset: destination)
+        let archived = topics.filter { $0.archived }
+        topics = active + archived
+    }
+
     private func saveTopics() {
         replace(table: "metadata_topics") {
             let sql = "INSERT INTO metadata_topics (id, name, query, keywords_json, color, icon, archived, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
