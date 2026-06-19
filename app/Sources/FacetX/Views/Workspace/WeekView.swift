@@ -48,6 +48,16 @@ struct WeekView: View {
         ItemQuery.completedVisibility(weekScopedItems, showCompleted: showCompleted)
     }
 
+    var weekBaseItems: [ProjectItem] {
+        let raw = allItems.filter { item in
+            guard let date = item.date else { return false }
+            return week.contains(date)
+        }
+        let tagged = ItemQuery.filtered(raw, by: tagFilter)
+        let searched = ItemQuery.searched(tagged, query: searchText)
+        return ItemQuery.completedVisibility(searched, showCompleted: showCompleted)
+    }
+
     var hiddenReminderCount: Int {
         guard !showCompleted else { return 0 }
         return weekScopedItems.filter { $0.kind == .reminder && $0.isCompleted }.count

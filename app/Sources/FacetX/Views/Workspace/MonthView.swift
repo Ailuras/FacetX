@@ -46,6 +46,16 @@ struct MonthView: View {
         ItemQuery.completedVisibility(monthScopedItems, showCompleted: showCompleted)
     }
 
+    private var monthBaseItems: [ProjectItem] {
+        let raw = allItems.filter { item in
+            guard let date = item.date else { return false }
+            return month.contains(date)
+        }
+        let tagged = ItemQuery.filtered(raw, by: tagFilter)
+        let searched = ItemQuery.searched(tagged, query: searchText)
+        return ItemQuery.completedVisibility(searched, showCompleted: showCompleted)
+    }
+
     private var hiddenReminderCount: Int {
         guard !showCompleted else { return 0 }
         return monthScopedItems.filter { $0.kind == .reminder && $0.isCompleted }.count
@@ -131,42 +141,91 @@ struct MonthView: View {
             currentHelp: L10n.t(.currentMonth),
             onPrevious: { month = month.shifted(by: -1) },
             onNext: { month = month.shifted(by: 1) },
-            onCurrent: { month = MonthYear.containing(Date()) }
-        ) {
-            if hasActiveSearch {
-                FacetInfoBadge(
-                    text: "\(monthItems.count) results",
-                    systemImage: "magnifyingglass",
-                    tint: .secondary,
-                    fill: Color.accentColor.opacity(0.08)
-                )
-            }
-            if !showCompleted && hiddenReminderCount > 0 {
-                FacetInfoBadge(
-                    text: "\(hiddenReminderCount) hidden",
-                    systemImage: "eye.slash",
-                    tint: .secondary,
-                    fill: Color.orange.opacity(0.08)
-                )
-            }
-            if !tagFilter.isEmpty {
-                ActiveTagFilterBar(tagFilter: $tagFilter)
-            }
-            if itemFilter.isActive {
-                FacetInfoBadge(
-                    text: "\(monthItems.count) shown",
-                    systemImage: "line.3.horizontal.decrease.circle",
-                    tint: .secondary,
-                    fill: Color.accentColor.opacity(0.08)
-                )
-            }
-            ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
-                if let selectedDay, let date = month.dateForDay(selectedDay) {
-                    onCreateItem(date)
-                } else {
-                    onCreateItem(month.startDate)
+            onCurrent: { month = MonthYear.containing(Date()) },
+            leading: {
+                summaryCluster
+            },
+            accessory: {
+                HStack(spacing: 8) {
+                    if hasActiveSearch {
+                        FacetInfoBadge(
+                            text: "\(monthItems.count) results",
+                            systemImage: "magnifyingglass",
+                            tint: .secondary,
+                            fill: Color.accentColor.opacity(0.08)
+                        )
+                    }
+                    if !showCompleted && hiddenReminderCount > 0 {
+                        FacetInfoBadge(
+                            text: "\(hiddenReminderCount) hidden",
+                            systemImage: "eye.slash",
+                            tint: .secondary,
+                            fill: Color.orange.opacity(0.08)
+                        )
+                    }
+                    if !tagFilter.isEmpty {
+                        ActiveTagFilterBar(tagFilter: $tagFilter)
+                    }
+                    if itemFilter.isActive {
+                        FacetInfoBadge(
+                            text: "\(monthItems.count) shown",
+                            systemImage: "line.3.horizontal.decrease.circle",
+                            tint: .secondary,
+                            fill: Color.accentColor.opacity(0.08)
+                        )
+                    }
+                    ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
+                        if let selectedDay, let date = month.dateForDay(selectedDay) {
+                            onCreateItem(date)
+                        } else {
+                            onCreateItem(month.startDate)
+                        }
+                    }
                 }
             }
+        )
+    }
+
+    private var summaryCluster: some View {
+        HStack(spacing: 6) {
+            SummaryChip(
+                value: monthBaseItems.count,
+                label: L10n.pick("All", "全部"),
+                systemImage: "square.grid.2x2",
+                isActive: itemFilter.kindScope == .all,
+                help: L10n.pick("Show all items", "显示全部条目"),
+                onTap: {
+                    withAnimation(listAnimation) {
+                        itemFilter.kindScope = .all
+                    }
+                }
+            )
+            SummaryChip(
+                value: monthBaseItems.filter { $0.kind == .reminder }.count,
+                label: L10n.pick("Tasks", "任务"),
+                systemImage: "checklist",
+                tint: .green,
+                isActive: itemFilter.kindScope == .tasks,
+                help: L10n.pick("Show only tasks", "仅显示任务"),
+                onTap: {
+                    withAnimation(listAnimation) {
+                        itemFilter.kindScope = (itemFilter.kindScope == .tasks) ? .all : .tasks
+                    }
+                }
+            )
+            SummaryChip(
+                value: monthBaseItems.filter { $0.kind == .event }.count,
+                label: L10n.pick("Events", "事件"),
+                systemImage: "calendar",
+                tint: .blue,
+                isActive: itemFilter.kindScope == .events,
+                help: L10n.pick("Show only events", "仅显示事件"),
+                onTap: {
+                    withAnimation(listAnimation) {
+                        itemFilter.kindScope = (itemFilter.kindScope == .events) ? .all : .events
+                    }
+                }
+            )
         }
     }
 

@@ -23,6 +23,7 @@ struct TopicDetailView: View {
     @State private var isFetching = false
     @State private var collapsedSections: Set<ListSection> = []
     @State private var mode: Mode = .all
+    @State private var showRecommended = true
     @State private var paperToDelete: Paper?
 
     @State private var viewMode: ViewMode = .library
@@ -108,12 +109,13 @@ struct TopicDetailView: View {
     enum ListSection: Hashable { case recommended, papers }
 
     enum Mode: String, CaseIterable, Identifiable {
-        case all, starred, read, skipped
+        case all, pending, starred, read, skipped
         var id: String { rawValue }
 
         var title: String {
             switch self {
             case .all:     return L10n.pick("All", "全部")
+            case .pending: return L10n.pick("Pending", "待读")
             case .starred: return L10n.pick("Starred", "收藏")
             case .read:    return L10n.pick("Read", "已读")
             case .skipped: return L10n.pick("Skipped", "已忽略")
@@ -123,6 +125,7 @@ struct TopicDetailView: View {
         var status: PaperStatus? {
             switch self {
             case .all:     return nil
+            case .pending: return .pending
             case .starred: return .starred
             case .read:    return .read
             case .skipped: return .skip
@@ -154,7 +157,7 @@ struct TopicDetailView: View {
 
     /// Daily recommendations, pinned at the top of the All view.
     private var recommendedPapers: [Paper] {
-        guard mode == .all else { return [] }
+        guard showRecommended, mode == .all else { return [] }
         let calendar = Calendar.current
         return papersForTopic
             .filter { paper in
@@ -1872,6 +1875,7 @@ struct TopicDetailView: View {
     private var emptyTitle: String {
         switch mode {
         case .all:     return L10n.pick("No papers in this topic", "该主题暂无文献")
+        case .pending: return L10n.pick("No pending papers", "暂无待读")
         case .starred: return L10n.pick("No starred papers", "暂无收藏")
         case .read:    return L10n.pick("No papers read", "暂无已读")
         case .skipped: return L10n.pick("No skipped papers", "暂无忽略")
@@ -1940,6 +1944,7 @@ struct TopicDetailView: View {
                         isActive: mode == .all,
                         help: L10n.pick("Show all papers", "显示全部文献"),
                         onTap: { setMode(.all) })
+            modeChip(.pending)
             modeChip(.starred)
             modeChip(.read)
             modeChip(.skipped)
@@ -1968,6 +1973,16 @@ struct TopicDetailView: View {
     private var actionCluster: some View {
         HStack(spacing: 2) {
             sortMenu
+            FilterPillButton(
+                systemName: "sparkles",
+                help: showRecommended ? L10n.pick("Hide recommendations", "隐藏推荐文献")
+                                      : L10n.pick("Show recommendations", "显示推荐文献"),
+                active: showRecommended
+            ) {
+                withAnimation(detailPaneAnimation) {
+                    showRecommended.toggle()
+                }
+            }
             FilterPillButton(systemName: "plus",
                              help: L10n.pick("Add paper", "添加文献")) {
                 showAddSheet = true

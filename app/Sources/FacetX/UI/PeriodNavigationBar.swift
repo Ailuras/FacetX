@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct PeriodNavigationBar<Accessory: View>: View {
+struct PeriodNavigationBar<Leading: View, Accessory: View>: View {
     let title: String
     let subtitle: String
     let previousHelp: String
@@ -9,6 +9,7 @@ struct PeriodNavigationBar<Accessory: View>: View {
     let onPrevious: () -> Void
     let onNext: () -> Void
     let onCurrent: () -> Void
+    private let leading: Leading
     private let accessory: Accessory
 
     init(
@@ -20,6 +21,7 @@ struct PeriodNavigationBar<Accessory: View>: View {
         onPrevious: @escaping () -> Void,
         onNext: @escaping () -> Void,
         onCurrent: @escaping () -> Void,
+        @ViewBuilder leading: () -> Leading,
         @ViewBuilder accessory: () -> Accessory
     ) {
         self.title = title
@@ -30,16 +32,20 @@ struct PeriodNavigationBar<Accessory: View>: View {
         self.onPrevious = onPrevious
         self.onNext = onNext
         self.onCurrent = onCurrent
+        self.leading = leading()
         self.accessory = accessory()
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            navCluster
+            leading
 
             Spacer()
 
-            accessory
+            HStack(spacing: 10) {
+                navCluster
+                accessory
+            }
         }
         .frame(minHeight: 30, alignment: .center)
         .padding(.horizontal, 16)
