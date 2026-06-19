@@ -1,0 +1,815 @@
+import SwiftUI
+
+struct PaperGraphView: View {
+    let papers: [Paper]
+    let metadata: MetadataStore
+    let onReadPaper: (Paper) -> Void
+
+    @State private var nodes: [PaperGraphNode] = []
+    @State private var links: [PaperGraphLink] = []
+    @State private var selectedNodeID: String?
+    @State private var hoveredNodeID: String?
+    @State private var draggedNodeID: String?
+    @State private var selectedStatuses: Set<PaperStatus> = [.pending, .starred, .read]
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+    @State private var lastCanvasSize: CGSize = .zero
+
+    private var filteredPapers: [Paper] {
+        papers
+            .filter { selectedStatuses.contains($0.status) }
+            .sorted { lhs, rhs in
+                if lhs.score != rhs.score { return lhs.score > rhs.score }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+    }
+
+    private var graphSignature: String {
+        filteredPapers
+            .map { paper in
+                [
+                    paper.id,
+                    paper.title,
+                    paper.status.rawValue,
+                    paper.tags.joined(separator: ","),
+                    String(format: "%.2f", paper.score)
+                ].joined(separator: "|")
+            }
+            .joined(separator: "\n")
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            graphToolbar
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    graphCanvas(size: geo.size)
+                    if let node = nodes.first(where: { $0.id == selectedNodeID }) {
+                        detailPanel(for: node)
+                            .frame(width: 292)
+                            .transition(.move(edge: .trailing))
+                    }
+                }
+            }
+        }
+        .onChange(of: graphSignature) {
+            rebuildGraph(in: lastCanvasSize, resetViewport: false)
+        }
+        .onChange(of: selectedStatuses) {
+            rebuildGraph(in: lastCanvasSize, resetViewport: false)
+        }
+        .animation(FacetTheme.detailSpring, value: selectedNodeID != nil)
+    }
+
+    private var graphToolbar: some View {
+        HStack(spacing: 10) {
+            Button {
+                rebuildGraph(in: lastCanvasSize, resetViewport: true)
+            } label: {
+                Label(L10n.pick("Reset Layout", "重置布局"), systemImage: "arrow.counterclockwise")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Divider().frame(height: 16)
+
+            Button {
+                setScale(scale - 0.15)
+            } label: {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .buttonStyle(.plain)
+            .help(L10n.pick("Zoom out", "缩小"))
+            .hoverCursor(.pointingHand)
+
+            Text(String(format: "%d%%", Int(scale * 100)))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 42)
+
+            Button {
+                setScale(scale + 0.15)
+            } label: {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .buttonStyle(.plain)
+            .help(L10n.pick("Zoom in", "放大"))
+            .hoverCursor(.pointingHand)
+
+            Button {
+                fitGraph(in: lastCanvasSize)
+            } label: {
+                Label(L10n.pick("Fit", "适应"), systemImage: "arrow.up.left.and.down.right.magnifyingglass")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Divider().frame(height: 16)
+
+            statusFilterView
+
+            Spacer()
+
+            Text(L10n.pick("\(filteredPapers.count) papers", "\(filteredPapers.count) 篇文献"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(FacetTheme.quietPanel)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    private var statusFilterView: some View {
+        HStack(spacing: 6) {
+            ForEach(PaperStatus.allCases, id: \.self) { status in
+                let isSelected = selectedStatuses.contains(status)
+                Button {
+                    if isSelected {
+                        selectedStatuses.remove(status)
+                    } else {
+                        selectedStatuses.insert(status)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : status.iconName)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(statusTitle(status))
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(isSelected ? status.iconColor.opacity(0.14) : Color.clear)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(isSelected ? status.iconColor.opacity(0.34) : Color.primary.opacity(0.10), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isSelected ? status.iconColor : .primary)
+                .hoverCursor(.pointingHand)
+            }
+        }
+    }
+
+    private func graphCanvas(size: CGSize) -> some View {
+        ZStack {
+            if filteredPapers.isEmpty {
+                ContentUnavailableView(
+                    L10n.pick("No papers match these filters", "没有符合筛选条件的文献"),
+                    systemImage: "point.3.connected.trianglepath.dotted",
+                    description: Text(L10n.pick("Enable another status to populate the graph.", "启用其他状态后可显示图谱。"))
+                )
+            } else {
+                ZStack {
+                    gridCanvas
+                    linkCanvas
+                    ForEach(nodes) { node in
+                        nodeView(node)
+                            .position(node.position)
+                    }
+                }
+                .scaleEffect(scale)
+                .offset(offset)
+                .gesture(panGesture)
+                .gesture(zoomGesture)
+            }
+        }
+        .coordinateSpace(name: "paperGraphCanvas")
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(FacetTheme.canvas)
+        .contentShape(Rectangle())
+        .clipped()
+        .onAppear {
+            lastCanvasSize = size
+            rebuildGraph(in: size, resetViewport: true)
+        }
+        .onChange(of: size) { _, newSize in
+            lastCanvasSize = newSize
+            rebuildGraph(in: newSize, resetViewport: false)
+        }
+    }
+
+    private var gridCanvas: some View {
+        Canvas { context, size in
+            let step: CGFloat = 44
+            var path = Path()
+            for x in stride(from: 0, through: size.width, by: step) {
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            for y in stride(from: 0, through: size.height, by: step) {
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            context.stroke(path, with: .color(Color.primary.opacity(0.025)), lineWidth: 1)
+        }
+    }
+
+    private var linkCanvas: some View {
+        Canvas { context, _ in
+            let nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+            let focusIDs = focusedIDs
+
+            for link in links {
+                guard let from = nodeMap[link.from], let to = nodeMap[link.to] else { continue }
+                let highlighted = focusIDs.contains(from.id) && focusIDs.contains(to.id)
+                var path = Path()
+                path.move(to: from.position)
+                path.addLine(to: to.position)
+                let color = highlighted ? Color.accentColor.opacity(0.55) : Color.primary.opacity(0.075)
+                let width: CGFloat = highlighted ? 1.4 : 0.75
+                context.stroke(path, with: .color(color), lineWidth: width)
+            }
+        }
+    }
+
+    private var panGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard draggedNodeID == nil else { return }
+                offset = CGSize(
+                    width: lastOffset.width + value.translation.width,
+                    height: lastOffset.height + value.translation.height
+                )
+            }
+            .onEnded { _ in
+                guard draggedNodeID == nil else { return }
+                lastOffset = offset
+            }
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                scale = clamp(lastScale * value, min: 0.45, max: 2.8)
+            }
+            .onEnded { _ in
+                lastScale = scale
+            }
+    }
+
+    private func nodeView(_ node: PaperGraphNode) -> some View {
+        let selected = selectedNodeID == node.id
+        let hovered = hoveredNodeID == node.id
+        let focused = focusedIDs.contains(node.id)
+        let color = node.color
+        let showLabel = shouldShowLabel(node)
+        let dimmed = selectedNodeID != nil && !focused
+
+        return HStack(spacing: showLabel ? 7 : 0) {
+            Circle()
+                .fill(color)
+                .frame(width: node.dotSize, height: node.dotSize)
+                .overlay(
+                    Circle()
+                        .stroke(selected ? Color.accentColor : (hovered ? color.opacity(0.65) : Color.white.opacity(0.28)), lineWidth: selected || hovered ? 2 : 0.75)
+                )
+                .shadow(color: selected ? Color.accentColor.opacity(0.45) : Color.black.opacity(0.10), radius: selected ? 5 : 1, x: 0, y: 1)
+
+            if showLabel {
+                Text(labelText(for: node))
+                    .font(.system(size: node.type == .tag ? 10 : 9, weight: node.type == .tag ? .semibold : .medium))
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .frame(maxWidth: selected || hovered || scale > 1.55 ? 220 : 142, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color(NSColor.windowBackgroundColor).opacity(selected || hovered ? 0.94 : 0.76))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .stroke(selected ? Color.accentColor.opacity(0.45) : color.opacity(hovered ? 0.34 : 0.16), lineWidth: 1)
+                    )
+            }
+        }
+        .opacity(dimmed ? 0.28 : 1)
+        .contentShape(Rectangle())
+        .hoverCursor(.pointingHand)
+        .help(node.fullLabel)
+        .onHover { hovering in
+            hoveredNodeID = hovering ? node.id : nil
+        }
+        .onTapGesture {
+            selectedNodeID = node.id
+        }
+        .gesture(
+            DragGesture(coordinateSpace: .named("paperGraphCanvas"))
+                .onChanged { value in
+                    if draggedNodeID == nil {
+                        draggedNodeID = node.id
+                    }
+                    if let idx = nodes.firstIndex(where: { $0.id == node.id }) {
+                        nodes[idx].position = modelPoint(from: value.location)
+                    }
+                }
+                .onEnded { _ in
+                    draggedNodeID = nil
+                }
+        )
+    }
+
+    private func detailPanel(for node: PaperGraphNode) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text(L10n.pick("Graph Details", "图谱详情"))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    selectedNodeID = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .hoverCursor(.pointingHand)
+            }
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    switch node.type {
+                    case .tag:
+                        tagDetail(node)
+                    case .paper:
+                        paperDetail(node)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(14)
+        .background(FacetTheme.quietPanel)
+        .overlay(alignment: .leading) {
+            Rectangle().fill(FacetTheme.hairline).frame(width: 1)
+        }
+    }
+
+    private func tagDetail(_ node: PaperGraphNode) -> some View {
+        let taggedPapers = filteredPapers
+            .filter { $0.tags.contains(node.fullLabel) }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Label(node.fullLabel, systemImage: "tag.fill")
+                .font(.system(size: 14, weight: .bold))
+
+            Text(L10n.pick("\(taggedPapers.count) papers use this tag", "\(taggedPapers.count) 篇文献使用该标签"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            ForEach(taggedPapers) { paper in
+                Button {
+                    selectedNodeID = PaperGraphNode.paperID(paper.id)
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(paper.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(2)
+                            .foregroundStyle(.primary)
+                        Text(paper.authors.prefix(2).joined(separator: ", "))
+                            .font(.system(size: 9))
+                            .lineLimit(1)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.secondary.opacity(0.055))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .hoverCursor(.pointingHand)
+            }
+        }
+    }
+
+    private func paperDetail(_ node: PaperGraphNode) -> some View {
+        guard let paper = node.paper else {
+            return AnyView(EmptyView())
+        }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: 11) {
+                Text(paper.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(5)
+
+                if !paper.authors.isEmpty {
+                    Text(paper.authors.prefix(4).joined(separator: ", "))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 8) {
+                    if !paper.venueAbbr.isEmpty {
+                        FacetInfoBadge(
+                            text: paper.venueAbbr,
+                            systemImage: "building.2",
+                            tint: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)),
+                            fill: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)).opacity(0.12)
+                        )
+                    }
+                    FacetInfoBadge(
+                        text: statusTitle(paper.status),
+                        systemImage: paper.status.iconName,
+                        tint: paper.status.iconColor,
+                        fill: paper.status.iconColor.opacity(0.12)
+                    )
+                }
+
+                if !paper.tags.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L10n.pick("Tags", "标签"))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        FlowLayout(spacing: 6, lineSpacing: 6) {
+                            ForEach(paper.tags, id: \.self) { tag in
+                                Text(tag)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Color.accentColor.opacity(0.10))
+                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            }
+                        }
+                    }
+                }
+
+                if !paper.abstract.isEmpty {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(L10n.pick("Abstract", "摘要"))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Text(paper.abstract)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(7)
+                    }
+                }
+
+                Button {
+                    onReadPaper(paper)
+                } label: {
+                    Label(L10n.pick("Read Paper", "进入阅读"), systemImage: "book.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .hoverCursor(.pointingHand)
+            }
+        )
+    }
+
+    private func rebuildGraph(in size: CGSize, resetViewport: Bool) {
+        guard size.width > 0, size.height > 0 else { return }
+        let graph = PaperGraphBuilder.build(papers: filteredPapers, size: size)
+        nodes = graph.nodes
+        links = graph.links
+        if selectedNodeID.map({ id in !graph.nodes.contains(where: { $0.id == id }) }) == true {
+            selectedNodeID = nil
+        }
+        if resetViewport {
+            scale = 1
+            lastScale = 1
+            offset = .zero
+            lastOffset = .zero
+        }
+    }
+
+    private func fitGraph(in size: CGSize) {
+        guard size.width > 0, size.height > 0, !nodes.isEmpty else { return }
+        let bounds = nodes.reduce(CGRect.null) { rect, node in
+            rect.union(CGRect(x: node.position.x - node.collisionRadius,
+                              y: node.position.y - node.collisionRadius,
+                              width: node.collisionRadius * 2,
+                              height: node.collisionRadius * 2))
+        }
+        guard !bounds.isNull, bounds.width > 0, bounds.height > 0 else { return }
+        let padding: CGFloat = 96
+        let sx = (size.width - padding) / bounds.width
+        let sy = (size.height - padding) / bounds.height
+        let nextScale = clamp(min(sx, sy), min: 0.45, max: 1.6)
+        let graphCenter = CGPoint(x: bounds.midX, y: bounds.midY)
+        let viewCenter = CGPoint(x: size.width / 2, y: size.height / 2)
+        scale = nextScale
+        lastScale = nextScale
+        offset = CGSize(
+            width: viewCenter.x - graphCenter.x * nextScale,
+            height: viewCenter.y - graphCenter.y * nextScale
+        )
+        lastOffset = offset
+    }
+
+    private func setScale(_ value: CGFloat) {
+        withAnimation(.easeOut(duration: 0.15)) {
+            scale = clamp(value, min: 0.45, max: 2.8)
+            lastScale = scale
+        }
+    }
+
+    private func modelPoint(from canvasPoint: CGPoint) -> CGPoint {
+        CGPoint(
+            x: (canvasPoint.x - offset.width) / max(scale, 0.001),
+            y: (canvasPoint.y - offset.height) / max(scale, 0.001)
+        )
+    }
+
+    private var focusedIDs: Set<String> {
+        guard let focus = selectedNodeID ?? hoveredNodeID else { return Set(nodes.map(\.id)) }
+        var ids: Set<String> = [focus]
+        for link in links where link.from == focus || link.to == focus {
+            ids.insert(link.from)
+            ids.insert(link.to)
+        }
+        return ids
+    }
+
+    private func shouldShowLabel(_ node: PaperGraphNode) -> Bool {
+        if node.type == .tag { return true }
+        if selectedNodeID == node.id || hoveredNodeID == node.id { return true }
+        if let selectedNodeID, focusedIDs.contains(node.id), selectedNodeID != node.id { return scale >= 0.72 }
+        if scale >= 1.45 { return true }
+        if scale >= 1.0 { return node.labelPriority >= 0.78 }
+        return node.labelPriority >= 0.92
+    }
+
+    private func labelText(for node: PaperGraphNode) -> String {
+        if selectedNodeID == node.id || hoveredNodeID == node.id || scale > 1.65 {
+            return node.fullLabel
+        }
+        return node.shortLabel
+    }
+
+    private func statusTitle(_ status: PaperStatus) -> String {
+        switch status {
+        case .pending: return L10n.pick("Pending", "待读")
+        case .starred: return L10n.pick("Starred", "收藏")
+        case .read: return L10n.pick("Read", "已读")
+        case .skip: return L10n.pick("Skipped", "已忽略")
+        }
+    }
+
+    private func clamp(_ value: CGFloat, min minValue: CGFloat, max maxValue: CGFloat) -> CGFloat {
+        Swift.max(minValue, Swift.min(maxValue, value))
+    }
+}
+
+private enum PaperGraphBuilder {
+    static func build(papers: [Paper], size: CGSize) -> (nodes: [PaperGraphNode], links: [PaperGraphLink]) {
+        guard !papers.isEmpty else { return ([], []) }
+
+        let width = max(size.width, 520)
+        let height = max(size.height, 360)
+        let center = CGPoint(x: width / 2, y: height / 2)
+        let tagCounts = Dictionary(grouping: papers.flatMap(\.tags), by: { $0 })
+            .mapValues(\.count)
+        let selectedTags = tagCounts
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value { return lhs.value > rhs.value }
+                return lhs.key.localizedCaseInsensitiveCompare(rhs.key) == .orderedAscending
+            }
+            .prefix(24)
+            .map(\.key)
+        let selectedTagSet = Set(selectedTags)
+        let needsUntagged = papers.contains { paper in
+            paper.tags.allSatisfy { !selectedTagSet.contains($0) }
+        }
+        let clusterNames = selectedTags + (needsUntagged ? [PaperGraphNode.untaggedLabel] : [])
+        let clusterCount = max(1, clusterNames.count)
+        let tagRadius = min(width, height) * (clusterCount <= 4 ? 0.23 : 0.31)
+        let paperRadius = min(width, height) * 0.12
+        var clusterAnchors: [String: CGPoint] = [:]
+        var nodes: [PaperGraphNode] = []
+        var links: [PaperGraphLink] = []
+
+        for (idx, tag) in clusterNames.enumerated() {
+            let angle = clusterAngle(index: idx, count: clusterCount)
+            let anchor = CGPoint(
+                x: center.x + cos(angle) * tagRadius,
+                y: center.y + sin(angle) * tagRadius
+            )
+            clusterAnchors[tag] = anchor
+            if tag != PaperGraphNode.untaggedLabel {
+                nodes.append(PaperGraphNode(
+                    id: PaperGraphNode.tagID(tag),
+                    fullLabel: tag,
+                    shortLabel: abbreviated(tag, limit: 22),
+                    type: .tag,
+                    position: anchor,
+                    color: .blue,
+                    paper: nil,
+                    clusterKey: tag,
+                    labelPriority: 1
+                ))
+            }
+        }
+
+        let papersByCluster = Dictionary(grouping: papers) { paper -> String in
+            primaryCluster(for: paper, selectedTags: selectedTags) ?? PaperGraphNode.untaggedLabel
+        }
+
+        for cluster in clusterNames {
+            let clusterPapers = (papersByCluster[cluster] ?? [])
+                .sorted { lhs, rhs in
+                    if lhs.score != rhs.score { return lhs.score > rhs.score }
+                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                }
+            let anchor = clusterAnchors[cluster] ?? center
+            let spread = max(paperRadius, CGFloat(clusterPapers.count) * 8)
+
+            for (idx, paper) in clusterPapers.enumerated() {
+                let angle = clusterAngle(index: idx, count: max(1, clusterPapers.count))
+                let ring = spread + CGFloat(idx % 4) * 18
+                let position = CGPoint(
+                    x: anchor.x + cos(angle) * ring,
+                    y: anchor.y + sin(angle) * ring
+                )
+                let priority = labelPriority(for: paper, index: idx)
+                nodes.append(PaperGraphNode(
+                    id: PaperGraphNode.paperID(paper.id),
+                    fullLabel: paper.title,
+                    shortLabel: abbreviated(paper.title, limit: 28),
+                    type: .paper,
+                    position: position,
+                    color: paper.status.iconColor,
+                    paper: paper,
+                    clusterKey: cluster,
+                    labelPriority: priority
+                ))
+
+                for tag in paper.tags.filter({ selectedTagSet.contains($0) }).prefix(4) {
+                    links.append(PaperGraphLink(from: PaperGraphNode.paperID(paper.id), to: PaperGraphNode.tagID(tag)))
+                }
+            }
+        }
+
+        let laidOut = relax(nodes: nodes, links: links, anchors: clusterAnchors, center: center, size: CGSize(width: width, height: height))
+        return (laidOut, links)
+    }
+
+    private static func relax(nodes: [PaperGraphNode],
+                              links: [PaperGraphLink],
+                              anchors: [String: CGPoint],
+                              center: CGPoint,
+                              size: CGSize) -> [PaperGraphNode] {
+        var result = nodes
+        let indexByID = Dictionary(uniqueKeysWithValues: result.enumerated().map { ($0.element.id, $0.offset) })
+        let iterations = result.count > 90 ? 54 : 72
+
+        for _ in 0..<iterations {
+            var deltas = Array(repeating: CGSize.zero, count: result.count)
+
+            for i in result.indices {
+                let anchor = anchors[result[i].clusterKey] ?? center
+                let strength: CGFloat = result[i].type == .tag ? 0.032 : 0.018
+                deltas[i].width += (anchor.x - result[i].position.x) * strength
+                deltas[i].height += (anchor.y - result[i].position.y) * strength
+            }
+
+            for link in links {
+                guard let fromIndex = indexByID[link.from], let toIndex = indexByID[link.to] else { continue }
+                let from = result[fromIndex].position
+                let to = result[toIndex].position
+                let dx = to.x - from.x
+                let dy = to.y - from.y
+                let distance = max(1, sqrt(dx * dx + dy * dy))
+                let target: CGFloat = result[fromIndex].type == .paper ? 92 : 72
+                let force = (distance - target) * 0.010
+                let fx = dx / distance * force
+                let fy = dy / distance * force
+                deltas[fromIndex].width += fx
+                deltas[fromIndex].height += fy
+                deltas[toIndex].width -= fx
+                deltas[toIndex].height -= fy
+            }
+
+            for i in 0..<result.count {
+                for j in (i + 1)..<result.count {
+                    let p1 = result[i].position
+                    let p2 = result[j].position
+                    var dx = p2.x - p1.x
+                    var dy = p2.y - p1.y
+                    var distance = sqrt(dx * dx + dy * dy)
+                    if distance < 0.1 {
+                        dx = CGFloat(((i * 37 + j * 17) % 11) - 5)
+                        dy = CGFloat(((i * 19 + j * 29) % 13) - 6)
+                        distance = max(1, sqrt(dx * dx + dy * dy))
+                    }
+                    let minimum = result[i].collisionRadius + result[j].collisionRadius
+                    guard distance < minimum else { continue }
+                    let overlap = (minimum - distance) * 0.52
+                    let fx = dx / distance * overlap
+                    let fy = dy / distance * overlap
+                    deltas[i].width -= fx
+                    deltas[i].height -= fy
+                    deltas[j].width += fx
+                    deltas[j].height += fy
+                }
+            }
+
+            for i in result.indices {
+                deltas[i].width += (center.x - result[i].position.x) * 0.002
+                deltas[i].height += (center.y - result[i].position.y) * 0.002
+                let limit: CGFloat = 18
+                let dx = max(-limit, min(limit, deltas[i].width))
+                let dy = max(-limit, min(limit, deltas[i].height))
+                let margin = result[i].collisionRadius + 18
+                result[i].position = CGPoint(
+                    x: max(margin, min(size.width - margin, result[i].position.x + dx)),
+                    y: max(margin, min(size.height - margin, result[i].position.y + dy))
+                )
+            }
+        }
+
+        return result
+    }
+
+    private static func primaryCluster(for paper: Paper, selectedTags: [String]) -> String? {
+        for tag in selectedTags where paper.tags.contains(tag) {
+            return tag
+        }
+        return nil
+    }
+
+    private static func labelPriority(for paper: Paper, index: Int) -> CGFloat {
+        var priority: CGFloat = 0.18
+        if paper.status == .starred { priority += 0.42 }
+        if paper.isRecommended { priority += 0.20 }
+        priority += CGFloat(min(max(paper.score, 0), 100)) / 250
+        if index < 3 { priority += 0.22 }
+        return min(priority, 1)
+    }
+
+    private static func clusterAngle(index: Int, count: Int) -> CGFloat {
+        guard count > 1 else { return -.pi / 2 }
+        return -.pi / 2 + CGFloat(index) * 2 * .pi / CGFloat(count)
+    }
+
+    private static func abbreviated(_ text: String, limit: Int) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > limit else { return trimmed }
+        let end = trimmed.index(trimmed.startIndex, offsetBy: max(1, limit - 1))
+        return String(trimmed[..<end]) + "..."
+    }
+}
+
+private struct PaperGraphNode: Identifiable, Equatable {
+    enum NodeType {
+        case paper, tag
+    }
+
+    static let untaggedLabel = "__untagged__"
+
+    let id: String
+    let fullLabel: String
+    let shortLabel: String
+    let type: NodeType
+    var position: CGPoint
+    let color: Color
+    let paper: Paper?
+    let clusterKey: String
+    let labelPriority: CGFloat
+
+    var dotSize: CGFloat { type == .tag ? 12 : 10 }
+
+    var collisionRadius: CGFloat {
+        switch type {
+        case .tag:
+            return max(42, min(86, CGFloat(fullLabel.count) * 4.8 + 24))
+        case .paper:
+            return labelPriority > 0.82 ? 58 : 31
+        }
+    }
+
+    static func paperID(_ id: String) -> String { "paper:\(id)" }
+    static func tagID(_ tag: String) -> String { "tag:\(tag)" }
+
+    static func == (lhs: PaperGraphNode, rhs: PaperGraphNode) -> Bool {
+        lhs.id == rhs.id &&
+            lhs.fullLabel == rhs.fullLabel &&
+            lhs.shortLabel == rhs.shortLabel &&
+            lhs.type == rhs.type &&
+            lhs.position == rhs.position &&
+            lhs.clusterKey == rhs.clusterKey &&
+            lhs.labelPriority == rhs.labelPriority &&
+            lhs.paper?.id == rhs.paper?.id
+    }
+}
+
+private struct PaperGraphLink: Identifiable, Equatable {
+    let from: String
+    let to: String
+
+    var id: String { "\(from)->\(to)" }
+}
