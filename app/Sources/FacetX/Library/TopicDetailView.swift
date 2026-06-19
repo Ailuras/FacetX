@@ -46,6 +46,8 @@ struct TopicDetailView: View {
     @State private var selectedNodeId: String? = nil
     @State private var hoveredNodeId: String? = nil
     @State private var activeDragNodeId: String? = nil
+    @State private var scrollMonitor: Any? = nil
+    @State private var isMouseOverCanvas = false
 
     // Navigation and Zooming canvas states
     @State private var scale: CGFloat = 1.0
@@ -264,6 +266,10 @@ struct TopicDetailView: View {
         .onAppear {
             loadPaperLinks()
             if viewMode == .reading { syncReader() }
+            setupScrollMonitor()
+        }
+        .onDisappear {
+            removeScrollMonitor()
         }
         .onChange(of: ek.changeToken) { _, _ in
             loadPaperLinks()
@@ -599,6 +605,7 @@ struct TopicDetailView: View {
                 forces[n.id] = .zero
             }
             
+            // Repulsion forces between all nodes
             for i in 0..<updatedNodes.count {
                 for j in (i+1)..<updatedNodes.count {
                     let n1 = updatedNodes[i]
@@ -617,6 +624,7 @@ struct TopicDetailView: View {
                 }
             }
             
+            // Link attraction forces
             for link in links {
                 guard let idx1 = updatedNodes.firstIndex(where: { $0.id == link.from }),
                       let idx2 = updatedNodes.firstIndex(where: { $0.id == link.to }) else {
@@ -635,12 +643,39 @@ struct TopicDetailView: View {
                 forces[n2.id] = CGPoint(x: forces[n2.id]!.x + fx, y: forces[n2.id]!.y + fy)
             }
             
+            // Collision detection & resolution (push apart nodes that overlap)
+            for i in 0..<updatedNodes.count {
+                for j in (i+1)..<updatedNodes.count {
+                    let n1 = updatedNodes[i]
+                    let n2 = updatedNodes[j]
+                    let dx = n1.position.x - n2.position.x
+                    let dy = n1.position.y - n2.position.y
+                    let distSq = dx*dx + dy*dy + 0.1
+                    let dist = sqrt(distSq)
+                    
+                    // Collision spaces: paper nodes get more space due to text width
+                    let r1: CGFloat = n1.type == .paper ? 48 : 32
+                    let r2: CGFloat = n2.type == .paper ? 48 : 32
+                    let minDist = r1 + r2
+                    
+                    if dist < minDist {
+                        let overlap = minDist - dist
+                        let fx = (dx / dist) * overlap * 0.45
+                        let fy = (dy / dist) * overlap * 0.45
+                        forces[n1.id] = CGPoint(x: forces[n1.id]!.x + fx, y: forces[n1.id]!.y + fy)
+                        forces[n2.id] = CGPoint(x: forces[n2.id]!.x - fx, y: forces[n2.id]!.y - fy)
+                    }
+                }
+            }
+            
+            // Pull nodes towards the center
             for n in updatedNodes {
                 let dx = center.x - n.position.x
                 let dy = center.y - n.position.y
                 forces[n.id] = CGPoint(x: forces[n.id]!.x + dx * centerPull, y: forces[n.id]!.y + dy * centerPull)
             }
             
+            // Apply forces to update node coordinates
             for idx in 0..<updatedNodes.count {
                 let nodeId = updatedNodes[idx].id
                 guard nodeId != activeDragNodeId else { continue }
@@ -939,9 +974,11 @@ struct TopicDetailView: View {
                     .coordinateSpace(name: "canvas")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(FacetTheme.canvas)
-                    .background(ScrollWheelZoomModifier(scale: $scale))
                     .contentShape(Rectangle())
                     .clipped()
+                    .onHover { over in
+                        isMouseOverCanvas = over
+                    }
                     .onAppear {
                         if nodes.isEmpty {
                             generateGraph(in: geo.size)
@@ -965,30 +1002,35 @@ struct TopicDetailView: View {
         let isSelected = selectedNodeId == node.id
         let isHovered = hoveredNodeId == node.id
         
-        return VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: nodeIcon(node))
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(node.color)
-                
-                Text(node.label)
-                    .font(.system(size: 9, weight: .semibold))
-                    .lineLimit(node.type == .paper ? 2 : 1)
-                    .foregroundStyle(.primary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(width: node.size.width, height: node.size.height)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(NSColor.windowBackgroundColor).opacity(0.85))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isSelected ? Color.accentColor : (isHovered ? node.color : node.color.opacity(0.3)), lineWidth: isSelected ? 2.0 : 1.0)
-            )
-            .shadow(color: isSelected ? Color.accentColor.opacity(0.3) : node.color.opacity(0.12), radius: isSelected ? 6 : 3, x: 0, y: 1.5)
+        let circleSize: CGFloat = node.type == .paper ? 12 : 8
+        let nodeColor = node.color
+        
+        return HStack(spacing: 8) {
+            Circle()
+                .fill(nodeColor)
+                .frame(width: circleSize, height: circleSize)
+                .overlay(
+                    Circle()
+                        .stroke(isSelected ? Color.accentColor : (isHovered ? nodeColor.opacity(0.6) : Color.clear), lineWidth: 2)
+                )
+                .shadow(color: isSelected ? Color.accentColor.opacity(0.4) : Color.black.opacity(0.1), radius: isSelected ? 4 : 1, x: 0, y: 1)
+            
+            Text(node.label)
+                .font(.system(size: node.type == .paper ? 10 : 9, weight: .medium))
+                .lineLimit(1)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color(NSColor.windowBackgroundColor).opacity(isHovered || isSelected ? 0.92 : 0.65))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(isSelected ? Color.accentColor.opacity(0.4) : (isHovered ? nodeColor.opacity(0.3) : Color.clear), lineWidth: 1)
+                )
         }
+        .padding(4)
         .hoverCursor(.pointingHand)
         .onHover { hovering in
             hoveredNodeId = hovering ? node.id : nil
@@ -2210,32 +2252,27 @@ struct TopicDetailView: View {
             self.paperLinks = map
         }
     }
-}
-
-struct ScrollWheelZoomModifier: NSViewRepresentable {
-    @Binding var scale: CGFloat
     
-    func makeNSView(context: Context) -> NSView {
-        let view = ScrollDetectionView()
-        view.onScroll = { delta in
-            let factor: CGFloat = 0.015
-            let newScale = scale + delta * factor
-            scale = max(0.4, min(2.5, newScale))
+    private func setupScrollMonitor() {
+        guard scrollMonitor == nil else { return }
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            guard viewMode == .dashboard, isMouseOverCanvas else { return event }
+            
+            let delta = event.deltaY
+            if abs(delta) > 0.01 {
+                let factor: CGFloat = 0.012
+                let newScale = scale + delta * factor
+                scale = max(0.4, min(2.5, newScale))
+                lastScale = scale
+            }
+            return nil
         }
-        return view
     }
     
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
-class ScrollDetectionView: NSView {
-    var onScroll: ((CGFloat) -> Void)?
-    
-    override func scrollWheel(with event: NSEvent) {
-        let delta = event.deltaY
-        if abs(delta) > 0.01 {
-            onScroll?(delta)
+    private func removeScrollMonitor() {
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollMonitor = nil
         }
-        super.scrollWheel(with: event)
     }
 }
