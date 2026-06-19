@@ -7,22 +7,28 @@ import SwiftUI
 @MainActor
 @Observable
 final class PdfReaderModel {
-    @ObservationIgnored let pdfView: PDFView
+    @ObservationIgnored let pdfView: FacetPDFView
     var currentPage = 1
     var pageCount = 0
+    var hasSelection = false
+    var activeAnnotation: PDFAnnotation? = nil
 
     @ObservationIgnored private var loadedURL: URL?
     @ObservationIgnored private let pageObserver = PageObserver()
+    @ObservationIgnored private let selectionObserver = SelectionObserver()
 
     init() {
-        let view = PDFView()
+        let view = FacetPDFView()
         view.autoScales = true
         view.displayMode = .singlePageContinuous
         view.displayDirection = .vertical
         view.backgroundColor = .windowBackgroundColor
         pdfView = view
+        view.model = self
         pageObserver.onChange = { [weak self] in self?.syncCurrentPage() }
         pageObserver.observe(view)
+        selectionObserver.onChange = { [weak self] in self?.syncSelection() }
+        selectionObserver.observe(view)
     }
 
     /// Loads `url` into the view, no-op when it's already the current document.
@@ -33,6 +39,8 @@ final class PdfReaderModel {
         pdfView.document = document
         pageCount = document?.pageCount ?? 0
         currentPage = 1
+        hasSelection = false
+        activeAnnotation = nil
         if let first = document?.page(at: 0) { pdfView.go(to: first) }
     }
 
@@ -41,6 +49,8 @@ final class PdfReaderModel {
         pdfView.document = nil
         pageCount = 0
         currentPage = 1
+        hasSelection = false
+        activeAnnotation = nil
     }
 
     func nextPage() { pdfView.goToNextPage(nil) }
@@ -74,6 +84,70 @@ final class PdfReaderModel {
         guard let page = pdfView.currentPage, let document = pdfView.document else { return }
         currentPage = document.index(for: page) + 1
     }
+
+    private func syncSelection() {
+        hasSelection = pdfView.currentSelection != nil
+    }
+
+    // MARK: - Annotation Operations
+
+    func saveDocument() {
+        guard let document = pdfView.document, let url = loadedURL else { return }
+        document.write(to: url)
+    }
+
+    func highlightCurrentSelection(color: NSColor) {
+        guard let selection = pdfView.currentSelection else { return }
+        
+        let lineSelections = selection.selectionsByLine()
+        for line in lineSelections {
+            for page in line.pages {
+                let bounds = line.bounds(for: page)
+                let annotation = PDFAnnotation(bounds: bounds, forType: .highlight, withProperties: nil)
+                annotation.color = color
+                page.addAnnotation(annotation)
+            }
+        }
+        
+        saveDocument()
+        pdfView.clearSelection()
+        hasSelection = false
+        
+        // Force redraw of PDFView to reflect the added annotation
+        pdfView.layoutDocumentView()
+    }
+
+    func addNoteToSelection() {
+        guard let selection = pdfView.currentSelection,
+              let page = selection.pages.first else { return }
+        
+        let bounds = selection.bounds(for: page)
+        // Position the note bubble near the top-right of the selection bounds
+        let noteBounds = CGRect(x: bounds.maxX + 4, y: bounds.maxY - 12, width: 20, height: 20)
+        let annotation = PDFAnnotation(bounds: noteBounds, forType: .text, withProperties: nil)
+        annotation.color = .systemYellow
+        annotation.contents = ""
+        
+        page.addAnnotation(annotation)
+        saveDocument()
+        
+        // Select the new annotation in our model so it can be managed or deleted
+        activeAnnotation = annotation
+        pdfView.clearSelection()
+        hasSelection = false
+        
+        pdfView.layoutDocumentView()
+    }
+
+    func deleteActiveAnnotation() {
+        guard let annotation = activeAnnotation else { return }
+        let page = annotation.page
+        page?.removeAnnotation(annotation)
+        saveDocument()
+        activeAnnotation = nil
+        
+        pdfView.layoutDocumentView()
+    }
 }
 
 /// Bridges `PDFView`'s page-changed notification to a closure using the same
@@ -97,6 +171,61 @@ private final class PageObserver: NSObject {
     deinit { NotificationCenter.default.removeObserver(self) }
 }
 
+/// Bridges `PDFView`'s selection-changed notification to a closure.
+@MainActor
+private final class SelectionObserver: NSObject {
+    var onChange: () -> Void = {}
+
+    func observe(_ pdfView: PDFView) {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(selectionChanged),
+            name: .PDFViewSelectionChanged,
+            object: pdfView
+        )
+    }
+
+    @objc private func selectionChanged() { onChange() }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+}
+
+/// A subclass of `PDFView` that captures activeAnnotation changes and intercepts
+/// key events to support Delete (Backspace) of selected annotations.
+@MainActor
+final class FacetPDFView: PDFView {
+    weak var model: PdfReaderModel?
+
+    override func keyDown(with event: NSEvent) {
+        // keycode 51 is Backspace, 117 is Delete
+        if event.keyCode == 51 || event.keyCode == 117 {
+            if let model = model, let annotation = model.activeAnnotation {
+                let page = annotation.page
+                page?.removeAnnotation(annotation)
+                model.saveDocument()
+                model.activeAnnotation = nil
+                layoutDocumentView()
+                return
+            }
+        }
+        super.keyDown(with: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        
+        // After default click handling, check if an annotation was hit
+        let point = convert(event.locationInWindow, from: nil)
+        if let page = page(for: point, nearest: false) {
+            let pagePoint = convert(point, to: page)
+            let annotation = page.annotation(at: pagePoint)
+            model?.activeAnnotation = annotation
+        } else {
+            model?.activeAnnotation = nil
+        }
+    }
+}
+
 /// Hosts the model's live `PDFView` in SwiftUI. The view is created once and
 /// owned by the model, so updates are driven through the model, not by rebuilds.
 struct PdfReaderRepresentable: NSViewRepresentable {
@@ -104,4 +233,45 @@ struct PdfReaderRepresentable: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PDFView { model.pdfView }
     func updateNSView(_ nsView: PDFView, context: Context) {}
+}
+
+/// Supported highlight colors for PDF annotations.
+enum PdfHighlightColor: String, CaseIterable, Identifiable {
+    case yellow
+    case green
+    case blue
+    case pink
+    case purple
+
+    var id: String { rawValue }
+
+    var color: Color {
+        switch self {
+        case .yellow: return .yellow
+        case .green:  return .green
+        case .blue:   return .blue
+        case .pink:   return .pink
+        case .purple: return .purple
+        }
+    }
+
+    var nsColor: NSColor {
+        switch self {
+        case .yellow: return .systemYellow
+        case .green:  return .systemGreen
+        case .blue:   return .systemBlue
+        case .pink:   return .systemPink
+        case .purple: return .systemPurple
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .yellow: return L10n.pick("Yellow Highlight", "黄色高亮")
+        case .green:  return L10n.pick("Green Highlight", "绿色高亮")
+        case .blue:   return L10n.pick("Blue Highlight", "蓝色高亮")
+        case .pink:   return L10n.pick("Pink Highlight", "粉色高亮")
+        case .purple: return L10n.pick("Purple Highlight", "紫色高亮")
+        }
+    }
 }

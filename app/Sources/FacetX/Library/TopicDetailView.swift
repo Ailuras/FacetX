@@ -346,32 +346,84 @@ struct TopicDetailView: View {
     }
 
     private var pdfToolCluster: some View {
-        HStack(spacing: 2) {
-            pdfSearchField
-            FilterPillButton(systemName: "chevron.left",
-                             help: L10n.pick("Previous page", "上一页")) { reader.previousPage() }
-            Text("\(reader.currentPage) / \(reader.pageCount)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 52)
-            FilterPillButton(systemName: "chevron.right",
-                             help: L10n.pick("Next page", "下一页")) { reader.nextPage() }
-            Divider().frame(height: 16)
-            FilterPillButton(systemName: "minus.magnifyingglass",
-                             help: L10n.pick("Zoom out", "缩小")) { reader.zoomOut() }
-            FilterPillButton(systemName: "arrow.left.and.right",
-                             help: L10n.pick("Fit width", "适应宽度")) { reader.fitWidth() }
-            FilterPillButton(systemName: "plus.magnifyingglass",
-                             help: L10n.pick("Zoom in", "放大")) { reader.zoomIn() }
-            Divider().frame(height: 16)
-            FilterPillButton(systemName: "sidebar.right",
-                             help: L10n.pick("Open paper details", "打开文献详情")) {
-                if let paper = readingPaper {
-                    withAnimation(detailPaneAnimation) { selectedPaper = paper }
+        HStack(spacing: 8) {
+            HStack(spacing: 2) {
+                pdfSearchField
+                FilterPillButton(systemName: "chevron.left",
+                                 help: L10n.pick("Previous page", "上一页")) { reader.previousPage() }
+                Text("\(reader.currentPage) / \(reader.pageCount)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 52)
+                FilterPillButton(systemName: "chevron.right",
+                                 help: L10n.pick("Next page", "下一页")) { reader.nextPage() }
+            }
+            .pillGroupContainer()
+
+            HStack(spacing: 2) {
+                FilterPillButton(systemName: "minus.magnifyingglass",
+                                 help: L10n.pick("Zoom out", "缩小")) { reader.zoomOut() }
+                FilterPillButton(systemName: "arrow.left.and.right",
+                                 help: L10n.pick("Fit width", "适应宽度")) { reader.fitWidth() }
+                FilterPillButton(systemName: "plus.magnifyingglass",
+                                 help: L10n.pick("Zoom in", "放大")) { reader.zoomIn() }
+            }
+            .pillGroupContainer()
+
+            // Annotation tools (highlighting and text notes)
+            HStack(spacing: 3) {
+                ForEach(PdfHighlightColor.allCases) { color in
+                    Button {
+                        reader.highlightCurrentSelection(color: color.nsColor)
+                    } label: {
+                        Circle()
+                            .fill(color.color)
+                            .frame(width: 12, height: 12)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
+                            )
+                            .padding(4)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!reader.hasSelection)
+                    .opacity(reader.hasSelection ? 1.0 : 0.35)
+                    .hoverCursor(.pointingHand)
+                    .help(color.displayName)
+                }
+
+                Divider().frame(height: 16)
+
+                FilterPillButton(systemName: "note.text.badge.plus",
+                                 help: L10n.pick("Add Sticky Note", "添加便签"),
+                                 active: false) {
+                    reader.addNoteToSelection()
+                }
+                .disabled(!reader.hasSelection)
+                .opacity(reader.hasSelection ? 1.0 : 0.35)
+
+                if reader.activeAnnotation != nil {
+                    FilterPillButton(systemName: "trash",
+                                     help: L10n.pick("Delete Annotation", "删除选中的批注"),
+                                     active: false) {
+                        reader.deleteActiveAnnotation()
+                    }
                 }
             }
+            .padding(.horizontal, 4)
+            .pillGroupContainer()
+
+            HStack(spacing: 2) {
+                FilterPillButton(systemName: "sidebar.right",
+                                 help: L10n.pick("Open paper details", "打开文献详情")) {
+                    if let paper = readingPaper {
+                        withAnimation(detailPaneAnimation) { selectedPaper = paper }
+                    }
+                }
+            }
+            .pillGroupContainer()
         }
-        .pillGroupContainer()
     }
 
     private var pdfSearchField: some View {
