@@ -11,6 +11,7 @@ struct SummaryChip: View {
     let systemImage: String
     var tint: Color? = nil
     var isActive: Bool = false
+    var help: String? = nil
     var onTap: (() -> Void)? = nil
 
     var body: some View {
@@ -18,6 +19,7 @@ struct SummaryChip: View {
             Button(action: onTap) { pill }
                 .buttonStyle(.plain)
                 .hoverCursor(.pointingHand)
+                .help(help ?? "")
         } else {
             pill
         }

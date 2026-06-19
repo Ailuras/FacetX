@@ -518,6 +518,8 @@ struct ProjectDetailView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { withAnimation(listAnimation) { toggleCollapse(kind) } }
                 .hoverCursor(.pointingHand)
+                .help(collapsed ? L10n.pick("Expand section", "展开分区")
+                                : L10n.pick("Collapse section", "折叠分区"))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
@@ -603,6 +605,7 @@ struct ProjectDetailView: View {
                         label: L10n.pick("All", "全部"),
                         systemImage: "square.grid.2x2",
                         isActive: collapsedKinds.isEmpty,
+                        help: L10n.pick("Show all sections", "展开全部分区"),
                         onTap: { withAnimation(listAnimation) { collapsedKinds = [] } })
             kindChip(.task, value: itemCounts.taskOpenCount)
             kindChip(.event, value: itemCounts.eventCount)
@@ -617,6 +620,7 @@ struct ProjectDetailView: View {
                     systemImage: kind.systemImage,
                     tint: kind.color,
                     isActive: isIsolated(kind),
+                    help: L10n.pick("Show only \(kind.title)", "仅显示\(kind.title)"),
                     onTap: { withAnimation(listAnimation) { toggleIsolate(kind) } })
     }
 

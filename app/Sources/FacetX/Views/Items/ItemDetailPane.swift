@@ -384,6 +384,7 @@ struct ItemDetailPane: View {
                                 .foregroundStyle(Color.accentColor)
                         }
                         .buttonStyle(.plain)
+                        .help(L10n.pick("Open in browser", "在浏览器中打开"))
                     }
                 }
                 

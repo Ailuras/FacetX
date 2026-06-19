@@ -342,6 +342,7 @@ struct TopicDetailView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        .help(L10n.pick("Choose a paper to read", "选择要阅读的文献"))
     }
 
     private var pdfToolCluster: some View {
@@ -358,7 +359,7 @@ struct TopicDetailView: View {
             Divider().frame(height: 16)
             FilterPillButton(systemName: "minus.magnifyingglass",
                              help: L10n.pick("Zoom out", "缩小")) { reader.zoomOut() }
-            FilterPillButton(systemName: "arrow.up.left.and.arrow.down.right",
+            FilterPillButton(systemName: "arrow.left.and.right",
                              help: L10n.pick("Fit width", "适应宽度")) { reader.fitWidth() }
             FilterPillButton(systemName: "plus.magnifyingglass",
                              help: L10n.pick("Zoom in", "放大")) { reader.zoomIn() }
@@ -450,6 +451,8 @@ struct TopicDetailView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { withAnimation(detailPaneAnimation) { toggleCollapse(section) } }
                 .hoverCursor(.pointingHand)
+                .help(collapsed ? L10n.pick("Expand section", "展开分区")
+                                : L10n.pick("Collapse section", "折叠分区"))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 4, trailing: 14))
@@ -724,6 +727,7 @@ struct TopicDetailView: View {
                         label: L10n.pick("All", "全部"),
                         systemImage: "square.grid.2x2",
                         isActive: mode == .all,
+                        help: L10n.pick("Show all papers", "显示全部文献"),
                         onTap: { setMode(.all) })
             modeChip(.starred)
             modeChip(.read)
@@ -739,6 +743,7 @@ struct TopicDetailView: View {
                            systemImage: status?.iconName ?? "doc.text",
                            tint: status?.iconColor,
                            isActive: mode == m,
+                           help: L10n.pick("Show \(m.title)", "显示\(m.title)"),
                            onTap: { setMode(m) })
     }
 

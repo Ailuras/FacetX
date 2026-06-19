@@ -36,7 +36,7 @@ struct FacetSidebarPane<Accessory: View, Content: View>: View {
     init(
         title: String,
         systemImage: String,
-        closeHelp: String = "Close sidebar",
+        closeHelp: String = L10n.pick("Close sidebar", "关闭侧栏"),
         fillWidth: Bool = false,
         onClose: @escaping () -> Void,
         @ViewBuilder accessory: () -> Accessory,
@@ -122,7 +122,7 @@ extension FacetSidebarPane where Accessory == EmptyView {
     init(
         title: String,
         systemImage: String,
-        closeHelp: String = "Close sidebar",
+        closeHelp: String = L10n.pick("Close sidebar", "关闭侧栏"),
         fillWidth: Bool = false,
         onClose: @escaping () -> Void,
         @ViewBuilder content: () -> Content
