@@ -561,20 +561,32 @@ struct ContentView: View {
         }
     }
 
-    /// Tags shared across projects and literature: project-item tag counts
-    /// merged with paper tag counts, so the sidebar cloud is one vocabulary.
+    /// Tags for the current selection only — the project's item tags, or the
+    /// selected library's paper tags — so the cloud stays manageable instead of
+    /// listing every tag in the app. Empty (and hidden) when nothing is selected.
     private var combinedTags: [String: Int] {
-        var aggregate = store.discoveredTags
-        // `Paper` is a class, so adding a tag mutates `papers[i].tags` in place and
-        // never re-assigns the `papers` array — Observation won't see it. Reading
-        // `paperVersion` (bumped on every tag change) ties the cloud to those edits.
-        _ = litStore.paperVersion
-        for paper in litStore.papers {
-            for tag in paper.tags {
-                aggregate[tag, default: 0] += 1
+        switch selection {
+        case .project(let id):
+            return store.tagsByProject[id] ?? [:]
+        case .topic(let id):
+            guard let topic = litMeta.topics.first(where: { $0.id == id }) else { return [:] }
+            // `Paper` is a class, so adding a tag mutates `papers[i].tags` in place
+            // and never re-assigns the `papers` array — Observation won't see it.
+            // Reading `paperVersion` (bumped on every tag change) ties the cloud to
+            // those edits.
+            _ = litStore.paperVersion
+            var counts: [String: Int] = [:]
+            for paper in litStore.papers {
+                let tracks = paper.track.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                guard tracks.contains(topic.name) else { continue }
+                for tag in paper.tags {
+                    counts[tag, default: 0] += 1
+                }
             }
+            return counts
+        case .none:
+            return [:]
         }
-        return aggregate
     }
 
     private func chipHelp(tag: String, state: TagFilterState) -> String {

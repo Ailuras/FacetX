@@ -24,7 +24,16 @@ struct TopicDetailView: View {
     @State private var mode: Mode = .all
     @State private var paperToDelete: Paper?
 
+    @State private var viewMode: ViewMode = .library
+    @State private var readingPaperID: String? = nil
+    @State private var reader = PdfReaderModel()
+    @State private var pdfSearchText = ""
+
     private let detailPaneAnimation = FacetTheme.detailSpring
+
+    /// Top-level layout of the literature view: the paper list, or the in-app
+    /// PDF reader. Switched from the toolbar.
+    enum ViewMode: Hashable { case library, reading }
 
     /// The collapsible sections of the paper list. Clicking a header toggles
     /// membership in `collapsedSections`, mirroring the project All view.
@@ -158,9 +167,14 @@ struct TopicDetailView: View {
         .background(FacetTheme.canvas)
         .navigationTitle(topic.name)
         .toolbar {
+            ToolbarItem(placement: .status) {
+                viewModePicker
+            }
             ToolbarItem(placement: .automatic) {
-                ToolbarSearchField(text: $searchText, placeholder: L10n.t(.searchItems))
-                    .frame(width: 220, height: 24)
+                if viewMode == .library {
+                    ToolbarSearchField(text: $searchText, placeholder: L10n.t(.searchItems))
+                        .frame(width: 220, height: 24)
+                }
             }
             ToolbarItem(placement: .primaryAction) {
                 toolbarActions
@@ -171,12 +185,20 @@ struct TopicDetailView: View {
                !store.papers.contains(where: { $0.id == paper.id }) {
                 withAnimation(detailPaneAnimation) { selectedPaper = nil }
             }
+            if viewMode == .reading { syncReader() }
         }
         .onChange(of: mode) {
             withAnimation(detailPaneAnimation) { selectedPaper = nil }
         }
+        .onChange(of: viewMode) { _, newValue in
+            if newValue == .reading { syncReader() }
+        }
+        .onChange(of: readingPaperID) {
+            if viewMode == .reading { syncReader() }
+        }
         .onAppear {
             loadPaperLinks()
+            if viewMode == .reading { syncReader() }
         }
         .onChange(of: ek.changeToken) { _, _ in
             loadPaperLinks()
@@ -210,8 +232,181 @@ struct TopicDetailView: View {
 
     @ViewBuilder private var content: some View {
         VStack(spacing: 0) {
-            infoBar
-            paperList
+            switch viewMode {
+            case .library:
+                infoBar
+                paperList
+            case .reading:
+                readingBar
+                pdfReader
+            }
+        }
+    }
+
+    private var viewModePicker: some View {
+        Picker("", selection: $viewMode) {
+            Text(L10n.pick("Library", "文库")).tag(ViewMode.library)
+            Text(L10n.pick("Read", "阅读")).tag(ViewMode.reading)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 150)
+        .help(L10n.pick("Switch between the library list and the PDF reader", "在文库列表与 PDF 阅读器之间切换"))
+    }
+
+    // MARK: - Reading (PDF) view
+
+    /// Papers in this topic that have a locally available PDF — the only ones
+    /// the in-app reader can render.
+    private var papersWithPdf: [Paper] {
+        papersForTopic
+            .filter { PdfCoordinator.hasLocalPdf($0) }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    /// The paper currently open in the reader: the explicit pick, or the first
+    /// available PDF as a sensible default.
+    private var readingPaper: Paper? {
+        if let id = readingPaperID, let match = papersWithPdf.first(where: { $0.id == id }) {
+            return match
+        }
+        return papersWithPdf.first
+    }
+
+    private var readingURL: URL? {
+        guard let path = readingPaper?.pdfLocalPath, !path.isEmpty else { return nil }
+        return PdfStorage.current().absoluteURL(forRelative: path)
+    }
+
+    private func syncReader() {
+        if let url = readingURL {
+            reader.load(url: url)
+        } else {
+            reader.clear()
+        }
+    }
+
+    private var readingBar: some View {
+        HStack(spacing: 10) {
+            paperDropdown
+            Spacer()
+            if reader.pageCount > 0 {
+                pdfToolCluster
+            }
+        }
+        .frame(minHeight: 30, alignment: .center)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    private var paperDropdown: some View {
+        Menu {
+            if papersWithPdf.isEmpty {
+                Text(L10n.pick("No papers with a PDF yet", "暂无包含 PDF 的文献"))
+            } else {
+                ForEach(papersWithPdf) { paper in
+                    Button {
+                        readingPaperID = paper.id
+                    } label: {
+                        if paper.id == readingPaper?.id {
+                            Label(paper.title, systemImage: "checkmark")
+                        } else {
+                            Text(paper.title)
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.accentColor)
+                Text(readingPaper?.title ?? L10n.pick("Select a paper", "选择文献"))
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                    .frame(maxWidth: 380, alignment: .leading)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 9)
+            .frame(height: FacetTheme.chipHeight)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(FacetTheme.quietPanel))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+    }
+
+    private var pdfToolCluster: some View {
+        HStack(spacing: 2) {
+            pdfSearchField
+            FilterPillButton(systemName: "chevron.left",
+                             help: L10n.pick("Previous page", "上一页")) { reader.previousPage() }
+            Text("\(reader.currentPage) / \(reader.pageCount)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 52)
+            FilterPillButton(systemName: "chevron.right",
+                             help: L10n.pick("Next page", "下一页")) { reader.nextPage() }
+            Divider().frame(height: 16)
+            FilterPillButton(systemName: "minus.magnifyingglass",
+                             help: L10n.pick("Zoom out", "缩小")) { reader.zoomOut() }
+            FilterPillButton(systemName: "arrow.up.left.and.arrow.down.right",
+                             help: L10n.pick("Fit width", "适应宽度")) { reader.fitWidth() }
+            FilterPillButton(systemName: "plus.magnifyingglass",
+                             help: L10n.pick("Zoom in", "放大")) { reader.zoomIn() }
+            Divider().frame(height: 16)
+            FilterPillButton(systemName: "sidebar.right",
+                             help: L10n.pick("Open paper details", "打开文献详情")) {
+                if let paper = readingPaper {
+                    withAnimation(detailPaneAnimation) { selectedPaper = paper }
+                }
+            }
+            FilterPillButton(systemName: "folder",
+                             help: L10n.pick("Show PDF in Finder", "在访达中显示 PDF")) {
+                if let paper = readingPaper { _ = PdfCoordinator.reveal(paper: paper) }
+            }
+        }
+        .pillGroupContainer()
+    }
+
+    private var pdfSearchField: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            TextField(L10n.pick("Find in PDF", "在 PDF 中查找"), text: $pdfSearchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .frame(width: 130)
+                .onSubmit { reader.find(pdfSearchText) }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: FacetTheme.chipHeight)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(FacetTheme.quietPanel))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
+    }
+
+    @ViewBuilder private var pdfReader: some View {
+        if readingURL != nil {
+            PdfReaderRepresentable(model: reader)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(FacetTheme.canvas)
+        } else {
+            ContentUnavailableView {
+                Label(L10n.pick("Nothing to read yet", "暂无可阅读内容"), systemImage: "book.closed")
+            } description: {
+                Text(L10n.pick("Attach or fetch a PDF for a paper, then pick it from the dropdown above.",
+                               "为文献附加或拉取 PDF 后，可在上方下拉中选择阅读。"))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 

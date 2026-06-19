@@ -202,19 +202,30 @@ struct ItemRow: View {
                         }
                     }
 
-                    if item.facetKind == .task {
-                        Button { onToggle(!item.isCompleted) } label: {
-                            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                    if item.isCompleted {
+                        // Unified completion marker for every kind: a filled check
+                        // tinted by the element's identity color (task green, event
+                        // blue, paper red, note yellow) — "a similar color" rather
+                        // than overriding the kind's color.
+                        Button { onToggle(false) } label: {
+                            Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(item.isOverdue ? .red : checkmarkColor)
+                                .foregroundStyle(item.facetKind.color)
                         }
                         .buttonStyle(.plain)
-                        .help(item.isCompleted ? L10n.pick("Mark incomplete", "标记为未完成")
-                                               : L10n.pick("Mark complete", "标记为完成"))
+                        .help(L10n.pick("Mark incomplete", "标记为未完成"))
+                    } else if item.facetKind == .task {
+                        Button { onToggle(true) } label: {
+                            Image(systemName: "circle")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(checkmarkColor)
+                        }
+                        .buttonStyle(.plain)
+                        .help(L10n.pick("Mark complete", "标记为完成"))
                     } else {
                         Image(systemName: item.facetKind.systemImage)
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(item.isOverdue ? .red : item.facetKind.color)
+                            .foregroundStyle(item.facetKind.color)
                     }
 
                     if isInlineEditing, let inlineEditingText {
