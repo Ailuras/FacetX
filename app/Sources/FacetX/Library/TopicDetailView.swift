@@ -35,6 +35,10 @@ struct TopicDetailView: View {
     @State private var isTranslatingSelection = false
     @State private var translatedSelectionText = ""
     @State private var translationSelectionError: String? = nil
+    @State private var onlineSearchQuery = ""
+    @State private var onlineSearchResults: [Paper] = []
+    @State private var isSearchingOnline = false
+    @State private var onlineSearchError: String? = nil
 
     enum PdfSidebarTab: String, CaseIterable, Identifiable {
         case outline, annotations
@@ -49,9 +53,8 @@ struct TopicDetailView: View {
 
     private let detailPaneAnimation = FacetTheme.detailSpring
 
-    /// Top-level layout of the literature view: the paper list, or the in-app
-    /// PDF reader. Switched from the toolbar.
-    enum ViewMode: Hashable { case library, reading }
+    /// Top-level layout of the literature view.
+    enum ViewMode: Hashable { case library, reading, onlineSearch, dashboard }
 
     /// The collapsible sections of the paper list. Clicking a header toggles
     /// membership in `collapsedSections`, mirroring the project All view.
@@ -257,19 +260,253 @@ struct TopicDetailView: View {
             case .reading:
                 readingBar
                 pdfReader
+            case .onlineSearch:
+                onlineSearchBar
+                onlineSearchView
+            case .dashboard:
+                dashboardView
             }
         }
     }
 
     private var viewModePicker: some View {
         Picker("", selection: $viewMode) {
-            Text(L10n.pick("Library", "文库")).tag(ViewMode.library)
-            Text(L10n.pick("Read", "阅读")).tag(ViewMode.reading)
+            Label(L10n.pick("Library", "本地文库"), systemImage: "books.vertical").tag(ViewMode.library)
+            Label(L10n.pick("Reading", "沉浸阅读"), systemImage: "book").tag(ViewMode.reading)
+            Label(L10n.pick("Search", "云端检索"), systemImage: "plus.magnifyingglass").tag(ViewMode.onlineSearch)
+            Label(L10n.pick("Analytics", "统计看板"), systemImage: "chart.bar.xaxis").tag(ViewMode.dashboard)
         }
         .pickerStyle(.segmented)
         .controlSize(.small)
         .labelsHidden()
-        .help(L10n.pick("Switch between the library list and the PDF reader", "在文库列表与 PDF 阅读器之间切换"))
+        .help(L10n.pick("Switch views: Library / Reading / Online Search / Analytics Dashboard",
+                        "切换视图：本地文库 / 沉浸阅读 / 云端检索 / 统计看板"))
+    }
+
+    private var onlineSearchBar: some View {
+        HStack(spacing: 8) {
+            TextField(L10n.pick("Search academic papers in OpenAlex...", "在 OpenAlex 中检索学术文献…"), text: $onlineSearchQuery)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 350)
+                .onSubmit { performOnlineSearch() }
+
+            Button {
+                performOnlineSearch()
+            } label: {
+                if isSearchingOnline {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label(L10n.pick("Search", "检索"), systemImage: "magnifyingglass")
+                }
+            }
+            .disabled(onlineSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty || isSearchingOnline)
+            
+            Spacer()
+            
+            if !onlineSearchResults.isEmpty {
+                FacetInfoBadge(
+                    text: L10n.pick("\(onlineSearchResults.count) results", "\(onlineSearchResults.count) 条结果"),
+                    systemImage: "network",
+                    tint: .secondary,
+                    fill: Color.accentColor.opacity(0.08)
+                )
+            }
+        }
+        .frame(minHeight: 30, alignment: .center)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    @ViewBuilder private var onlineSearchView: some View {
+        if isSearchingOnline && onlineSearchResults.isEmpty {
+            VStack {
+                Spacer()
+                ProgressView()
+                    .controlSize(.large)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let error = onlineSearchError, onlineSearchResults.isEmpty {
+            VStack(spacing: 12) {
+                Spacer()
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.secondary)
+                Text(error)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if onlineSearchResults.isEmpty {
+            VStack(spacing: 12) {
+                Spacer()
+                Image(systemName: "magnifyingglass.circle")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.secondary)
+                Text(L10n.pick("Search by title or DOI to find and import papers from OpenAlex.", "输入标题或 DOI 检索并导入 OpenAlex 文献。"))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(onlineSearchResults) { paper in
+                        onlineSearchResultRow(paper)
+                    }
+                }
+                .padding(14)
+            }
+            .thinScrollIndicators()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func onlineSearchResultRow(_ paper: Paper) -> some View {
+        let isImported = store.papers.contains(where: { $0.id == paper.id })
+        return HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(paper.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
+                    .foregroundStyle(.primary)
+                
+                HStack(spacing: 8) {
+                    if !paper.authors.isEmpty {
+                        Text(paper.authors.prefix(3).joined(separator: ", "))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    
+                    Spacer(minLength: 8)
+                    
+                    HStack(spacing: 6) {
+                        if !paper.venueAbbr.isEmpty {
+                            FacetInfoBadge(
+                                text: paper.venueAbbr,
+                                systemImage: "building.2",
+                                tint: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)),
+                                fill: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)).opacity(0.12)
+                            )
+                        }
+                        FacetInfoBadge(
+                            text: "T\(paper.tier)",
+                            systemImage: "number",
+                            tint: metadata.tierColor(paper.tier),
+                            fill: metadata.tierColor(paper.tier).opacity(0.12)
+                        )
+                        if paper.citedByCount > 0 {
+                            FacetInfoBadge(
+                                text: "\(paper.citedByCount)",
+                                systemImage: "quote.bubble",
+                                tint: .secondary,
+                                fill: Color.secondary.opacity(0.08)
+                            )
+                        }
+                        if !paper.publicationDate.isEmpty {
+                            FacetInfoBadge(
+                                text: paper.publicationDate,
+                                systemImage: "calendar",
+                                tint: .secondary,
+                                fill: Color.secondary.opacity(0.08)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Divider()
+                .frame(height: 24)
+            
+            if isImported {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(L10n.pick("Imported", "已导入"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 90)
+            } else {
+                Button {
+                    importPaper(paper)
+                } label: {
+                    Label(L10n.pick("Import", "导入"), systemImage: "plus.circle")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .frame(width: 90)
+                .hoverCursor(.pointingHand)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(FacetTheme.quietPanel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func performOnlineSearch() {
+        let trimmed = onlineSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        isSearchingOnline = true
+        onlineSearchError = nil
+        
+        Task {
+            let fetcher = OpenAlexFetcher(
+                config: ConfigManager.shared.effectiveConfig,
+                venues: MetadataStore.shared.venues
+            )
+            
+            var results: [Paper] = []
+            if trimmed.hasPrefix("10.") || trimmed.contains("doi.org") {
+                if let paper = await fetcher.fetchByDOI(trimmed) {
+                    results = [paper]
+                }
+            } else {
+                results = await fetcher.fetchByTitle(trimmed, limit: 15)
+            }
+            
+            let finalResults = results
+            await MainActor.run {
+                self.onlineSearchResults = finalResults
+                self.isSearchingOnline = false
+                if finalResults.isEmpty {
+                    self.onlineSearchError = L10n.pick("No papers found on OpenAlex.", "未在 OpenAlex 中找到文献。")
+                }
+            }
+        }
+    }
+
+    private func importPaper(_ paper: Paper) {
+        paper.track = topic.name
+        paper.addedAt = Date()
+        
+        _ = store.addOrUpdate(papers: [paper])
+        
+        toast.show(
+            L10n.pick("Imported paper “\(paper.title)” to library", "已成功导入文献 “\(paper.title)”"),
+            type: .success,
+            duration: 2
+        )
+    }
+
+    @ViewBuilder private var dashboardView: some View {
+        Text("Analytics Dashboard Placeholder")
     }
 
     // MARK: - Reading (PDF) view
