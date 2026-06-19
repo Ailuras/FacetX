@@ -141,8 +141,9 @@ struct PaperGraphView: View {
                         Text(statusTitle(status))
                             .font(.system(size: 11, weight: .medium))
                     }
+                    .foregroundStyle(isSelected ? status.iconColor : .secondary)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .frame(height: FacetTheme.chipHeight)
                     .background(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .fill(isSelected ? status.iconColor.opacity(0.14) : Color.clear)
@@ -153,7 +154,6 @@ struct PaperGraphView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(isSelected ? status.iconColor : .primary)
                 .hoverCursor(.pointingHand)
             }
         }
