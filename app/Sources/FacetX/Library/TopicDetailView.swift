@@ -48,6 +48,7 @@ struct TopicDetailView: View {
     @State private var activeDragNodeId: String? = nil
     @State private var scrollMonitor: Any? = nil
     @State private var isMouseOverCanvas = false
+    @State private var selectedStatuses: Set<PaperStatus> = [.pending, .starred, .read]
 
     // Navigation and Zooming canvas states
     @State private var scale: CGFloat = 1.0
@@ -737,7 +738,7 @@ struct TopicDetailView: View {
         var generatedNodes: [Node] = []
         var generatedLinks: [Link] = []
         
-        let papers = papersForTopic
+        let papers = papersForTopic.filter { selectedStatuses.contains($0.status) }
         
         var uniqueTags = Set<String>()
         for paper in papers {
@@ -876,6 +877,11 @@ struct TopicDetailView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                
+                Divider()
+                    .frame(height: 16)
+                
+                statusFilterView
                 
                 Spacer()
             }
@@ -2269,6 +2275,55 @@ struct TopicDetailView: View {
         }
     }
     
+    private func statusTitle(_ status: PaperStatus) -> String {
+        switch status {
+        case .pending: return L10n.pick("Pending", "待读")
+        case .starred: return L10n.pick("Starred", "收藏")
+        case .read:    return L10n.pick("Read", "已读")
+        case .skip:    return L10n.pick("Skipped", "已忽略")
+        }
+    }
+    
+    private var statusFilterView: some View {
+        HStack(spacing: 8) {
+            Text(L10n.pick("Filter:", "筛选文献:"))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            
+            ForEach(PaperStatus.allCases, id: \.self) { status in
+                let isSelected = selectedStatuses.contains(status)
+                Button {
+                    if isSelected {
+                        selectedStatuses.remove(status)
+                    } else {
+                        selectedStatuses.insert(status)
+                    }
+                    generateGraph(in: lastCanvasSize)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 10))
+                        Text(statusTitle(status))
+                            .font(.system(size: 11))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.primary.opacity(0.1), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                .hoverCursor(.pointingHand)
+            }
+        }
+    }
+
     private func removeScrollMonitor() {
         if let monitor = scrollMonitor {
             NSEvent.removeMonitor(monitor)
