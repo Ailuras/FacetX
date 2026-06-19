@@ -12,7 +12,7 @@ struct NoteDetailPane: View {
 
     @State private var text: String = ""
     @State private var loaded = false
-    @AppStorage("noteShowPreview") private var showPreview = true
+    @AppStorage("noteEditing") private var editing = true
     @StateObject private var editorController = MarkdownEditorController()
 
     private var dataDirectory: String { project.effectiveDataDirectory }
@@ -73,30 +73,49 @@ struct NoteDetailPane: View {
     // ── Body ────────────────────────────────────────────────────────────────
 
     @ViewBuilder private var content: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            modeBar
+            Divider()
+            if editing {
                 formattingToolbar
                 Divider()
-                // Live-highlighted source editor.
                 MarkdownEditor(text: $text, controller: editorController)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: text) { _, _ in persist() }
-            }
-            .frame(maxWidth: .infinity)
-
-            if showPreview {
-                Divider()
-                // Fully rendered preview (swift-markdown-ui).
+            } else {
                 ScrollView {
-                    Markdown(text)
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(L10n.pick("Empty note. Switch to Edit to start writing.",
+                                       "空笔记。切换到编辑开始书写。"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                    } else {
+                        Markdown(text)
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .background(FacetTheme.quietPanel.opacity(0.35))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var modeBar: some View {
+        HStack {
+            Spacer()
+            Picker("", selection: $editing) {
+                Text(L10n.pick("Preview", "预览")).tag(false)
+                Text(L10n.pick("Edit", "编辑")).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            .fixedSize()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     private var formattingToolbar: some View {
@@ -110,11 +129,6 @@ struct NoteDetailPane: View {
             toolbarButton("text.quote", help: L10n.pick("Quote", "引用")) { editorController.quote() }
             toolbarButton("link", help: "Link ⌘K") { editorController.link() }
             Spacer()
-            toolbarButton(showPreview ? "sidebar.right" : "sidebar.squares.right",
-                          help: showPreview ? L10n.pick("Hide preview", "隐藏预览")
-                                            : L10n.pick("Show preview", "显示预览")) {
-                showPreview.toggle()
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
