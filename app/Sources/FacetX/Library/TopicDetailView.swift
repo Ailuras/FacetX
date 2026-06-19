@@ -41,7 +41,6 @@ struct TopicDetailView: View {
     @State private var onlineSearchError: String? = nil
 
     // Graph view states
-    @State private var graphMode: GraphMode = .mindMap
     @State private var nodes: [Node] = []
     @State private var links: [Link] = []
     @State private var selectedNodeId: String? = nil
@@ -55,16 +54,6 @@ struct TopicDetailView: View {
     @State private var lastOffset: CGSize = .zero
     @State private var lastCanvasSize: CGSize = .zero
 
-    enum GraphMode: String, CaseIterable {
-        case mindMap, citation
-        var displayName: String {
-            switch self {
-            case .mindMap: return L10n.pick("Knowledge Map", "主题知识脑图")
-            case .citation: return L10n.pick("Citation Graph", "引文关系图谱")
-            }
-        }
-    }
-
     struct Node: Identifiable, Equatable {
         let id: String
         let label: String
@@ -75,7 +64,7 @@ struct TopicDetailView: View {
         let paper: Paper?
         
         enum NodeType {
-            case topic, tag, paper
+            case tag, paper
         }
         
         static func == (lhs: Node, rhs: Node) -> Bool {
@@ -334,8 +323,8 @@ struct TopicDetailView: View {
         .pickerStyle(.segmented)
         .controlSize(.small)
         .labelsHidden()
-        .help(L10n.pick("Switch views: Library / Reading / Online Search / Knowledge Graph",
-                        "切换视图：本地文库 / 沉浸阅读 / 云端检索 / 脑图与图谱"))
+        .help(L10n.pick("Switch views: Library / Reading / Online Search / Citation Graph",
+                        "切换视图：本地文库 / 沉浸阅读 / 云端检索 / 引文与关系图谱"))
     }
 
     private var onlineSearchBar: some View {
@@ -590,90 +579,86 @@ struct TopicDetailView: View {
         return false
     }
 
-    private func runPhysicsSimulation(steps: Int = 150) {
-        Task {
-            var velocities: [String: CGPoint] = [:]
-            let kRepel: CGFloat = 1800
-            let kAttract: CGFloat = 0.06
-            let centerPull: CGFloat = 0.015
-            let restLength: CGFloat = 90
-            let friction: CGFloat = 0.82
+    private func runPhysicsSimulation(steps: Int = 120) {
+        var velocities: [String: CGPoint] = [:]
+        let kRepel: CGFloat = 1600
+        let kAttract: CGFloat = 0.05
+        let centerPull: CGFloat = 0.015
+        let restLength: CGFloat = 85
+        let friction: CGFloat = 0.82
+        
+        let width = lastCanvasSize.width > 0 ? lastCanvasSize.width : 600
+        let height = lastCanvasSize.height > 0 ? lastCanvasSize.height : 400
+        let center = CGPoint(x: width / 2, y: height / 2)
+        
+        var updatedNodes = nodes
+        
+        for _ in 0..<steps {
+            var forces: [String: CGPoint] = [:]
+            for n in updatedNodes {
+                forces[n.id] = .zero
+            }
             
-            for _ in 0..<steps {
-                var forces: [String: CGPoint] = [:]
-                for n in nodes {
-                    forces[n.id] = .zero
-                }
-                
-                for i in 0..<nodes.count {
-                    for j in (i+1)..<nodes.count {
-                        let n1 = nodes[i]
-                        let n2 = nodes[j]
-                        let dx = n1.position.x - n2.position.x
-                        let dy = n1.position.y - n2.position.y
-                        let distSq = dx*dx + dy*dy + 0.1
-                        let dist = sqrt(distSq)
-                        if dist < 250 {
-                            let f = kRepel / distSq
-                            let fx = (dx / dist) * f
-                            let fy = (dy / dist) * f
-                            forces[n1.id] = CGPoint(x: forces[n1.id]!.x + fx, y: forces[n1.id]!.y + fy)
-                            forces[n2.id] = CGPoint(x: forces[n2.id]!.x - fx, y: forces[n2.id]!.y - fy)
-                        }
-                    }
-                }
-                
-                for link in links {
-                    guard let idx1 = nodes.firstIndex(where: { $0.id == link.from }),
-                          let idx2 = nodes.firstIndex(where: { $0.id == link.to }) else {
-                        continue
-                    }
-                    let n1 = nodes[idx1]
-                    let n2 = nodes[idx2]
+            for i in 0..<updatedNodes.count {
+                for j in (i+1)..<updatedNodes.count {
+                    let n1 = updatedNodes[i]
+                    let n2 = updatedNodes[j]
                     let dx = n1.position.x - n2.position.x
                     let dy = n1.position.y - n2.position.y
-                    let dist = sqrt(dx*dx + dy*dy) + 0.1
-                    let f = kAttract * (dist - restLength)
-                    let fx = (dx / dist) * f
-                    let fy = (dy / dist) * f
-                    
-                    forces[n1.id] = CGPoint(x: forces[n1.id]!.x - fx, y: forces[n1.id]!.y - fy)
-                    forces[n2.id] = CGPoint(x: forces[n2.id]!.x + fx, y: forces[n2.id]!.y + fy)
+                    let distSq = dx*dx + dy*dy + 0.1
+                    let dist = sqrt(distSq)
+                    if dist < 250 {
+                        let f = kRepel / distSq
+                        let fx = (dx / dist) * f
+                        let fy = (dy / dist) * f
+                        forces[n1.id] = CGPoint(x: forces[n1.id]!.x + fx, y: forces[n1.id]!.y + fy)
+                        forces[n2.id] = CGPoint(x: forces[n2.id]!.x - fx, y: forces[n2.id]!.y - fy)
+                    }
                 }
-                
-                let width = lastCanvasSize.width > 0 ? lastCanvasSize.width : 600
-                let height = lastCanvasSize.height > 0 ? lastCanvasSize.height : 400
-                let center = CGPoint(x: width / 2, y: height / 2)
-                for n in nodes {
-                    let dx = center.x - n.position.x
-                    let dy = center.y - n.position.y
-                    forces[n.id] = CGPoint(x: forces[n.id]!.x + dx * centerPull, y: forces[n.id]!.y + dy * centerPull)
+            }
+            
+            for link in links {
+                guard let idx1 = updatedNodes.firstIndex(where: { $0.id == link.from }),
+                      let idx2 = updatedNodes.firstIndex(where: { $0.id == link.to }) else {
+                    continue
                 }
+                let n1 = updatedNodes[idx1]
+                let n2 = updatedNodes[idx2]
+                let dx = n1.position.x - n2.position.x
+                let dy = n1.position.y - n2.position.y
+                let dist = sqrt(dx*dx + dy*dy) + 0.1
+                let f = kAttract * (dist - restLength)
+                let fx = (dx / dist) * f
+                let fy = (dy / dist) * f
                 
-                var updatedNodes = nodes
-                for idx in 0..<updatedNodes.count {
-                    let nodeId = updatedNodes[idx].id
-                    guard nodeId != activeDragNodeId else { continue }
-                    
-                    let f = forces[nodeId] ?? .zero
-                    let v = velocities[nodeId] ?? .zero
-                    let vx = (v.x + f.x) * friction
-                    let vy = (v.y + f.y) * friction
-                    
-                    velocities[nodeId] = CGPoint(x: vx, y: vy)
-                    
-                    let newX = max(25, min(width - 25, updatedNodes[idx].position.x + vx))
-                    let newY = max(25, min(height - 25, updatedNodes[idx].position.y + vy))
-                    updatedNodes[idx].position = CGPoint(x: newX, y: newY)
-                }
+                forces[n1.id] = CGPoint(x: forces[n1.id]!.x - fx, y: forces[n1.id]!.y - fy)
+                forces[n2.id] = CGPoint(x: forces[n2.id]!.x + fx, y: forces[n2.id]!.y + fy)
+            }
+            
+            for n in updatedNodes {
+                let dx = center.x - n.position.x
+                let dy = center.y - n.position.y
+                forces[n.id] = CGPoint(x: forces[n.id]!.x + dx * centerPull, y: forces[n.id]!.y + dy * centerPull)
+            }
+            
+            for idx in 0..<updatedNodes.count {
+                let nodeId = updatedNodes[idx].id
+                guard nodeId != activeDragNodeId else { continue }
                 
-                await MainActor.run {
-                    self.nodes = updatedNodes
-                }
+                let f = forces[nodeId] ?? .zero
+                let v = velocities[nodeId] ?? .zero
+                let vx = (v.x + f.x) * friction
+                let vy = (v.y + f.y) * friction
                 
-                try? await Task.sleep(nanoseconds: 16_000_000)
+                velocities[nodeId] = CGPoint(x: vx, y: vy)
+                
+                let newX = max(25, min(width - 25, updatedNodes[idx].position.x + vx))
+                let newY = max(25, min(height - 25, updatedNodes[idx].position.y + vy))
+                updatedNodes[idx].position = CGPoint(x: newX, y: newY)
             }
         }
+        
+        self.nodes = updatedNodes
     }
 
     private func drawArrowHead(context: GraphicsContext, from: CGPoint, to: CGPoint, color: Color) {
@@ -719,122 +704,80 @@ struct TopicDetailView: View {
         
         let papers = papersForTopic
         
-        if graphMode == .mindMap {
-            let topicNodeId = "topic_root"
+        var uniqueTags = Set<String>()
+        for paper in papers {
+            for tag in paper.tags {
+                uniqueTags.insert(tag)
+            }
+        }
+        
+        var tagNodeIds: [String: String] = [:]
+        for (idx, tag) in uniqueTags.sorted().enumerated() {
+            let tagNodeId = "tag_\(tag)"
+            tagNodeIds[tag] = tagNodeId
+            
+            let angle = CGFloat(idx) * (2 * .pi) / CGFloat(max(1, uniqueTags.count))
+            let radius: CGFloat = min(width, height) * 0.25
+            let x = center.x + radius * cos(angle)
+            let y = center.y + radius * sin(angle)
+            
             generatedNodes.append(Node(
-                id: topicNodeId,
-                label: topic.name,
-                position: center,
-                type: .topic,
-                size: CGSize(width: 140, height: 38),
-                color: .purple,
+                id: tagNodeId,
+                label: tag,
+                position: CGPoint(x: x, y: y),
+                type: .tag,
+                size: CGSize(width: 90, height: 28),
+                color: .blue,
                 paper: nil
             ))
+        }
+        
+        for (idx, paper) in papers.enumerated() {
+            let paperNodeId = "paper_\(paper.id)"
             
-            var tagCounts: [String: Int] = [:]
-            for paper in papers {
-                for tag in paper.tags {
-                    tagCounts[tag, default: 0] += 1
+            let angle = CGFloat(idx) * (2 * .pi) / CGFloat(max(1, papers.count))
+            let radius: CGFloat = min(width, height) * 0.4
+            let x = center.x + radius * cos(angle) + CGFloat.random(in: -15...15)
+            let y = center.y + radius * sin(angle) + CGFloat.random(in: -15...15)
+            
+            generatedNodes.append(Node(
+                id: paperNodeId,
+                label: paper.title,
+                position: CGPoint(x: x, y: y),
+                type: .paper,
+                size: CGSize(width: 150, height: 36),
+                color: .green,
+                paper: paper
+            ))
+            
+            for tag in paper.tags {
+                if let tagNodeId = tagNodeIds[tag] {
+                    generatedLinks.append(Link(from: paperNodeId, to: tagNodeId))
                 }
             }
-            let topTags = Array(tagCounts.keys.sorted { tagCounts[$0]! > tagCounts[$1]! }.prefix(5))
-            
-            var tagNodeIds: [String: String] = [:]
-            for (idx, tag) in topTags.enumerated() {
-                let tagNodeId = "tag_\(tag)"
-                tagNodeIds[tag] = tagNodeId
+        }
+        
+        for i in 0..<papers.count {
+            for j in 0..<papers.count {
+                let p1 = papers[i]
+                let p2 = papers[j]
                 
-                let angle = CGFloat(idx) * (2 * .pi) / CGFloat(max(1, topTags.count))
-                let radius: CGFloat = 80
-                let x = center.x + radius * cos(angle)
-                let y = center.y + radius * sin(angle)
-                
-                generatedNodes.append(Node(
-                    id: tagNodeId,
-                    label: tag,
-                    position: CGPoint(x: x, y: y),
-                    type: .tag,
-                    size: CGSize(width: 100, height: 30),
-                    color: .blue,
-                    paper: nil
-                ))
-                
-                generatedLinks.append(Link(from: topicNodeId, to: tagNodeId))
-            }
-            
-            for (idx, paper) in papers.enumerated() {
-                let paperNodeId = "paper_\(paper.id)"
-                
-                var connectedToNodeId = topicNodeId
-                if let matchingTag = paper.tags.first(where: { topTags.contains($0) }),
-                   let tagNodeId = tagNodeIds[matchingTag] {
-                    connectedToNodeId = tagNodeId
+                if checkCitationLink(from: p1, to: p2) {
+                    generatedLinks.append(Link(from: "paper_\(p1.id)", to: "paper_\(p2.id)"))
                 }
-                
-                var parentPos = center
-                if let parentNode = generatedNodes.first(where: { $0.id == connectedToNodeId }) {
-                    parentPos = parentNode.position
-                }
-                
-                let angle = CGFloat(idx) * (2 * .pi) / CGFloat(max(1, papers.count))
-                let radius: CGFloat = 70
-                let x = parentPos.x + radius * cos(angle) + CGFloat.random(in: -10...10)
-                let y = parentPos.y + radius * sin(angle) + CGFloat.random(in: -10...10)
-                
-                generatedNodes.append(Node(
-                    id: paperNodeId,
-                    label: paper.title,
-                    position: CGPoint(x: x, y: y),
-                    type: .paper,
-                    size: CGSize(width: 150, height: 36),
-                    color: .green,
-                    paper: paper
-                ))
-                
-                generatedLinks.append(Link(from: connectedToNodeId, to: paperNodeId))
             }
-        } else {
-            for (idx, paper) in papers.enumerated() {
-                let paperNodeId = "paper_\(paper.id)"
-                
-                let angle = CGFloat(idx) * (2 * .pi) / CGFloat(max(1, papers.count))
-                let radius: CGFloat = min(width, height) * 0.35
-                let x = center.x + radius * cos(angle)
-                let y = center.y + radius * sin(angle)
-                
-                generatedNodes.append(Node(
-                    id: paperNodeId,
-                    label: paper.title,
-                    position: CGPoint(x: x, y: y),
-                    type: .paper,
-                    size: CGSize(width: 150, height: 36),
-                    color: .green,
-                    paper: paper
-                ))
-            }
-            
+        }
+        
+        if generatedLinks.isEmpty && papers.count > 1 {
             for i in 0..<papers.count {
                 for j in 0..<papers.count {
                     let p1 = papers[i]
                     let p2 = papers[j]
-                    
-                    if checkCitationLink(from: p1, to: p2) {
+                    guard p1.id != p2.id else { continue }
+                    let y1 = p1.publicationYear ?? 9999
+                    let y2 = p2.publicationYear ?? 0
+                    if y1 > y2 && !Set(p1.tags).isDisjoint(with: Set(p2.tags)) && !p1.tags.isEmpty {
                         generatedLinks.append(Link(from: "paper_\(p1.id)", to: "paper_\(p2.id)"))
-                    }
-                }
-            }
-            
-            if generatedLinks.isEmpty && papers.count > 1 {
-                for i in 0..<papers.count {
-                    for j in 0..<papers.count {
-                        let p1 = papers[i]
-                        let p2 = papers[j]
-                        guard p1.id != p2.id else { continue }
-                        let y1 = p1.publicationYear ?? 9999
-                        let y2 = p2.publicationYear ?? 0
-                        if y1 > y2 && !Set(p1.tags).isDisjoint(with: Set(p2.tags)) && !p1.tags.isEmpty {
-                            generatedLinks.append(Link(from: "paper_\(p1.id)", to: "paper_\(p2.id)"))
-                        }
                     }
                 }
             }
@@ -850,14 +793,6 @@ struct TopicDetailView: View {
     @ViewBuilder private var dashboardView: some View {
         VStack(spacing: 0) {
             HStack {
-                Picker("", selection: $graphMode) {
-                    ForEach(GraphMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 250)
-                
                 Button(L10n.pick("Reset Layout", "重置布局")) {
                     generateGraph(in: lastCanvasSize)
                 }
@@ -948,22 +883,23 @@ struct TopicDetailView: View {
                                     path.move(to: fromNode.position)
                                     path.addLine(to: toNode.position)
                                     
-                                    let isHighlighted: Bool
-                                    if let selectedId = selectedNodeId {
-                                        isHighlighted = link.from == selectedId || link.to == selectedId
-                                    } else if let hoveredId = hoveredNodeId {
-                                        isHighlighted = link.from == hoveredId || link.to == hoveredId
-                                    } else {
-                                        isHighlighted = false
-                                    }
+                                    let isHighlighted = selectedNodeId == link.from || selectedNodeId == link.to ||
+                                                        hoveredNodeId == link.from || hoveredNodeId == link.to
                                     
-                                    let strokeColor = isHighlighted ? Color.accentColor : Color.primary.opacity(0.15)
-                                    let lineWidth: CGFloat = isHighlighted ? 2.0 : 1.0
+                                    let isCitation = fromNode.type == .paper && toNode.type == .paper
                                     
-                                    context.stroke(path, with: .color(strokeColor), lineWidth: lineWidth)
-                                    
-                                    if graphMode == .citation {
+                                    if isCitation {
+                                        let strokeColor = isHighlighted ? Color.accentColor : Color.primary.opacity(0.18)
+                                        let lineWidth: CGFloat = isHighlighted ? 2.0 : 1.0
+                                        context.stroke(path, with: .color(strokeColor), lineWidth: lineWidth)
+                                        
                                         drawArrowHead(context: context, from: fromNode.position, to: toNode.position, color: strokeColor)
+                                    } else {
+                                        let strokeColor = isHighlighted ? Color.accentColor.opacity(0.6) : Color.primary.opacity(0.08)
+                                        let lineWidth: CGFloat = isHighlighted ? 1.5 : 0.8
+                                        var strokeStyle = StrokeStyle(lineWidth: lineWidth)
+                                        strokeStyle.dash = [4, 4]
+                                        context.stroke(path, with: .color(strokeColor), style: strokeStyle)
                                     }
                                 }
                             }
@@ -1009,9 +945,6 @@ struct TopicDetailView: View {
                             generateGraph(in: geo.size)
                         }
                     }
-                    .onChange(of: graphMode) { _, _ in
-                        generateGraph(in: geo.size)
-                    }
                     .onChange(of: topic) { _, _ in
                         generateGraph(in: geo.size)
                     }
@@ -1037,7 +970,7 @@ struct TopicDetailView: View {
                     .foregroundStyle(node.color)
                 
                 Text(node.label)
-                    .font(.system(size: node.type == .topic ? 11 : 9, weight: .semibold))
+                    .font(.system(size: 9, weight: .semibold))
                     .lineLimit(node.type == .paper ? 2 : 1)
                     .foregroundStyle(.primary)
             }
@@ -1079,7 +1012,6 @@ struct TopicDetailView: View {
     
     private func nodeIcon(_ node: Node) -> String {
         switch node.type {
-        case .topic: return "books.vertical.fill"
         case .tag: return "tag.fill"
         case .paper: return "doc.text.fill"
         }
@@ -1107,13 +1039,6 @@ struct TopicDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     switch node.type {
-                    case .topic:
-                        Label(node.label, systemImage: "books.vertical.fill")
-                            .font(.system(size: 14, weight: .bold))
-                        Text(L10n.pick("Central topic of this workspace.", "当前文献库的核心主题。"))
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                        
                     case .tag:
                         Label(node.label, systemImage: "tag.fill")
                             .font(.system(size: 14, weight: .bold))
