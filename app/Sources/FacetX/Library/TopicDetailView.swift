@@ -370,10 +370,6 @@ struct TopicDetailView: View {
                     withAnimation(detailPaneAnimation) { selectedPaper = paper }
                 }
             }
-            FilterPillButton(systemName: "folder",
-                             help: L10n.pick("Show PDF in Finder", "在访达中显示 PDF")) {
-                if let paper = readingPaper { _ = PdfCoordinator.reveal(paper: paper) }
-            }
         }
         .pillGroupContainer()
     }
