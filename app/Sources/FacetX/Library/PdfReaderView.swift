@@ -12,6 +12,8 @@ final class PdfReaderModel {
     var pageCount = 0
     var hasSelection = false
     var activeAnnotation: PDFAnnotation? = nil
+    var outlineItems: [PdfOutlineItem] = []
+    var annotations: [PdfAnnotationItem] = []
 
     @ObservationIgnored private var loadedURL: URL?
     @ObservationIgnored private let pageObserver = PageObserver()
@@ -41,6 +43,8 @@ final class PdfReaderModel {
         currentPage = 1
         hasSelection = false
         activeAnnotation = nil
+        loadOutline()
+        loadAnnotations()
         if let first = document?.page(at: 0) { pdfView.go(to: first) }
     }
 
@@ -51,6 +55,8 @@ final class PdfReaderModel {
         currentPage = 1
         hasSelection = false
         activeAnnotation = nil
+        outlineItems = []
+        annotations = []
     }
 
     func nextPage() { pdfView.goToNextPage(nil) }
@@ -89,11 +95,61 @@ final class PdfReaderModel {
         hasSelection = pdfView.currentSelection != nil
     }
 
+    // MARK: - Outline Operations
+
+    func loadOutline() {
+        outlineItems = []
+        guard let document = pdfView.document,
+              let root = document.outlineRoot else { return }
+        traverseOutline(root, depth: 0)
+    }
+
+    private func traverseOutline(_ outline: PDFOutline, depth: Int) {
+        for i in 0..<outline.numberOfChildren {
+            if let child = outline.child(at: i) {
+                if let title = child.label, let dest = child.destination {
+                    outlineItems.append(PdfOutlineItem(title: title, depth: depth, destination: dest))
+                }
+                traverseOutline(child, depth: depth + 1)
+            }
+        }
+    }
+
+    func loadAnnotations() {
+        annotations = []
+        guard let document = pdfView.document else { return }
+        for i in 0..<document.pageCount {
+            guard let page = document.page(at: i) else { continue }
+            for ann in page.annotations {
+                if ann.type == "Highlight" {
+                    let text = ann.contents ?? L10n.pick("Highlight", "高亮")
+                    annotations.append(PdfAnnotationItem(
+                        type: "Highlight",
+                        color: Color(nsColor: ann.color),
+                        text: text,
+                        pageIndex: i,
+                        annotation: ann
+                    ))
+                } else if ann.type == "Text" {
+                    let text = ann.contents ?? L10n.pick("Sticky Note", "便签批注")
+                    annotations.append(PdfAnnotationItem(
+                        type: "Note",
+                        color: Color(nsColor: ann.color),
+                        text: text.isEmpty ? L10n.pick("[Empty note]", "[空白批注]") : text,
+                        pageIndex: i,
+                        annotation: ann
+                    ))
+                }
+            }
+        }
+    }
+
     // MARK: - Annotation Operations
 
     func saveDocument() {
         guard let document = pdfView.document, let url = loadedURL else { return }
         document.write(to: url)
+        loadAnnotations()
     }
 
     func highlightCurrentSelection(color: NSColor) {
@@ -285,4 +341,22 @@ enum PdfHighlightColor: String, CaseIterable, Identifiable {
         case .purple: return L10n.pick("Purple Highlight", "紫色高亮")
         }
     }
+}
+
+/// Represents a single navigable entry in the PDF table of contents.
+struct PdfOutlineItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let depth: Int
+    let destination: PDFDestination
+}
+
+/// Represents an annotation summary displayed in the sidebar.
+struct PdfAnnotationItem: Identifiable {
+    let id = UUID()
+    let type: String // "Highlight" or "Note"
+    let color: Color
+    let text: String
+    let pageIndex: Int
+    let annotation: PDFAnnotation
 }

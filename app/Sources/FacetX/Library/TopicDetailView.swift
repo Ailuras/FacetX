@@ -1,4 +1,5 @@
 import FacetXCore
+import PDFKit
 import SwiftUI
 
 struct TopicDetailView: View {
@@ -28,6 +29,19 @@ struct TopicDetailView: View {
     @State private var readingPaperID: String? = nil
     @State private var reader = PdfReaderModel()
     @State private var pdfSearchText = ""
+    @State private var showPdfSidebar = false
+    @State private var pdfSidebarTab: PdfSidebarTab = .outline
+
+    enum PdfSidebarTab: String, CaseIterable, Identifiable {
+        case outline, annotations
+        var id: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .outline: return L10n.pick("Outline", "大纲")
+            case .annotations: return L10n.pick("Annotations", "批注")
+            }
+        }
+    }
 
     private let detailPaneAnimation = FacetTheme.detailSpring
 
@@ -344,6 +358,19 @@ struct TopicDetailView: View {
     private var pdfToolCluster: some View {
         HStack(spacing: 8) {
             HStack(spacing: 2) {
+                FilterPillButton(
+                    systemName: "sidebar.left",
+                    help: L10n.pick("Toggle PDF Sidebar", "切换 PDF 大纲与批注"),
+                    active: showPdfSidebar
+                ) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showPdfSidebar.toggle()
+                    }
+                }
+            }
+            .pillGroupContainer()
+
+            HStack(spacing: 2) {
                 pdfSearchField
                 FilterPillButton(systemName: "chevron.left",
                                  help: L10n.pick("Previous page", "上一页")) { reader.previousPage() }
@@ -448,11 +475,140 @@ struct TopicDetailView: View {
         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(FacetTheme.hairline, lineWidth: 1))
     }
 
+    private var pdfSidebarPanel: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $pdfSidebarTab) {
+                ForEach(PdfSidebarTab.allCases) { tab in
+                    Text(tab.displayName).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+
+            Divider().frame(height: 1)
+
+            ScrollView {
+                if pdfSidebarTab == .outline {
+                    if reader.outlineItems.isEmpty {
+                        VStack(spacing: 12) {
+                            Spacer().frame(height: 40)
+                            Image(systemName: "list.bullet.rectangle")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.tertiary)
+                            Text(L10n.pick("No outline available", "暂无目录大纲"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 2) {
+                            ForEach(reader.outlineItems) { item in
+                                Button {
+                                    reader.pdfView.go(to: item.destination)
+                                } label: {
+                                    Text(item.title)
+                                        .font(.system(size: 11, weight: item.depth == 0 ? .semibold : .regular))
+                                        .foregroundStyle(item.depth == 0 ? .primary : .secondary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                        .padding(.leading, CGFloat(item.depth * 10 + 8))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 4)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .hoverCursor(.pointingHand)
+                                .padding(.horizontal, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(Color.clear)
+                                )
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    }
+                } else {
+                    if reader.annotations.isEmpty {
+                        VStack(spacing: 12) {
+                            Spacer().frame(height: 40)
+                            Image(systemName: "highlighter")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.tertiary)
+                            Text(L10n.pick("No annotations yet", "暂无批注记录"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 6) {
+                            ForEach(reader.annotations) { ann in
+                                Button {
+                                    if let page = ann.annotation.page {
+                                        let dest = PDFDestination(page: page, at: CGPoint(x: ann.annotation.bounds.minX, y: ann.annotation.bounds.maxY))
+                                        reader.pdfView.go(to: dest)
+                                    }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack(spacing: 6) {
+                                            Circle()
+                                                .fill(ann.color)
+                                                .frame(width: 8, height: 8)
+                                            Text(ann.type == "Highlight" ? L10n.pick("Highlight", "高亮") : L10n.pick("Note", "便签"))
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundStyle(.secondary)
+                                            Spacer()
+                                            Text(L10n.pick("P. \(ann.pageIndex + 1)", "第 \(ann.pageIndex + 1) 页"))
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        Text(ann.text)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(3)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(FacetTheme.quietPanel)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .hoverCursor(.pointingHand)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                    }
+                }
+            }
+        }
+        .background(FacetTheme.canvas)
+    }
+
     @ViewBuilder private var pdfReader: some View {
         if readingURL != nil {
-            PdfReaderRepresentable(model: reader)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(FacetTheme.canvas)
+            HStack(spacing: 0) {
+                if showPdfSidebar {
+                    pdfSidebarPanel
+                        .frame(width: 220)
+                        .transition(.move(edge: .leading))
+
+                    Rectangle()
+                        .fill(FacetTheme.hairline)
+                        .frame(width: 1)
+                        .ignoresSafeArea()
+                }
+
+                PdfReaderRepresentable(model: reader)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(FacetTheme.canvas)
+            }
         } else {
             ContentUnavailableView {
                 Label(L10n.pick("Nothing to read yet", "暂无可阅读内容"), systemImage: "book.closed")
