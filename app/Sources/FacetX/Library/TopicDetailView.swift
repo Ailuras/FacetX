@@ -1,3 +1,4 @@
+import Charts
 import FacetXCore
 import PDFKit
 import SwiftUI
@@ -39,6 +40,7 @@ struct TopicDetailView: View {
     @State private var onlineSearchResults: [Paper] = []
     @State private var isSearchingOnline = false
     @State private var onlineSearchError: String? = nil
+    @State private var weeklyGoalValue: Int = 3
 
     enum PdfSidebarTab: String, CaseIterable, Identifiable {
         case outline, annotations
@@ -220,6 +222,10 @@ struct TopicDetailView: View {
         .onAppear {
             loadPaperLinks()
             if viewMode == .reading { syncReader() }
+            syncWeeklyGoal()
+        }
+        .onChange(of: topic) { _, _ in
+            syncWeeklyGoal()
         }
         .onChange(of: ek.changeToken) { _, _ in
             loadPaperLinks()
@@ -505,8 +511,356 @@ struct TopicDetailView: View {
         )
     }
 
+    struct SegmentedProgressBar: View {
+        let read: Int
+        let starred: Int
+        let pending: Int
+        let skipped: Int
+        
+        var body: some View {
+            let total = read + starred + pending + skipped
+            if total == 0 {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(height: 8)
+            } else {
+                let readRatio = Double(read) / Double(total)
+                let starredRatio = Double(starred) / Double(total)
+                let pendingRatio = Double(pending) / Double(total)
+                let skippedRatio = Double(skipped) / Double(total)
+                
+                GeometryReader { geo in
+                    HStack(spacing: 1) {
+                        if read > 0 {
+                            Color.green
+                                .frame(width: geo.size.width * readRatio)
+                        }
+                        if starred > 0 {
+                            Color.yellow
+                                .frame(width: geo.size.width * starredRatio)
+                        }
+                        if pending > 0 {
+                            Color.blue
+                                .frame(width: geo.size.width * pendingRatio)
+                        }
+                        if skipped > 0 {
+                            Color.secondary
+                                .frame(width: geo.size.width * skippedRatio)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .frame(height: 8)
+            }
+        }
+    }
+
+    struct MonthlyReadCount: Identifiable {
+        let id = UUID()
+        let monthName: String
+        let date: Date
+        let count: Int
+    }
+
+    private var currentWeekReadCount: Int {
+        let calendar = Calendar.current
+        var calendarMonday = calendar
+        calendarMonday.firstWeekday = 2 // Monday
+        
+        let now = Date()
+        guard let weekInterval = calendarMonday.dateInterval(of: .weekOfYear, for: now) else {
+            return 0
+        }
+        
+        return papersForTopic.filter { paper in
+            guard paper.status == .read else { return false }
+            let readDate = paper.statusChangedAt ?? paper.addedAt ?? .distantPast
+            return weekInterval.contains(readDate)
+        }.count
+    }
+
+    private var last6MonthsReadData: [MonthlyReadCount] {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        var results: [MonthlyReadCount] = []
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM"
+        
+        for i in (0..<6).reversed() {
+            guard let monthDate = calendar.date(byAdding: .month, value: -i, to: now),
+                  let monthInterval = calendar.dateInterval(of: .month, for: monthDate) else {
+                continue
+            }
+            
+            let count = papersForTopic.filter { paper in
+                guard paper.status == .read else { return false }
+                let readDate = paper.statusChangedAt ?? paper.addedAt ?? .distantPast
+                return monthInterval.contains(readDate)
+            }.count
+            
+            let monthName = dateFormatter.string(from: monthDate)
+            results.append(MonthlyReadCount(monthName: monthName, date: monthInterval.start, count: count))
+        }
+        
+        return results
+    }
+
+    private func syncWeeklyGoal() {
+        let val = UserDefaults.standard.integer(forKey: "weeklyReadingGoal_\(topic.name)")
+        weeklyGoalValue = val == 0 ? 3 : val
+    }
+
+    private func updateWeeklyGoal(_ newValue: Int) {
+        let bounded = max(1, newValue)
+        weeklyGoalValue = bounded
+        UserDefaults.standard.set(bounded, forKey: "weeklyReadingGoal_\(topic.name)")
+    }
+
     @ViewBuilder private var dashboardView: some View {
-        Text("Analytics Dashboard Placeholder")
+        ScrollView {
+            VStack(spacing: 20) {
+                HStack(spacing: 16) {
+                    statusSummaryCard
+                    totalCountCard
+                }
+                
+                HStack(spacing: 16) {
+                    weeklyGoalCard
+                    historyChartCard
+                }
+            }
+            .padding(20)
+        }
+        .background(FacetTheme.canvas)
+    }
+
+    private var statusSummaryCard: some View {
+        let read = papersForTopic.filter { $0.status == .read }.count
+        let starred = papersForTopic.filter { $0.status == .starred }.count
+        let pending = papersForTopic.filter { $0.status == .pending }.count
+        let skipped = papersForTopic.filter { $0.status == .skip }.count
+        
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(L10n.pick("Reading Status", "阅读进度"))
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.primary)
+            
+            SegmentedProgressBar(read: read, starred: starred, pending: pending, skipped: skipped)
+            
+            HStack(spacing: 12) {
+                statusLegendItem(title: L10n.pick("Read", "已读"), count: read, color: .green)
+                statusLegendItem(title: L10n.pick("Starred", "收藏"), count: starred, color: .yellow)
+                statusLegendItem(title: L10n.pick("Pending", "待读"), count: pending, color: .blue)
+                statusLegendItem(title: L10n.pick("Skipped", "跳过"), count: skipped, color: .secondary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(FacetTheme.quietPanel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+    
+    private func statusLegendItem(title: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text("\(title): \(count)")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var totalCountCard: some View {
+        let total = papersForTopic.count
+        let t1Count = papersForTopic.filter { $0.tier == 1 }.count
+        let totalCitations = papersForTopic.reduce(0) { $0 + $1.citedByCount }
+        let avgCitations = total > 0 ? Double(totalCitations) / Double(total) : 0.0
+        
+        return HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.pick("Total Literature", "文献总数"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("\(total)")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(.primary)
+            }
+            
+            Spacer()
+            
+            Divider()
+                .frame(height: 40)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.pick("Tier 1 Papers", "顶会/顶刊 (T1)"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("\(t1Count)")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.primary)
+            }
+            
+            Divider()
+                .frame(height: 40)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.pick("Avg Citations", "平均引用"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text(String(format: "%.1f", avgCitations))
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.primary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(FacetTheme.quietPanel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private var weeklyGoalCard: some View {
+        let completed = currentWeekReadCount
+        let goal = weeklyGoalValue
+        let ratio = goal > 0 ? min(1.0, Double(completed) / Double(goal)) : 0.0
+        
+        return VStack(spacing: 16) {
+            Text(L10n.pick("Weekly Reading Goal", "本周阅读目标"))
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            HStack(spacing: 24) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.12), lineWidth: 10)
+                        .frame(width: 80, height: 80)
+                    
+                    Circle()
+                        .trim(from: 0.0, to: CGFloat(ratio))
+                        .stroke(
+                            AngularGradient(
+                                colors: [.blue, .purple, .blue],
+                                center: .center
+                            ),
+                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 80, height: 80)
+                        .animation(.spring(), value: ratio)
+                    
+                    VStack(spacing: 2) {
+                        Text("\(completed)")
+                            .font(.system(size: 20, weight: .bold))
+                        Text("/ \(goal)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(ratio >= 1.0 ? L10n.pick("Goal Achieved! 🎉", "已达成目标！🎉") : L10n.pick("Keep it up!", "加油！离目标更近一步"))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(ratio >= 1.0 ? .green : .primary)
+                    
+                    Text(L10n.pick("\(completed) of \(goal) papers read this week", "本周已阅读 \(completed) / \(goal) 篇文献"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    
+                    HStack(spacing: 4) {
+                        Button {
+                            updateWeeklyGoal(weeklyGoalValue - 1)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                                .font(.system(size: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(weeklyGoalValue <= 1)
+                        .hoverCursor(.pointingHand)
+                        
+                        Text("\(weeklyGoalValue)")
+                            .font(.system(size: 13, weight: .bold))
+                            .frame(minWidth: 20, alignment: .center)
+                        
+                        Button {
+                            updateWeeklyGoal(weeklyGoalValue + 1)
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .hoverCursor(.pointingHand)
+                    }
+                    .padding(.top, 4)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 180)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(FacetTheme.quietPanel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private var historyChartCard: some View {
+        let chartData = last6MonthsReadData
+        let totalRead = chartData.reduce(0) { $0 + $1.count }
+        
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.pick("Reading History (Last 6 Months)", "阅读历史（近 6 个月）"))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Text(L10n.pick("Total read: \(totalRead) papers", "总计已读：\(totalRead) 篇文献"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            
+            Chart(chartData) { item in
+                BarMark(
+                    x: .value(L10n.pick("Month", "月份"), item.monthName),
+                    y: .value(L10n.pick("Papers Read", "阅读数"), item.count)
+                )
+                .foregroundStyle(Color.accentColor.gradient)
+                .cornerRadius(4)
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading)
+            }
+            .frame(height: 110)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 180)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(FacetTheme.quietPanel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
     }
 
     // MARK: - Reading (PDF) view
