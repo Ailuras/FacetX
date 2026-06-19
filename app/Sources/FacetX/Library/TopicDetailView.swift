@@ -939,7 +939,9 @@ struct TopicDetailView: View {
                     .coordinateSpace(name: "canvas")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(FacetTheme.canvas)
-                    .clipShape(Rectangle())
+                    .background(ScrollWheelZoomModifier(scale: $scale))
+                    .contentShape(Rectangle())
+                    .clipped()
                     .onAppear {
                         if nodes.isEmpty {
                             generateGraph(in: geo.size)
@@ -2207,5 +2209,33 @@ struct TopicDetailView: View {
             }
             self.paperLinks = map
         }
+    }
+}
+
+struct ScrollWheelZoomModifier: NSViewRepresentable {
+    @Binding var scale: CGFloat
+    
+    func makeNSView(context: Context) -> NSView {
+        let view = ScrollDetectionView()
+        view.onScroll = { delta in
+            let factor: CGFloat = 0.015
+            let newScale = scale + delta * factor
+            scale = max(0.4, min(2.5, newScale))
+        }
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+class ScrollDetectionView: NSView {
+    var onScroll: ((CGFloat) -> Void)?
+    
+    override func scrollWheel(with event: NSEvent) {
+        let delta = event.deltaY
+        if abs(delta) > 0.01 {
+            onScroll?(delta)
+        }
+        super.scrollWheel(with: event)
     }
 }
