@@ -75,6 +75,7 @@ struct ItemRow: View {
     let onDragStart: (() -> NSItemProvider)?
     let onToggle: (Bool) -> Void
     let onEdit: () -> Void
+    let onTogglePin: (Bool) -> Void
 
     let inlineEditingText: Binding<String>?
     let isInlineEditing: Bool
@@ -96,6 +97,7 @@ struct ItemRow: View {
          onDragStart: (() -> NSItemProvider)? = nil,
          onToggle: @escaping (Bool) -> Void,
          onEdit: @escaping () -> Void,
+         onTogglePin: @escaping (Bool) -> Void = { _ in },
          inlineEditingText: Binding<String>? = nil,
          isInlineEditing: Bool = false,
          onInlineCommit: (() -> Void)? = nil,
@@ -112,6 +114,7 @@ struct ItemRow: View {
         self.onDragStart = onDragStart
         self.onToggle = onToggle
         self.onEdit = onEdit
+        self.onTogglePin = onTogglePin
         self.inlineEditingText = inlineEditingText
         self.isInlineEditing = isInlineEditing
         self.onInlineCommit = onInlineCommit
@@ -203,7 +206,7 @@ struct ItemRow: View {
                         Button { onToggle(!item.isCompleted) } label: {
                             Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(checkmarkColor)
+                                .foregroundStyle(item.isOverdue ? .red : checkmarkColor)
                         }
                         .buttonStyle(.plain)
                         .help(item.isCompleted ? L10n.pick("Mark incomplete", "标记为未完成")
@@ -211,7 +214,7 @@ struct ItemRow: View {
                     } else {
                         Image(systemName: item.facetKind.systemImage)
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(item.facetKind.color)
+                            .foregroundStyle(item.isOverdue ? .red : item.facetKind.color)
                     }
 
                     if isInlineEditing, let inlineEditingText {
@@ -296,16 +299,16 @@ struct ItemRow: View {
                             )
                         }
 
-                        if !isInlineEditing {
+                        if !isInlineEditing, item.facetID != nil, item.isPinned || hovered {
                             Button {
-                                onEdit()
+                                onTogglePin(!item.isPinned)
                             } label: {
-                                Image(systemName: "pencil")
-                                    .foregroundStyle(.secondary)
+                                Image(systemName: item.isPinned ? "pin.fill" : "pin")
+                                    .foregroundStyle(item.isPinned ? Color.accentColor : .secondary)
                             }
                             .buttonStyle(.plain)
-                            .opacity(hovered ? 1.0 : 0.0)
-                            .help(L10n.pick("Edit item", "编辑条目"))
+                            .help(item.isPinned ? L10n.pick("Unpin", "取消置顶")
+                                                : L10n.pick("Pin to top", "置顶"))
                         }
                     }
                 }

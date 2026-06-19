@@ -146,11 +146,11 @@ enum SwipeAction: String, CaseIterable, Identifiable {
 
     var isDestructive: Bool { self == .delete }
 
-    /// Completion only makes sense for reminders; `none` shows nothing.
+    /// `none` shows nothing; conversion is limited to plain reminders/events.
+    /// Completion now applies to every kind (events/notes store it locally).
     func isApplicable(to item: ProjectItem) -> Bool {
         switch self {
         case .none: return false
-        case .complete: return item.kind == .reminder
         case .convert: return item.linkedPaperIDs.isEmpty && !item.isNote
         default: return true
         }
@@ -161,7 +161,19 @@ enum SwipeAction: String, CaseIterable, Identifiable {
 
 enum ItemActionHelpers {
     static func toggleCompletion(_ item: ProjectItem, completed: Bool, ek: EventKitService) async {
-        await ek.setReminderCompleted(id: item.id, completed: completed)
+        // Reminders (tasks & project papers) sync completion through EventKit;
+        // events & notes have no native completion, so it's kept in the local store.
+        if item.kind == .reminder {
+            await ek.setReminderCompleted(id: item.id, completed: completed)
+        } else if let facetID = item.facetID {
+            await MainActor.run { ItemStore.shared.setCompleted(completed, for: facetID) }
+        }
+    }
+
+    @MainActor
+    static func togglePin(_ item: ProjectItem, pinned: Bool) {
+        guard let facetID = item.facetID else { return }
+        ItemStore.shared.setPinned(pinned, for: facetID)
     }
 
     static func deleteItem(_ item: ProjectItem, ek: EventKitService) async {

@@ -166,6 +166,9 @@ struct ItemFilterMenuButton: View {
 struct ItemActionCluster<Accessory: View>: View {
     @Binding var itemFilter: ItemListFilter
     @Binding var showCompleted: Bool
+    /// Optional overdue-visibility toggle. `nil` hides the pill (Week/Month, which
+    /// don't surface overdue separately); the All view passes a real binding.
+    var showOverdue: Binding<Bool>?
     var animation: Animation = FacetTheme.listSpring
     let onAdd: () -> Void
     /// When set, the "+" becomes a menu letting the user pick what to create.
@@ -178,6 +181,7 @@ struct ItemActionCluster<Accessory: View>: View {
     init(
         itemFilter: Binding<ItemListFilter>,
         showCompleted: Binding<Bool>,
+        showOverdue: Binding<Bool>? = nil,
         animation: Animation = FacetTheme.listSpring,
         onAdd: @escaping () -> Void,
         onCreateKind: ((FacetKind) -> Void)? = nil,
@@ -186,6 +190,7 @@ struct ItemActionCluster<Accessory: View>: View {
     ) {
         self._itemFilter = itemFilter
         self._showCompleted = showCompleted
+        self.showOverdue = showOverdue
         self.animation = animation
         self.onAdd = onAdd
         self.onCreateKind = onCreateKind
@@ -197,10 +202,20 @@ struct ItemActionCluster<Accessory: View>: View {
         HStack(spacing: 2) {
             accessory
             ItemFilterMenuButton(itemFilter: $itemFilter)
+            if let showOverdue {
+                FilterPillButton(
+                    systemName: showOverdue.wrappedValue ? "clock.badge.exclamationmark.fill" : "clock.badge.exclamationmark",
+                    help: showOverdue.wrappedValue ? L10n.pick("Hide overdue items", "隐藏已逾期")
+                                                   : L10n.pick("Show overdue items", "显示已逾期"),
+                    active: showOverdue.wrappedValue
+                ) {
+                    withAnimation(animation) { showOverdue.wrappedValue.toggle() }
+                }
+            }
             FilterPillButton(
                 systemName: showCompleted ? "checkmark.circle.fill" : "checkmark.circle",
-                help: showCompleted ? L10n.pick("Hide completed reminders", "隐藏已完成任务")
-                                    : L10n.pick("Show completed reminders", "显示已完成任务"),
+                help: showCompleted ? L10n.pick("Hide completed items", "隐藏已完成")
+                                    : L10n.pick("Show completed items", "显示已完成"),
                 active: showCompleted
             ) {
                 withAnimation(animation) { showCompleted.toggle() }

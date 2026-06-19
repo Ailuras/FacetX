@@ -27,6 +27,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let linkedPaperIDs: [String]
     public let linkedCommits: [String]
     public let isNote: Bool        // true when this event anchors a local markdown note
+    public let isPinned: Bool      // user-set pin; floats the item to the top of its section
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
                  content: String, containerName: String, isCompleted: Bool, date: Date?,
@@ -35,7 +36,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
                  isAllDay: Bool = false, endDate: Date? = nil,
                  facetID: String? = nil,
                  linkedPaperIDs: [String] = [], linkedCommits: [String] = [],
-                 isNote: Bool = false) {
+                 isNote: Bool = false, isPinned: Bool = false) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
@@ -55,6 +56,21 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.linkedPaperIDs = linkedPaperIDs
         self.linkedCommits = linkedCommits
         self.isNote = isNote
+        self.isPinned = isPinned
+    }
+
+    /// Whether a timed item is past due and still open. Computed, never stored:
+    /// events use their end (falling back to start), reminders their due date.
+    /// Timed items go overdue the moment they pass; all-day / undated items only
+    /// once the whole day is behind us.
+    public var isOverdue: Bool {
+        guard !isCompleted else { return false }
+        guard let due = (kind == .event ? (endDate ?? date) : date) else { return false }
+        let timed = kind == .event ? !isAllDay : hasTime
+        let now = Date()
+        if timed { return due < now }
+        let calendar = Calendar.current
+        return calendar.startOfDay(for: due) < calendar.startOfDay(for: now)
     }
 
     /// Build a copy with a different kind. Used as a drag-preview placeholder
@@ -80,7 +96,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             facetID: facetID,
             linkedPaperIDs: linkedPaperIDs,
             linkedCommits: linkedCommits,
-            isNote: isNote
+            isNote: isNote,
+            isPinned: isPinned
         )
     }
 
@@ -104,7 +121,35 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             facetID: facetID,
             linkedPaperIDs: linkedPaperIDs,
             linkedCommits: linkedCommits,
-            isNote: isNote
+            isNote: isNote,
+            isPinned: isPinned
+        )
+    }
+
+    /// Apply locally-stored state (pin flag + resolved completion) onto an item
+    /// freshly built from EventKit. Used by the hydration pass in `EventKitService`.
+    public func applyingLocalState(isPinned: Bool, isCompleted: Bool) -> ProjectItem {
+        ProjectItem(
+            id: id,
+            kind: kind,
+            rawTitle: rawTitle,
+            projectPrefix: projectPrefix,
+            content: content,
+            containerName: containerName,
+            isCompleted: isCompleted,
+            date: date,
+            notes: notes,
+            tags: tags,
+            priority: priority,
+            url: url,
+            hasTime: hasTime,
+            isAllDay: isAllDay,
+            endDate: endDate,
+            facetID: facetID,
+            linkedPaperIDs: linkedPaperIDs,
+            linkedCommits: linkedCommits,
+            isNote: isNote,
+            isPinned: isPinned
         )
     }
 
@@ -137,7 +182,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             facetID: facetID,
             linkedPaperIDs: paperIDs,
             linkedCommits: commits,
-            isNote: isNote ?? self.isNote
+            isNote: isNote ?? self.isNote,
+            isPinned: isPinned
         )
     }
 

@@ -28,7 +28,14 @@ public enum ItemQuery {
 
     public static func completedVisibility(_ items: [ProjectItem], showCompleted: Bool) -> [ProjectItem] {
         guard !showCompleted else { return items }
-        return items.filter { !($0.kind == .reminder && $0.isCompleted) }
+        return items.filter { !$0.isCompleted }
+    }
+
+    /// Hides overdue (past-due, still-open) items when `showOverdue` is false, so
+    /// the list can focus on what's upcoming. Mirrors `completedVisibility`.
+    public static func overdueVisibility(_ items: [ProjectItem], showOverdue: Bool) -> [ProjectItem] {
+        guard !showOverdue else { return items }
+        return items.filter { !$0.isOverdue }
     }
 
     public static func filtered(_ items: [ProjectItem], by tagFilter: TagFilter) -> [ProjectItem] {

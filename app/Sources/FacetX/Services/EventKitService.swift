@@ -96,7 +96,12 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     let papers = store.paperIDs(for: facetID)
                     let commits = store.commits(for: facetID)
                     let isNote = item.kind == .event && store.isNote(for: facetID)
-                    return item.withMergedMetadata(notes: body.isEmpty ? nil : body, tags: tags, paperIDs: papers, commits: commits, isNote: isNote)
+                    let merged = item.withMergedMetadata(notes: body.isEmpty ? nil : body, tags: tags, paperIDs: papers, commits: commits, isNote: isNote)
+                    // Reminders carry native EventKit completion; events/notes have
+                    // none, so their completion lives in the local store alongside
+                    // the pin flag (which applies to every kind).
+                    let completed = item.kind == .reminder ? merged.isCompleted : store.isCompleted(for: facetID)
+                    return merged.applyingLocalState(isPinned: store.isPinned(for: facetID), isCompleted: completed)
                 } else {
                     return item
                 }

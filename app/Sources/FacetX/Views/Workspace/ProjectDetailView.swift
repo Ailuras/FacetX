@@ -26,6 +26,7 @@ struct ProjectDetailView: View {
     @State private var focusTitleItemID: String? = nil
     @State private var preserveSelectionDuringReplacement = false
     @State private var showCompleted = true
+    @State private var showOverdue = true
     @State private var searchText = ""
     @State private var itemToDelete: ProjectItem? = nil
     @State private var refreshTrigger = 0
@@ -47,7 +48,8 @@ struct ProjectDetailView: View {
     }
 
     private var visibleItems: [ProjectItem] {
-        let result = ItemQuery.completedVisibility(allScopedItems, showCompleted: showCompleted)
+        var result = ItemQuery.completedVisibility(allScopedItems, showCompleted: showCompleted)
+        result = ItemQuery.overdueVisibility(result, showOverdue: showOverdue)
         // Manual order is already applied in items by reload()/moveItem(); re-sorting
         // here via arranged() would snap drag-reordered rows back to the saved rank.
         guard sortOption != .manual else { return result }
@@ -58,27 +60,33 @@ struct ProjectDetailView: View {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    /// Pinned items lead their section while keeping the existing relative order
+    /// of each group (a stable partition, so drag order is preserved otherwise).
+    private func pinnedFirst(_ items: [ProjectItem]) -> [ProjectItem] {
+        items.filter(\.isPinned) + items.filter { !$0.isPinned }
+    }
+
     private var taskItems: [ProjectItem] {
-        visibleItems.filter { $0.facetKind == .task }
+        pinnedFirst(visibleItems.filter { $0.facetKind == .task })
     }
 
     private var scheduleItems: [ProjectItem] {
-        visibleItems.filter { $0.facetKind == .event }
+        pinnedFirst(visibleItems.filter { $0.facetKind == .event })
     }
 
     private var literatureItems: [ProjectItem] {
-        visibleItems.filter { $0.facetKind == .paper }
+        pinnedFirst(visibleItems.filter { $0.facetKind == .paper })
     }
 
     private var noteItems: [ProjectItem] {
-        visibleItems.filter { $0.facetKind == .note }
+        pinnedFirst(visibleItems.filter { $0.facetKind == .note })
     }
 
     private var itemCounts: ItemCounts {
         ItemQuery.counts(for: items)
     }
 
-    var body: some View {
+    @ViewBuilder private var mainStack: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 if !detailFullscreen {
@@ -103,6 +111,34 @@ struct ProjectDetailView: View {
             .animation(detailPaneAnimation, value: selectedDetailItem != nil)
             .animation(detailPaneAnimation, value: detailFullscreen)
         }
+    }
+
+    var body: some View {
+        decoratedContent
+        .onReceive(keyboard.commandPublisher) { cmd in
+            handleCommand(cmd)
+        }
+        .alert(L10n.t(.deleteItemTitle), isPresented: .init(
+            get: { itemToDelete != nil },
+            set: { if !$0 { itemToDelete = nil } }
+        )) {
+            Button(L10n.t(.cancel), role: .cancel) { itemToDelete = nil }
+            Button(L10n.t(.delete), role: .destructive) {
+                if let item = itemToDelete {
+                    if item.facetKind == .note, let facetID = item.facetID {
+                        NoteStore.shared.delete(dataDirectory: project.effectiveDataDirectory, facetID: facetID)
+                    }
+                    Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
+                }
+                itemToDelete = nil
+            }
+        } message: {
+            Text(itemToDelete?.content ?? "")
+        }
+    }
+
+    private var decoratedContent: some View {
+        mainStack
         .background(FacetTheme.canvas)
         .navigationTitle(project.name)
         .toolbar {
@@ -128,6 +164,13 @@ struct ProjectDetailView: View {
         .onChange(of: settings.changeToken) { Task { await reload() } }
         .onChange(of: showCompleted) {
             if !showCompleted, selectedDetailItem?.isCompleted == true {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                }
+            }
+        }
+        .onChange(of: showOverdue) {
+            if !showOverdue, selectedDetailItem?.isOverdue == true {
                 withAnimation(detailPaneAnimation) {
                     selectedDetailItem = nil
                 }
@@ -170,61 +213,45 @@ struct ProjectDetailView: View {
                 }
             }
         }
-        .onReceive(keyboard.commandPublisher) { cmd in
-            switch cmd {
-            case .modeAll:     mode = .all
-            case .modeWeek:    mode = .week
-            case .modeMonth:   mode = .month
-            case .modeGit:     mode = .commits
-            case .newItem:     beginCreate(kind: .task)
-            case .refresh:
-                refreshTrigger += 1
-                toast.show(L10n.t(.refreshed), type: .success, duration: 1.5)
-            case .toggleShowCompleted:
-                withAnimation(listAnimation) { showCompleted.toggle() }
-            case .focusSearch:
-                NotificationCenter.default.post(name: .focusSearchField, object: nil)
-            case .toggleCompletion:
-                guard let item = selectedDetailItem else { return }
-                Task {
-                    await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
-                    await reload()
-                }
-            case .openDetail:
-                guard selectedDetailItem == nil, let first = visibleItems.first else { return }
-                withAnimation(detailPaneAnimation) { selectedDetailItem = first }
-            case .closeDetail:
-                guard selectedDetailItem != nil else { return }
-                withAnimation(detailPaneAnimation) {
-                    selectedDetailItem = nil
-                    preserveSelectionDuringReplacement = false
-                }
-            case .editSelectedItemTitle:
-                guard mode == .all, let item = selectedDetailItem else { return }
-                inlineEdit.startTitleEdit(for: item)
-            case .deleteItem:
-                guard selectedDetailItem != nil else { return }
-                itemToDelete = selectedDetailItem
-            default:
-                break
+    }
+
+    private func handleCommand(_ cmd: KeyboardCommand) {
+        switch cmd {
+        case .modeAll:     mode = .all
+        case .modeWeek:    mode = .week
+        case .modeMonth:   mode = .month
+        case .modeGit:     mode = .commits
+        case .newItem:     beginCreate(kind: .task)
+        case .refresh:
+            refreshTrigger += 1
+            toast.show(L10n.t(.refreshed), type: .success, duration: 1.5)
+        case .toggleShowCompleted:
+            withAnimation(listAnimation) { showCompleted.toggle() }
+        case .focusSearch:
+            NotificationCenter.default.post(name: .focusSearchField, object: nil)
+        case .toggleCompletion:
+            guard let item = selectedDetailItem else { return }
+            Task {
+                await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
+                await reload()
             }
-        }
-        .alert(L10n.t(.deleteItemTitle), isPresented: .init(
-            get: { itemToDelete != nil },
-            set: { if !$0 { itemToDelete = nil } }
-        )) {
-            Button(L10n.t(.cancel), role: .cancel) { itemToDelete = nil }
-            Button(L10n.t(.delete), role: .destructive) {
-                if let item = itemToDelete {
-                    if item.facetKind == .note, let facetID = item.facetID {
-                        NoteStore.shared.delete(dataDirectory: project.effectiveDataDirectory, facetID: facetID)
-                    }
-                    Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
-                }
-                itemToDelete = nil
+        case .openDetail:
+            guard selectedDetailItem == nil, let first = visibleItems.first else { return }
+            withAnimation(detailPaneAnimation) { selectedDetailItem = first }
+        case .closeDetail:
+            guard selectedDetailItem != nil else { return }
+            withAnimation(detailPaneAnimation) {
+                selectedDetailItem = nil
+                preserveSelectionDuringReplacement = false
             }
-        } message: {
-            Text(itemToDelete?.content ?? "")
+        case .editSelectedItemTitle:
+            guard mode == .all, let item = selectedDetailItem else { return }
+            inlineEdit.startTitleEdit(for: item)
+        case .deleteItem:
+            guard selectedDetailItem != nil else { return }
+            itemToDelete = selectedDetailItem
+        default:
+            break
         }
     }
 
@@ -349,6 +376,7 @@ struct ProjectDetailView: View {
         ItemActionCluster(
             itemFilter: $itemFilter,
             showCompleted: $showCompleted,
+            showOverdue: $showOverdue,
             animation: listAnimation,
             onAdd: { beginCreate(kind: .task) },
             onCreateKind: { kind in beginCreate(kind: kind) }
@@ -430,9 +458,9 @@ struct ProjectDetailView: View {
                 )
             }
 
-            if hiddenReminderCount > 0 {
+            if hiddenItemCount > 0 {
                 FacetInfoBadge(
-                    text: "\(hiddenReminderCount) hidden",
+                    text: "\(hiddenItemCount) hidden",
                     systemImage: "eye.slash",
                     tint: .secondary,
                     fill: Color.orange.opacity(0.08)
@@ -592,9 +620,10 @@ struct ProjectDetailView: View {
                     onTap: { withAnimation(listAnimation) { toggleIsolate(kind) } })
     }
 
-    private var hiddenReminderCount: Int {
-        guard !showCompleted else { return 0 }
-        return allScopedItems.filter { $0.facetKind == .task && $0.isCompleted }.count
+    /// Count of items the visibility toggles are currently hiding (completed
+    /// and/or overdue, across every kind), surfaced as the "N hidden" badge.
+    private var hiddenItemCount: Int {
+        allScopedItems.count - visibleItems.count
     }
 
     private func projectItemRow(_ item: ProjectItem) -> some View {

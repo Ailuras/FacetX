@@ -142,6 +142,16 @@ final class ProjectStore: ObservableObject {
         save()
     }
 
+    func unarchive(_ project: Project) {
+        guard let i = projects.firstIndex(where: { $0.id == project.id }) else { return }
+        projects[i].archived = false
+        save()
+    }
+
+    var archivedProjects: [Project] {
+        projects.filter { $0.archived }.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     func delete(_ project: Project) {
         projects.removeAll { $0.id == project.id }
         save()

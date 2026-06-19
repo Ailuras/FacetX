@@ -52,6 +52,12 @@ struct StandardItemRow: View {
                 }
             },
             onEdit: select,
+            onTogglePin: { pinned in
+                Task {
+                    ItemActionHelpers.togglePin(item, pinned: pinned)
+                    await onReload()
+                }
+            },
             inlineEditingText: $inlineEdit.titleText,
             isInlineEditing: item.id == inlineEdit.titleID,
             onInlineCommit: commitTitleEdit,
@@ -77,6 +83,13 @@ struct StandardItemRow: View {
         .contextMenu {
             Button(L10n.pick("Edit...", "编辑…")) {
                 select()
+            }
+            Button(item.isCompleted ? L10n.pick("Mark Incomplete", "取消完成")
+                                    : L10n.pick("Mark Complete", "标记完成")) {
+                Task {
+                    await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
+                    await onReload()
+                }
             }
             Divider()
             Menu(L10n.pick("Set Date", "设置日期")) {

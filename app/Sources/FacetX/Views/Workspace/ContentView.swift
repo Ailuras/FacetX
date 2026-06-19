@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var showTopicEditor = false
     @State private var editingTopic: TrackPref?
     @State private var topicToDelete: TrackPref?
+    @State private var showArchived = false
 
     var body: some View {
         ZStack {
@@ -88,6 +89,7 @@ struct ContentView: View {
                                     .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 8, trailing: 10))
                             }
                         }
+                        archivedSection
                     }
                     .listStyle(.sidebar)
                     Divider()
@@ -393,6 +395,69 @@ struct ContentView: View {
             enabledReminderLists: settings.effectiveReminderListNames,
             enabledCalendars: settings.effectiveCalendarNames
         )
+    }
+
+    /// Archived projects and libraries live in a single collapsed section at the
+    /// bottom of the sidebar. This is what makes archiving meaningfully different
+    /// from deletion — items are tucked away but reversible via right-click.
+    @ViewBuilder
+    private var archivedSection: some View {
+        let archivedProjects = store.archivedProjects
+        let archivedTopics = litMeta.topics.filter { $0.archived }
+        if !archivedProjects.isEmpty || !archivedTopics.isEmpty {
+            Section {
+                if showArchived {
+                    ForEach(archivedProjects) { project in
+                        ProjectSidebarRow(project: project)
+                            .contextMenu {
+                                Button(L10n.pick("Unarchive", "取消归档")) {
+                                    store.unarchive(project)
+                                    toast.show(L10n.pick("Project unarchived", "项目已取消归档"), type: .success)
+                                }
+                                Divider()
+                                Button(L10n.t(.delete), role: .destructive) {
+                                    projectToDelete = project
+                                }
+                            }
+                    }
+                    ForEach(archivedTopics) { topic in
+                        LiteratureSidebarRow(topic: topic, paperCount: litStore.papers.filter { p in
+                            p.track.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.contains(topic.name)
+                        }.count)
+                            .contextMenu {
+                                Button(L10n.pick("Unarchive", "取消归档")) {
+                                    litMeta.setTopicArchived(id: topic.id, false)
+                                    toast.show(L10n.pick("Library unarchived", "文献库已取消归档"), type: .success)
+                                }
+                                Divider()
+                                Button(L10n.t(.delete), role: .destructive) {
+                                    topicToDelete = topic
+                                }
+                            }
+                    }
+                }
+            } header: {
+                Button {
+                    withAnimation(FacetTheme.listSpring) { showArchived.toggle() }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .rotationEffect(.degrees(showArchived ? 90 : 0))
+                        Image(systemName: "archivebox")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(L10n.pick("Archived", "已归档"))
+                        Spacer()
+                        Text("\(archivedProjects.count + archivedTopics.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Show archived projects and libraries", "显示已归档的项目与文献库"))
+            }
+        }
     }
 
     private var tagCloud: some View {
