@@ -20,6 +20,8 @@ struct TopicDetailView: View {
     @State private var sortKey: SortKey = .score
     @State private var isRecommending = false
     @State private var showImportSidebar = false
+    @State private var importFullscreen = false
+    @State private var detailFullscreen = false
     @State private var isFetching = false
     @State private var collapsedSections: Set<ListSection> = []
     @State private var mode: Mode = .all
@@ -231,6 +233,13 @@ struct TopicDetailView: View {
         .onChange(of: selectedPaper?.id) { _, newValue in
             if newValue != nil {
                 showImportSidebar = false
+            } else {
+                detailFullscreen = false
+            }
+        }
+        .onChange(of: showImportSidebar) { _, newValue in
+            if !newValue {
+                importFullscreen = false
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectPaperInTopic)) { notification in
@@ -1119,12 +1128,29 @@ struct TopicDetailView: View {
         FacetSidebarPane(
             title: L10n.pick("Paper", "文献"),
             systemImage: "doc.text",
+            fillWidth: detailFullscreen,
             onClose: {
                 withAnimation(detailPaneAnimation) { selectedPaper = nil }
-            }
+            },
+            accessory: { detailFullscreenToggle }
         ) {
             PaperDetailPane(inputPaper: paper, version: store.paperVersion)
         }
+    }
+
+    private var detailFullscreenToggle: some View {
+        Button {
+            withAnimation(detailPaneAnimation) { detailFullscreen.toggle() }
+        } label: {
+            Image(systemName: detailFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(detailFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")
+                               : L10n.pick("Fullscreen", "全屏"))
     }
 
     // MARK: - Import Pane
@@ -1133,9 +1159,11 @@ struct TopicDetailView: View {
         FacetSidebarPane(
             title: L10n.pick("Import Literature", "导入文献"),
             systemImage: "square.and.arrow.down",
+            fillWidth: importFullscreen,
             onClose: {
                 withAnimation(detailPaneAnimation) { showImportSidebar = false }
-            }
+            },
+            accessory: { importFullscreenToggle }
         ) {
             AddPaperView(topicName: topic.name) { papers in
                 _ = store.addOrUpdate(papers: papers)
@@ -1146,6 +1174,21 @@ struct TopicDetailView: View {
                 )
             }
         }
+    }
+
+    private var importFullscreenToggle: some View {
+        Button {
+            withAnimation(detailPaneAnimation) { importFullscreen.toggle() }
+        } label: {
+            Image(systemName: importFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(importFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")
+                               : L10n.pick("Fullscreen", "全屏"))
     }
 
     // MARK: - Toolbar
