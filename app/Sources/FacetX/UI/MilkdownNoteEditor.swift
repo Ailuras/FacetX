@@ -22,6 +22,9 @@ struct MilkdownNoteEditor: NSViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground") // blend with the native pane
         webView.navigationDelegate = context.coordinator
+        // Inspectable so the editor can be debugged via Safari Web Inspector
+        // (right-click → Inspect Element). Revisit before shipping.
+        if #available(macOS 13.3, *) { webView.isInspectable = true }
         context.coordinator.webView = webView
 
         if let index = Self.bundleURL {

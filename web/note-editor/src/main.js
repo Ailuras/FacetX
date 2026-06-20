@@ -21,6 +21,8 @@ const root = document.getElementById('app')
 let crepe = null
 let suppressChange = false // ignore the change event caused by programmatic loads
 let debounceTimer = null
+let currentTheme = 'light'
+let booted = false
 
 function postToNative(message) {
   try {
@@ -66,17 +68,21 @@ async function buildEditor(initialMarkdown) {
 // ── Native-facing API ───────────────────────────────────────────────────────
 
 const api = {
-  // Replace the whole document. Rebuilds the editor so Milkdown's internal
-  // state stays consistent; cheap for note-sized content.
+  // Replace the whole document. The editor is rebuilt from a clean root so we
+  // never leave a stale ProseMirror instance behind (overlapping editors break
+  // key handling — Space/Enter/structural edits). Cheap for note-sized content.
   async setContent(markdown) {
+    booted = true
     suppressChange = true
     if (crepe) {
       await crepe.destroy()
       crepe = null
     }
+    root.replaceChildren() // ensure a single, clean editable instance
     await buildEditor(markdown ?? '')
+    applyTheme(currentTheme)
     // Release the guard after the load-triggered updates settle.
-    setTimeout(() => { suppressChange = false }, 50)
+    requestAnimationFrame(() => { suppressChange = false })
   },
 
   setReadonly(value) {
@@ -84,7 +90,8 @@ const api = {
   },
 
   setTheme(mode) {
-    document.documentElement.dataset.theme = mode === 'dark' ? 'dark' : 'light'
+    currentTheme = mode === 'dark' ? 'dark' : 'light'
+    applyTheme(currentTheme)
   },
 
   getMarkdown() {
@@ -92,7 +99,16 @@ const api = {
   },
 }
 
+function applyTheme(mode) {
+  document.documentElement.dataset.theme = mode
+}
+
 window.FacetXEditor = api
 
-// Boot with an empty doc; native will push real content on 'ready'.
-buildEditor('').then(() => postToNative({ type: 'ready' }))
+// Don't build a throwaway editor on boot — just signal readiness and let the
+// native side push the real document, which builds the one and only editor.
+// Fallback: if nothing arrives shortly (bridge missing), show an empty editor.
+postToNative({ type: 'ready' })
+setTimeout(() => {
+  if (!booted) buildEditor('')
+}, 1000)
