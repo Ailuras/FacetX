@@ -1,5 +1,6 @@
 import FacetXCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Detail pane for a note: metadata on top; below, an Edit/Preview pair. Edit is
 /// a native syntax-highlighted markdown editor with formatting shortcuts;
@@ -99,7 +100,18 @@ struct NoteDetailPane: View {
 
     private var modeBar: some View {
         HStack {
+            HStack(spacing: 8) {
+                exportButton(title: "Markdown", systemImage: "doc.plaintext", help: L10n.pick("Export to Markdown", "导出为 Markdown")) {
+                    exportToMarkdown()
+                }
+                exportButton(title: "PDF", systemImage: "doc.richtext", help: L10n.pick("Export to PDF", "导出为 PDF")) {
+                    exportToPDF()
+                }
+            }
+            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
             Spacer()
+
             Picker("", selection: $editing) {
                 Text(L10n.pick("Preview", "预览")).tag(false)
                 Text(L10n.pick("Edit", "编辑")).tag(true)
@@ -111,6 +123,16 @@ struct NoteDetailPane: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private func exportButton(title: String, systemImage: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 11))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help(help)
     }
 
     private var formattingToolbar: some View {
@@ -159,5 +181,57 @@ struct NoteDetailPane: View {
         fmt.dateStyle = .medium
         fmt.timeStyle = item.isAllDay ? .none : .short
         return fmt.string(from: date)
+    }
+
+    // ── Exporting ─────────────────────────────────────────────────────────────
+
+    private func exportToMarkdown() {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        
+        let cleanedName = item.content
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        savePanel.nameFieldStringValue = (cleanedName.isEmpty ? "Note" : cleanedName) + ".md"
+        
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                do {
+                    try text.write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    print("Failed to save markdown file: \(error)")
+                }
+            }
+        }
+    }
+
+    private func exportToPDF() {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.pdf]
+        
+        let cleanedName = item.content
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        savePanel.nameFieldStringValue = (cleanedName.isEmpty ? "Note" : cleanedName) + ".pdf"
+        
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                let exporter = NotePDFExporter()
+                exporter.export(text: text) { result in
+                    switch result {
+                    case .success(let data):
+                        do {
+                            try data.write(to: url, options: .atomic)
+                        } catch {
+                            print("Failed to write PDF: \(error)")
+                        }
+                    case .failure(let error):
+                        print("Failed to export PDF: \(error)")
+                    }
+                }
+            }
+        }
     }
 }
