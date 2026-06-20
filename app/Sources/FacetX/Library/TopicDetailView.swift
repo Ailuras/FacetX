@@ -19,6 +19,7 @@ struct TopicDetailView: View {
     @State private var selectedPaper: Paper?
     @State private var sortKey: SortKey = .score
     @State private var isRecommending = false
+    @State private var showImportSidebar = false
     @State private var isFetching = false
     @State private var collapsedSections: Set<ListSection> = []
     @State private var mode: Mode = .all
@@ -50,7 +51,7 @@ struct TopicDetailView: View {
     private let detailPaneAnimation = FacetTheme.detailSpring
 
     /// Top-level layout of the literature view.
-    enum ViewMode: Hashable { case library, reading, onlineSearch, dashboard }
+    enum ViewMode: Hashable { case library, reading, dashboard }
 
     /// The collapsible sections of the paper list. Clicking a header toggles
     /// membership in `collapsedSections`, mirroring the project All view.
@@ -177,10 +178,15 @@ struct TopicDetailView: View {
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+                if showImportSidebar {
+                    importPane
+                }
+
                 if let paper = selectedPaper {
                     detailPane(for: paper)
                 }
             }
+            .animation(detailPaneAnimation, value: showImportSidebar)
             .animation(detailPaneAnimation, value: selectedPaper != nil)
         }
         .background(FacetTheme.canvas)
@@ -222,6 +228,11 @@ struct TopicDetailView: View {
         .onChange(of: ek.changeToken) { _, _ in
             loadPaperLinks()
         }
+        .onChange(of: selectedPaper?.id) { _, newValue in
+            if newValue != nil {
+                showImportSidebar = false
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .selectPaperInTopic)) { notification in
             guard let paperID = notification.userInfo?["paperID"] as? String else { return }
             if let paper = store.papers.first(where: { $0.id == paperID }) {
@@ -253,15 +264,6 @@ struct TopicDetailView: View {
             case .reading:
                 readingBar
                 pdfReader
-            case .onlineSearch:
-                AddPaperView(topicName: topic.name) { papers in
-                    _ = store.addOrUpdate(papers: papers)
-                    toast.show(
-                        L10n.pick("Imported paper(s) to library", "已成功导入文献"),
-                        type: .success,
-                        duration: 2
-                    )
-                }
             case .dashboard:
                 dashboardView
             }
@@ -272,14 +274,13 @@ struct TopicDetailView: View {
         Picker("", selection: $viewMode) {
             Text(L10n.pick("Library", "文库")).tag(ViewMode.library)
             Text(L10n.pick("Read", "阅读")).tag(ViewMode.reading)
-            Text(L10n.pick("Search", "检索")).tag(ViewMode.onlineSearch)
             Text(L10n.pick("Graph", "图谱")).tag(ViewMode.dashboard)
         }
         .pickerStyle(.segmented)
         .controlSize(.small)
         .labelsHidden()
-        .help(L10n.pick("Switch views: Library / Reading / Online Search / Citation Graph",
-                        "切换视图：本地文库 / 沉浸阅读 / 云端检索 / 引文与关系图谱"))
+        .help(L10n.pick("Switch views: Library / Reading / Citation Graph",
+                        "切换视图：本地文库 / 沉浸阅读 / 引文与关系图谱"))
     }
 
 
@@ -1099,9 +1100,13 @@ struct TopicDetailView: View {
                 }
             }
             FilterPillButton(systemName: "plus",
-                             help: L10n.pick("Add paper", "添加文献")) {
+                             help: L10n.pick("Add paper", "添加文献"),
+                             active: showImportSidebar) {
                 withAnimation(detailPaneAnimation) {
-                    viewMode = .onlineSearch
+                    showImportSidebar.toggle()
+                    if showImportSidebar {
+                        selectedPaper = nil
+                    }
                 }
             }
         }
@@ -1119,6 +1124,27 @@ struct TopicDetailView: View {
             }
         ) {
             PaperDetailPane(inputPaper: paper, version: store.paperVersion)
+        }
+    }
+
+    // MARK: - Import Pane
+    
+    private var importPane: some View {
+        FacetSidebarPane(
+            title: L10n.pick("Import Literature", "导入文献"),
+            systemImage: "square.and.arrow.down",
+            onClose: {
+                withAnimation(detailPaneAnimation) { showImportSidebar = false }
+            }
+        ) {
+            AddPaperView(topicName: topic.name) { papers in
+                _ = store.addOrUpdate(papers: papers)
+                toast.show(
+                    L10n.pick("Imported paper(s) to library", "已成功导入文献"),
+                    type: .success,
+                    duration: 2
+                )
+            }
         }
     }
 
