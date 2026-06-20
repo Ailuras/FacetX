@@ -36,18 +36,6 @@ struct ContentView: View {
                             ForEach(store.activeProjects) { project in
                                 ProjectSidebarRow(project: project)
                                     .tag(SidebarItem.project(project.id))
-                                    .draggable(project.id.uuidString) {
-                                        ProjectSidebarRow(project: project).dragPreview
-                                    }
-                                    .dropDestination(for: String.self) { ids, _ in
-                                        guard let draggedId = ids.first,
-                                              let fromIdx = store.activeProjects.firstIndex(where: { $0.id.uuidString == draggedId }),
-                                              let toIdx   = store.activeProjects.firstIndex(where: { $0.id == project.id }),
-                                              fromIdx != toIdx else { return false }
-                                        let dest = fromIdx < toIdx ? toIdx + 1 : toIdx
-                                        store.reorderProjects(from: IndexSet(integer: fromIdx), to: dest)
-                                        return true
-                                    } isTargeted: { _ in }
                                     .contextMenu {
                                         Button(L10n.t(.editProject)) {
                                             selection = .project(project.id)
@@ -63,6 +51,9 @@ struct ContentView: View {
                                         }
                                     }
                             }
+                            .onMove { indices, newOffset in
+                                store.reorderProjects(from: indices, to: newOffset)
+                            }
                         }
                         if !litMeta.topics.filter({ !$0.archived }).isEmpty {
                             Section(L10n.pick("Literature", "文献")) {
@@ -72,19 +63,6 @@ struct ContentView: View {
                                     }.count
                                     LiteratureSidebarRow(topic: topic, paperCount: count)
                                         .tag(SidebarItem.topic(topic.id))
-                                        .draggable(topic.id.uuidString) {
-                                            LiteratureSidebarRow(topic: topic, paperCount: count).dragPreview
-                                        }
-                                        .dropDestination(for: String.self) { ids, _ in
-                                            let active = litMeta.topics.filter { !$0.archived }
-                                            guard let draggedId = ids.first,
-                                                  let fromIdx = active.firstIndex(where: { $0.id.uuidString == draggedId }),
-                                                  let toIdx   = active.firstIndex(where: { $0.id == topic.id }),
-                                                  fromIdx != toIdx else { return false }
-                                            let dest = fromIdx < toIdx ? toIdx + 1 : toIdx
-                                            litMeta.reorderTopics(from: IndexSet(integer: fromIdx), to: dest)
-                                            return true
-                                        } isTargeted: { _ in }
                                         .contextMenu {
                                             Button(L10n.pick("Edit Library", "编辑文献库")) {
                                                 editingTopic = topic
@@ -101,6 +79,9 @@ struct ContentView: View {
                                                 topicToDelete = topic
                                             }
                                         }
+                                }
+                                .onMove { indices, newOffset in
+                                    litMeta.reorderTopics(from: indices, to: newOffset)
                                 }
                             }
                         }
