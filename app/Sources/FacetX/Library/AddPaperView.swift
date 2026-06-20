@@ -176,6 +176,9 @@ struct AddPaperView: View {
         .onAppear {
             populateForm()
         }
+        .onChange(of: initialPaper?.id) { _, _ in
+            populateForm()
+        }
         // Confirmation alert for PDF drops
         .alert(L10n.pick("Parse PDF Metadata?", "是否解析 PDF 元数据？"), isPresented: $showParsePrompt) {
             Button(L10n.pick("Parse & Replace", "解析并替换")) {
@@ -213,12 +216,14 @@ struct AddPaperView: View {
 
     private func runScholarEnrichment(for paper: Paper) {
         isExtracting = true
+        let paperId = paper.id
         
         Task {
             let titleVal = paper.title
             let results = await fetcher.fetchByTitle(titleVal, limit: 3)
             
             await MainActor.run {
+                guard initialPaper?.id == paperId else { return }
                 if let match = results.first(where: { isSimilarTitle($0.title, titleVal) }) {
                     self.title = match.title
                     self.authorsText = match.authors.joined(separator: ", ")

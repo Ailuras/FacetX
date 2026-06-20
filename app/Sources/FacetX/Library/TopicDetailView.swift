@@ -810,7 +810,11 @@ struct TopicDetailView: View {
                 ForEach(papers) { paper in
                     PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
                              metadata: metadata, version: store.paperVersion,
-                             linkedProjectPrefixes: paperLinks[paper.id] ?? [])
+                             linkedProjectPrefixes: paperLinks[paper.id] ?? [],
+                             onPdfBadgeTap: {
+                                 readingPaperID = paper.id
+                                 viewMode = .reading
+                             })
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
@@ -827,7 +831,7 @@ struct TopicDetailView: View {
     }
 
     private func sectionHeader(title: String, systemImage: String, count: Int,
-                              color: Color, collapsed: Bool) -> some View {
+                               color: Color, collapsed: Bool) -> some View {
         HStack(spacing: 7) {
             Image(systemName: "chevron.right")
                 .font(.system(size: 9, weight: .bold))
@@ -851,13 +855,8 @@ struct TopicDetailView: View {
     }
 
     private func toggleSelection(_ paper: Paper) {
-        if PdfCoordinator.hasLocalPdf(paper) {
-            readingPaperID = paper.id
-            viewMode = .reading
-        } else {
-            withAnimation(detailPaneAnimation) {
-                selectedPaper = (selectedPaper?.id == paper.id) ? nil : paper
-            }
+        withAnimation(detailPaneAnimation) {
+            selectedPaper = (selectedPaper?.id == paper.id) ? nil : paper
         }
     }
 
@@ -1210,6 +1209,17 @@ struct TopicDetailView: View {
                             ))
                         } catch {
                             print("Failed to save PDF on import: \(error)")
+                        }
+                    } else if let pdfUrl = paper.pdfUrl, !pdfUrl.isEmpty {
+                        Task { @MainActor in
+                            let result = await PdfCoordinator.fetch(paper: paper, store: store)
+                            if result.status == .downloaded {
+                                toast.show(
+                                    L10n.pick("PDF downloaded for “\(paper.title)”", "“\(paper.title)” 的 PDF 下载完成"),
+                                    type: .success,
+                                    duration: 2
+                                )
+                            }
                         }
                     }
                     

@@ -50,17 +50,20 @@ struct GoogleScholarWebView: NSViewRepresentable {
             
             /* Custom button styles */
             .facetx-import-btn {
-                margin-left: 10px;
-                padding: 4px 10px;
+                margin-left: 8px;
+                padding: 0 6px;
+                height: 18px;
+                line-height: 18px;
                 background-color: #007AFF;
                 color: #FFFFFF !important;
                 border: none;
-                border-radius: 4px;
+                border-radius: 3px;
                 cursor: pointer;
                 font-weight: 500;
-                font-size: 11px;
+                font-size: 10px;
                 display: inline-flex;
                 align-items: center;
+                vertical-align: middle;
             }
             .facetx-import-btn:hover {
                 background-color: #0063CC;
@@ -106,7 +109,7 @@ struct GoogleScholarWebView: NSViewRepresentable {
                         if (titleEl) {
                             var title = titleEl.innerText.trim();
                             if (imported.some(function(t) { return t.toLowerCase() === title.toLowerCase(); })) {
-                                btn.innerText = '已导入';
+                                btn.innerText = '✓ 已导入';
                                 btn.style.backgroundColor = '#34C759';
                                 btn.disabled = true;
                             }
@@ -138,7 +141,7 @@ struct GoogleScholarWebView: NSViewRepresentable {
                 
                 var btn = document.createElement('button');
                 btn.className = 'facetx-import-btn';
-                btn.innerText = '导入文献';
+                btn.innerText = '＋ 导入';
                 
                 btn.onclick = function(e) {
                     e.preventDefault();

@@ -10,6 +10,7 @@ struct PaperRow: View {
     /// Project prefixes this paper has been linked to (passed from the parent
     /// view which holds the `paperLinks` map). Shows a folder corner badge with jump arrow.
     var linkedProjectPrefixes: Set<String> = []
+    var onPdfBadgeTap: (() -> Void)? = nil
 
     @State private var hovered = false
 
@@ -121,17 +122,22 @@ struct PaperRow: View {
     }
 
     private var pdfCornerBadge: some View {
-        Image(systemName: "doc.fill")
-            .font(.system(size: 8, weight: .bold))
-            .foregroundStyle(.green)
-            .frame(width: 16, height: 16)
-            .background(Color.green.opacity(0.13))
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(Color.green.opacity(0.24), lineWidth: 1)
-            )
-            .padding(.top, -1)
+        Button {
+            onPdfBadgeTap?()
+        } label: {
+            Image(systemName: "doc.fill")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.green)
+                .frame(width: 16, height: 16)
+                .background(Color.green.opacity(0.13))
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .stroke(Color.green.opacity(0.24), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .padding(.top, -1)
     }
 
     private var badges: some View {
