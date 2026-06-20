@@ -70,9 +70,12 @@ final class MarkdownEditorController: ObservableObject {
     }
 }
 
-/// A plain-text markdown source editor backed by NSTextView, with Cmd+B / Cmd+I
-/// / Cmd+K shortcuts. No attribute styling is applied (that broke CJK input);
-/// the rendered view is the swift-markdown-ui preview beside it.
+/// A live-highlighted markdown editor backed by NSTextView, with Cmd+B / Cmd+I
+/// / Cmd+K shortcuts. A `MarkdownHighlighter` styles the text in place as you
+/// type — headings grow, emphasis renders, markers dim — while the underlying
+/// string stays raw markdown. Only attributes change (never the characters), so
+/// CJK / IME input is preserved. The swift-markdown-ui preview remains available
+/// for a fully rendered, marker-free view.
 struct MarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     let controller: MarkdownEditorController
@@ -95,17 +98,22 @@ struct MarkdownEditor: NSViewRepresentable {
         container.widthTracksTextView = true
         layoutManager.addTextContainer(container)
 
-        let editorFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        // Live highlighting renders attribute variations, so rich text must be on.
+        // The highlighter only mutates attributes, never characters, keeping IME safe.
+        textStorage.delegate = context.coordinator.highlighter
+
+        let editorFont = NSFont.systemFont(ofSize: 15)
         let formatting = FormattingTextView(frame: NSRect(origin: .zero, size: scroll.contentSize),
                                             textContainer: container)
         formatting.controller = controller
         formatting.delegate = context.coordinator
         formatting.isEditable = true
         formatting.isSelectable = true
-        formatting.isRichText = false
+        formatting.isRichText = true
         formatting.allowsUndo = true
         formatting.isAutomaticQuoteSubstitutionEnabled = false
         formatting.isAutomaticDashSubstitutionEnabled = false
+        formatting.isAutomaticTextReplacementEnabled = false
         formatting.font = editorFont
         formatting.textColor = NSColor.labelColor
         formatting.textContainerInset = NSSize(width: 6, height: 8)
@@ -117,6 +125,9 @@ struct MarkdownEditor: NSViewRepresentable {
         formatting.autoresizingMask = [NSView.AutoresizingMask.width]
         formatting.string = text
 
+        context.coordinator.highlighter.textView = formatting
+        context.coordinator.highlighter.highlight(textStorage)
+
         scroll.documentView = formatting
         controller.textView = formatting
         return scroll
@@ -127,6 +138,9 @@ struct MarkdownEditor: NSViewRepresentable {
         // Never reassign the string mid-composition or committed CJK input is lost.
         if !textView.hasMarkedText(), textView.string != text {
             textView.string = text
+            if let storage = textView.textStorage {
+                context.coordinator.highlighter.highlight(storage)
+            }
         }
         if controller.textView !== textView {
             controller.textView = textView
@@ -135,6 +149,7 @@ struct MarkdownEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         let parent: MarkdownEditor
+        let highlighter = MarkdownHighlighter()
         init(_ parent: MarkdownEditor) { self.parent = parent }
 
         func textDidChange(_ notification: Notification) {
