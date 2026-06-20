@@ -177,8 +177,10 @@ struct TopicDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if !importFullscreen && !detailFullscreen {
+                    content
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
 
                 if showImportSidebar {
                     importPane
@@ -190,6 +192,8 @@ struct TopicDetailView: View {
             }
             .animation(detailPaneAnimation, value: showImportSidebar)
             .animation(detailPaneAnimation, value: selectedPaper != nil)
+            .animation(detailPaneAnimation, value: importFullscreen)
+            .animation(detailPaneAnimation, value: detailFullscreen)
         }
         .background(FacetTheme.canvas)
         .navigationTitle(topic.name)
