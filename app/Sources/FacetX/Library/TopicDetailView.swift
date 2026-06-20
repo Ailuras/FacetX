@@ -511,7 +511,7 @@ struct TopicDetailView: View {
     @ViewBuilder private var dashboardView: some View {
         PaperGraphView(papers: papersForTopic, metadata: metadata) { paper in
             withAnimation(detailPaneAnimation) {
-                selectedPaper = paper
+                selectedPaper = selectedPaper?.id == paper.id ? nil : paper
             }
         }
     }
