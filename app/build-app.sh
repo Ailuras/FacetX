@@ -46,6 +46,9 @@ fi
 cp Resources/FacetX.icns "$APP/Contents/Resources/FacetX.icns"
 cp Resources/FacetXMenuBarTemplate.png "$APP/Contents/Resources/FacetXMenuBarTemplate.png"
 cp Resources/FacetXMenuBarTemplate@2x.png "$APP/Contents/Resources/FacetXMenuBarTemplate@2x.png"
+# Prebuilt Milkdown note editor bundle (see web/note-editor). Vendored so the
+# Swift build needs no Node toolchain; rebuild with `npm --prefix web/note-editor run build`.
+cp -R Resources/NoteEditor "$APP/Contents/Resources/NoteEditor"
 
 echo "[3/4] codesign (with entitlements)"
 codesign --force --sign "$SIGN_IDENTITY" \

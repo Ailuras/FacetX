@@ -4,9 +4,6 @@ import PackageDescription
 let package = Package(
     name: "FacetX",
     platforms: [.macOS(.v14)],
-    dependencies: [
-        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.4.1")
-    ],
     targets: [
         .target(
             name: "FacetXCore",
@@ -15,8 +12,7 @@ let package = Package(
         .executableTarget(
             name: "FacetX",
             dependencies: [
-                "FacetXCore",
-                .product(name: "MarkdownUI", package: "swift-markdown-ui")
+                "FacetXCore"
             ],
             path: "Sources/FacetX"
         ),

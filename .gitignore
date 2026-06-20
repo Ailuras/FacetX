@@ -1,22 +1,2 @@
-# Swift / SwiftPM
-app/.build/
-app/FacetX.app/
-app/FacetX-*.app/
-.swiftpm/
-*.xcodeproj
-
-# macOS
-.DS_Store
-
-# Editor
-.vscode/
-
-# Icon build working dir
-app/FacetX.iconset/
-
-# dmg packaging
-app/*.dmg
-app/dmg-staging/
-
-# Run logs
-app/*.log
+web/note-editor/node_modules/
+web/note-editor/package-lock.json

@@ -1,0 +1,16 @@
+{
+  "name": "facetx-note-editor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@milkdown/crepe": "latest",
+    "katex": "latest"
+  },
+  "devDependencies": {
+    "esbuild": "latest"
+  }
+}
