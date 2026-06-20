@@ -44,6 +44,7 @@ struct OpenAlexWork: Decodable {
     var abstractInvertedIndex: [String: [Int]]?
     var primaryLocation: OpenAlexLocation?
     var openAccess: OpenAlexOpenAccess?
+    var referencedWorks: [String]?
     var relatedWorks: [String]?
 
     enum CodingKeys: String, CodingKey {
@@ -55,6 +56,7 @@ struct OpenAlexWork: Decodable {
         case abstractInvertedIndex = "abstract_inverted_index"
         case primaryLocation = "primary_location"
         case openAccess = "open_access"
+        case referencedWorks = "referenced_works"
         case relatedWorks = "related_works"
     }
 }
@@ -216,7 +218,9 @@ class OpenAlexFetcher: @unchecked Sendable {
             pdfUrl: pdf,
             track: track,
             score: score,
-            tier: tier
+            tier: tier,
+            referencedWorkIDs: Self.uniqueWorkIDs(work.referencedWorks ?? []),
+            relatedWorkIDs: Self.uniqueWorkIDs(work.relatedWorks ?? [])
         )
     }
 
@@ -233,6 +237,8 @@ class OpenAlexFetcher: @unchecked Sendable {
                 }
                 existing.track = trackSet.sorted().joined(separator: ",")
                 existing.score = max(existing.score, paper.score)
+                existing.referencedWorkIDs = Self.uniqueWorkIDs(existing.referencedWorkIDs + paper.referencedWorkIDs)
+                existing.relatedWorkIDs = Self.uniqueWorkIDs(existing.relatedWorkIDs + paper.relatedWorkIDs)
             } else {
                 byId[paper.id] = paper
             }
@@ -288,7 +294,19 @@ class OpenAlexFetcher: @unchecked Sendable {
     }
 
     private static let displayFields =
-        "id,doi,title,display_name,authorships,publication_year,publication_date,cited_by_count,abstract_inverted_index,primary_location,open_access"
+        "id,doi,title,display_name,authorships,publication_year,publication_date,cited_by_count,abstract_inverted_index,primary_location,open_access,referenced_works,related_works"
+
+    private static func uniqueWorkIDs(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for id in ids {
+            let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
+            seen.insert(trimmed)
+            result.append(trimmed)
+        }
+        return result
+    }
 
     private func makeRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)

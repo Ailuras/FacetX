@@ -62,6 +62,8 @@ final class Paper: Identifiable {
     var tags: [String]     { didSet { _searchText = nil } }
     var note: String       { didSet { _searchText = nil } }
     var abstractZh: String
+    var referencedWorkIDs: [String]
+    var relatedWorkIDs: [String]
     var statusChangedAt: Date?
     var addedAt: Date?
 
@@ -99,6 +101,7 @@ final class Paper: Identifiable {
         recommendationReason: String = "",
         tags: [String] = [],
         note: String = "", abstractZh: String = "",
+        referencedWorkIDs: [String] = [], relatedWorkIDs: [String] = [],
         statusChangedAt: Date? = nil, addedAt: Date? = nil
     ) {
         self.id = id
@@ -125,6 +128,8 @@ final class Paper: Identifiable {
         self.tags = tags
         self.note = note
         self.abstractZh = abstractZh
+        self.referencedWorkIDs = referencedWorkIDs
+        self.relatedWorkIDs = relatedWorkIDs
         self.statusChangedAt = statusChangedAt
         self.addedAt = addedAt
     }

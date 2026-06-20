@@ -34,6 +34,8 @@ struct PaperGraphView: View {
                     paper.title,
                     paper.status.rawValue,
                     paper.tags.joined(separator: ","),
+                    paper.referencedWorkIDs.joined(separator: ","),
+                    paper.relatedWorkIDs.joined(separator: ","),
                     String(format: "%.2f", paper.score)
                 ].joined(separator: "|")
             }
@@ -110,6 +112,11 @@ struct PaperGraphView: View {
 
             statusFilterView
 
+            if hasPaperRelationLinks {
+                Divider().frame(height: 16)
+                edgeLegend
+            }
+
             Spacer()
 
             Text(L10n.pick("\(filteredPapers.count) papers", "\(filteredPapers.count) 篇文献"))
@@ -157,6 +164,30 @@ struct PaperGraphView: View {
                 .hoverCursor(.pointingHand)
             }
         }
+    }
+
+    private var hasPaperRelationLinks: Bool {
+        links.contains { $0.kind.isPaperRelation }
+    }
+
+    private var edgeLegend: some View {
+        HStack(spacing: 7) {
+            edgeLegendItem(kind: .citation, label: L10n.pick("Citation", "引用"))
+            edgeLegendItem(kind: .related, label: L10n.pick("Related", "相关"))
+            edgeLegendItem(kind: .citationAndRelated, label: L10n.pick("Both", "两者"))
+        }
+    }
+
+    private func edgeLegendItem(kind: PaperGraphLinkKind, label: String) -> some View {
+        HStack(spacing: 4) {
+            Capsule()
+                .fill(kind.color(highlighted: false))
+                .frame(width: 16, height: max(2, kind.lineWidth(highlighted: false)))
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .fixedSize()
     }
 
     private func graphCanvas(size: CGSize) -> some View {
@@ -231,9 +262,11 @@ struct PaperGraphView: View {
                 var path = Path()
                 path.move(to: from.position)
                 path.addLine(to: to.position)
-                let color = highlighted ? Color.accentColor.opacity(0.55) : Color.primary.opacity(0.075)
-                let width: CGFloat = highlighted ? 1.4 : 0.75
-                context.stroke(path, with: .color(color), lineWidth: width)
+                context.stroke(
+                    path,
+                    with: .color(link.kind.color(highlighted: highlighted)),
+                    style: StrokeStyle(lineWidth: link.kind.lineWidth(highlighted: highlighted), lineCap: .round)
+                )
             }
         }
     }
@@ -810,6 +843,7 @@ private enum PaperGraphBuilder {
             .prefix(24)
             .map(\.key)
         let selectedTagSet = Set(selectedTags)
+        let localPaperIDs = Set(papers.map(\.id))
         let needsUntagged = papers.contains { paper in
             paper.tags.allSatisfy { !selectedTagSet.contains($0) }
         }
@@ -877,10 +911,12 @@ private enum PaperGraphBuilder {
                 ))
 
                 for tag in paper.tags.filter({ selectedTagSet.contains($0) }).prefix(4) {
-                    links.append(PaperGraphLink(from: PaperGraphNode.paperID(paper.id), to: PaperGraphNode.tagID(tag)))
+                    links.append(PaperGraphLink(from: PaperGraphNode.paperID(paper.id), to: PaperGraphNode.tagID(tag), kind: .tag))
                 }
             }
         }
+
+        links.append(contentsOf: paperRelationLinks(papers: papers, localPaperIDs: localPaperIDs))
 
         let laidOut = relax(nodes: nodes, links: links, anchors: clusterAnchors, center: center, size: graphSize, ballRadius: ballRadius)
         return (laidOut, links)
@@ -973,6 +1009,47 @@ private enum PaperGraphBuilder {
         return result
     }
 
+    private static func paperRelationLinks(papers: [Paper], localPaperIDs: Set<String>) -> [PaperGraphLink] {
+        var kindsByPair: [PaperGraphPair: Set<PaperGraphPaperRelation>] = [:]
+
+        for paper in papers {
+            for targetID in paper.referencedWorkIDs where localPaperIDs.contains(targetID) {
+                addPaperRelation(.citation, from: paper.id, to: targetID, into: &kindsByPair)
+            }
+            for targetID in paper.relatedWorkIDs where localPaperIDs.contains(targetID) {
+                addPaperRelation(.related, from: paper.id, to: targetID, into: &kindsByPair)
+            }
+        }
+
+        return kindsByPair.map { pair, kinds in
+            let kind: PaperGraphLinkKind
+            if kinds.contains(.citation), kinds.contains(.related) {
+                kind = .citationAndRelated
+            } else if kinds.contains(.citation) {
+                kind = .citation
+            } else {
+                kind = .related
+            }
+            return PaperGraphLink(
+                from: PaperGraphNode.paperID(pair.first),
+                to: PaperGraphNode.paperID(pair.second),
+                kind: kind
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.kind.sortRank != rhs.kind.sortRank { return lhs.kind.sortRank < rhs.kind.sortRank }
+            return lhs.id < rhs.id
+        }
+    }
+
+    private static func addPaperRelation(_ relation: PaperGraphPaperRelation,
+                                         from sourceID: String,
+                                         to targetID: String,
+                                         into kindsByPair: inout [PaperGraphPair: Set<PaperGraphPaperRelation>]) {
+        guard sourceID != targetID else { return }
+        kindsByPair[PaperGraphPair(sourceID, targetID), default: []].insert(relation)
+    }
+
     private static func addBallContainmentDelta(for node: PaperGraphNode,
                                                 center: CGPoint,
                                                 ballRadius: CGFloat,
@@ -1059,9 +1136,75 @@ private struct PaperGraphNode: Identifiable, Equatable {
     }
 }
 
+private enum PaperGraphPaperRelation: Hashable {
+    case citation, related
+}
+
+private enum PaperGraphLinkKind: Equatable {
+    case tag
+    case citation
+    case related
+    case citationAndRelated
+
+    var sortRank: Int {
+        switch self {
+        case .tag: return 0
+        case .related: return 1
+        case .citation: return 2
+        case .citationAndRelated: return 3
+        }
+    }
+
+    var isPaperRelation: Bool {
+        self != .tag
+    }
+
+    func color(highlighted: Bool) -> Color {
+        switch self {
+        case .tag:
+            return highlighted ? Color.accentColor.opacity(0.55) : Color.primary.opacity(0.075)
+        case .citation:
+            return Color.orange.opacity(highlighted ? 0.78 : 0.38)
+        case .related:
+            return Color.teal.opacity(highlighted ? 0.72 : 0.34)
+        case .citationAndRelated:
+            return Color.pink.opacity(highlighted ? 0.82 : 0.50)
+        }
+    }
+
+    func lineWidth(highlighted: Bool) -> CGFloat {
+        switch self {
+        case .tag:
+            return highlighted ? 1.4 : 0.75
+        case .citation:
+            return highlighted ? 2.1 : 1.2
+        case .related:
+            return highlighted ? 1.9 : 1.1
+        case .citationAndRelated:
+            return highlighted ? 2.8 : 1.8
+        }
+    }
+}
+
+private struct PaperGraphPair: Hashable {
+    let first: String
+    let second: String
+
+    init(_ lhs: String, _ rhs: String) {
+        if lhs.localizedStandardCompare(rhs) == .orderedDescending {
+            first = rhs
+            second = lhs
+        } else {
+            first = lhs
+            second = rhs
+        }
+    }
+}
+
 private struct PaperGraphLink: Identifiable, Equatable {
     let from: String
     let to: String
+    let kind: PaperGraphLinkKind
 
-    var id: String { "\(from)->\(to)" }
+    var id: String { "\(from)->\(to):\(kind)" }
 }

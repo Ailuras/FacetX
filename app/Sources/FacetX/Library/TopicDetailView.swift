@@ -1486,7 +1486,7 @@ struct TopicDetailView: View {
                         URLQueryItem(name: "sort", value: "publication_date:desc,relevance_score:desc"),
                         URLQueryItem(name: "per_page", value: String(perPage)),
                         URLQueryItem(name: "cursor", value: c),
-                        URLQueryItem(name: "select", value: "id,doi,title,display_name,authorships,publication_year,publication_date,cited_by_count,abstract_inverted_index,primary_location,open_access")
+                        URLQueryItem(name: "select", value: "id,doi,title,display_name,authorships,publication_year,publication_date,cited_by_count,abstract_inverted_index,primary_location,open_access,referenced_works,related_works")
                     ]
                     if !settings.openAlexMailto.isEmpty {
                         components?.queryItems?.append(URLQueryItem(name: "mailto", value: settings.openAlexMailto))

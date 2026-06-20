@@ -180,6 +180,14 @@ class PaperStore {
             PRIMARY KEY (paper_id, topic_name)
         );
 
+        CREATE TABLE IF NOT EXISTS paper_openalex_edges (
+            source_id TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            rank INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (source_id, target_id, kind)
+        );
+
         """
 
         var errorMsg: UnsafeMutablePointer<Int8>?
@@ -190,7 +198,38 @@ class PaperStore {
         }
     }
 
+    private func loadOpenAlexRelations() -> (references: [String: [String]], related: [String: [String]]) {
+        let query = """
+        SELECT source_id, target_id, kind
+        FROM paper_openalex_edges
+        ORDER BY source_id, kind, rank, target_id
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+            return ([:], [:])
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        var references: [String: [String]] = [:]
+        var related: [String: [String]] = [:]
+
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let sourceID = columnString(stmt, 0)
+            let targetID = columnString(stmt, 1)
+            let kind = columnString(stmt, 2)
+            guard !sourceID.isEmpty, !targetID.isEmpty else { continue }
+            if kind == "citation" {
+                references[sourceID, default: []].append(targetID)
+            } else if kind == "related" {
+                related[sourceID, default: []].append(targetID)
+            }
+        }
+
+        return (references, related)
+    }
+
     func loadPapers() {
+        let openAlexRelations = loadOpenAlexRelations()
         let query = """
          SELECT p.id, p.doi, p.title, p.authors, p.publication_date, p.venue,
                 COALESCE(pc.venue_abbr, 'Others') as venue_abbr,
@@ -306,6 +345,8 @@ class PaperStore {
                 tags: tags,
                 note: note,
                 abstractZh: abstractZh,
+                referencedWorkIDs: openAlexRelations.references[id] ?? [],
+                relatedWorkIDs: openAlexRelations.related[id] ?? [],
                 statusChangedAt: statusChangedAt,
                 addedAt: addedAt
             )
@@ -333,6 +374,7 @@ class PaperStore {
                     inserted += 1
                     upsertPaperCache(paperId: paper.id, paper: paper)
                     replaceTopics(for: paper.id, track: paper.track)
+                    replaceOpenAlexEdges(for: paper.id, paper: paper)
                     upsertPaperPdfCache(paperId: paper.id, paper: paper)
                     insertPendingStateIfNeeded(paperId: paper.id)
                 }
@@ -340,6 +382,7 @@ class PaperStore {
                 updated += 1
                 upsertPaperCache(paperId: paperId, paper: paper)
                 replaceTopics(for: paperId, track: paper.track)
+                replaceOpenAlexEdges(for: paperId, paper: paper)
                 upsertPaperPdfCache(paperId: paperId, paper: paper)
             }
         }
@@ -491,6 +534,44 @@ class PaperStore {
         }
 
         insertTopics(for: paperId, topics: topics)
+    }
+
+    private func replaceOpenAlexEdges(for paperId: String, paper: Paper) {
+        let deleteSql = "DELETE FROM paper_openalex_edges WHERE source_id = ?"
+        var deleteStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteSql, -1, &deleteStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(deleteStmt, 1, paperId, -1, SQLITE_TRANSIENT)
+            sqlite3_step(deleteStmt)
+            sqlite3_finalize(deleteStmt)
+        }
+
+        insertOpenAlexEdges(sourceID: paperId, targetIDs: paper.referencedWorkIDs, kind: "citation")
+        insertOpenAlexEdges(sourceID: paperId, targetIDs: paper.relatedWorkIDs, kind: "related")
+    }
+
+    private func insertOpenAlexEdges(sourceID: String, targetIDs: [String], kind: String) {
+        guard !targetIDs.isEmpty else { return }
+        let sql = """
+        INSERT OR REPLACE INTO paper_openalex_edges (source_id, target_id, kind, rank)
+        VALUES (?, ?, ?, ?)
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        var seen = Set<String>()
+        for (rank, targetID) in targetIDs.enumerated() {
+            let target = targetID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !target.isEmpty, target != sourceID, !seen.contains(target) else { continue }
+            seen.insert(target)
+            sqlite3_reset(stmt)
+            sqlite3_clear_bindings(stmt)
+            sqlite3_bind_text(stmt, 1, sourceID, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, target, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, kind, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(stmt, 4, Int32(rank))
+            sqlite3_step(stmt)
+        }
     }
 
     private func upsertPaperCache(paperId: String, paper: Paper) {
