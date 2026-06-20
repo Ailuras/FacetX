@@ -147,6 +147,7 @@ struct MarkdownEditor: NSViewRepresentable {
         }
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         let parent: MarkdownEditor
         let highlighter = MarkdownHighlighter()
