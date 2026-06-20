@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 struct AddPaperView: View {
     let topicName: String
@@ -9,7 +10,7 @@ struct AddPaperView: View {
         case search, pdf, manual
         var title: String {
             switch self {
-            case .search: return "OpenAlex"
+            case .search: return L10n.pick("Google Scholar", "谷歌学术")
             case .pdf:    return "PDF"
             case .manual: return L10n.pick("Manual", "手动")
             }
@@ -17,18 +18,19 @@ struct AddPaperView: View {
     }
     @State private var tab = Tab.search
 
-    // Search
+    // Google Scholar Search
     @State private var queryText = ""
-    @State private var isSearching = false
-    @State private var searchResults: [Paper] = []
-    @State private var selectedPaperIDs: Set<String> = []
+    @State private var activeQuery = ""
+    @State private var importedPaperTitles: Set<String> = []
+    @State private var isEnriching = false
+    @State private var enrichingTitle = ""
 
-    // PDF
+    // PDF Import
     @State private var pdfImportState: PDFImportState = .idle
     @State private var pendingPdfData: Data?
     @State private var isPdfDropTargeted = false
 
-    // Manual
+    // Manual Entry
     @State private var title = ""
     @State private var authorsText = ""
     @State private var yearText = ""
@@ -54,182 +56,249 @@ struct AddPaperView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-
-            Picker("", selection: $tab) {
-                ForEach(Tab.allCases, id: \.self) { t in
-                    Text(t.title).tag(t)
+        ZStack {
+            VStack(spacing: 0) {
+                // Main Tab Selection
+                HStack {
+                    Picker("", selection: $tab) {
+                        ForEach(Tab.allCases, id: \.self) { t in
+                            Text(t.title).tag(t)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 350)
+                    
+                    Spacer()
+                    
+                    if tab == .search {
+                        Text(L10n.pick("Imported papers will automatically match OpenAlex for full metadata.",
+                                       "导入的文献将自动匹配 OpenAlex 补全完整元数据。"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                
+                Divider()
 
-            Group {
-                switch tab {
-                case .search: searchTab
-                case .pdf: pdfTab
-                case .manual: manualTab
+                // Content View
+                Group {
+                    switch tab {
+                    case .search:
+                        googleScholarTab
+                    case .pdf:
+                        pdfTab
+                    case .manual:
+                        manualTab
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(minHeight: 300)
+            
+            // Background metadata lookup indicator
+            if isEnriching {
+                ZStack {
+                    Color.black.opacity(0.2)
+                    
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text(L10n.pick("Enriching metadata from OpenAlex...", "正在从 OpenAlex 补全文献元数据…"))
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(enrichingTitle)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .padding(.horizontal, 20)
+                    }
+                    .padding(24)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(NSColor.windowBackgroundColor))
+                            .shadow(color: Color.black.opacity(0.15), radius: 10)
+                    )
+                    .frame(width: 320)
+                }
+                .transition(.opacity)
+            }
         }
-        .frame(width: 500)
+        .onAppear {
+            loadImportedTitles()
+        }
     }
 
-    private var header: some View {
-        HStack {
-            Text(L10n.pick("Add Paper to \(topicName)", "向 \(topicName) 添加文献")).font(.headline)
-            Spacer()
-            Button(L10n.t(.cancel)) { dismiss() }
-                .keyboardShortcut(.cancelAction)
-            if !selectedPaperIDs.isEmpty {
-                Button(L10n.pick("Add \(selectedPaperIDs.count) Selected", "添加 \(selectedPaperIDs.count) 篇")) {
-                    let papers = searchResults.filter { selectedPaperIDs.contains($0.id) }
-                    onAdd(papers)
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-            } else if tab == .pdf, let action = pdfPrimaryAction {
-                Button(pdfPrimaryTitle) { action() }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-            } else if tab == .manual, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button(L10n.pick("Add", "添加")) {
-                    addManualPaper()
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+    private func loadImportedTitles() {
+        let existing = PaperStore.shared.papers.map { $0.title }
+        importedPaperTitles = Set(existing)
     }
 
-    // MARK: - Search Tab
+    // MARK: - Google Scholar Tab
 
-    private var searchTab: some View {
+    private var googleScholarTab: some View {
         VStack(spacing: 0) {
-            HStack {
-                TextField(L10n.pick("DOI or title...", "DOI 或标题…"), text: $queryText)
+            // Search Input Header
+            HStack(spacing: 8) {
+                TextField(L10n.pick("Search papers on Google Scholar...", "在谷歌学术检索学术文献…"), text: $queryText)
                     .textFieldStyle(.roundedBorder)
-                    .onSubmit { search() }
+                    .frame(maxWidth: 400)
+                    .onSubmit {
+                        activeQuery = queryText
+                    }
 
                 Button {
-                    search()
+                    activeQuery = queryText
                 } label: {
-                    if isSearching {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "magnifyingglass")
-                    }
+                    Image(systemName: "magnifyingglass")
                 }
-                .disabled(queryText.trimmingCharacters(in: .whitespaces).isEmpty || isSearching)
+                .disabled(queryText.trimmingCharacters(in: .whitespaces).isEmpty)
+                
+                Spacer()
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            
             Divider()
 
-            if searchResults.isEmpty {
-                if isSearching {
-                    ProgressView().padding(40)
-                } else {
-                    Text(L10n.pick("Search by DOI or title to find papers from OpenAlex.",
-                                   "输入 DOI 或标题，从 OpenAlex 检索文献。"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .padding(40)
+            // Web Browser component
+            GoogleScholarWebView(query: activeQuery, importedTitles: importedPaperTitles) { metadata in
+                handleImportFromScholar(metadata)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func handleImportFromScholar(_ metadata: [String: Any]) {
+        let title = metadata["title"] as? String ?? ""
+        let authors = metadata["authors"] as? [String] ?? []
+        let venue = metadata["venue"] as? String ?? ""
+        let year = metadata["year"] as? Int
+        let snippet = metadata["snippet"] as? String ?? ""
+        let url = metadata["url"] as? String ?? ""
+        let pdfUrl = metadata["pdfUrl"] as? String
+
+        let fallbackPaper = Paper(
+            id: "gs-\(UUID().uuidString)",
+            title: title,
+            authors: authors,
+            publicationYear: year,
+            venue: venue,
+            abstract: snippet,
+            landingPageUrl: url,
+            pdfUrl: pdfUrl,
+            track: topicName,
+            addedAt: Date()
+        )
+
+        isEnriching = true
+        enrichingTitle = title
+
+        Task {
+            var finalPaper = fallbackPaper
+            
+            // Asynchronously match OpenAlex by Title
+            let results = await fetcher.fetchByTitle(title, limit: 3)
+            if let match = results.first(where: { isSimilarTitle($0.title, title) }) {
+                match.track = topicName
+                match.addedAt = Date()
+                
+                // Retain Scholar PDF link if OpenAlex doesn't have it
+                if (match.pdfUrl == nil || match.pdfUrl!.isEmpty), let pdf = pdfUrl, !pdf.isEmpty {
+                    match.pdfUrl = pdf
                 }
-            } else {
-                List(selection: $selectedPaperIDs) {
-                    ForEach(searchResults) { paper in
-                        searchResultRow(paper)
-                            .tag(paper.id)
-                    }
+                // Retain Scholar Landing Page URL if OpenAlex URL is empty
+                if match.landingPageUrl.isEmpty && !url.isEmpty {
+                    match.landingPageUrl = url
                 }
-                .listStyle(.inset)
+                finalPaper = match
+            }
+            
+            await MainActor.run {
+                onAdd([finalPaper])
+                importedPaperTitles.insert(title)
+                isEnriching = false
+                enrichingTitle = ""
             }
         }
     }
 
-    private func searchResultRow(_ paper: Paper) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(paper.title)
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(2)
-            HStack(spacing: 8) {
-                if !paper.authors.isEmpty {
-                    Text(paper.authors.prefix(2).joined(separator: ", "))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                if !paper.publicationDate.isEmpty {
-                    Text(paper.publicationDate)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                if !paper.venue.isEmpty {
-                    Text(paper.venue)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
-        }
-        .padding(.vertical, 2)
+    private func isSimilarTitle(_ a: String, _ b: String) -> Bool {
+        let cleanA = a.lowercased().replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+        let cleanB = b.lowercased().replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+        guard !cleanA.isEmpty, !cleanB.isEmpty else { return false }
+        return cleanA == cleanB || cleanA.contains(cleanB) || cleanB.contains(cleanA)
     }
 
     // MARK: - PDF Tab
 
     private var pdfTab: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            switch pdfImportState {
-            case .idle:
-                pdfDropZone
-            case .extracting:
-                progressRow(L10n.pick("Extracting metadata from PDF...", "正在从 PDF 抽取元数据…"))
-            case .querying(let label):
-                progressRow(L10n.pick("Looking up \(label) on OpenAlex...", "正在 OpenAlex 查询 \(label)…"))
-            case .resolvedOpenAlex(let paper):
-                pdfPreview(
-                    title: L10n.pick("OpenAlex match found", "已匹配 OpenAlex"),
-                    subtitle: L10n.pick("The PDF will be attached to this paper.",
-                                        "该 PDF 将作为附件保存到这篇文献。"),
-                    fields: [
-                        (L10n.pick("Title", "标题"), paper.title),
-                        (L10n.pick("Authors", "作者"), paper.authors.joined(separator: ", ")),
-                        (L10n.pick("Venue", "来源"), paper.venue),
-                        (L10n.pick("Date", "日期"), paper.publicationDate)
-                    ]
-                )
-            case .resolvedLocal(let title, let authors, let abstract, let year):
-                pdfPreview(
-                    title: L10n.pick("Local metadata extracted", "已抽取本地元数据"),
-                    subtitle: L10n.pick("No confident OpenAlex match was found. Review before importing.",
-                                        "未找到可靠的 OpenAlex 匹配；导入前请检查。"),
-                    fields: [
-                        (L10n.pick("Title", "标题"), title),
-                        (L10n.pick("Authors", "作者"), authors.joined(separator: ", ")),
-                        (L10n.pick("Year", "年份"), year.map(String.init) ?? ""),
-                        (L10n.pick("Abstract", "摘要"), abstract)
-                    ]
-                )
-            case .error(let message):
-                VStack(alignment: .leading, spacing: 10) {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                    Button(L10n.pick("Choose Another PDF", "选择其他 PDF")) { choosePdf() }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                switch pdfImportState {
+                case .idle:
+                    pdfDropZone
+                case .extracting:
+                    progressRow(L10n.pick("Extracting metadata from PDF...", "正在从 PDF 抽取元数据…"))
+                case .querying(let label):
+                    progressRow(L10n.pick("Looking up \(label) on OpenAlex...", "正在 OpenAlex 查询 \(label)…"))
+                case .resolvedOpenAlex(let paper):
+                    VStack(alignment: .leading, spacing: 14) {
+                        pdfPreview(
+                            title: L10n.pick("OpenAlex match found", "已匹配 OpenAlex"),
+                            subtitle: L10n.pick("The PDF will be attached to this paper.", "该 PDF 将作为附件保存到这篇文献。"),
+                            fields: [
+                                (L10n.pick("Title", "标题"), paper.title),
+                                (L10n.pick("Authors", "作者"), paper.authors.joined(separator: ", ")),
+                                (L10n.pick("Venue", "来源"), paper.venue),
+                                (L10n.pick("Date", "日期"), paper.publicationDate)
+                            ]
+                        )
+                        
+                        Button {
+                            importResolvedOpenAlex(paper)
+                        } label: {
+                            Text(L10n.pick("Import & Attach PDF", "导入并附加 PDF"))
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                    }
+                case .resolvedLocal(let title, let authors, let abstract, let year):
+                    VStack(alignment: .leading, spacing: 14) {
+                        pdfPreview(
+                            title: L10n.pick("Local metadata extracted", "已抽取本地元数据"),
+                            subtitle: L10n.pick("No confident OpenAlex match was found. Review before importing.",
+                                                "未找到可靠的 OpenAlex 匹配；导入前请检查。"),
+                            fields: [
+                                (L10n.pick("Title", "标题"), title),
+                                (L10n.pick("Authors", "作者"), authors.joined(separator: ", ")),
+                                (L10n.pick("Year", "年份"), year.map(String.init) ?? ""),
+                                (L10n.pick("Abstract", "摘要"), abstract)
+                            ]
+                        )
+                        
+                        Button {
+                            importResolvedLocal(title: title, authors: authors, abstract: abstract, year: year)
+                        } label: {
+                            Text(L10n.pick("Import Local Paper", "导入本地文献"))
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                    }
+                case .error(let message):
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                        Button(L10n.pick("Choose Another PDF", "选择其他 PDF")) { choosePdf() }
+                    }
                 }
             }
-            Spacer()
+            .padding(16)
         }
-        .padding(20)
     }
 
     private var pdfDropZone: some View {
@@ -241,7 +310,7 @@ struct AddPaperView: View {
                 .font(.system(size: 14, weight: .semibold))
             Text(L10n.pick("FacetX will extract DOI, title, authors and abstract, then try to match OpenAlex.",
                            "FacetX 会抽取 DOI、标题、作者和摘要，并尝试匹配 OpenAlex。"))
-                .font(.system(size: 12))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button {
@@ -297,29 +366,6 @@ struct AddPaperView: View {
             }
             Button(L10n.pick("Choose Another PDF", "选择其他 PDF")) { choosePdf() }
                 .buttonStyle(.bordered)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var pdfPrimaryTitle: String {
-        switch pdfImportState {
-        case .resolvedOpenAlex:
-            return L10n.pick("Import & Attach PDF", "导入并附加 PDF")
-        case .resolvedLocal:
-            return L10n.pick("Import Local Paper", "导入本地文献")
-        default:
-            return ""
-        }
-    }
-
-    private var pdfPrimaryAction: (() -> Void)? {
-        switch pdfImportState {
-        case .resolvedOpenAlex(let paper):
-            return { importResolvedOpenAlex(paper) }
-        case .resolvedLocal(let title, let authors, let abstract, let year):
-            return { importResolvedLocal(title: title, authors: authors, abstract: abstract, year: year) }
-        default:
-            return nil
         }
     }
 
@@ -391,7 +437,11 @@ struct AddPaperView: View {
         guard attachPendingPdf(to: paper) else { return }
         onAdd([paper])
         persistAttachedPdf(for: paper)
-        dismiss()
+        importedPaperTitles.insert(paper.title)
+        
+        // Reset state
+        pdfImportState = .idle
+        pendingPdfData = nil
     }
 
     private func importResolvedLocal(title: String, authors: [String], abstract: String, year: Int?) {
@@ -412,7 +462,11 @@ struct AddPaperView: View {
         guard attachPendingPdf(to: paper) else { return }
         onAdd([paper])
         persistAttachedPdf(for: paper)
-        dismiss()
+        importedPaperTitles.insert(paper.title)
+        
+        // Reset state
+        pdfImportState = .idle
+        pendingPdfData = nil
     }
 
     private func attachPendingPdf(to paper: Paper) -> Bool {
@@ -442,39 +496,6 @@ struct AddPaperView: View {
             byteSize: data.count,
             sha256: PdfStorage.sha256Hex(data)
         ))
-    }
-
-    private func isSimilarTitle(_ a: String, _ b: String) -> Bool {
-        let cleanA = a.lowercased().replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
-        let cleanB = b.lowercased().replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
-        guard !cleanA.isEmpty, !cleanB.isEmpty else { return false }
-        return cleanA == cleanB || cleanA.contains(cleanB) || cleanB.contains(cleanA)
-    }
-
-    private func search() {
-        let trimmed = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        isSearching = true
-        searchResults = []
-        selectedPaperIDs = []
-
-        Task {
-            if trimmed.hasPrefix("10.") || trimmed.contains("doi.org") {
-                if let paper = await fetcher.fetchByDOI(trimmed) {
-                    paper.track = topicName
-                    searchResults = [paper]
-                    selectedPaperIDs = [paper.id]
-                }
-            } else {
-                let results = await fetcher.fetchByTitle(trimmed, limit: 10)
-                searchResults = results.map { paper in
-                    paper.track = topicName
-                    return paper
-                }
-            }
-            isSearching = false
-        }
     }
 
     // MARK: - Manual Tab
@@ -525,15 +546,27 @@ struct AddPaperView: View {
                     Text(L10n.pick("Abstract", "摘要")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     TextEditor(text: $abstract)
                         .font(.system(size: 12))
-                        .frame(height: 80)
+                        .frame(height: 100)
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
                                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                         )
                         .scrollContentBackground(.hidden)
                 }
+                
+                Button {
+                    addManualPaper()
+                } label: {
+                    Text(L10n.pick("Add Paper", "添加文献"))
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.top, 10)
             }
-            .padding(20)
+            .padding(16)
         }
     }
 
@@ -571,6 +604,15 @@ struct AddPaperView: View {
             addedAt: Date()
         )
         onAdd([paper])
-        dismiss()
+        importedPaperTitles.insert(paper.title)
+        
+        // Clear fields
+        title = ""
+        authorsText = ""
+        yearText = ""
+        venue = ""
+        doi = ""
+        url = ""
+        abstract = ""
     }
 }
