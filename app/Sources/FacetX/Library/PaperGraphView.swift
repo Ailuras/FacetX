@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct PaperGraphView: View {
@@ -204,13 +205,16 @@ struct PaperGraphView: View {
                     linkCanvas
                     ForEach(nodes) { node in
                         nodeView(node)
-                            .position(node.position)
+                            .position(screenPoint(for: node.position))
                     }
                 }
-                .scaleEffect(scale)
-                .offset(offset)
                 .gesture(panGesture)
                 .gesture(zoomGesture)
+                .background {
+                    PaperGraphScrollMonitor { location, delta in
+                        zoom(by: delta > 0 ? 1.08 : 0.92, around: location)
+                    }
+                }
                 .overlay(alignment: .topTrailing) {
                     if let node = activeInfoNode {
                         graphInfoCard(for: node)
@@ -239,11 +243,13 @@ struct PaperGraphView: View {
         Canvas { context, size in
             let step: CGFloat = 44
             var path = Path()
-            for x in stride(from: 0, through: size.width, by: step) {
+            let xStart = offset.width.truncatingRemainder(dividingBy: step)
+            let yStart = offset.height.truncatingRemainder(dividingBy: step)
+            for x in stride(from: xStart - step, through: size.width + step, by: step) {
                 path.move(to: CGPoint(x: x, y: 0))
                 path.addLine(to: CGPoint(x: x, y: size.height))
             }
-            for y in stride(from: 0, through: size.height, by: step) {
+            for y in stride(from: yStart - step, through: size.height + step, by: step) {
                 path.move(to: CGPoint(x: 0, y: y))
                 path.addLine(to: CGPoint(x: size.width, y: y))
             }
@@ -260,8 +266,8 @@ struct PaperGraphView: View {
                 guard let from = nodeMap[link.from], let to = nodeMap[link.to] else { continue }
                 let highlighted = focusIDs.contains(from.id) && focusIDs.contains(to.id)
                 var path = Path()
-                path.move(to: from.position)
-                path.addLine(to: to.position)
+                path.move(to: screenPoint(for: from.position))
+                path.addLine(to: screenPoint(for: to.position))
                 context.stroke(
                     path,
                     with: .color(link.kind.color(highlighted: highlighted)),
@@ -289,10 +295,11 @@ struct PaperGraphView: View {
     private var zoomGesture: some Gesture {
         MagnificationGesture()
             .onChanged { value in
-                scale = clamp(lastScale * value, min: 0.45, max: 2.8)
+                setScale(lastScale * value, around: canvasCenter)
             }
             .onEnded { _ in
                 lastScale = scale
+                lastOffset = offset
             }
     }
 
@@ -649,10 +656,9 @@ struct PaperGraphView: View {
     }
 
     private func setScale(_ value: CGFloat) {
-        withAnimation(.easeOut(duration: 0.15)) {
-            scale = clamp(value, min: 0.45, max: 2.8)
-            lastScale = scale
-        }
+        setScale(value, around: canvasCenter)
+        lastScale = scale
+        lastOffset = offset
     }
 
     private func modelPoint(from canvasPoint: CGPoint) -> CGPoint {
@@ -660,6 +666,36 @@ struct PaperGraphView: View {
             x: (canvasPoint.x - offset.width) / max(scale, 0.001),
             y: (canvasPoint.y - offset.height) / max(scale, 0.001)
         )
+    }
+
+    private func screenPoint(for modelPoint: CGPoint) -> CGPoint {
+        CGPoint(
+            x: modelPoint.x * scale + offset.width,
+            y: modelPoint.y * scale + offset.height
+        )
+    }
+
+    private var canvasCenter: CGPoint {
+        CGPoint(x: lastCanvasSize.width / 2, y: lastCanvasSize.height / 2)
+    }
+
+    private func zoom(by factor: CGFloat, around anchor: CGPoint) {
+        setScale(scale * factor, around: anchor)
+        lastScale = scale
+        lastOffset = offset
+    }
+
+    private func setScale(_ value: CGFloat, around anchor: CGPoint) {
+        let nextScale = clamp(value, min: 0.45, max: 2.8)
+        guard abs(nextScale - scale) > 0.0001 else { return }
+        let modelAnchor = modelPoint(from: anchor)
+        scale = nextScale
+        lastScale = nextScale
+        offset = CGSize(
+            width: anchor.x - modelAnchor.x * nextScale,
+            height: anchor.y - modelAnchor.y * nextScale
+        )
+        lastOffset = offset
     }
 
     private var focusedIDs: Set<String> {
@@ -673,11 +709,7 @@ struct PaperGraphView: View {
     }
 
     private func shouldShowInlineLabel(_ node: PaperGraphNode) -> Bool {
-        if node.type == .tag { return true }
-        if let selectedNodeID, focusedIDs.contains(node.id), selectedNodeID != node.id { return scale >= 0.72 }
-        if scale >= 1.45 { return true }
-        if scale >= 1.0 { return node.labelPriority >= 0.78 }
-        return node.labelPriority >= 0.92
+        node.type == .tag
     }
 
     private func labelText(for node: PaperGraphNode) -> String {
@@ -1207,4 +1239,55 @@ private struct PaperGraphLink: Identifiable, Equatable {
     let kind: PaperGraphLinkKind
 
     var id: String { "\(from)->\(to):\(kind)" }
+}
+
+private struct PaperGraphScrollMonitor: NSViewRepresentable {
+    let onScroll: (CGPoint, CGFloat) -> Void
+
+    func makeNSView(context: Context) -> MonitorView {
+        let view = MonitorView()
+        view.onScroll = onScroll
+        return view
+    }
+
+    func updateNSView(_ nsView: MonitorView, context: Context) {
+        nsView.onScroll = onScroll
+    }
+
+    static func dismantleNSView(_ nsView: MonitorView, coordinator: ()) {
+        nsView.removeMonitor()
+    }
+
+    final class MonitorView: NSView {
+        var onScroll: ((CGPoint, CGFloat) -> Void)?
+        private var monitor: Any?
+
+        override var isFlipped: Bool { true }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            installMonitor()
+        }
+
+        func removeMonitor() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        private func installMonitor() {
+            removeMonitor()
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self, self.window != nil else { return event }
+                let location = self.convert(event.locationInWindow, from: nil)
+                guard self.bounds.contains(location) else { return event }
+                let delta = event.scrollingDeltaY
+                guard abs(delta) > 0.01 else { return nil }
+                self.onScroll?(location, delta)
+                return nil
+            }
+        }
+    }
 }
