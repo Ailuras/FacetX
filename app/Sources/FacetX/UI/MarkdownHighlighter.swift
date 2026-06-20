@@ -7,17 +7,26 @@ import AppKit
 /// background instead of being hidden — the active text never changes, only its
 /// attributes, which keeps CJK / IME composition safe.
 ///
-/// The whole document is restyled on each character edit. Notes are small, and
-/// attribute-only passes don't re-trigger character editing, so this stays cheap
-/// and keeps multi-line constructs (fenced code) correct without range bookkeeping.
+/// The whole document is restyled on each change. Notes are small, so this stays
+/// cheap and keeps multi-line constructs (fenced code) correct without bookkeeping.
 ///
-/// Not `@MainActor`-isolated: `NSTextStorageDelegate` is a nonisolated protocol
-/// and its callbacks already arrive on the main thread, so isolating the class
-/// only fights Swift 6 conformance checking for no benefit.
-final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
-    /// The text view is consulted so we never restyle mid-composition, which is
-    /// what previously corrupted Chinese/Japanese/Korean input.
+/// IME safety: highlighting is driven from the text view's `textDidChange`
+/// (see `styleIfIdle`), *not* from `NSTextStorageDelegate`. During an IME
+/// composition the text-storage edit fires before the text view records its
+/// marked range, so `hasMarkedText()` is unreliable inside that delegate and a
+/// restyle there corrupts in-progress Chinese/Japanese/Korean input. By the time
+/// `textDidChange` arrives the marked range is set, so the guard below is
+/// trustworthy and we simply skip until the composition commits.
+final class MarkdownHighlighter: NSObject {
+    /// Set by the editor so loads/programmatic refreshes can restyle.
     weak var textView: NSTextView?
+
+    /// Restyle unless an IME composition is in flight. Safe to call from
+    /// `textDidChange`, where `hasMarkedText()` reflects the settled state.
+    func styleIfIdle(_ textView: NSTextView) {
+        guard !textView.hasMarkedText(), let storage = textView.textStorage else { return }
+        highlight(storage)
+    }
 
     // ── Typography ────────────────────────────────────────────────────────────
     private let baseSize: CGFloat = 15
@@ -52,16 +61,6 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
     private let strikeRE = try! NSRegularExpression(pattern: "(~~)(?=\\S)(.+?)(?<=\\S)(~~)")
 
     // ── Entry points ──────────────────────────────────────────────────────────
-
-    func textStorage(_ textStorage: NSTextStorage,
-                     didProcessEditing editedMask: NSTextStorageEditActions,
-                     range editedRange: NSRange,
-                     changeInLength delta: Int) {
-        guard editedMask.contains(.editedCharacters) else { return }
-        // Leave composing text untouched so IME underlines/commits survive.
-        if textView?.hasMarkedText() == true { return }
-        highlight(textStorage)
-    }
 
     /// Restyle the entire storage. Safe to call after programmatic text loads.
     func highlight(_ storage: NSTextStorage) {

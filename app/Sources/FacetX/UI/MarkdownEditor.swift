@@ -99,9 +99,9 @@ struct MarkdownEditor: NSViewRepresentable {
         layoutManager.addTextContainer(container)
 
         // Live highlighting renders attribute variations, so rich text must be on.
-        // The highlighter only mutates attributes, never characters, keeping IME safe.
-        textStorage.delegate = context.coordinator.highlighter
-
+        // The highlighter only mutates attributes, never characters; it is driven
+        // from `textDidChange` (not the text-storage delegate) so the marked-text
+        // state is reliable and we never restyle text mid-IME-composition.
         let editorFont = NSFont.systemFont(ofSize: 15)
         let formatting = FormattingTextView(frame: NSRect(origin: .zero, size: scroll.contentSize),
                                             textContainer: container)
@@ -155,6 +155,9 @@ struct MarkdownEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
             parent.text = tv.string
+            // Fires after input handling completes, so hasMarkedText() is reliable:
+            // skip while an IME composition is in flight, restyle once it commits.
+            highlighter.styleIfIdle(tv)
         }
     }
 }
