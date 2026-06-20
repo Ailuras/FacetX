@@ -510,8 +510,9 @@ struct TopicDetailView: View {
 
     @ViewBuilder private var dashboardView: some View {
         PaperGraphView(papers: papersForTopic, metadata: metadata) { paper in
-            readingPaperID = paper.id
-            viewMode = .reading
+            withAnimation(detailPaneAnimation) {
+                selectedPaper = paper
+            }
         }
     }
 

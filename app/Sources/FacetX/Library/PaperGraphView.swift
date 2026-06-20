@@ -4,7 +4,7 @@ import SwiftUI
 struct PaperGraphView: View {
     let papers: [Paper]
     let metadata: MetadataStore
-    let onReadPaper: (Paper) -> Void
+    let onSelectPaper: (Paper) -> Void
 
     @State private var nodes: [PaperGraphNode] = []
     @State private var links: [PaperGraphLink] = []
@@ -47,14 +47,7 @@ struct PaperGraphView: View {
         VStack(spacing: 0) {
             graphToolbar
             GeometryReader { geo in
-                HStack(spacing: 0) {
-                    graphCanvas(size: geo.size)
-                    if let node = nodes.first(where: { $0.id == selectedNodeID }) {
-                        detailPanel(for: node)
-                            .frame(width: 292)
-                            .transition(.move(edge: .trailing))
-                    }
-                }
+                graphCanvas(size: geo.size)
             }
         }
         .onChange(of: graphSignature) {
@@ -63,7 +56,6 @@ struct PaperGraphView: View {
         .onChange(of: selectedStatuses) {
             rebuildGraph(in: lastCanvasSize, resetViewport: false)
         }
-        .animation(FacetTheme.detailSpring, value: selectedNodeID != nil)
     }
 
     private var graphToolbar: some View {
@@ -348,6 +340,9 @@ struct PaperGraphView: View {
         }
         .onTapGesture {
             selectedNodeID = node.id
+            if let paper = node.paper {
+                onSelectPaper(paper)
+            }
         }
         .gesture(
             DragGesture(coordinateSpace: .named("paperGraphCanvas"))
@@ -460,159 +455,6 @@ struct PaperGraphView: View {
                 .lineLimit(2)
                 .foregroundStyle(.secondary)
         }
-    }
-
-    private func detailPanel(for node: PaperGraphNode) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(L10n.pick("Graph Details", "图谱详情"))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    selectedNodeID = nil
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .hoverCursor(.pointingHand)
-            }
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    switch node.type {
-                    case .tag:
-                        tagDetail(node)
-                    case .paper:
-                        paperDetail(node)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(14)
-        .background(FacetTheme.quietPanel)
-        .overlay(alignment: .leading) {
-            Rectangle().fill(FacetTheme.hairline).frame(width: 1)
-        }
-    }
-
-    private func tagDetail(_ node: PaperGraphNode) -> some View {
-        let taggedPapers = filteredPapers
-            .filter { $0.tags.contains(node.fullLabel) }
-            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-
-        return VStack(alignment: .leading, spacing: 10) {
-            Label(node.fullLabel, systemImage: "tag.fill")
-                .font(.system(size: 14, weight: .bold))
-
-            Text(L10n.pick("\(taggedPapers.count) papers use this tag", "\(taggedPapers.count) 篇文献使用该标签"))
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            ForEach(taggedPapers) { paper in
-                Button {
-                    selectedNodeID = PaperGraphNode.paperID(paper.id)
-                } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(paper.title)
-                            .font(.system(size: 11, weight: .medium))
-                            .lineLimit(2)
-                            .foregroundStyle(.primary)
-                        Text(paper.authors.prefix(2).joined(separator: ", "))
-                            .font(.system(size: 9))
-                            .lineLimit(1)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.secondary.opacity(0.055))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .hoverCursor(.pointingHand)
-            }
-        }
-    }
-
-    private func paperDetail(_ node: PaperGraphNode) -> some View {
-        guard let paper = node.paper else {
-            return AnyView(EmptyView())
-        }
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: 11) {
-                Text(paper.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(5)
-
-                if !paper.authors.isEmpty {
-                    Text(paper.authors.prefix(4).joined(separator: ", "))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 8) {
-                    if !paper.venueAbbr.isEmpty {
-                        FacetInfoBadge(
-                            text: paper.venueAbbr,
-                            systemImage: "building.2",
-                            tint: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)),
-                            fill: metadata.fieldColor(metadata.field(forAbbr: paper.venueAbbr)).opacity(0.12)
-                        )
-                    }
-                    FacetInfoBadge(
-                        text: statusTitle(paper.status),
-                        systemImage: paper.status.iconName,
-                        tint: paper.status.iconColor,
-                        fill: paper.status.iconColor.opacity(0.12)
-                    )
-                }
-
-                if !paper.tags.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L10n.pick("Tags", "标签"))
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        FlowLayout(spacing: 6, lineSpacing: 6) {
-                            ForEach(paper.tags, id: \.self) { tag in
-                                Text(tag)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(Color.accentColor.opacity(0.10))
-                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                            }
-                        }
-                    }
-                }
-
-                if !paper.abstract.isEmpty {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(L10n.pick("Abstract", "摘要"))
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        Text(paper.abstract)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(7)
-                    }
-                }
-
-                Button {
-                    onReadPaper(paper)
-                } label: {
-                    Label(L10n.pick("Read Paper", "进入阅读"), systemImage: "book.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .hoverCursor(.pointingHand)
-            }
-        )
     }
 
     private func rebuildGraph(in size: CGSize, resetViewport: Bool) {
