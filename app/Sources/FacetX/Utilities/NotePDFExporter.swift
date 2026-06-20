@@ -1,5 +1,4 @@
 import WebKit
-import UniformTypeIdentifiers
 
 class NotePDFExporter: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     private var webView: WKWebView?
