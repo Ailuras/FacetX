@@ -34,7 +34,7 @@ FacetX is a native macOS SwiftUI app (macOS 14+) that adds a project dimension
 over Apple Calendar and Reminders. EventKit remains the source of truth; FacetX
 stores only project-side metadata.
 
-Current status: v0.9 local beta. Implemented features include project
+Current status: v1.0 release. Implemented features include project
 creation/editing, prefix-based aggregation, Today/month/week views, menu bar
 quick capture, completed-item filtering, EventKit live refresh, Settings
 container selection, week goals backed by calendar events, and GitHub commit

@@ -9,7 +9,7 @@ FacetX adds the project layer: it gathers Calendar and Reminders items whose
 titles start with a project prefix, then presents each project as a focused
 workspace for planning, capture, review, and delivery.
 
-Current release: **v0.9 local beta**.
+Current release: **v1.0 release**.
 
 ## What It Does
 
