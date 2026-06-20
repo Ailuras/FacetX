@@ -47,6 +47,11 @@ final class MarkdownHighlighter: NSObject {
     private let completedTaskColor = NSColor.systemGreen
 
     // ── Precompiled patterns ────────────────────────────────────────────────────
+    
+    // Multi-line block structures
+    private let fencedCodeRE = try! NSRegularExpression(pattern: "(?s)(```.*?```|```.*?\\z|~~~.*?~~~|~~~.*?\\z)")
+    private let blockMathRE = try! NSRegularExpression(pattern: "(?s)(\\$\\$\\s*.*?\\s*\\$\\$|\\$\\$\\s*.*?\\z)")
+
     private let headingRE = try! NSRegularExpression(pattern: "^(#{1,6})(\\s+)")
     
     // Checkbox tasks (unordered and ordered)
@@ -86,7 +91,39 @@ final class MarkdownHighlighter: NSObject {
         var codeRanges: [NSRange] = [] // protect code spans from other highlights
         var mathRanges: [NSRange] = [] // protect math spans from other highlights
         
-        styleBlocks(storage, nsText: nsText, full: full, codeRanges: &codeRanges, mathRanges: &mathRanges)
+        // 1. Process block-level fenced code and block math first via full-document regexes
+        fencedCodeRE.enumerateMatches(in: nsText as String, range: full) { match, _, _ in
+            guard let match else { return }
+            let matchRange = match.range
+            let matchedStr = nsText.substring(with: matchRange)
+            
+            storage.addAttribute(.foregroundColor, value: self.codeColor, range: matchRange)
+            self.color(storage, self.markerColor, matchRange.location, min(3, matchRange.length))
+            if matchedStr.hasSuffix("```") && matchRange.length >= 6 {
+                self.color(storage, self.markerColor, NSMaxRange(matchRange) - 3, 3)
+            } else if matchedStr.hasSuffix("~~~") && matchRange.length >= 6 {
+                self.color(storage, self.markerColor, NSMaxRange(matchRange) - 3, 3)
+            }
+            codeRanges.append(matchRange)
+        }
+
+        blockMathRE.enumerateMatches(in: nsText as String, range: full) { match, _, _ in
+            guard let match, !self.intersects(match.range, codeRanges) else { return }
+            let matchRange = match.range
+            let matchedStr = nsText.substring(with: matchRange)
+            
+            storage.addAttribute(.foregroundColor, value: self.mathColor, range: matchRange)
+            self.color(storage, self.markerColor, matchRange.location, min(2, matchRange.length))
+            if matchedStr.hasSuffix("$$") && matchRange.length >= 4 {
+                self.color(storage, self.markerColor, NSMaxRange(matchRange) - 2, 2)
+            }
+            mathRanges.append(matchRange)
+        }
+
+        // 2. Style regular line-scoped blocks, skipping lines within block code/math
+        styleBlocks(storage, nsText: nsText, full: full, codeRanges: codeRanges, mathRanges: mathRanges)
+        
+        // 3. Style inline elements
         styleInline(storage, nsText: nsText, full: full, codeRanges: &codeRanges, mathRanges: &mathRanges)
 
         storage.endEditing()
@@ -99,51 +136,17 @@ final class MarkdownHighlighter: NSObject {
     private func styleBlocks(_ storage: NSTextStorage,
                              nsText: NSString,
                              full: NSRange,
-                             codeRanges: inout [NSRange],
-                             mathRanges: inout [NSRange]) {
-        var inFence = false
-        var inMathBlock = false
-        var collectedCode: [NSRange] = []
-        var collectedMath: [NSRange] = []
-
+                             codeRanges: [NSRange],
+                             mathRanges: [NSRange]) {
         nsText.enumerateSubstrings(in: full, options: [.byLines]) { substring, lineRange, _, _ in
+            // Skip lines that fall inside fenced code blocks or block math
+            if self.intersects(lineRange, codeRanges) || self.intersects(lineRange, mathRanges) {
+                return
+            }
+
             guard let line = substring else { return }
             let lineLen = (line as NSString).length
             let nsRange = NSRange(location: 0, length: lineLen)
-
-            // Fenced code blocks
-            if line.hasPrefix("```") || line.hasPrefix("~~~") {
-                inFence.toggle()
-                storage.addAttribute(.foregroundColor, value: self.markerColor, range: lineRange)
-                collectedCode.append(lineRange)
-                return
-            }
-            if inFence {
-                storage.addAttribute(.foregroundColor, value: self.codeColor, range: lineRange)
-                collectedCode.append(lineRange)
-                return
-            }
-
-            // Block math (multi-line or single-line block math starting with $$)
-            if line.hasPrefix("$$") {
-                if line.hasSuffix("$$") && lineLen > 2 {
-                    storage.addAttribute(.foregroundColor, value: self.mathColor, range: lineRange)
-                    self.color(storage, self.markerColor, lineRange.location, 2)
-                    self.color(storage, self.markerColor, lineRange.location + lineLen - 2, 2)
-                    collectedMath.append(lineRange)
-                    return
-                } else {
-                    inMathBlock.toggle()
-                    storage.addAttribute(.foregroundColor, value: self.markerColor, range: lineRange)
-                    collectedMath.append(lineRange)
-                    return
-                }
-            }
-            if inMathBlock {
-                storage.addAttribute(.foregroundColor, value: self.mathColor, range: lineRange)
-                collectedMath.append(lineRange)
-                return
-            }
 
             // Headings
             if let m = self.headingRE.firstMatch(in: line, range: nsRange) {
@@ -232,9 +235,6 @@ final class MarkdownHighlighter: NSObject {
                            lineRange.location + m.range(at: 2).location, m.range(at: 2).length)
             }
         }
-
-        codeRanges.append(contentsOf: collectedCode)
-        mathRanges.append(contentsOf: collectedMath)
     }
 
     // ── Inline spans (document scoped) ─────────────────────────────────────────
