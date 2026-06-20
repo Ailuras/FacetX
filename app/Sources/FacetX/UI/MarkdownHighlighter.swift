@@ -1,11 +1,12 @@
 import AppKit
 
-/// Applies live, in-place typographic highlighting to a markdown `NSTextStorage`
-/// so the editor reads like a rendered document while staying fully editable:
-/// headings grow, emphasis takes real bold/italic, code and quotes get their own
-/// treatment, and the syntax markers (`#`, `**`, backticks, …) dim into the
-/// background instead of being hidden — the active text never changes, only its
-/// attributes, which keeps CJK / IME composition safe.
+/// Applies live **syntax highlighting** to a markdown `NSTextStorage`: it stays a
+/// plain source editor with one uniform font and size — nothing is "rendered".
+/// Only foreground colors change, so markdown markers (`#`, `**`, backticks, `>`,
+/// list bullets, link punctuation …) and their content get distinct colors, the
+/// way a code editor highlights source. No font scaling, weight/slant changes,
+/// indentation, or background blocks. The active text never changes, only its
+/// color attributes, which keeps CJK / IME composition safe.
 ///
 /// The whole document is restyled on each change. Notes are small, so this stays
 /// cheap and keeps multi-line constructs (fenced code) correct without bookkeeping.
@@ -28,39 +29,31 @@ final class MarkdownHighlighter: NSObject {
         highlight(storage)
     }
 
-    // ── Typography ────────────────────────────────────────────────────────────
+    // ── Palette (colors only — never fonts) ─────────────────────────────────────
     private let baseSize: CGFloat = 15
     private var baseFont: NSFont { .systemFont(ofSize: baseSize) }
-    private var monoFont: NSFont { .monospacedSystemFont(ofSize: baseSize - 1, weight: .regular) }
+    private let textColor = NSColor.labelColor
 
+    /// Structural punctuation: `#`, `**`, `*`, `_`, `~~`, backticks, `>`,
+    /// list bullets, link brackets/parens, fences, rules.
     private let markerColor = NSColor.tertiaryLabelColor
+    private let headingColor = NSColor.systemBlue
     private let codeColor = NSColor.systemPink
-    private let codeBackground = NSColor.quaternaryLabelColor.withAlphaComponent(0.18)
     private let linkColor = NSColor.linkColor
     private let quoteColor = NSColor.secondaryLabelColor
+    private let listMarkerColor = NSColor.systemOrange
 
-    private func headingSize(_ level: Int) -> CGFloat {
-        switch level {
-        case 1: return 26
-        case 2: return 22
-        case 3: return 19
-        case 4: return 17
-        case 5: return 16
-        default: return baseSize
-        }
-    }
-
-    // ── Precompiled inline patterns ───────────────────────────────────────────
-    private let headingRE = try! NSRegularExpression(pattern: "^(#{1,6})\\s+")
-    private let unorderedRE = try! NSRegularExpression(pattern: "^(\\s*)([-*+])\\s+")
-    private let orderedRE = try! NSRegularExpression(pattern: "^(\\s*)(\\d+\\.)\\s+")
+    // ── Precompiled patterns ────────────────────────────────────────────────────
+    private let headingRE = try! NSRegularExpression(pattern: "^(#{1,6})(\\s+)")
+    private let unorderedRE = try! NSRegularExpression(pattern: "^(\\s*)([-*+])(\\s+)")
+    private let orderedRE = try! NSRegularExpression(pattern: "^(\\s*)(\\d+\\.)(\\s+)")
     private let inlineCodeRE = try! NSRegularExpression(pattern: "`([^`\\n]+)`")
     private let linkRE = try! NSRegularExpression(pattern: "\\[([^\\]\\n]+)\\]\\(([^)\\n]+)\\)")
     private let boldRE = try! NSRegularExpression(pattern: "(\\*\\*|__)(?=\\S)(.+?)(?<=\\S)(\\1)")
     private let italicRE = try! NSRegularExpression(pattern: "(?<![\\*_\\w])([*_])(?=\\S)(.+?)(?<=\\S)\\1(?![\\*_\\w])")
     private let strikeRE = try! NSRegularExpression(pattern: "(~~)(?=\\S)(.+?)(?<=\\S)(~~)")
 
-    // ── Entry points ──────────────────────────────────────────────────────────
+    // ── Entry point ─────────────────────────────────────────────────────────────
 
     /// Restyle the entire storage. Safe to call after programmatic text loads.
     func highlight(_ storage: NSTextStorage) {
@@ -69,19 +62,17 @@ final class MarkdownHighlighter: NSObject {
         guard full.length > 0 else { return }
 
         storage.beginEditing()
-        storage.setAttributes([.font: baseFont, .foregroundColor: NSColor.labelColor], range: full)
+        // Reset to one uniform font/size and the base color. Highlighting only
+        // recolors from here on — it never touches the font again.
+        storage.setAttributes([.font: baseFont, .foregroundColor: textColor], range: full)
 
-        // Ranges occupied by code (inline or fenced) — emphasis must not touch them.
-        var codeRanges: [NSRange] = []
-
+        var codeRanges: [NSRange] = [] // protect code spans from emphasis recoloring
         styleBlocks(storage, nsText: nsText, full: full, codeRanges: &codeRanges)
         styleInline(storage, nsText: nsText, full: full, codeRanges: &codeRanges)
 
         storage.endEditing()
 
-        // Keep the insertion point neutral so freshly typed text isn't carried
-        // along in a previous span's styling before the next restyle lands.
-        textView?.typingAttributes = [.font: baseFont, .foregroundColor: NSColor.labelColor]
+        textView?.typingAttributes = [.font: baseFont, .foregroundColor: textColor]
     }
 
     // ── Block constructs (line scoped) ─────────────────────────────────────────
@@ -91,47 +82,41 @@ final class MarkdownHighlighter: NSObject {
                             full: NSRange,
                             codeRanges: inout [NSRange]) {
         var inFence = false
-        // Capture into locals; enumerateSubstrings's closure is non-escaping.
         var collectedCode: [NSRange] = []
 
         nsText.enumerateSubstrings(in: full, options: [.byLines]) { substring, lineRange, _, _ in
             guard let line = substring else { return }
-            let lineNS = line as NSString
-            let lineLen = lineNS.length
+            let lineLen = (line as NSString).length
 
-            // Fenced code blocks.
+            // Fenced code blocks: delimiter lines are punctuation; inner lines are code.
             if line.hasPrefix("```") || line.hasPrefix("~~~") {
                 inFence.toggle()
-                storage.addAttributes([.font: self.monoFont, .foregroundColor: self.markerColor],
-                                      range: lineRange)
+                storage.addAttribute(.foregroundColor, value: self.markerColor, range: lineRange)
                 collectedCode.append(lineRange)
                 return
             }
             if inFence {
-                storage.addAttributes([.font: self.monoFont, .backgroundColor: self.codeBackground],
-                                      range: lineRange)
+                storage.addAttribute(.foregroundColor, value: self.codeColor, range: lineRange)
                 collectedCode.append(lineRange)
                 return
             }
 
-            // Headings.
-            if let m = self.headingRE.firstMatch(in: line, range: NSRange(location: 0, length: lineLen)) {
-                let level = m.range(at: 1).length
-                let font = NSFont.systemFont(ofSize: self.headingSize(level), weight: .bold)
-                storage.addAttribute(.font, value: font, range: lineRange)
+            let nsRange = NSRange(location: 0, length: lineLen)
+
+            // Headings: dim the `#…` marker, color the heading text.
+            if let m = self.headingRE.firstMatch(in: line, range: nsRange) {
                 let markerLen = min(m.range.length, lineLen)
-                storage.addAttribute(.foregroundColor, value: self.markerColor,
-                                     range: NSRange(location: lineRange.location, length: markerLen))
+                self.color(storage, self.markerColor, lineRange.location, markerLen)
+                let textStart = lineRange.location + markerLen
+                self.color(storage, self.headingColor, textStart, lineRange.length - markerLen)
                 return
             }
 
-            // Blockquotes.
-            if line.hasPrefix(">") {
-                storage.addAttribute(.foregroundColor, value: self.quoteColor, range: lineRange)
-                let style = NSMutableParagraphStyle()
-                style.firstLineHeadIndent = 6
-                style.headIndent = 16
-                storage.addAttribute(.paragraphStyle, value: style, range: lineRange)
+            // Blockquotes: dim the `>` marker, color the quoted text.
+            if let r = line.range(of: "^\\s*>+\\s?", options: .regularExpression) {
+                let markerLen = line.distance(from: line.startIndex, to: r.upperBound)
+                self.color(storage, self.markerColor, lineRange.location, markerLen)
+                self.color(storage, self.quoteColor, lineRange.location + markerLen, lineRange.length - markerLen)
                 return
             }
 
@@ -142,16 +127,13 @@ final class MarkdownHighlighter: NSObject {
                 return
             }
 
-            // List markers.
-            let nsRange = NSRange(location: 0, length: lineLen)
+            // List markers (bullet or number) — color only the marker.
             if let m = self.unorderedRE.firstMatch(in: line, range: nsRange) {
-                let markerRange = NSRange(location: lineRange.location + m.range(at: 2).location,
-                                          length: m.range(at: 2).length)
-                storage.addAttribute(.foregroundColor, value: NSColor.controlAccentColor, range: markerRange)
+                self.color(storage, self.listMarkerColor,
+                           lineRange.location + m.range(at: 2).location, m.range(at: 2).length)
             } else if let m = self.orderedRE.firstMatch(in: line, range: nsRange) {
-                let markerRange = NSRange(location: lineRange.location + m.range(at: 2).location,
-                                          length: m.range(at: 2).length)
-                storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: markerRange)
+                self.color(storage, self.listMarkerColor,
+                           lineRange.location + m.range(at: 2).location, m.range(at: 2).length)
             }
         }
 
@@ -164,69 +146,42 @@ final class MarkdownHighlighter: NSObject {
                             nsText: NSString,
                             full: NSRange,
                             codeRanges: inout [NSRange]) {
-        // Inline code first so it's both styled and protected from emphasis.
+        // Inline code first: color it and protect it from emphasis recoloring.
         inlineCodeRE.enumerateMatches(in: nsText as String, range: full) { match, _, _ in
             guard let match else { return }
-            storage.addAttributes([.font: self.monoFont,
-                                   .foregroundColor: self.codeColor,
-                                   .backgroundColor: self.codeBackground],
-                                  range: match.range)
-            self.dim(storage, NSRange(location: match.range.location, length: 1))
-            self.dim(storage, NSRange(location: NSMaxRange(match.range) - 1, length: 1))
+            storage.addAttribute(.foregroundColor, value: self.codeColor, range: match.range)
+            self.color(storage, self.markerColor, match.range.location, 1)
+            self.color(storage, self.markerColor, NSMaxRange(match.range) - 1, 1)
             codeRanges.append(match.range)
         }
-
         let protectedCode = codeRanges
 
-        // Links: color the label, dim brackets and the URL.
+        // Links: color the label, dim the brackets/parens/url.
         linkRE.enumerateMatches(in: nsText as String, range: full) { match, _, _ in
             guard let match, !self.intersects(match.range, protectedCode) else { return }
             storage.addAttribute(.foregroundColor, value: self.linkColor, range: match.range(at: 1))
-            // Everything outside the label text dims (brackets, parens, url).
-            self.dim(storage, NSRange(location: match.range.location,
-                                      length: match.range(at: 1).location - match.range.location))
+            self.color(storage, self.markerColor, match.range.location,
+                       match.range(at: 1).location - match.range.location)
             let urlStart = NSMaxRange(match.range(at: 1))
-            self.dim(storage, NSRange(location: urlStart, length: NSMaxRange(match.range) - urlStart))
+            self.color(storage, self.markerColor, urlStart, NSMaxRange(match.range) - urlStart)
         }
 
-        applyEmphasis(storage, regex: boldRE, range: full, protected: protectedCode, trait: .boldFontMask)
-        applyEmphasis(storage, regex: italicRE, range: full, protected: protectedCode, trait: .italicFontMask)
-
-        strikeRE.enumerateMatches(in: nsText as String, range: full) { match, _, _ in
-            guard let match, !self.intersects(match.range, protectedCode) else { return }
-            storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: match.range)
-            self.dim(storage, match.range(at: 1))
-            self.dim(storage, match.range(at: 3))
-        }
-    }
-
-    /// Add a font trait across `range` while preserving each run's size/family,
-    /// then dim the surrounding markers.
-    private func applyEmphasis(_ storage: NSTextStorage,
-                              regex: NSRegularExpression,
-                              range: NSRange,
-                              protected: [NSRange],
-                              trait: NSFontTraitMask) {
-        let text = storage.string
-        regex.enumerateMatches(in: text, range: range) { match, _, _ in
-            guard let match, !self.intersects(match.range, protected) else { return }
-            let inner = match.range(at: 2)
-            storage.enumerateAttribute(.font, in: inner, options: []) { value, subRange, _ in
-                let current = (value as? NSFont) ?? self.baseFont
-                let styled = NSFontManager.shared.convert(current, toHaveTrait: trait)
-                storage.addAttribute(.font, value: styled, range: subRange)
+        // Emphasis: dim the surrounding markers only — the content stays base text.
+        for re in [boldRE, italicRE, strikeRE] {
+            re.enumerateMatches(in: nsText as String, range: full) { match, _, _ in
+                guard let match, !self.intersects(match.range, protectedCode) else { return }
+                let markerLen = match.range(at: 1).length
+                self.color(storage, self.markerColor, match.range.location, markerLen)
+                self.color(storage, self.markerColor, NSMaxRange(match.range) - markerLen, markerLen)
             }
-            // Dim the opening/closing markers (groups 1 and 3, or `inner` edges).
-            let markerLen = match.range(at: 1).length
-            self.dim(storage, NSRange(location: match.range.location, length: markerLen))
-            self.dim(storage, NSRange(location: NSMaxRange(match.range) - markerLen, length: markerLen))
         }
     }
 
-    private func dim(_ storage: NSTextStorage, _ range: NSRange) {
-        guard range.length > 0, range.location >= 0,
-              NSMaxRange(range) <= storage.length else { return }
-        storage.addAttribute(.foregroundColor, value: markerColor, range: range)
+    // ── Helpers ─────────────────────────────────────────────────────────────────
+
+    private func color(_ storage: NSTextStorage, _ color: NSColor, _ location: Int, _ length: Int) {
+        guard length > 0, location >= 0, location + length <= storage.length else { return }
+        storage.addAttribute(.foregroundColor, value: color, range: NSRange(location: location, length: length))
     }
 
     private func intersects(_ range: NSRange, _ others: [NSRange]) -> Bool {
