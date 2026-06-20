@@ -1290,6 +1290,45 @@ struct TopicDetailView: View {
             .disabled(onlineSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty)
             
             Spacer()
+            
+            HStack(spacing: 2) {
+                FilterPillButton(
+                    systemName: "house",
+                    help: L10n.pick("Scholar Home", "学术首页"),
+                    active: activeScholarQuery.isEmpty || activeScholarQuery == "https://scholar.google.com/" || activeScholarQuery == "https://scholar.google.com"
+                ) {
+                    onlineSearchQuery = ""
+                    activeScholarQuery = "https://scholar.google.com/"
+                }
+                
+                FilterPillButton(
+                    systemName: "person.crop.circle",
+                    help: L10n.pick("My Profile (Followed Authors)", "个人中心 (关注作者)"),
+                    active: activeScholarQuery == "https://scholar.google.com/citations"
+                ) {
+                    onlineSearchQuery = ""
+                    activeScholarQuery = "https://scholar.google.com/citations"
+                }
+                
+                FilterPillButton(
+                    systemName: "bookmark",
+                    help: L10n.pick("My Library (Starred)", "我的图书馆 (收藏)"),
+                    active: activeScholarQuery == "https://scholar.google.com/scholar?scilib=1"
+                ) {
+                    onlineSearchQuery = ""
+                    activeScholarQuery = "https://scholar.google.com/scholar?scilib=1"
+                }
+                
+                FilterPillButton(
+                    systemName: "bell",
+                    help: L10n.pick("Scholar Alerts", "学术快讯"),
+                    active: activeScholarQuery == "https://scholar.google.com/scholar_alerts"
+                ) {
+                    onlineSearchQuery = ""
+                    activeScholarQuery = "https://scholar.google.com/scholar_alerts"
+                }
+            }
+            .pillGroupContainer()
         }
         .frame(minHeight: 30, alignment: .center)
         .padding(.horizontal, 16)

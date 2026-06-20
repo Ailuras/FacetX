@@ -9,6 +9,7 @@ struct GoogleScholarWebView: NSViewRepresentable {
     class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         var parent: GoogleScholarWebView
         var webView: WKWebView?
+        var lastLoadedValue: String? = nil
         
         init(_ parent: GoogleScholarWebView) {
             self.parent = parent
@@ -42,7 +43,6 @@ struct GoogleScholarWebView: NSViewRepresentable {
             .gs_md_wp { background-color: #2d2d2d !important; border: 1px solid #3d3d3d !important; }
             .gs_n a:link, .gs_n a:visited { color: #8ab4f8 !important; }
             """
-            
             let commonCss = """
             /* Hide footers, sidebars and headers for cleaner integration */
             #gs_ftr, #gs_hp_ftr, #gs_bdy_sb, #gs_hp_hdr { display: none !important; }
@@ -206,6 +206,7 @@ struct GoogleScholarWebView: NSViewRepresentable {
         // Enable back/forward swipes
         webView.allowsBackForwardNavigationGestures = true
         
+        context.coordinator.lastLoadedValue = query
         loadQuery(in: webView)
         
         return webView
@@ -214,18 +215,18 @@ struct GoogleScholarWebView: NSViewRepresentable {
     func updateNSView(_ nsView: WKWebView, context: Context) {
         context.coordinator.updateTheme(nsView)
         context.coordinator.updateImportStatus(nsView)
-        // If query changes, reload
-        if let currentUrl = nsView.url?.absoluteString {
-            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            if !query.isEmpty && !currentUrl.contains(encoded) {
-                loadQuery(in: nsView)
-            }
+        
+        if context.coordinator.lastLoadedValue != query {
+            context.coordinator.lastLoadedValue = query
+            loadQuery(in: nsView)
         }
     }
     
     private func loadQuery(in webView: WKWebView) {
         let urlString: String
-        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if query.hasPrefix("http://") || query.hasPrefix("https://") {
+            urlString = query
+        } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             urlString = "https://scholar.google.com/"
         } else if let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
             urlString = "https://scholar.google.com/scholar?q=\(encoded)"
