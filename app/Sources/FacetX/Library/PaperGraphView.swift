@@ -63,10 +63,11 @@ struct PaperGraphView: View {
             Button {
                 rebuildGraph(in: lastCanvasSize, resetViewport: true)
             } label: {
-                Label(L10n.pick("Reset Layout", "重置布局"), systemImage: "arrow.counterclockwise")
+                Image(systemName: "arrow.counterclockwise")
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(.plain)
+            .help(L10n.pick("Reset Layout", "重置布局"))
+            .hoverCursor(.pointingHand)
 
             Divider().frame(height: 16)
 
@@ -96,10 +97,11 @@ struct PaperGraphView: View {
             Button {
                 fitGraph(in: lastCanvasSize)
             } label: {
-                Label(L10n.pick("Fit", "适应"), systemImage: "arrow.up.left.and.down.right.magnifyingglass")
+                Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(.plain)
+            .help(L10n.pick("Fit", "适应"))
+            .hoverCursor(.pointingHand)
 
             Divider().frame(height: 16)
 
