@@ -1318,15 +1318,6 @@ struct TopicDetailView: View {
                     onlineSearchQuery = ""
                     activeScholarQuery = "https://scholar.google.com/scholar?scilib=1"
                 }
-                
-                FilterPillButton(
-                    systemName: "bell",
-                    help: L10n.pick("Scholar Alerts", "学术快讯"),
-                    active: activeScholarQuery == "https://scholar.google.com/scholar_alerts"
-                ) {
-                    onlineSearchQuery = ""
-                    activeScholarQuery = "https://scholar.google.com/scholar_alerts"
-                }
             }
             .pillGroupContainer()
         }
