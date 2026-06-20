@@ -1,2 +1,21 @@
 web/note-editor/node_modules/
 web/note-editor/package-lock.json
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Swift / SwiftPM build artifacts
+app/.build/
+app/.swiftpm/
+.build/
+.swiftpm/
+DerivedData/
+
+# IDE configurations
+.vscode/
+.idea/
+*.xcodeproj/
+*.xcworkspace/
