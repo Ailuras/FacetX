@@ -1,49 +1,166 @@
-/* FacetX overrides on top of the Crepe "nord" theme.
-   - Fill the WKWebView and use the system UI font for a native macOS feel.
-   - Provide dark-mode values by re-scoping nord-dark's variables under
-     html[data-theme="dark"] (the native host sets data-theme to follow the
-     system appearance). */
+/* FacetX note preview theme — a clean, readable markdown stylesheet with
+   light/dark variants driven by html[data-theme]. Tuned for macOS: system
+   fonts, comfortable measure and spacing, refined code/quote/table styling. */
 
-html, body, #app {
-  height: 100%;
+:root {
+  --fx-bg: transparent;
+  --fx-fg: #1f2328;
+  --fx-fg-muted: #59636e;
+  --fx-border: #d1d9e0;
+  --fx-border-subtle: #e6e9ee;
+  --fx-link: #0969da;
+  --fx-code-bg: rgba(129, 139, 152, 0.12);
+  --fx-code-fg: #1f2328;
+  --fx-block-bg: #f6f8fa;
+  --fx-quote-fg: #59636e;
+  --fx-quote-bar: #d1d9e0;
+  --fx-mark: #fff8c5;
+  --fx-table-stripe: #f6f8fa;
+  --fx-accent: #0969da;
 }
 
-.milkdown {
-  height: 100%;
-  --crepe-font-default: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+html[data-theme='dark'] {
+  --fx-bg: transparent;
+  --fx-fg: #e6edf3;
+  --fx-fg-muted: #9198a1;
+  --fx-border: #3d444d;
+  --fx-border-subtle: #2a2f37;
+  --fx-link: #4493f8;
+  --fx-code-bg: rgba(101, 108, 118, 0.2);
+  --fx-code-fg: #e6edf3;
+  --fx-block-bg: #161b22;
+  --fx-quote-fg: #9198a1;
+  --fx-quote-bar: #3d444d;
+  --fx-mark: rgba(187, 128, 9, 0.35);
+  --fx-table-stripe: #161b22;
+  --fx-accent: #4493f8;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--fx-bg);
+  color: var(--fx-fg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.markdown-body {
+  box-sizing: border-box;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 28px 80px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
     'Helvetica Neue', Arial, sans-serif;
-  --crepe-font-title: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
-    'Helvetica Neue', Arial, sans-serif;
-  --crepe-font-code: 'SF Mono', Menlo, Monaco, 'JetBrains Mono', monospace;
+  font-size: 15.5px;
+  line-height: 1.7;
+  word-wrap: break-word;
 }
 
-.milkdown .ProseMirror {
-  padding: 16px 20px 64px;
+/* ── Headings ─────────────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin: 1.6em 0 0.6em;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.markdown-body h1 { font-size: 1.9em; }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--fx-border-subtle); }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1.05em; }
+.markdown-body h5 { font-size: 0.95em; }
+.markdown-body h6 { font-size: 0.9em; color: var(--fx-fg-muted); }
+.markdown-body > :first-child { margin-top: 0; }
+
+/* ── Text blocks ──────────────────────────────────────────────────────────── */
+.markdown-body p { margin: 0 0 1em; }
+.markdown-body a { color: var(--fx-link); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 680; }
+.markdown-body mark { background: var(--fx-mark); border-radius: 3px; padding: 0 2px; }
+
+.markdown-body hr {
+  height: 1px;
+  border: 0;
+  background: var(--fx-border);
+  margin: 2em 0;
 }
 
-/* Dark appearance — values lifted from Crepe's nord-dark theme. */
-html[data-theme='dark'] .milkdown {
-  --crepe-color-background: #1b1c1d;
-  --crepe-color-on-background: #f8f9ff;
-  --crepe-color-surface: #111418;
-  --crepe-color-surface-low: #191c20;
-  --crepe-color-on-surface: #e1e2e8;
-  --crepe-color-on-surface-variant: #c3c6cf;
-  --crepe-color-outline: #8d9199;
-  --crepe-color-primary: #a1c9fd;
-  --crepe-color-secondary: #3c4858;
-  --crepe-color-on-secondary: #d7e3f8;
-  --crepe-color-inverse: #e1e2e8;
-  --crepe-color-on-inverse: #2e3135;
-  --crepe-color-inline-code: #ffb4ab;
-  --crepe-color-error: #ffb4ab;
-  --crepe-color-hover: #1d2024;
-  --crepe-color-selected: #32353a;
-  --crepe-color-inline-area: #111418;
-  --crepe-shadow-1:
-    0px 1px 2px 0px rgba(0, 0, 0, 0.3),
-    0px 1px 3px 1px rgba(0, 0, 0, 0.15);
-  --crepe-shadow-2:
-    0px 1px 2px 0px rgba(0, 0, 0, 0.3),
-    0px 2px 6px 2px rgba(0, 0, 0, 0.15);
+/* ── Lists ────────────────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol { margin: 0 0 1em; padding-left: 1.6em; }
+.markdown-body li { margin: 0.25em 0; }
+.markdown-body li > ul,
+.markdown-body li > ol { margin: 0.25em 0; }
+.markdown-body li::marker { color: var(--fx-fg-muted); }
+.markdown-body input[type='checkbox'] { margin: 0 0.5em 0 -1.3em; vertical-align: middle; }
+
+/* ── Quotes ───────────────────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  margin: 0 0 1em;
+  padding: 0.2em 1em;
+  color: var(--fx-quote-fg);
+  border-left: 3px solid var(--fx-quote-bar);
+}
+.markdown-body blockquote > :last-child { margin-bottom: 0; }
+
+/* ── Code ─────────────────────────────────────────────────────────────────── */
+.markdown-body code,
+.markdown-body kbd,
+.markdown-body pre {
+  font-family: 'SF Mono', Menlo, Monaco, 'JetBrains Mono', monospace;
+}
+.markdown-body code {
+  font-size: 0.88em;
+  background: var(--fx-code-bg);
+  color: var(--fx-code-fg);
+  padding: 0.18em 0.4em;
+  border-radius: 5px;
+}
+.markdown-body pre {
+  margin: 0 0 1em;
+  padding: 14px 16px;
+  overflow: auto;
+  background: var(--fx-block-bg);
+  border: 1px solid var(--fx-border-subtle);
+  border-radius: 10px;
+  line-height: 1.55;
+}
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.86em;
+  color: var(--fx-fg);
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 0 0 1em;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+}
+.markdown-body th,
+.markdown-body td {
+  padding: 7px 13px;
+  border: 1px solid var(--fx-border);
+}
+.markdown-body th { font-weight: 640; background: var(--fx-table-stripe); }
+.markdown-body tr:nth-child(2n) td { background: var(--fx-table-stripe); }
+
+/* ── Media & math ─────────────────────────────────────────────────────────── */
+.markdown-body img { max-width: 100%; border-radius: 8px; }
+.markdown-body .katex { font-size: 1.05em; }
+.markdown-body .katex-display {
+  margin: 1.1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
 }

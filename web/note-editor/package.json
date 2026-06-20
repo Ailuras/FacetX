@@ -1,5 +1,5 @@
 {
-  "name": "facetx-note-editor",
+  "name": "facetx-note-preview",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,7 +7,8 @@
     "build": "node build.mjs"
   },
   "dependencies": {
-    "@milkdown/crepe": "latest",
+    "markdown-it": "latest",
+    "@vscode/markdown-it-katex": "latest",
     "katex": "latest"
   },
   "devDependencies": {

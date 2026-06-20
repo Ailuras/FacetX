@@ -1,9 +1,10 @@
 import FacetXCore
 import SwiftUI
 
-/// Detail pane for a note: metadata on top; below, a single WYSIWYG markdown
-/// editor (Milkdown + KaTeX in a WKWebView) that reads and writes the project's
-/// local `.md` file. Markdown remains the source of truth.
+/// Detail pane for a note: metadata on top; below, an Edit/Preview pair. Edit is
+/// a native syntax-highlighted markdown editor with formatting shortcuts;
+/// Preview is a read-only markdown-it + KaTeX render in a WKWebView. The editor
+/// writes back to the project's local `.md` file.
 struct NoteDetailPane: View {
     let item: ProjectItem
     let project: Project
@@ -11,10 +12,11 @@ struct NoteDetailPane: View {
 
     @State private var text: String = ""
     @State private var loaded = false
+    @AppStorage("noteEditing") private var editing = true
+    @StateObject private var editorController = MarkdownEditorController()
 
     private var dataDirectory: String { project.effectiveDataDirectory }
     private var facetID: String? { item.facetID }
-    private var documentID: String { facetID ?? item.id }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -71,11 +73,72 @@ struct NoteDetailPane: View {
     // ── Body ────────────────────────────────────────────────────────────────
 
     @ViewBuilder private var content: some View {
-        MilkdownNoteEditor(text: $text, documentID: documentID)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onChange(of: text) { _, _ in persist() }
-            .opacity(loaded ? 1 : 0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        VStack(alignment: .leading, spacing: 0) {
+            modeBar
+            Divider()
+            if editing {
+                formattingToolbar
+                Divider()
+                MarkdownEditor(text: $text, controller: editorController)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onChange(of: text) { _, _ in persist() }
+            } else if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(L10n.pick("Empty note. Switch to Edit to start writing.",
+                               "空笔记。切换到编辑开始书写。"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(16)
+            } else {
+                MarkdownPreviewWeb(text: text)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var modeBar: some View {
+        HStack {
+            Spacer()
+            Picker("", selection: $editing) {
+                Text(L10n.pick("Preview", "预览")).tag(false)
+                Text(L10n.pick("Edit", "编辑")).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            .fixedSize()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private var formattingToolbar: some View {
+        HStack(spacing: 2) {
+            toolbarButton("bold", help: "Bold ⌘B") { editorController.bold() }
+            toolbarButton("italic", help: "Italic ⌘I") { editorController.italic() }
+            toolbarButton("chevron.left.forwardslash.chevron.right", help: L10n.pick("Code", "代码")) { editorController.code() }
+            Divider().frame(height: 14)
+            toolbarButton("number", help: L10n.pick("Heading", "标题")) { editorController.heading() }
+            toolbarButton("list.bullet", help: L10n.pick("List", "列表")) { editorController.bulletList() }
+            toolbarButton("text.quote", help: L10n.pick("Quote", "引用")) { editorController.quote() }
+            toolbarButton("link", help: "Link ⌘K") { editorController.link() }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private func toolbarButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     // ── Persistence ───────────────────────────────────────────────────────────
