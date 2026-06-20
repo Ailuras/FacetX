@@ -23,6 +23,10 @@ struct TopicDetailView: View {
     @State private var importFullscreen = false
     @State private var detailFullscreen = false
     @State private var isFetching = false
+    @State private var onlineSearchQuery = ""
+    @State private var activeScholarQuery = ""
+    @State private var paperBeingImported: Paper? = nil
+    @State private var importedPaperTitles: Set<String> = []
     @State private var collapsedSections: Set<ListSection> = []
     @State private var mode: Mode = .all
     @State private var showRecommended = true
@@ -53,7 +57,7 @@ struct TopicDetailView: View {
     private let detailPaneAnimation = FacetTheme.detailSpring
 
     /// Top-level layout of the literature view.
-    enum ViewMode: Hashable { case library, reading, dashboard }
+    enum ViewMode: Hashable { case library, reading, onlineSearch, dashboard }
 
     /// The collapsible sections of the paper list. Clicking a header toggles
     /// membership in `collapsedSections`, mirroring the project All view.
@@ -229,6 +233,7 @@ struct TopicDetailView: View {
         }
         .onAppear {
             loadPaperLinks()
+            loadImportedTitles()
             if viewMode == .reading { syncReader() }
         }
         .onChange(of: ek.changeToken) { _, _ in
@@ -237,6 +242,7 @@ struct TopicDetailView: View {
         .onChange(of: selectedPaper?.id) { _, newValue in
             if newValue != nil {
                 showImportSidebar = false
+                paperBeingImported = nil
             } else {
                 detailFullscreen = false
             }
@@ -244,6 +250,7 @@ struct TopicDetailView: View {
         .onChange(of: showImportSidebar) { _, newValue in
             if !newValue {
                 importFullscreen = false
+                paperBeingImported = nil
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectPaperInTopic)) { notification in
@@ -277,6 +284,9 @@ struct TopicDetailView: View {
             case .reading:
                 readingBar
                 pdfReader
+            case .onlineSearch:
+                onlineSearchBar
+                onlineSearchView
             case .dashboard:
                 dashboardView
             }
@@ -287,13 +297,14 @@ struct TopicDetailView: View {
         Picker("", selection: $viewMode) {
             Text(L10n.pick("Library", "文库")).tag(ViewMode.library)
             Text(L10n.pick("Read", "阅读")).tag(ViewMode.reading)
+            Text(L10n.pick("Search", "检索")).tag(ViewMode.onlineSearch)
             Text(L10n.pick("Graph", "图谱")).tag(ViewMode.dashboard)
         }
         .pickerStyle(.segmented)
         .controlSize(.small)
         .labelsHidden()
-        .help(L10n.pick("Switch views: Library / Reading / Citation Graph",
-                        "切换视图：本地文库 / 沉浸阅读 / 引文与关系图谱"))
+        .help(L10n.pick("Switch views: Library / Reading / Online Search / Citation Graph",
+                        "切换视图：本地文库 / 沉浸阅读 / 云端检索 / 引文与关系图谱"))
     }
 
 
@@ -1114,11 +1125,14 @@ struct TopicDetailView: View {
             }
             FilterPillButton(systemName: "plus",
                              help: L10n.pick("Add paper", "添加文献"),
-                             active: showImportSidebar) {
+                             active: showImportSidebar && paperBeingImported?.id.hasPrefix("gs-") != true) {
                 withAnimation(detailPaneAnimation) {
                     showImportSidebar.toggle()
                     if showImportSidebar {
                         selectedPaper = nil
+                        paperBeingImported = Paper(id: "man-\(UUID().uuidString)", title: "", track: topic.name)
+                    } else {
+                        paperBeingImported = nil
                     }
                 }
             }
@@ -1161,22 +1175,64 @@ struct TopicDetailView: View {
     
     private var importPane: some View {
         FacetSidebarPane(
-            title: L10n.pick("Import Literature", "导入文献"),
+            title: paperBeingImported?.id.hasPrefix("gs-") == true
+                ? L10n.pick("Import Literature", "导入文献")
+                : L10n.pick("Add Literature", "添加文献"),
             systemImage: "square.and.arrow.down",
             fillWidth: importFullscreen,
             onClose: {
-                withAnimation(detailPaneAnimation) { showImportSidebar = false }
+                withAnimation(detailPaneAnimation) {
+                    showImportSidebar = false
+                    paperBeingImported = nil
+                }
             },
             accessory: { importFullscreenToggle }
         ) {
-            AddPaperView(topicName: topic.name) { papers in
-                _ = store.addOrUpdate(papers: papers)
-                toast.show(
-                    L10n.pick("Imported paper(s) to library", "已成功导入文献"),
-                    type: .success,
-                    duration: 2
-                )
-            }
+            AddPaperView(
+                topicName: topic.name,
+                initialPaper: paperBeingImported,
+                onSave: { paper, pdfData, pdfFilename in
+                    _ = store.addOrUpdate(papers: [paper])
+                    if let data = pdfData, pdfFilename != nil {
+                        do {
+                            let relative = try PdfStorage.current().write(data, forPaperId: paper.id)
+                            paper.pdfLocalPath = relative
+                            paper.pdfStatus = PdfStatus.downloaded.rawValue
+                            _ = store.addOrUpdate(papers: [paper])
+                            
+                            PaperStore.shared.savePdf(id: paper.id, result: PdfFetchResult(
+                                status: .downloaded,
+                                url: paper.pdfUrl,
+                                source: "manual-import",
+                                localPath: relative,
+                                byteSize: data.count,
+                                sha256: PdfStorage.sha256Hex(data)
+                            ))
+                        } catch {
+                            print("Failed to save PDF on import: \(error)")
+                        }
+                    }
+                    
+                    toast.show(
+                        L10n.pick("Imported paper “\(paper.title)” to library", "已成功导入文献 “\(paper.title)”"),
+                        type: .success,
+                        duration: 2
+                    )
+                    
+                    loadImportedTitles()
+                    
+                    withAnimation(detailPaneAnimation) {
+                        showImportSidebar = false
+                        paperBeingImported = nil
+                    }
+                },
+                onCancel: {
+                    withAnimation(detailPaneAnimation) {
+                        showImportSidebar = false
+                        paperBeingImported = nil
+                    }
+                }
+            )
         }
     }
 
@@ -1193,6 +1249,85 @@ struct TopicDetailView: View {
         .buttonStyle(.plain)
         .help(importFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")
                                : L10n.pick("Fullscreen", "全屏"))
+    }
+
+    private var importFullscreenTogglePlaceholder: some View {
+        EmptyView()
+    }
+
+    // MARK: - Search View & Helpers
+
+    private var onlineSearchBar: some View {
+        HStack(spacing: 8) {
+            TextField(L10n.pick("Search papers on Google Scholar...", "在谷歌学术检索学术文献…"), text: $onlineSearchQuery)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 350)
+                .onSubmit {
+                    activeScholarQuery = onlineSearchQuery
+                }
+
+            Button {
+                activeScholarQuery = onlineSearchQuery
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 22)
+                    .background(Color.secondary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(onlineSearchQuery.trimmingCharacters(in: .whitespaces).isEmpty)
+            
+            Spacer()
+        }
+        .frame(minHeight: 30, alignment: .center)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    private var onlineSearchView: some View {
+        GoogleScholarWebView(query: activeScholarQuery, importedTitles: importedPaperTitles) { metadata in
+            handleScholarImport(metadata)
+        }
+    }
+
+    private func handleScholarImport(_ metadata: [String: Any]) {
+        let title = metadata["title"] as? String ?? ""
+        let authors = metadata["authors"] as? [String] ?? []
+        let venue = metadata["venue"] as? String ?? ""
+        let year = metadata["year"] as? Int
+        let snippet = metadata["snippet"] as? String ?? ""
+        let url = metadata["url"] as? String ?? ""
+        let pdfUrl = metadata["pdfUrl"] as? String
+
+        let paper = Paper(
+            id: "gs-\(UUID().uuidString)",
+            title: title,
+            authors: authors,
+            publicationYear: year,
+            venue: venue,
+            abstract: snippet,
+            landingPageUrl: url,
+            pdfUrl: pdfUrl,
+            track: topic.name,
+            addedAt: Date()
+        )
+
+        withAnimation(detailPaneAnimation) {
+            paperBeingImported = paper
+            showImportSidebar = true
+            selectedPaper = nil
+        }
+    }
+
+    private func loadImportedTitles() {
+        let existing = store.papers.map { $0.title }
+        importedPaperTitles = Set(existing)
     }
 
     // MARK: - Toolbar
