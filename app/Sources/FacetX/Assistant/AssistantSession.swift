@@ -15,6 +15,39 @@ struct AssistantEntry: Identifiable, Equatable {
     var text: String
 }
 
+enum AssistantQuickItemKind: String, CaseIterable, Identifiable {
+    case task
+    case event
+    case note
+
+    var id: String { rawValue }
+    var command: String { "@\(rawValue)" }
+
+    var title: String {
+        switch self {
+        case .task: return L10n.pick("Task", "任务")
+        case .event: return L10n.pick("Event", "日程")
+        case .note: return L10n.pick("Note", "笔记")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .task: return "checkmark.circle"
+        case .event: return "calendar"
+        case .note: return "note.text"
+        }
+    }
+
+    fileprivate var toolName: String {
+        switch self {
+        case .task: return "create_task"
+        case .event: return "create_event"
+        case .note: return "create_note"
+        }
+    }
+}
+
 /// Drives the assistant conversation: keeps the UI transcript, the raw API
 /// message history (content blocks echoed verbatim, as tool use requires),
 /// and runs the agent loop — send → execute tool calls → send results →
@@ -78,6 +111,54 @@ final class AssistantSession: ObservableObject {
         isBusy = true
         Task {
             await runLoop(userText: trimmed)
+            isBusy = false
+        }
+    }
+
+    /// Execute an explicit @ command without spending an LLM turn. The result
+    /// is still shown in the transcript so chat and quick capture share one
+    /// visible activity history.
+    func quickAdd(kind: AssistantQuickItemKind, title: String, project: Project) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isBusy else { return }
+        guard let toolbox else {
+            entries.append(AssistantEntry(
+                role: .error,
+                text: L10n.pick("Assistant services are not ready yet.", "助手服务尚未就绪。")))
+            return
+        }
+
+        entries.append(AssistantEntry(role: .user, text: "\(kind.command) \(trimmed)"))
+        entries.append(AssistantEntry(role: .tool(name: kind.toolName), text: project.name))
+        isBusy = true
+
+        Task {
+            var input: [String: Any] = [
+                "project": project.prefix,
+                "title": trimmed,
+            ]
+            switch kind {
+            case .task:
+                break
+            case .event:
+                let formatter = DateFormatter()
+                formatter.calendar = Calendar(identifier: .gregorian)
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.dateFormat = "yyyy-MM-dd"
+                input["date"] = formatter.string(from: Date())
+            case .note:
+                input["body"] = ""
+            }
+
+            let (result, isError) = await toolbox.execute(name: kind.toolName, input: input)
+            if isError {
+                entries.append(AssistantEntry(role: .error, text: result))
+            } else {
+                entries.append(AssistantEntry(
+                    role: .assistant,
+                    text: L10n.pick("Added \(kind.title.lowercased()) to \(project.name): \(trimmed)",
+                                    "已添加\(kind.title)到 \(project.name)：\(trimmed)")))
+            }
             isBusy = false
         }
     }

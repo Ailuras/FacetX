@@ -4,6 +4,7 @@ struct AssistantSidebarPanel: View {
     @ObservedObject var session: AssistantSession
     @Binding var isPresented: Bool
     @Binding var isFullscreen: Bool
+    let contextProject: Project?
 
     var body: some View {
         FacetSidebarPane(
@@ -16,7 +17,7 @@ struct AssistantSidebarPanel: View {
             },
             accessory: { headerActions }
         ) {
-            AssistantView(session: session)
+            AssistantView(session: session, contextProject: contextProject)
         }
     }
 

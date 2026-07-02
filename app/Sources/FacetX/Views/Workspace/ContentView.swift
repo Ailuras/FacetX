@@ -160,7 +160,8 @@ struct ContentView: View {
                         AssistantSidebarPanel(
                             session: assistant,
                             isPresented: $showAssistantPanel,
-                            isFullscreen: $assistantFullscreen
+                            isFullscreen: $assistantFullscreen,
+                            contextProject: assistantContextProject
                         )
                         .transition(FacetSidebarStyle.transition)
                     } else if showTodayPanel {
@@ -340,6 +341,11 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .allowsHitTesting(true)
         }
+    }
+
+    private var assistantContextProject: Project? {
+        guard case .project(let id) = selection else { return nil }
+        return store.activeProjects.first(where: { $0.id == id })
     }
 
     /// On launch, open the last opened or a specific project / literature library
