@@ -8,9 +8,10 @@ struct ContentView: View {
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     @EnvironmentObject private var toast: ToastController
 
-    enum SidebarItem: Hashable { case project(Project.ID); case topic(UUID) }
+    enum SidebarItem: Hashable { case project(Project.ID); case topic(UUID); case assistant }
 
     @State private var selection: SidebarItem? = nil
+    @StateObject private var assistant = AssistantSession()
     @State private var tagFilter = TagFilter()
     @State private var showTodayPanel = false
     @State private var discovered: [String] = []
@@ -32,6 +33,14 @@ struct ContentView: View {
                         persistenceWarningView(persistenceWarning)
                     }
                     List(selection: $selection) {
+                        Label {
+                            Text(L10n.pick("Assistant", "AI 助手"))
+                        } icon: {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .tag(SidebarItem.assistant)
+
                         Section(L10n.t(.sidebarProjects)) {
                             ForEach(store.activeProjects) { project in
                                 ProjectSidebarRow(project: project)
@@ -138,6 +147,11 @@ struct ContentView: View {
                             } else {
                                 ContentUnavailableView(L10n.pick("Topic not found", "未找到主题"), systemImage: "tag")
                             }
+                        case .assistant:
+                            AssistantView(session: assistant)
+                                .task {
+                                    assistant.configure(eventKit: ek, store: store, settings: settings)
+                                }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -214,7 +228,7 @@ struct ContentView: View {
                 case .topic(let id):
                     settings.lastOpenedKind = "topic"
                     settings.lastOpenedTopicID = id.uuidString
-                case .none:
+                case .assistant, .none:
                     break
                 }
             }
@@ -588,7 +602,7 @@ struct ContentView: View {
                 }
             }
             return counts
-        case .none:
+        case .assistant, .none:
             return [:]
         }
     }

@@ -107,6 +107,18 @@ final class AppSettings: ObservableObject {
     @Published var githubToken: String {
         didSet { settingsDidChange() }
     }
+    /// Claude API key for the built-in assistant (stored like githubToken).
+    @Published var anthropicApiKey: String {
+        didSet { settingsDidChange() }
+    }
+    /// Model id used by the assistant.
+    @Published var anthropicModel: String {
+        didSet { settingsDidChange() }
+    }
+    /// Optional API base URL override (proxies/relays); empty = api.anthropic.com.
+    @Published var anthropicBaseURL: String {
+        didSet { settingsDidChange() }
+    }
     @Published var globalShortcutEnabled: Bool {
         didSet { settingsDidChange() }
     }
@@ -168,6 +180,9 @@ final class AppSettings: ObservableObject {
         self.todayTimelineStartHour = stored.todayTimelineStartHour
         self.todayTimelineEndHour = stored.todayTimelineEndHour
         self.githubToken = stored.githubToken ?? ""
+        self.anthropicApiKey = stored.anthropicApiKey ?? ""
+        self.anthropicModel = stored.anthropicModel ?? "claude-opus-4-8"
+        self.anthropicBaseURL = stored.anthropicBaseURL ?? ""
         self.globalShortcutEnabled = stored.globalShortcutEnabled
         self.leadingSwipeAction = stored.leadingSwipeAction ?? "tomorrow"
         self.trailingSwipeAction = stored.trailingSwipeAction ?? "today"
@@ -329,6 +344,9 @@ final class AppSettings: ObservableObject {
         var todayTimelineStartHour: Int
         var todayTimelineEndHour: Int
         var githubToken: String?
+        var anthropicApiKey: String?
+        var anthropicModel: String?
+        var anthropicBaseURL: String?
         var globalShortcutEnabled: Bool
         var leadingSwipeAction: String?
         var trailingSwipeAction: String?
@@ -358,6 +376,9 @@ final class AppSettings: ObservableObject {
                                      todayTimelineStartHour: 6,
                                      todayTimelineEndHour: 23,
                                      githubToken: nil,
+                                     anthropicApiKey: nil,
+                                     anthropicModel: nil,
+                                     anthropicBaseURL: nil,
                                      globalShortcutEnabled: false,
                                      leadingSwipeAction: "tomorrow",
                                      trailingSwipeAction: "today",
@@ -389,6 +410,9 @@ final class AppSettings: ObservableObject {
                             todayTimelineStartHour: todayTimelineStartHour,
                             todayTimelineEndHour: todayTimelineEndHour,
                             githubToken: githubToken.isEmpty ? nil : githubToken,
+                            anthropicApiKey: anthropicApiKey.isEmpty ? nil : anthropicApiKey,
+                            anthropicModel: anthropicModel,
+                            anthropicBaseURL: anthropicBaseURL.isEmpty ? nil : anthropicBaseURL,
                             globalShortcutEnabled: globalShortcutEnabled,
                             leadingSwipeAction: leadingSwipeAction,
                             trailingSwipeAction: trailingSwipeAction,

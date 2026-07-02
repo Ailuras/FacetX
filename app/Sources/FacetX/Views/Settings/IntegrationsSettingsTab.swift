@@ -20,12 +20,60 @@ struct IntegrationsSettingsTab: View {
                      subtitle: L10n.pick("External services and credentials", "外部服务与凭据"),
                      systemImage: "curlybraces",
                      warning: persistenceWarning) {
+            assistantCard
             githubCard
             apiCard
             openAlexCard
         }
         .onAppear {
             loadGitHubStatus()
+        }
+    }
+
+    // MARK: - Assistant (Claude API)
+
+    private var assistantCard: some View {
+        SettingsCard(title: L10n.pick("Assistant (Claude API)", "AI 助手（Claude API）"),
+                     systemImage: "sparkles",
+                     subtitle: L10n.pick("Credentials and model for the built-in assistant.",
+                                         "内置 AI 助手使用的凭据与模型。")) {
+            HStack(spacing: 8) {
+                serviceMetric(title: L10n.pick("Key", "密钥"),
+                              value: settings.anthropicApiKey.isEmpty
+                                  ? L10n.pick("Not Set", "未设置")
+                                  : L10n.pick("Saved", "已保存"),
+                              systemImage: "key",
+                              tint: settings.anthropicApiKey.isEmpty ? .orange : .green)
+                serviceMetric(title: L10n.pick("Model", "模型"),
+                              value: settings.anthropicModel,
+                              systemImage: "cpu",
+                              tint: .blue)
+            }
+
+            VStack(spacing: 0) {
+                SettingsRow(title: "API Key", systemImage: "key") {
+                    SecureField("sk-ant-…", text: $settings.anthropicApiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                }
+                SettingsDivider()
+                SettingsRow(title: L10n.pick("Model", "模型"), systemImage: "cpu") {
+                    Picker("", selection: $settings.anthropicModel) {
+                        Text("Claude Opus 4.8").tag("claude-opus-4-8")
+                        Text("Claude Sonnet 5").tag("claude-sonnet-5")
+                        Text("Claude Haiku 4.5").tag("claude-haiku-4-5")
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                SettingsDivider()
+                SettingsRow(title: L10n.pick("Base URL (optional)", "Base URL（可选）"),
+                            systemImage: "network") {
+                    TextField("https://api.anthropic.com", text: $settings.anthropicBaseURL)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: SettingsUI.controlWidth, alignment: .trailing)
+                }
+            }
         }
     }
 
