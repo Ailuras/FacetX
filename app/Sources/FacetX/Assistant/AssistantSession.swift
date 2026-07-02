@@ -13,39 +13,7 @@ struct AssistantEntry: Identifiable, Equatable {
     let id = UUID()
     let role: Role
     var text: String
-}
-
-enum AssistantQuickItemKind: String, CaseIterable, Identifiable {
-    case task
-    case event
-    case note
-
-    var id: String { rawValue }
-    var command: String { "@\(rawValue)" }
-
-    var title: String {
-        switch self {
-        case .task: return L10n.pick("Task", "任务")
-        case .event: return L10n.pick("Event", "日程")
-        case .note: return L10n.pick("Note", "笔记")
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .task: return "checkmark.circle"
-        case .event: return "calendar"
-        case .note: return "note.text"
-        }
-    }
-
-    fileprivate var toolName: String {
-        switch self {
-        case .task: return "create_task"
-        case .event: return "create_event"
-        case .note: return "create_note"
-        }
-    }
+    var mentions: [AssistantItemMention] = []
 }
 
 /// Drives the assistant conversation: keeps the UI transcript, the raw API
@@ -120,63 +88,31 @@ final class AssistantSession: ObservableObject {
         totalOutputTokens = 0
     }
 
-    func send(_ text: String) {
+    func send(_ text: String, mentions: [AssistantItemMention] = []) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isBusy else { return }
-        entries.append(AssistantEntry(role: .user, text: trimmed))
+        guard !trimmed.isEmpty || !mentions.isEmpty, !isBusy else { return }
+        let visibleText = trimmed.isEmpty
+            ? L10n.pick("Review the referenced items.", "查看这些提及的项目条目。")
+            : trimmed
+        entries.append(AssistantEntry(role: .user, text: visibleText, mentions: mentions))
         isBusy = true
         Task {
-            await runLoop(userText: trimmed)
+            await runLoop(userText: promptText(trimmed, mentions: mentions))
             isBusy = false
         }
     }
 
-    /// Execute an explicit @ command without spending an LLM turn. The result
-    /// is still shown in the transcript so chat and quick capture share one
-    /// visible activity history.
-    func quickAdd(kind: AssistantQuickItemKind, title: String, project: Project) {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isBusy else { return }
-        guard let toolbox else {
-            entries.append(AssistantEntry(
-                role: .error,
-                text: L10n.pick("Assistant services are not ready yet.", "助手服务尚未就绪。")))
-            return
-        }
-
-        entries.append(AssistantEntry(role: .user, text: "\(kind.command) \(trimmed)"))
-        entries.append(AssistantEntry(role: .tool(name: kind.toolName), text: project.name))
-        isBusy = true
-
-        Task {
-            var input: [String: Any] = [
-                "project": project.prefix,
-                "title": trimmed,
-            ]
-            switch kind {
-            case .task:
-                break
-            case .event:
-                let formatter = DateFormatter()
-                formatter.calendar = Calendar(identifier: .gregorian)
-                formatter.locale = Locale(identifier: "en_US_POSIX")
-                formatter.dateFormat = "yyyy-MM-dd"
-                input["date"] = formatter.string(from: Date())
-            case .note:
-                input["body"] = ""
-            }
-
-            let (result, isError) = await toolbox.execute(name: kind.toolName, input: input)
-            if isError {
-                entries.append(AssistantEntry(role: .error, text: result))
-            } else {
-                entries.append(AssistantEntry(
-                    role: .assistant,
-                    text: L10n.pick("Added \(kind.title.lowercased()) to \(project.name): \(trimmed)",
-                                    "已添加\(kind.title)到 \(project.name)：\(trimmed)")))
-            }
-            isBusy = false
-        }
+    private func promptText(_ text: String, mentions: [AssistantItemMention]) -> String {
+        guard !mentions.isEmpty else { return text }
+        let objects = mentions.map(\.promptObject)
+        let data = try? JSONSerialization.data(withJSONObject: objects, options: [.sortedKeys])
+        let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let request = text.isEmpty ? "Review the referenced items." : text
+        return """
+        The user explicitly referenced these exact FacetX items. Titles can be duplicated; use reference_id whenever a tool accepts one.
+        <facetx_references>\(json)</facetx_references>
+        <user_request>\(request)</user_request>
+        """
     }
 
     // ── Agent loop ───────────────────────────────────────────────────────────

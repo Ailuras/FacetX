@@ -1,16 +1,15 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The assistant pane: a chat transcript over the agent session, with tool
 /// calls rendered as inline chips so the user can see what the model did.
 struct AssistantView: View {
     @ObservedObject var session: AssistantSession
-    let contextProject: Project?
-
-    @EnvironmentObject private var store: ProjectStore
     @State private var llmSettings = LibrarySettings.shared
 
     @State private var draft = ""
-    @State private var quickProjectID: Project.ID?
+    @State private var mentions: [AssistantItemMention] = []
+    @State private var isMentionDropTarget = false
     @State private var availableModels: [String] = []
     @State private var isLoadingModels = false
     @FocusState private var inputFocused: Bool
@@ -29,8 +28,16 @@ struct AssistantView: View {
             inputBar
         }
         .background(FacetTheme.canvas)
-        .onAppear { synchronizeQuickProject() }
-        .onChange(of: contextProject?.id) { synchronizeQuickProject() }
+        .onDrop(
+            of: [.facetXProjectItem],
+            delegate: AssistantMentionDropDelegate(
+                isTargeted: $isMentionDropTarget,
+                onMention: addMention
+            )
+        )
+        .overlay {
+            if isMentionDropTarget { mentionDropOverlay }
+        }
         .onChange(of: llmSettings.apiProvider) { _, provider in
             if !provider.supportedAssistantEfforts.contains(llmSettings.assistantReasoningEffort) {
                 llmSettings.assistantReasoningEffort = provider.defaultAssistantEffort
@@ -78,15 +85,20 @@ struct AssistantView: View {
         case .user:
             HStack {
                 Spacer(minLength: 60)
-                Text(entry.text)
-                    .font(.system(size: 12.5))
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.accentColor.opacity(0.14))
-                    )
+                VStack(alignment: .trailing, spacing: 6) {
+                    if !entry.mentions.isEmpty {
+                        mentionFlow(entry.mentions, removable: false)
+                    }
+                    Text(entry.text)
+                        .font(.system(size: 12.5))
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.accentColor.opacity(0.14))
+                        )
+                }
             }
 
         case .assistant:
@@ -212,10 +224,6 @@ struct AssistantView: View {
                            "在 设置 → 集成 → 大模型 API 中配置 API Key 后即可使用助手。"))
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
-            Text(L10n.pick("Quick @ commands remain available without an API key.",
-                           "即使没有 API Key，也可以使用 @ 快捷命令。"))
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
             Button(L10n.pick("Open Settings → Integrations", "打开 设置 → 集成")) {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             }
@@ -229,38 +237,43 @@ struct AssistantView: View {
 
     private var inputBar: some View {
         VStack(spacing: 0) {
-            if !quickCommandSuggestions.isEmpty {
-                quickSuggestionBar
-                Divider().opacity(0.5)
-            }
-
             modelControls
 
             Divider().opacity(0.5)
 
-            HStack(alignment: .bottom, spacing: 8) {
-                quickCommandMenu
-                projectMenu
-
-                TextField(L10n.pick("Message or type @…", "输入消息或 @ 快捷命令…"),
-                          text: $draft, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12.5))
-                    .lineLimit(1...6)
-                    .focused($inputFocused)
-                    .onSubmit(submit)
-                    .disabled(session.isBusy)
-
-                Button(action: submit) {
-                    Image(systemName: session.isBusy ? "hourglass" : "arrow.up.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(canSend ? Color.accentColor : Color.secondary.opacity(0.4))
+            VStack(alignment: .leading, spacing: 8) {
+                if !mentions.isEmpty {
+                    mentionFlow(mentions, removable: true)
                 }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
+
+                HStack(alignment: .bottom, spacing: 10) {
+                    TextField(L10n.pick("Ask about your work…", "询问或处理你的工作…"),
+                              text: $draft, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .lineLimit(3...10)
+                        .frame(minHeight: 68, alignment: .topLeading)
+                        .focused($inputFocused)
+                        .onSubmit(submit)
+                        .disabled(session.isBusy)
+
+                    Button(action: submit) {
+                        Image(systemName: session.isBusy ? "hourglass" : "arrow.up.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(canSend ? Color.accentColor : Color.secondary.opacity(0.4))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSend)
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(10)
+            .background(FacetTheme.quietPanel)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+            .padding(10)
         }
         .background(FacetTheme.panel.opacity(0.4))
     }
@@ -358,125 +371,79 @@ struct AssistantView: View {
         .padding(.vertical, 7)
     }
 
-    private var quickCommandMenu: some View {
-        Menu {
-            ForEach(AssistantQuickItemKind.allCases) { kind in
-                Button {
-                    insertQuickCommand(kind)
-                } label: {
-                    Label("\(kind.command)  \(kind.title)", systemImage: kind.systemImage)
-                }
-            }
-        } label: {
-            Text("@")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 24, height: 24)
-                .background(Color.accentColor.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help(L10n.pick("Quick add task, event, or note", "快捷添加任务、日程或笔记"))
-    }
-
-    private var projectMenu: some View {
-        Menu {
-            if store.activeProjects.isEmpty {
-                Text(L10n.pick("No projects", "暂无项目"))
-            } else {
-                ForEach(store.activeProjects) { project in
-                    Button {
-                        quickProjectID = project.id
-                    } label: {
-                        if project.id == quickProject?.id {
-                            Label(project.name, systemImage: "checkmark")
-                        } else {
-                            Text(project.name)
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 3) {
-                Image(systemName: "folder")
-                Text(quickProject?.prefix ?? "—")
-                    .lineLimit(1)
-            }
-            .font(.system(size: 10.5, weight: .medium))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: 72)
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help(L10n.pick("Quick-add project", "快捷添加到项目"))
-    }
-
-    private var quickSuggestionBar: some View {
-        HStack(spacing: 6) {
-            ForEach(quickCommandSuggestions) { kind in
-                Button {
-                    insertQuickCommand(kind)
-                } label: {
-                    Label(kind.command, systemImage: kind.systemImage)
-                        .font(.system(size: 10.5, weight: .medium))
-                }
-                .buttonStyle(.borderless)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-    }
-
     private var canSend: Bool {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !session.isBusy, !trimmed.isEmpty else { return false }
-        if let command = parsedQuickCommand {
-            return quickProject != nil && !command.title.isEmpty
-        }
-        return hasAPIKey
+        return hasAPIKey && !session.isBusy && (!trimmed.isEmpty || !mentions.isEmpty)
     }
 
     private var hasAPIKey: Bool {
         !llmSettings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var quickProject: Project? {
-        if let quickProjectID,
-           let project = store.activeProjects.first(where: { $0.id == quickProjectID }) {
-            return project
+    private func mentionFlow(_ items: [AssistantItemMention], removable: Bool) -> some View {
+        FlowLayout(spacing: 6, lineSpacing: 6) {
+            ForEach(items) { mention in
+                HStack(spacing: 5) {
+                    Image(systemName: mention.systemImage)
+                        .font(.system(size: 9, weight: .semibold))
+                    Text("\(mention.projectPrefix): \(mention.title)")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .lineLimit(1)
+                    if removable {
+                        Button {
+                            mentions.removeAll { $0.id == mention.id }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.accentColor.opacity(0.10))
+                .clipShape(Capsule(style: .continuous))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
+                )
+            }
         }
-        return contextProject ?? store.activeProjects.first
     }
 
-    private var parsedQuickCommand: (kind: AssistantQuickItemKind, title: String)? {
-        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let separator = trimmed.firstIndex(where: { $0.isWhitespace }) else {
-            return AssistantQuickItemKind.allCases.first(where: { $0.command == trimmed.lowercased() })
-                .map { ($0, "") }
+    private var mentionDropOverlay: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(
+                            Color.accentColor,
+                            style: StrokeStyle(lineWidth: 2, dash: [7, 5])
+                        )
+                )
+
+            VStack(spacing: 9) {
+                Image(systemName: "arrow.down.doc.fill")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text(L10n.pick("Drop to reference this item", "松手以提及此条目"))
+                    .font(.system(size: 13, weight: .semibold))
+                Text(L10n.pick("Drop more items to reference them together.",
+                               "可继续拖入多个条目，一起交给助手处理。"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
         }
-        let token = String(trimmed[..<separator]).lowercased()
-        guard let kind = AssistantQuickItemKind.allCases.first(where: { $0.command == token }) else {
-            return nil
-        }
-        let title = trimmed[separator...].trimmingCharacters(in: .whitespacesAndNewlines)
-        return (kind, title)
+        .padding(8)
+        .allowsHitTesting(false)
     }
 
-    private var quickCommandSuggestions: [AssistantQuickItemKind] {
-        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard trimmed.hasPrefix("@"), !trimmed.contains(where: { $0.isWhitespace }) else { return [] }
-        return AssistantQuickItemKind.allCases.filter { $0.command.hasPrefix(trimmed) }
-    }
-
-    private func synchronizeQuickProject() {
-        if let contextProject {
-            quickProjectID = contextProject.id
-        } else if quickProject == nil {
-            quickProjectID = store.activeProjects.first?.id
-        }
+    private func addMention(_ mention: AssistantItemMention) {
+        guard !mentions.contains(where: { $0.id == mention.id }) else { return }
+        mentions.append(mention)
+        inputFocused = true
     }
 
     private func selectProvider(_ provider: TranslationProvider) {
@@ -558,20 +525,49 @@ struct AssistantView: View {
         }
     }
 
-    private func insertQuickCommand(_ kind: AssistantQuickItemKind) {
-        draft = "\(kind.command) "
-        inputFocused = true
-    }
-
     private func submit() {
         guard canSend else { return }
-        if let command = parsedQuickCommand, let project = quickProject {
-            draft = ""
-            session.quickAdd(kind: command.kind, title: command.title, project: project)
-            return
-        }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let referencedItems = mentions
         draft = ""
-        session.send(text)
+        mentions = []
+        session.send(text, mentions: referencedItems)
+    }
+}
+
+private struct AssistantMentionDropDelegate: DropDelegate {
+    @Binding var isTargeted: Bool
+    let onMention: (AssistantItemMention) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [.facetXProjectItem])
+    }
+
+    func dropEntered(info: DropInfo) {
+        isTargeted = true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .copy)
+    }
+
+    func dropExited(info: DropInfo) {
+        isTargeted = false
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        let providers = info.itemProviders(for: [.facetXProjectItem])
+        guard !providers.isEmpty else { return false }
+        for provider in providers {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.facetXProjectItem.identifier) { data, _ in
+                guard let data,
+                      let mention = try? JSONDecoder().decode(AssistantItemMention.self, from: data) else {
+                    return
+                }
+                Task { @MainActor in onMention(mention) }
+            }
+        }
+        return true
     }
 }

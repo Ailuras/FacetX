@@ -1,6 +1,7 @@
 import AppKit
 import FacetXCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Inline Editing Helpers
 
@@ -78,7 +79,18 @@ enum ItemDragHelpers {
         }
         RunLoop.main.add(timer, forMode: .common)
 
-        return NSItemProvider(object: item.id as NSString)
+        let provider = NSItemProvider(object: item.id as NSString)
+        let mention = AssistantItemMention(item: item)
+        if let data = try? JSONEncoder().encode(mention) {
+            provider.registerDataRepresentation(
+                forTypeIdentifier: UTType.facetXProjectItem.identifier,
+                visibility: .all
+            ) { completion in
+                completion(data, nil)
+                return nil
+            }
+        }
+        return provider
     }
 }
 
