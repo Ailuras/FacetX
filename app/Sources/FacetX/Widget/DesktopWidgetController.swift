@@ -7,12 +7,15 @@ import SwiftUI
 /// anywhere on its background to move, and a "front" mode that floats it above
 /// other apps for interaction.
 final class DesktopWidgetPanel: NSPanel {
-    private static let desktopLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
+    /// One notch above Finder's desktop-icon window: still under every normal
+    /// app window, but clicks land on the widget instead of being swallowed by
+    /// Finder's full-screen desktop layer (which sits above `.desktopWindow`).
+    private static let desktopLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
 
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
-            styleMask: [.borderless, .nonactivatingPanel, .resizable],
+            styleMask: [.borderless, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -25,6 +28,7 @@ final class DesktopWidgetPanel: NSPanel {
         level = Self.desktopLevel
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
+        becomesKeyOnlyIfNeeded = true
     }
 
     override var canBecomeKey: Bool { true }
@@ -43,6 +47,22 @@ final class DesktopWidgetPanel: NSPanel {
     }
 }
 
+/// Hosting view tuned for a desktop widget: the first click acts immediately
+/// (no click-to-focus round trip even when the panel isn't key), and mouse-down
+/// on non-control areas drags the panel.
+private final class WidgetHostingView<Content: View>: NSHostingView<Content> {
+    override var mouseDownCanMoveWindow: Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+    }
+
+    @MainActor required dynamic init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
 /// Rounded glass container for the widget content: Liquid Glass on macOS 26,
 /// HUD material below. Dragging any non-control area moves the panel.
 private final class GlassWidgetContainer<Content: View>: NSView {
@@ -51,7 +71,7 @@ private final class GlassWidgetContainer<Content: View>: NSView {
         wantsLayer = true
         layer?.cornerRadius = cornerRadius
 
-        let host = NSHostingView(rootView: rootView)
+        let host = WidgetHostingView(rootView: rootView)
         host.frame = bounds
         host.autoresizingMask = [.width, .height]
 

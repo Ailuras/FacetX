@@ -25,12 +25,36 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     @Published var changeToken = 0
 
     private var observer: NSObjectProtocol?
+    /// Coalesces EKEventStoreChanged bursts (iCloud sync fires them in rapid
+    /// series) so the whole app reloads once per burst, not once per tick.
+    private var changeDebounce: DispatchWorkItem?
+
+    /// One fetch's identity: same containers + same event window = same data
+    /// until the next EventKit change. Prefix filtering happens after the
+    /// cache, so every view sharing these parameters shares one fetch.
+    private struct FetchKey: Hashable {
+        let reminderLists: Set<String>?
+        let calendars: Set<String>?
+        let eventStart: Date?
+        let eventEnd: Date?
+        let windowDays: Int
+    }
+
+    private let fetchLock = NSLock()
+    private var fetchCache: [FetchKey: (token: Int, items: [ProjectItem])] = [:]
+    private var fetchInflight: [FetchKey: Task<[ProjectItem], Never>] = [:]
 
     init() {
         observer = NotificationCenter.default.addObserver(
             forName: .EKEventStoreChanged, object: store, queue: .main
         ) { [weak self] _ in
-            self?.changeToken &+= 1
+            guard let self else { return }
+            self.changeDebounce?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                self?.changeToken &+= 1
+            }
+            self.changeDebounce = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
         }
     }
 
@@ -78,35 +102,92 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                eventEndDate: Date? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
         guard !prefixes.isEmpty else { return [] }
-        let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
-        var result: [ProjectItem] = []
-        if rem { result += await reminders(forProjects: prefixes, enabled: enabledReminderLists) }
-        if cal {
-            result += events(forProjects: prefixes, enabled: enabledCalendars,
-                             startDate: eventStartDate, endDate: eventEndDate,
-                             windowDays: eventWindowDays)
-        }
-        let rawItems = result.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
+        let key = FetchKey(reminderLists: enabledReminderLists,
+                           calendars: enabledCalendars,
+                           eventStart: eventStartDate,
+                           eventEnd: eventEndDate,
+                           windowDays: eventWindowDays)
+        let rawItems = await cachedRawItems(key: key)
+            .filter { prefixes.contains($0.projectPrefix) }
         return await MainActor.run {
             let store = ItemStore.shared
+            let states = store.localState(forIDs: rawItems.compactMap(\.facetID))
             return rawItems.map { item in
-                if let facetID = item.facetID {
-                    let body = store.body(for: facetID)
-                    let tags = store.tags(for: facetID)
-                    let papers = store.paperIDs(for: facetID)
-                    let commits = store.commits(for: facetID)
-                    let isNote = item.kind == .event && store.isNote(for: facetID)
-                    let merged = item.withMergedMetadata(notes: body.isEmpty ? nil : body, tags: tags, paperIDs: papers, commits: commits, isNote: isNote)
-                    // Reminders carry native EventKit completion; events/notes have
-                    // none, so their completion lives in the local store alongside
-                    // the pin flag (which applies to every kind).
-                    let completed = item.kind == .reminder ? merged.isCompleted : store.isCompleted(for: facetID)
-                    return merged.applyingLocalState(isPinned: store.isPinned(for: facetID), isCompleted: completed)
-                } else {
-                    return item
-                }
+                guard let facetID = item.facetID, let state = states[facetID] else { return item }
+                let merged = item.withMergedMetadata(
+                    notes: state.noteBody.isEmpty ? nil : state.noteBody,
+                    tags: state.tags,
+                    paperIDs: state.paperIDs,
+                    commits: state.commits,
+                    isNote: item.kind == .event && state.isNote
+                )
+                // Reminders carry native EventKit completion; events/notes have
+                // none, so their completion lives in the local store alongside
+                // the pin flag (which applies to every kind).
+                let completed = item.kind == .reminder ? merged.isCompleted : state.isCompleted
+                return merged.applyingLocalState(isPinned: state.isPinned, isCompleted: completed)
             }
         }
+    }
+
+    /// Serve one raw (prefix-unfiltered) fetch per (containers, window) per
+    /// change token: concurrent callers join the in-flight task, later callers
+    /// hit the cache. Collapses the reload fan-out — main window views, the
+    /// Today panel, and the desktop widget all share a single EventKit pass.
+    private func cachedRawItems(key: FetchKey) async -> [ProjectItem] {
+        let token = await MainActor.run { changeToken }
+        switch fetchSource(key: key, token: token) {
+        case .cached(let items):
+            return items
+        case .task(let task, let owner):
+            let items = await task.value
+            if owner { storeFetchResult(key: key, token: token, items: items) }
+            return items
+        }
+    }
+
+    private enum FetchSource {
+        case cached([ProjectItem])
+        case task(Task<[ProjectItem], Never>, owner: Bool)
+    }
+
+    /// Synchronous critical section (NSLock is not usable directly in async
+    /// functions): serve the cache, join the in-flight fetch, or become the
+    /// owner of a new one.
+    private func fetchSource(key: FetchKey, token: Int) -> FetchSource {
+        fetchLock.lock()
+        defer { fetchLock.unlock() }
+        if let hit = fetchCache[key], hit.token == token {
+            return .cached(hit.items)
+        }
+        if let running = fetchInflight[key] {
+            return .task(running, owner: false)
+        }
+        let task = Task { [weak self] in
+            await self?.fetchRawItems(key: key) ?? []
+        }
+        fetchInflight[key] = task
+        return .task(task, owner: true)
+    }
+
+    private func storeFetchResult(key: FetchKey, token: Int, items: [ProjectItem]) {
+        fetchLock.lock()
+        defer { fetchLock.unlock() }
+        fetchCache = fetchCache.filter { $0.value.token == token }
+        fetchCache[key] = (token, items)
+        fetchInflight[key] = nil
+    }
+
+    private func fetchRawItems(key: FetchKey) async -> [ProjectItem] {
+        let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
+        var result: [ProjectItem] = []
+        if rem { result += await reminders(enabled: key.reminderLists) }
+        if cal {
+            result += projectEvents(enabled: key.calendars,
+                                    startDate: key.eventStart, endDate: key.eventEnd,
+                                    windowDays: key.windowDays)
+        }
+        return result.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
     }
 
     /// Paper backlinks are resource relationships, not schedule queries. Use a
@@ -142,7 +223,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     /// Fetch reminders and flatten matching ones to Sendable ProjectItems inside
     /// the EventKit callback, so no non-Sendable EKReminder crosses an actor hop.
-    private func reminders(forProjects prefixes: Set<String>, enabled: Set<String>?) async -> [ProjectItem] {
+    /// Keeps every recognized project item; callers filter by prefix so the
+    /// result can be cached across views asking for different projects.
+    private func reminders(enabled: Set<String>?) async -> [ProjectItem] {
         let lists = filtered(store.calendars(for: .reminder), by: enabled)
         guard !lists.isEmpty else { return [] }
         let pred = store.predicateForReminders(in: lists)
@@ -150,8 +233,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             store.fetchReminders(matching: pred) { reminders in
                 let items = (reminders ?? []).compactMap { r -> ProjectItem? in
                     let title = r.title ?? ""
-                    guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: r.notes),
-                          prefixes.contains(prefix) else { return nil }
+                    guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: r.notes)
+                    else { return nil }
                     let itemMetadata = FacetItemMetadata.parse(notes: r.notes)
                     return ProjectItem(
                         id: r.calendarItemIdentifier,
@@ -196,13 +279,13 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     // ── Events ─────────────────────────────────────────────────────────────
 
-    private func events(forProjects prefixes: Set<String>, enabled: Set<String>?,
-                        startDate: Date? = nil, endDate: Date? = nil,
-                        windowDays: Int) -> [ProjectItem] {
-        events(enabled: enabled, startDate: startDate, endDate: endDate, windowDays: windowDays).compactMap { e in
+    private func projectEvents(enabled: Set<String>?,
+                               startDate: Date? = nil, endDate: Date? = nil,
+                               windowDays: Int) -> [ProjectItem] {
+        events(enabled: enabled, startDate: startDate, endDate: endDate, windowDays: windowDays).compactMap { e -> ProjectItem? in
             let title = e.title ?? ""
-            guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: e.notes),
-                  prefixes.contains(prefix) else { return nil }
+            guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: e.notes)
+            else { return nil }
             let itemMetadata = FacetItemMetadata.parse(notes: e.notes)
             return ProjectItem(
                 id: e.calendarItemIdentifier,

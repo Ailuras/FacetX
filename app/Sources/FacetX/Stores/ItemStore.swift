@@ -225,6 +225,75 @@ final class ItemStore {
         sqlite3_finalize(stmt)
     }
 
+    /// Everything FacetX stores locally for one item, fetched in bulk.
+    struct ItemLocalState {
+        var noteBody = ""
+        var tags: [String] = []
+        var isNote = false
+        var isPinned = false
+        var isCompleted = false
+        var paperIDs: [String] = []
+        var commits: [String] = []
+    }
+
+    /// Batched read of local state for many items at once — three `IN (…)`
+    /// queries per chunk instead of seven single-row queries per item. This is
+    /// the hot path of every EventKit reload, so it must never scale with item
+    /// count times statement count.
+    func localState(forIDs ids: [String]) -> [String: ItemLocalState] {
+        guard !ids.isEmpty else { return [:] }
+        var result: [String: ItemLocalState] = [:]
+
+        // Stay well under SQLite's default 999-variable limit.
+        for chunkStart in stride(from: 0, to: ids.count, by: 400) {
+            let chunk = Array(ids[chunkStart..<min(chunkStart + 400, ids.count)])
+            let placeholders = Array(repeating: "?", count: chunk.count).joined(separator: ",")
+
+            let itemsSQL = """
+            SELECT id, note_body, tags_json, is_note, pinned, completed
+            FROM items WHERE id IN (\(placeholders))
+            """
+            var stmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, itemsSQL, -1, &stmt, nil) == SQLITE_OK {
+                for (i, id) in chunk.enumerated() {
+                    sqlite3_bind_text(stmt, Int32(i + 1), id, -1, SQLITE_TRANSIENT)
+                }
+                while sqlite3_step(stmt) == SQLITE_ROW {
+                    var state = ItemLocalState()
+                    state.noteBody = columnString(stmt, 1)
+                    if let data = columnString(stmt, 2).data(using: .utf8) {
+                        state.tags = (try? JSONDecoder().decode([String].self, from: data)) ?? []
+                    }
+                    state.isNote = sqlite3_column_int(stmt, 3) != 0
+                    state.isPinned = sqlite3_column_int(stmt, 4) != 0
+                    state.isCompleted = sqlite3_column_int(stmt, 5) != 0
+                    result[columnString(stmt, 0)] = state
+                }
+            }
+            sqlite3_finalize(stmt)
+
+            let linkQueries = [
+                ("SELECT item_id, paper_id FROM item_papers WHERE item_id IN (\(placeholders))", \ItemLocalState.paperIDs),
+                ("SELECT item_id, commit_id FROM item_commits WHERE item_id IN (\(placeholders))", \ItemLocalState.commits),
+            ]
+            for (sql, keyPath) in linkQueries {
+                var linkStmt: OpaquePointer?
+                if sqlite3_prepare_v2(db, sql, -1, &linkStmt, nil) == SQLITE_OK {
+                    for (i, id) in chunk.enumerated() {
+                        sqlite3_bind_text(linkStmt, Int32(i + 1), id, -1, SQLITE_TRANSIENT)
+                    }
+                    while sqlite3_step(linkStmt) == SQLITE_ROW {
+                        let itemID = columnString(linkStmt, 0)
+                        result[itemID, default: ItemLocalState()][keyPath: keyPath]
+                            .append(columnString(linkStmt, 1))
+                    }
+                }
+                sqlite3_finalize(linkStmt)
+            }
+        }
+        return result
+    }
+
     func paperIDs(for id: String) -> [String] {
         let sql = "SELECT paper_id FROM item_papers WHERE item_id = ?"
         var stmt: OpaquePointer?
