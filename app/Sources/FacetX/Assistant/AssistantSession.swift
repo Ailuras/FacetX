@@ -88,11 +88,27 @@ final class AssistantSession: ObservableObject {
         let configuredModel = lit.apiModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let base = configuredBase.isEmpty ? provider.defaultBaseURL : configuredBase
         let model = configuredModel.isEmpty ? provider.defaultModel : configuredModel
+        let effort = provider.supportedAssistantEfforts.contains(lit.assistantReasoningEffort)
+            ? lit.assistantReasoningEffort
+            : provider.defaultAssistantEffort
         switch provider {
         case .anthropic:
-            return AnthropicClient(apiKey: apiKey, model: model, baseURL: base)
+            return AnthropicClient(
+                apiKey: apiKey,
+                model: model,
+                baseURL: base,
+                thinkingEnabled: lit.assistantThinkingEnabled,
+                reasoningEffort: effort
+            )
         case .deepseek, .openai:
-            return OpenAIChatClient(apiKey: apiKey, model: model, baseURL: base)
+            return OpenAIChatClient(
+                provider: provider,
+                apiKey: apiKey,
+                model: model,
+                baseURL: base,
+                thinkingEnabled: lit.assistantThinkingEnabled,
+                reasoningEffort: effort
+            )
         }
     }
 

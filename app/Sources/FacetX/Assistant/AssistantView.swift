@@ -11,6 +11,8 @@ struct AssistantView: View {
 
     @State private var draft = ""
     @State private var quickProjectID: Project.ID?
+    @State private var availableModels: [String] = []
+    @State private var isLoadingModels = false
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -29,6 +31,15 @@ struct AssistantView: View {
         .background(FacetTheme.canvas)
         .onAppear { synchronizeQuickProject() }
         .onChange(of: contextProject?.id) { synchronizeQuickProject() }
+        .onChange(of: llmSettings.apiProvider) { _, provider in
+            if !provider.supportedAssistantEfforts.contains(llmSettings.assistantReasoningEffort) {
+                llmSettings.assistantReasoningEffort = provider.defaultAssistantEffort
+            }
+        }
+        .onChange(of: llmSettings.apiModel) {
+            if thinkingLockedOn { llmSettings.assistantThinkingEnabled = true }
+        }
+        .task(id: modelCatalogKey) { await refreshModels() }
     }
 
     // ── Transcript ───────────────────────────────────────────────────────────
@@ -255,49 +266,93 @@ struct AssistantView: View {
     }
 
     private var modelControls: some View {
-        HStack(spacing: 8) {
-            Menu {
-                ForEach(TranslationProvider.allCases, id: \.self) { provider in
-                    Button {
-                        selectProvider(provider)
-                    } label: {
-                        if provider == llmSettings.apiProvider {
-                            Label(provider.displayName, systemImage: "checkmark")
-                        } else {
-                            Text(provider.displayName)
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Menu {
+                    ForEach(TranslationProvider.allCases, id: \.self) { provider in
+                        Button {
+                            selectProvider(provider)
+                        } label: {
+                            if provider == llmSettings.apiProvider {
+                                Label(provider.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(provider.displayName)
+                            }
                         }
                     }
+                } label: {
+                    Label(llmSettings.apiProvider.displayName, systemImage: "server.rack")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-            } label: {
-                Label(llmSettings.apiProvider.displayName, systemImage: "server.rack")
-                    .font(.system(size: 10.5, weight: .medium))
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help(L10n.pick("Switch provider", "切换服务商"))
+
+                Divider().frame(height: 16)
+
+                Menu {
+                    ForEach(modelChoices, id: \.self) { model in
+                        Button {
+                            llmSettings.apiModel = model
+                        } label: {
+                            if model == selectedModel {
+                                Label(model, systemImage: "checkmark")
+                            } else {
+                                Text(model)
+                            }
+                        }
+                    }
+                    Divider()
+                    Button {
+                        Task { await refreshModels() }
+                    } label: {
+                        Label(L10n.pick("Refresh models", "刷新模型"), systemImage: "arrow.clockwise")
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "cpu")
+                        Text(selectedModel)
+                            .font(.system(size: 10.5, design: .monospaced))
+                            .lineLimit(1)
+                        if isLoadingModels {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 7, weight: .bold))
+                        }
+                    }
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .menuStyle(.borderlessButton)
+                .help(L10n.pick("Switch model", "切换模型"))
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help(L10n.pick("Switch provider", "切换服务商"))
 
-            Divider().frame(height: 16)
+            HStack(spacing: 10) {
+                Toggle(L10n.pick("Thinking", "思考"), isOn: $llmSettings.assistantThinkingEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .disabled(!modelSupportsThinking || thinkingLockedOn)
 
-            Image(systemName: "cpu")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-            TextField(llmSettings.apiProvider.defaultModel, text: $llmSettings.apiModel)
-                .textFieldStyle(.plain)
-                .font(.system(size: 10.5, design: .monospaced))
-                .lineLimit(1)
-                .help(L10n.pick("Model identifier", "模型标识"))
+                Spacer(minLength: 4)
 
-            Button {
-                llmSettings.apiModel = llmSettings.apiProvider.defaultModel
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 9.5, weight: .medium))
+                Text(L10n.pick("Effort", "强度"))
+                    .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
+                Picker("", selection: $llmSettings.assistantReasoningEffort) {
+                    ForEach(llmSettings.apiProvider.supportedAssistantEfforts) { effort in
+                        Text(effort.title).tag(effort)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.mini)
+                .fixedSize()
+                .disabled(!llmSettings.assistantThinkingEnabled)
             }
-            .buttonStyle(.plain)
-            .help(L10n.pick("Use provider default model", "使用服务商默认模型"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
@@ -429,6 +484,78 @@ struct AssistantView: View {
         llmSettings.apiProvider = provider
         llmSettings.apiBaseURL = provider.defaultBaseURL
         llmSettings.apiModel = provider.defaultModel
+        llmSettings.assistantReasoningEffort = provider.defaultAssistantEffort
+        availableModels = []
+    }
+
+    private var selectedModel: String {
+        let configured = llmSettings.apiModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return configured.isEmpty ? llmSettings.apiProvider.defaultModel : configured
+    }
+
+    private var modelChoices: [String] {
+        var seen = Set<String>()
+        let catalog = availableModels.filter(isAssistantModel)
+        return ([selectedModel] + catalog + llmSettings.apiProvider.suggestedModels)
+            .filter { seen.insert($0).inserted }
+    }
+
+    private var modelSupportsThinking: Bool {
+        switch llmSettings.apiProvider {
+        case .deepseek, .anthropic:
+            return true
+        case .openai:
+            let value = selectedModel.lowercased()
+            return value.hasPrefix("gpt-5")
+                || value.hasPrefix("o1")
+                || value.hasPrefix("o3")
+                || value.hasPrefix("o4")
+        }
+    }
+
+    private var thinkingLockedOn: Bool {
+        guard llmSettings.apiProvider == .anthropic else { return false }
+        let value = selectedModel.lowercased()
+        return value.contains("fable") || value.contains("mythos")
+    }
+
+    private func isAssistantModel(_ model: String) -> Bool {
+        let value = model.lowercased()
+        switch llmSettings.apiProvider {
+        case .deepseek:
+            return value.hasPrefix("deepseek-")
+        case .anthropic:
+            return value.hasPrefix("claude-")
+        case .openai:
+            return value.hasPrefix("gpt-5")
+                || value.hasPrefix("gpt-4.1")
+                || value.hasPrefix("gpt-4o")
+                || value.hasPrefix("o1")
+                || value.hasPrefix("o3")
+                || value.hasPrefix("o4")
+        }
+    }
+
+    private var modelCatalogKey: String {
+        "\(llmSettings.apiProvider.rawValue)|\(llmSettings.apiBaseURL)|\(llmSettings.apiKey)"
+    }
+
+    private func refreshModels() async {
+        guard !llmSettings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            availableModels = []
+            return
+        }
+        isLoadingModels = true
+        defer { isLoadingModels = false }
+        do {
+            let service = TranslationService(
+                config: ConfigManager.shared.effectiveConfig,
+                apiKey: llmSettings.apiKey
+            )
+            availableModels = try await service.fetchModels()
+        } catch {
+            availableModels = []
+        }
     }
 
     private func insertQuickCommand(_ kind: AssistantQuickItemKind) {

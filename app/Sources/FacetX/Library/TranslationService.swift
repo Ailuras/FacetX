@@ -46,18 +46,14 @@ class TranslationService {
             throw TranslationError.noAPIKey
         }
 
-        if provider == .anthropic {
-            let model = config.translate.model.trimmingCharacters(in: .whitespacesAndNewlines)
-            let selectedModel = model.isEmpty ? provider.defaultModel : model
-            try await validateAnthropicConnection(model: selectedModel)
-            return [selectedModel]
-        }
-
         let url = try endpointURL(path: provider.modelsEndpoint)
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("\(provider.authHeaderValuePrefix)\(apiKey)", forHTTPHeaderField: provider.authHeaderName)
+        if provider.requiresVersionHeader {
+            request.setValue(Self.anthropicAPIVersion, forHTTPHeaderField: "anthropic-version")
+        }
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -134,28 +130,6 @@ class TranslationService {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let body = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         return body?.isEmpty == false ? "API error \(status): \(body!)" : "API error \(status)"
-    }
-
-    private func validateAnthropicConnection(model: String) async throws {
-        let provider = TranslationProvider.anthropic
-        let url = try endpointURL(path: provider.chatEndpoint)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: provider.authHeaderName)
-        request.setValue(Self.anthropicAPIVersion, forHTTPHeaderField: "anthropic-version")
-        request.httpBody = try buildAnthropicChatBody(
-            model: model,
-            system: "You are validating an API connection.",
-            user: "Reply with OK.",
-            maxTokens: 1
-        )
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw TranslationError.apiError(apiErrorMessage(data: data, response: response))
-        }
-        _ = try parseAnthropicChatResponse(data: data)
     }
 
     private func buildOpenAIChatBody(model: String, system: String, user: String) throws -> Data {

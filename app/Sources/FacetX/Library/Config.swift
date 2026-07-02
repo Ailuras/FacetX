@@ -76,9 +76,35 @@ enum TranslationProvider: String, Codable, CaseIterable {
 
     var defaultModel: String {
         switch self {
-        case .deepseek:  return "deepseek-chat"
-        case .openai:    return "gpt-4o-mini"
-        case .anthropic: return "claude-3-5-haiku-20241022"
+        case .deepseek:  return "deepseek-v4-flash"
+        case .openai:    return "gpt-5.4-mini"
+        case .anthropic: return "claude-sonnet-5"
+        }
+    }
+
+    var suggestedModels: [String] {
+        switch self {
+        case .deepseek:
+            return ["deepseek-v4-flash", "deepseek-v4-pro"]
+        case .openai:
+            return ["gpt-5.4-mini", "gpt-5.4", "gpt-5.5"]
+        case .anthropic:
+            return ["claude-sonnet-5", "claude-opus-4-8", "claude-haiku-4-5"]
+        }
+    }
+
+    var supportedAssistantEfforts: [AssistantReasoningEffort] {
+        switch self {
+        case .deepseek: return [.high, .max]
+        case .openai: return [.low, .medium, .high, .xhigh]
+        case .anthropic: return [.low, .medium, .high, .xhigh, .max]
+        }
+    }
+
+    var defaultAssistantEffort: AssistantReasoningEffort {
+        switch self {
+        case .deepseek: return .high
+        case .openai, .anthropic: return .medium
         }
     }
 
@@ -87,7 +113,7 @@ enum TranslationProvider: String, Codable, CaseIterable {
         case .deepseek, .openai:
             return "/models"
         case .anthropic:
-            return ""
+            return "/models"
         }
     }
 
@@ -120,6 +146,26 @@ enum TranslationProvider: String, Codable, CaseIterable {
 
     var requiresVersionHeader: Bool {
         self == .anthropic
+    }
+}
+
+enum AssistantReasoningEffort: String, Codable, CaseIterable, Identifiable {
+    case low
+    case medium
+    case high
+    case xhigh
+    case max
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .low: return L10n.pick("Low", "低")
+        case .medium: return L10n.pick("Medium", "中")
+        case .high: return L10n.pick("High", "高")
+        case .xhigh: return L10n.pick("Extra High", "很高")
+        case .max: return L10n.pick("Max", "最高")
+        }
     }
 }
 

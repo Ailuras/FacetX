@@ -8,6 +8,8 @@ struct AnthropicClient: LLMChatClient {
     let apiKey: String
     let model: String
     let baseURL: String
+    let thinkingEnabled: Bool
+    let reasoningEffort: AssistantReasoningEffort
 
     private func endpoint() throws -> URL {
         var root = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -40,6 +42,7 @@ struct AnthropicClient: LLMChatClient {
         if !tools.isEmpty {
             body["tools"] = tools
         }
+        applyThinking(to: &body)
 
         var request = URLRequest(url: try endpoint())
         request.httpMethod = "POST"
@@ -122,5 +125,40 @@ struct AnthropicClient: LLMChatClient {
             return block
         }
         return [["role": "user", "content": blocks]]
+    }
+
+    private func applyThinking(to body: inout [String: Any]) {
+        let slug = model.lowercased()
+        let isHaiku45 = slug.contains("haiku-4-5")
+        let isSonnet5 = slug.contains("sonnet-5")
+        let supportsEffort = !isHaiku45
+
+        if thinkingEnabled {
+            if isHaiku45 {
+                body["thinking"] = [
+                    "type": "enabled",
+                    "budget_tokens": anthropicThinkingBudget,
+                    "display": "omitted",
+                ] as [String: Any]
+            } else {
+                body["thinking"] = ["type": "adaptive", "display": "omitted"]
+            }
+        } else if isSonnet5 {
+            body["thinking"] = ["type": "disabled"]
+        }
+
+        if supportsEffort {
+            body["output_config"] = ["effort": reasoningEffort.rawValue]
+        }
+    }
+
+    private var anthropicThinkingBudget: Int {
+        switch reasoningEffort {
+        case .low: return 2_048
+        case .medium: return 4_096
+        case .high: return 8_192
+        case .xhigh: return 12_288
+        case .max: return 15_000
+        }
     }
 }

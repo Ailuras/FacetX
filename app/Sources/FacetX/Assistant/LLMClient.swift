@@ -82,9 +82,12 @@ protocol LLMChatClient {
 /// (both speak `POST {base}/chat/completions` with function calling).
 @MainActor
 struct OpenAIChatClient: LLMChatClient {
+    let provider: TranslationProvider
     let apiKey: String
     let model: String
     let baseURL: String
+    let thinkingEnabled: Bool
+    let reasoningEffort: AssistantReasoningEffort
 
     private func endpoint() throws -> URL {
         var root = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -112,17 +115,34 @@ struct OpenAIChatClient: LLMChatClient {
         var body: [String: Any] = [
             "model": model,
             "messages": wireMessages,
-            "max_tokens": 4096,
+            "parallel_tool_calls": true,
         ]
+        switch provider {
+        case .deepseek:
+            body["max_tokens"] = 8192
+            body["thinking"] = ["type": thinkingEnabled ? "enabled" : "disabled"]
+            if thinkingEnabled {
+                body["reasoning_effort"] = reasoningEffort == .max || reasoningEffort == .xhigh
+                    ? "max" : "high"
+            }
+        case .openai:
+            body["max_completion_tokens"] = 8192
+            if supportsOpenAIReasoning {
+                body["reasoning_effort"] = thinkingEnabled ? openAIEffort : "none"
+            }
+        case .anthropic:
+            break
+        }
         if !tools.isEmpty {
             body["tools"] = tools.map { def in
-                [
+                let function: [String: Any] = [
+                    "name": def["name"] ?? "",
+                    "description": def["description"] ?? "",
+                    "parameters": def["input_schema"] ?? [:],
+                ]
+                return [
                     "type": "function",
-                    "function": [
-                        "name": def["name"] ?? "",
-                        "description": def["description"] ?? "",
-                        "parameters": def["input_schema"] ?? [:],
-                    ] as [String: Any],
+                    "function": function,
                 ] as [String: Any]
             }
         }
@@ -203,6 +223,23 @@ struct OpenAIChatClient: LLMChatClient {
                 "tool_call_id": result.id,
                 "content": result.isError ? "Error: \(result.content)" : result.content,
             ]
+        }
+    }
+
+    private var supportsOpenAIReasoning: Bool {
+        let value = model.lowercased()
+        return value.hasPrefix("gpt-5")
+            || value.hasPrefix("o1")
+            || value.hasPrefix("o3")
+            || value.hasPrefix("o4")
+    }
+
+    private var openAIEffort: String {
+        switch reasoningEffort {
+        case .max, .xhigh: return "xhigh"
+        case .high: return "high"
+        case .medium: return "medium"
+        case .low: return "low"
         }
     }
 }

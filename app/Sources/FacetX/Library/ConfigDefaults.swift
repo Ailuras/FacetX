@@ -35,7 +35,7 @@ extension AppConfig {
                 provider: .deepseek,
                 enabled: true,
                 target_language: "中文",
-                model: "deepseek-chat",
+                model: "deepseek-v4-flash",
                 base_url: "https://api.deepseek.com"
             )
         )
