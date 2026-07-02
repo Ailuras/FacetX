@@ -11,9 +11,6 @@ struct AssistantView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
-
             if !hasAPIKey {
                 keyMissingState
             } else if session.entries.isEmpty {
@@ -26,45 +23,6 @@ struct AssistantView: View {
             inputBar
         }
         .background(FacetTheme.canvas)
-    }
-
-    // ── Header ───────────────────────────────────────────────────────────────
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-            Text(L10n.pick("Assistant", "AI 助手"))
-                .font(.system(size: 14, weight: .semibold))
-            Text("\(llmSettings.apiProvider.displayName) · \(modelLabel)")
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.primary.opacity(0.05)))
-
-            Spacer()
-
-            if session.totalOutputTokens > 0 {
-                Text("\(session.totalInputTokens)↑ \(session.totalOutputTokens)↓ tokens")
-                    .font(.system(size: 9.5, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-            }
-
-            Button {
-                session.clear()
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 11))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help(L10n.pick("Clear conversation", "清空对话"))
-            .disabled(session.entries.isEmpty)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
     }
 
     // ── Transcript ───────────────────────────────────────────────────────────

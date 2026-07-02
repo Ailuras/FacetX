@@ -8,12 +8,14 @@ struct ContentView: View {
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     @EnvironmentObject private var toast: ToastController
 
-    enum SidebarItem: Hashable { case project(Project.ID); case topic(UUID); case assistant }
+    enum SidebarItem: Hashable { case project(Project.ID); case topic(UUID) }
 
     @State private var selection: SidebarItem? = nil
     @StateObject private var assistant = AssistantSession()
     @State private var tagFilter = TagFilter()
     @State private var showTodayPanel = false
+    @State private var showAssistantPanel = false
+    @State private var assistantFullscreen = false
     @State private var discovered: [String] = []
     @State private var draftProject: ProjectDraft?
     @State private var editingProject: Project?
@@ -33,14 +35,6 @@ struct ContentView: View {
                         persistenceWarningView(persistenceWarning)
                     }
                     List(selection: $selection) {
-                        Label {
-                            Text(L10n.pick("Assistant", "AI 助手"))
-                        } icon: {
-                            Image(systemName: "sparkles")
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        .tag(SidebarItem.assistant)
-
                         Section(L10n.t(.sidebarProjects)) {
                             ForEach(store.activeProjects) { project in
                                 ProjectSidebarRow(project: project)
@@ -127,47 +121,65 @@ struct ContentView: View {
                 .navigationTitle("FacetX")
             } detail: {
                 HStack(spacing: 0) {
-                    Group {
-                        switch selection {
-                        case nil:
-                            ContentUnavailableView(
-                                L10n.t(.selectProject),
-                                systemImage: "folder",
-                                description: Text(L10n.t(.selectProjectHint))
-                            )
-                        case .project(let id):
-                            if let project = store.activeProjects.first(where: { $0.id == id }) {
-                                ProjectDetailView(project: project, showTodayPanel: $showTodayPanel, tagFilter: $tagFilter)
-                            } else {
-                                ContentUnavailableView(L10n.t(.projectNotFound), systemImage: "folder")
-                            }
-                        case .topic(let id):
-                            if let topic = litMeta.topics.first(where: { $0.id == id }) {
-                                TopicDetailView(topic: topic, tagFilter: $tagFilter)
-                            } else {
-                                ContentUnavailableView(L10n.pick("Topic not found", "未找到主题"), systemImage: "tag")
-                            }
-                        case .assistant:
-                            AssistantView(session: assistant)
-                                .task {
-                                    assistant.configure(eventKit: ek, store: store, settings: settings)
+                    if !assistantFullscreen {
+                        Group {
+                            switch selection {
+                            case nil:
+                                ContentUnavailableView(
+                                    L10n.t(.selectProject),
+                                    systemImage: "folder",
+                                    description: Text(L10n.t(.selectProjectHint))
+                                )
+                            case .project(let id):
+                                if let project = store.activeProjects.first(where: { $0.id == id }) {
+                                    ProjectDetailView(
+                                        project: project,
+                                        showTodayPanel: $showTodayPanel,
+                                        showAssistantPanel: $showAssistantPanel,
+                                        tagFilter: $tagFilter
+                                    )
+                                } else {
+                                    ContentUnavailableView(L10n.t(.projectNotFound), systemImage: "folder")
                                 }
+                            case .topic(let id):
+                                if let topic = litMeta.topics.first(where: { $0.id == id }) {
+                                    TopicDetailView(
+                                        topic: topic,
+                                        showAssistantPanel: $showAssistantPanel,
+                                        tagFilter: $tagFilter
+                                    )
+                                } else {
+                                    ContentUnavailableView(L10n.pick("Topic not found", "未找到主题"), systemImage: "tag")
+                                }
+                            }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    if showTodayPanel {
+                    if showAssistantPanel {
+                        AssistantSidebarPanel(
+                            session: assistant,
+                            isPresented: $showAssistantPanel,
+                            isFullscreen: $assistantFullscreen
+                        )
+                        .transition(FacetSidebarStyle.transition)
+                    } else if showTodayPanel {
                         TodayTimelinePanel(isPresented: $showTodayPanel)
                             .transition(FacetSidebarStyle.transition)
                     }
                 }
                 .animation(FacetTheme.detailSpring, value: showTodayPanel)
+                .animation(FacetTheme.detailSpring, value: showAssistantPanel)
+                .animation(FacetTheme.detailSpring, value: assistantFullscreen)
             }
             .navigationSplitViewStyle(.balanced)
             .onReceive(keyboard.commandPublisher) { cmd in
                 switch cmd {
                 case .today:
-                    withAnimation(FacetTheme.detailSpring) { showTodayPanel.toggle() }
+                    withAnimation(FacetTheme.detailSpring) {
+                        showTodayPanel.toggle()
+                        if showTodayPanel { showAssistantPanel = false }
+                    }
                 case .prevProject:    navigateProject(by: -1)
                 case .nextProject:    navigateProject(by: 1)
                 default:              break
@@ -202,6 +214,7 @@ struct ContentView: View {
                 }
             }
             .task {
+                assistant.configure(eventKit: ek, store: store, settings: settings)
                 applyStartupSelection()
                 keyboard.registerLocalShortcuts()
                 if !ek.remindersAuthorized && !ek.calendarAuthorized {
@@ -228,9 +241,19 @@ struct ContentView: View {
                 case .topic(let id):
                     settings.lastOpenedKind = "topic"
                     settings.lastOpenedTopicID = id.uuidString
-                case .assistant, .none:
+                case .none:
                     break
                 }
+            }
+            .onChange(of: showAssistantPanel) { _, isShown in
+                if isShown {
+                    showTodayPanel = false
+                } else {
+                    assistantFullscreen = false
+                }
+            }
+            .onChange(of: showTodayPanel) { _, isShown in
+                if isShown { showAssistantPanel = false }
             }
             .alert(L10n.t(.deleteProjectTitle), isPresented: .init(
                 get: { projectToDelete != nil },
@@ -602,7 +625,7 @@ struct ContentView: View {
                 }
             }
             return counts
-        case .assistant, .none:
+        case .none:
             return [:]
         }
     }

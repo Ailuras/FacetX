@@ -4,6 +4,7 @@ import SwiftUI
 
 struct TopicDetailView: View {
     let topic: TrackPref
+    let showAssistantPanel: Binding<Bool>
     @Binding var tagFilter: TagFilter
 
     @State private var store = PaperStore.shared
@@ -252,6 +253,15 @@ struct TopicDetailView: View {
             if !newValue {
                 importFullscreen = false
                 paperBeingImported = nil
+            }
+        }
+        .onChange(of: showAssistantPanel.wrappedValue) { _, isShown in
+            guard isShown else { return }
+            withAnimation(detailPaneAnimation) {
+                selectedPaper = nil
+                showImportSidebar = false
+                detailFullscreen = false
+                importFullscreen = false
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectPaperInTopic)) { notification in
@@ -1392,6 +1402,18 @@ struct TopicDetailView: View {
 
     private var toolbarActions: some View {
         HStack(spacing: 3) {
+            Button {
+                withAnimation(FacetTheme.detailSpring) {
+                    showAssistantPanel.wrappedValue.toggle()
+                }
+            } label: {
+                Image(systemName: showAssistantPanel.wrappedValue ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(showAssistantPanel.wrappedValue ? Color.accentColor : .secondary)
+            }
+            .help(showAssistantPanel.wrappedValue
+                  ? L10n.pick("Hide AI assistant", "隐藏 AI 助手")
+                  : L10n.pick("Show AI assistant", "显示 AI 助手"))
             recommendButton
             fetchButton
         }

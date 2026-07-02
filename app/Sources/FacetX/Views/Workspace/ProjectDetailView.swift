@@ -9,6 +9,7 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     let project: Project
     let showTodayPanel: Binding<Bool>
+    let showAssistantPanel: Binding<Bool>
     @Binding var tagFilter: TagFilter
 
     enum Mode: String, CaseIterable, Identifiable {
@@ -213,6 +214,14 @@ struct ProjectDetailView: View {
                 }
             }
         }
+        .onChange(of: showAssistantPanel.wrappedValue) { _, newValue in
+            if newValue, selectedDetailItem != nil {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                    preserveSelectionDuringReplacement = false
+                }
+            }
+        }
     }
 
     private func handleCommand(_ cmd: KeyboardCommand) {
@@ -354,6 +363,24 @@ struct ProjectDetailView: View {
         .help(showTodayPanel.wrappedValue ? L10n.t(.hideTodayPanel) : L10n.t(.showTodayTimeline))
     }
 
+    private var assistantButton: some View {
+        Button {
+            withAnimation(FacetTheme.detailSpring) {
+                showAssistantPanel.wrappedValue.toggle()
+                if showAssistantPanel.wrappedValue {
+                    showTodayPanel.wrappedValue = false
+                }
+            }
+        } label: {
+            Image(systemName: showAssistantPanel.wrappedValue ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(showAssistantPanel.wrappedValue ? Color.accentColor : .secondary)
+        }
+        .help(showAssistantPanel.wrappedValue
+              ? L10n.pick("Hide AI assistant", "隐藏 AI 助手")
+              : L10n.pick("Show AI assistant", "显示 AI 助手"))
+    }
+
     private var refreshButton: some View {
         Button {
             refreshTrigger += 1
@@ -367,6 +394,7 @@ struct ProjectDetailView: View {
 
     private var toolbarActions: some View {
         HStack(spacing: 3) {
+            assistantButton
             todayButton
             refreshButton
         }
