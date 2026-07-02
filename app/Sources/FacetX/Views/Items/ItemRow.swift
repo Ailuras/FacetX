@@ -66,6 +66,7 @@ struct InlineEditTextField: NSViewRepresentable {
 
 struct ItemRow: View {
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var focus: FocusService
     let item: ProjectItem
     let isSelected: Bool
     /// When set (cross-project views like Today), shows the owning project as a
@@ -299,6 +300,26 @@ struct ItemRow: View {
                             }
                             .buttonStyle(.plain)
                             .help(L10n.pick("Open link: \(url.absoluteString)", "打开链接：\(url.absoluteString)"))
+                        }
+
+                        if focus.isFocusing(item.focusTargetID) {
+                            FacetInfoBadge(
+                                text: FocusService.clock(seconds: focus.remainingSeconds),
+                                systemImage: "timer",
+                                tint: .pink,
+                                fill: Color.pink.opacity(0.12)
+                            )
+                            .help(L10n.pick("Focusing now", "正在专注"))
+                        } else if let totals = focus.totalsByTarget[item.focusTargetID],
+                                  totals.seconds >= 60 {
+                            FacetInfoBadge(
+                                text: FocusService.format(seconds: totals.seconds),
+                                systemImage: "timer",
+                                tint: .pink,
+                                fill: Color.pink.opacity(0.10)
+                            )
+                            .help(L10n.pick("Focused \(totals.sessions) times",
+                                            "累计专注 \(totals.sessions) 次"))
                         }
 
                         if let date = item.date {

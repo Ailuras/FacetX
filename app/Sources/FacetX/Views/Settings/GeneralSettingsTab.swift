@@ -56,6 +56,17 @@ struct GeneralSettingsTab: View {
                         .controlSize(.mini)
                 }
                 SettingsDivider()
+                SettingsRow(title: L10n.pick("Focus session length", "专注时长"),
+                            systemImage: "timer") {
+                    Picker("", selection: $settings.focusDurationMinutes) {
+                        ForEach([15, 25, 45, 60, 90], id: \.self) { minutes in
+                            Text(L10n.pick("\(minutes) min", "\(minutes) 分钟")).tag(minutes)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                SettingsDivider()
                 SettingsRow(title: L10n.t(.language), systemImage: "globe") {
                     Picker("", selection: $settings.language) {
                         Text("English").tag("en")

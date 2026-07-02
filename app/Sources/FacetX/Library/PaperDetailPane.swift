@@ -14,6 +14,7 @@ struct PaperDetailPane: View {
     @EnvironmentObject private var toast: ToastController
     @EnvironmentObject private var projectStore: ProjectStore
     @EnvironmentObject private var ek: EventKitService
+    @EnvironmentObject private var focus: FocusService
     @State private var noteStore = ItemStore.shared
     @State private var associatedItems: [ProjectItem] = []
     @State private var noteText: String = ""
@@ -106,19 +107,53 @@ struct PaperDetailPane: View {
                         fill: Color.secondary.opacity(0.08)
                     )
                 }
+                if let totals = focus.totalsByTarget[paper.focusTargetID], totals.seconds >= 60 {
+                    FacetInfoBadge(
+                        text: FocusService.format(seconds: totals.seconds),
+                        systemImage: "timer",
+                        tint: .pink,
+                        fill: Color.pink.opacity(0.10)
+                    )
+                    .help(L10n.pick("Focused \(totals.sessions) times",
+                                    "累计专注 \(totals.sessions) 次"))
+                }
             }
 
-            if !paper.landingPageUrl.isEmpty {
-                Button {
-                    if let url = URL(string: paper.landingPageUrl) {
-                        NSWorkspace.shared.open(url)
+            HStack(spacing: 14) {
+                if !paper.landingPageUrl.isEmpty {
+                    Button {
+                        if let url = URL(string: paper.landingPageUrl) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        Label(L10n.pick("Open Source Page", "打开原文"), systemImage: "arrow.up.right.square")
+                            .font(.system(size: 12, weight: .medium))
                     }
-                } label: {
-                    Label(L10n.pick("Open Source Page", "打开原文"), systemImage: "arrow.up.right.square")
-                        .font(.system(size: 12, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
+
+                if focus.isFocusing(paper.focusTargetID) {
+                    Button {
+                        focus.finish()
+                    } label: {
+                        Label("\(L10n.pick("End Focus", "结束专注")) · \(FocusService.clock(seconds: focus.remainingSeconds))",
+                              systemImage: "timer")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.pink)
+                } else {
+                    Button {
+                        focus.start(target: paper.focusTarget(topicLabel: L10n.pick("Library", "文献")),
+                                    minutes: appSettings.focusDurationMinutes)
+                    } label: {
+                        Label(L10n.pick("Start Focus", "开始专注"), systemImage: "timer")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.pink)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

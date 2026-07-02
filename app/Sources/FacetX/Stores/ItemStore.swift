@@ -435,6 +435,74 @@ final class ItemStore {
         version += 1
     }
 
+    // ── Focus sessions ───────────────────────────────────────────────────────
+
+    struct FocusTotals {
+        var seconds = 0
+        var sessions = 0
+    }
+
+    /// Record one finished focus session. `targetID` is the item's stable focus
+    /// key (facetID when present, otherwise the EventKit/paper identifier);
+    /// title and prefix are denormalized so history survives item deletion.
+    func recordFocusSession(targetID: String, projectPrefix: String, title: String,
+                            kind: String, startedAt: Date, seconds: Int) {
+        let sql = """
+        INSERT INTO focus_sessions (target_id, project_prefix, title, kind, started_at, seconds)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            persistenceError = databaseError("prepare save focus session")
+            return
+        }
+        sqlite3_bind_text(stmt, 1, targetID, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, projectPrefix, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 3, title, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 4, kind, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_double(stmt, 5, startedAt.timeIntervalSince1970)
+        sqlite3_bind_int(stmt, 6, Int32(seconds))
+        if sqlite3_step(stmt) == SQLITE_DONE {
+            persistenceError = nil
+            version += 1
+        } else {
+            persistenceError = databaseError("save focus session")
+        }
+        sqlite3_finalize(stmt)
+    }
+
+    /// Accumulated focus per target across all time, for row badges.
+    func focusTotalsByTarget() -> [String: FocusTotals] {
+        let sql = "SELECT target_id, SUM(seconds), COUNT(*) FROM focus_sessions GROUP BY target_id"
+        var stmt: OpaquePointer?
+        var result: [String: FocusTotals] = [:]
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                result[columnString(stmt, 0)] = FocusTotals(
+                    seconds: Int(sqlite3_column_int(stmt, 1)),
+                    sessions: Int(sqlite3_column_int(stmt, 2))
+                )
+            }
+        }
+        sqlite3_finalize(stmt)
+        return result
+    }
+
+    /// Total focused seconds since the start of today (for the widget stat).
+    func focusSecondsToday() -> Int {
+        let sql = "SELECT COALESCE(SUM(seconds), 0) FROM focus_sessions WHERE started_at >= ?"
+        var stmt: OpaquePointer?
+        var seconds = 0
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_double(stmt, 1, Calendar.current.startOfDay(for: Date()).timeIntervalSince1970)
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                seconds = Int(sqlite3_column_int(stmt, 0))
+            }
+        }
+        sqlite3_finalize(stmt)
+        return seconds
+    }
+
     func updateLastSeen(id: String) {
         let sql = "UPDATE items SET last_seen_at = datetime('now') WHERE id = ?"
         var stmt: OpaquePointer?
@@ -486,6 +554,19 @@ final class ItemStore {
             commit_id TEXT,
             PRIMARY KEY (item_id, commit_id)
         );
+
+        CREATE TABLE IF NOT EXISTS focus_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_id TEXT NOT NULL,
+            project_prefix TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL DEFAULT '',
+            kind TEXT NOT NULL DEFAULT 'task',
+            started_at REAL NOT NULL,
+            seconds INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_focus_sessions_target ON focus_sessions(target_id);
+        CREATE INDEX IF NOT EXISTS idx_focus_sessions_started ON focus_sessions(started_at);
 
         CREATE INDEX IF NOT EXISTS idx_item_papers_item ON item_papers(item_id);
         CREATE INDEX IF NOT EXISTS idx_item_commits_item ON item_commits(item_id);

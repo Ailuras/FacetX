@@ -29,6 +29,7 @@ struct FacetXApp: App {
     @StateObject private var menuBarController = MenuBarController()
     @StateObject private var widgetModel = WidgetDataModel()
     @StateObject private var widgetController = DesktopWidgetController()
+    @StateObject private var focus = FocusService()
     @StateObject private var keyboard = KeyboardActionRouter()
     @StateObject private var toast = ToastController()
 
@@ -40,15 +41,17 @@ struct FacetXApp: App {
                 .environmentObject(settings)
                 .environmentObject(keyboard)
                 .environmentObject(toast)
+                .environmentObject(focus)
                 .background {
                     WindowPositionRestorer()
                 }
                 .task {
                     widgetModel.configure(eventKit: eventKit, store: store, settings: settings)
                     widgetController.configure(eventKit: eventKit, store: store,
-                                               settings: settings, model: widgetModel)
+                                               settings: settings, model: widgetModel, focus: focus)
                     menuBarController.configure(eventKit: eventKit, store: store, settings: settings,
-                                                model: widgetModel, widgetController: widgetController)
+                                                model: widgetModel, widgetController: widgetController,
+                                                focus: focus)
                 }
                 .onAppear {
                     keyboard.setGlobalShortcutEnabled(settings.globalShortcutEnabled)
@@ -69,6 +72,7 @@ struct FacetXApp: App {
                 .environmentObject(settings)
                 .environmentObject(keyboard)
                 .environmentObject(toast)
+                .environmentObject(focus)
         }
     }
 }

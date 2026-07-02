@@ -26,6 +26,7 @@ struct StandardItemRow: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var focus: FocusService
     @State private var noteStore = ItemStore.shared
 
     let item: ProjectItem
@@ -89,6 +90,19 @@ struct StandardItemRow: View {
                 Task {
                     await ItemActionHelpers.toggleCompletion(item, completed: !item.isCompleted, ek: ek)
                     await onReload()
+                }
+            }
+            if focus.isFocusing(item.focusTargetID) {
+                Button(L10n.pick("End Focus", "结束专注")) {
+                    focus.finish()
+                }
+            } else {
+                Button(L10n.pick("Start Focus (\(settings.focusDurationMinutes) min)",
+                                 "开始专注（\(settings.focusDurationMinutes) 分钟）")) {
+                    let projectName = store.activeProjects
+                        .first { $0.prefix == item.projectPrefix }?.name ?? item.projectPrefix
+                    focus.start(target: item.focusTarget(projectName: projectName),
+                                minutes: settings.focusDurationMinutes)
                 }
             }
             Divider()

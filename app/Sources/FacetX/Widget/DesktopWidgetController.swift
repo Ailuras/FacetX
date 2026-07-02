@@ -118,16 +118,17 @@ final class DesktopWidgetController: NSObject, ObservableObject, NSWindowDelegat
     private var configured = false
 
     func configure(eventKit: EventKitService, store: ProjectStore,
-                   settings: AppSettings, model: WidgetDataModel) {
+                   settings: AppSettings, model: WidgetDataModel, focus: FocusService) {
         guard !configured else { return }
         configured = true
 
         cancellable = settings.$desktopWidgetEnabled
             .removeDuplicates()
-            .sink { [weak self, weak eventKit, weak store, weak settings, weak model] enabled in
-                guard let self, let eventKit, let store, let settings, let model else { return }
+            .sink { [weak self, weak eventKit, weak store, weak settings, weak model, weak focus] enabled in
+                guard let self, let eventKit, let store, let settings, let model, let focus else { return }
                 if enabled {
-                    self.install(eventKit: eventKit, store: store, settings: settings, model: model)
+                    self.install(eventKit: eventKit, store: store, settings: settings,
+                                 model: model, focus: focus)
                 } else {
                     self.uninstall()
                 }
@@ -155,7 +156,7 @@ final class DesktopWidgetController: NSObject, ObservableObject, NSWindowDelegat
     }
 
     private func install(eventKit: EventKitService, store: ProjectStore,
-                         settings: AppSettings, model: WidgetDataModel) {
+                         settings: AppSettings, model: WidgetDataModel, focus: FocusService) {
         if panel != nil { return }
 
         let panel = DesktopWidgetPanel(contentRect: restoredFrame())
@@ -168,6 +169,7 @@ final class DesktopWidgetController: NSObject, ObservableObject, NSWindowDelegat
             .environmentObject(store)
             .environmentObject(settings)
             .environmentObject(model)
+            .environmentObject(focus)
         panel.contentView = GlassWidgetContainer(rootView: root, cornerRadius: 22)
         panel.moveToDesktopLayer()
         self.panel = panel

@@ -16,14 +16,17 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
     private weak var settings: AppSettings?
     private weak var model: WidgetDataModel?
     private weak var widgetController: DesktopWidgetController?
+    private weak var focus: FocusService?
 
     func configure(eventKit: EventKitService, store: ProjectStore, settings: AppSettings,
-                   model: WidgetDataModel, widgetController: DesktopWidgetController) {
+                   model: WidgetDataModel, widgetController: DesktopWidgetController,
+                   focus: FocusService) {
         guard !configured else { return }
         configured = true
         self.settings = settings
         self.model = model
         self.widgetController = widgetController
+        self.focus = focus
 
         settings.$menuBarEnabled
             .removeDuplicates()
@@ -35,6 +38,15 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
 
         model.$items
             .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateBadge() }
+            .store(in: &cancellables)
+
+        // Ticks once per second while a focus session runs; also fires on
+        // start/stop so the title switches between countdown and badge modes.
+        focus.$now
+            .sink { [weak self] _ in self?.updateBadge() }
+            .store(in: &cancellables)
+        focus.$session
             .sink { [weak self] _ in self?.updateBadge() }
             .store(in: &cancellables)
     }
@@ -85,10 +97,20 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
         updateBadge()
     }
 
-    /// Show "how much is left today" next to the icon; hide the number when
-    /// everything is done so the bar stays quiet.
+    /// The title next to the icon: during a focus session it becomes
+    /// "Project · 24:59" (the countdown the user asked to see in the bar);
+    /// otherwise it shows how much is left today, hidden at zero.
     private func updateBadge() {
         guard let button = statusItem?.button, let model else { return }
+        if let focus, let session = focus.session {
+            let label = session.target.projectLabel.isEmpty
+                ? session.target.title : session.target.projectLabel
+            let time = session.isPaused
+                ? L10n.pick("paused", "已暂停")
+                : FocusService.clock(seconds: focus.remainingSeconds)
+            button.title = " \(String(label.prefix(10))) · \(time)"
+            return
+        }
         let count = model.menuBarBadgeCount
         button.title = count > 0 ? " \(count)" : ""
     }
@@ -121,6 +143,26 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
                               action: #selector(openMainWindow), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
+
+        if let focus, let session = focus.session {
+            menu.addItem(.separator())
+            let info = NSMenuItem(title: "⏱ \(String(session.target.title.prefix(28)))",
+                                  action: nil, keyEquivalent: "")
+            info.isEnabled = false
+            menu.addItem(info)
+
+            let pauseResume = NSMenuItem(
+                title: session.isPaused ? L10n.pick("Resume Focus", "继续专注")
+                                        : L10n.pick("Pause Focus", "暂停专注"),
+                action: #selector(togglePauseFocus), keyEquivalent: "")
+            pauseResume.target = self
+            menu.addItem(pauseResume)
+
+            let end = NSMenuItem(title: L10n.pick("End Focus", "结束专注"),
+                                 action: #selector(endFocus), keyEquivalent: "")
+            end.target = self
+            menu.addItem(end)
+        }
 
         menu.addItem(.separator())
 
@@ -176,6 +218,15 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
 
     @objc private func toggleWidgetLayer() {
         widgetController?.toggleLayer()
+    }
+
+    @objc private func togglePauseFocus() {
+        guard let focus else { return }
+        if focus.session?.isPaused == true { focus.resume() } else { focus.pause() }
+    }
+
+    @objc private func endFocus() {
+        focus?.finish()
     }
 
     @objc private func quit() {

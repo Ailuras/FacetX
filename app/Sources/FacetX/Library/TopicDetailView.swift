@@ -13,6 +13,7 @@ struct TopicDetailView: View {
     @EnvironmentObject private var projectStore: ProjectStore
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var ek: EventKitService
+    @EnvironmentObject private var focus: FocusService
 
     @State private var paperLinks: [String: Set<String>] = [:]
     @State private var searchText = ""
@@ -889,6 +890,23 @@ struct TopicDetailView: View {
         } label: {
             Label(paper.status == .starred ? L10n.pick("Unstar", "取消收藏") : L10n.pick("Star", "收藏"),
                   systemImage: paper.status == .starred ? "star.slash" : "star")
+        }
+
+        if focus.isFocusing(paper.focusTargetID) {
+            Button {
+                focus.finish()
+            } label: {
+                Label(L10n.pick("End Focus", "结束专注"), systemImage: "timer")
+            }
+        } else {
+            Button {
+                focus.start(target: paper.focusTarget(topicLabel: topic.name),
+                            minutes: appSettings.focusDurationMinutes)
+            } label: {
+                Label(L10n.pick("Start Focus (\(appSettings.focusDurationMinutes) min)",
+                                "开始专注（\(appSettings.focusDurationMinutes) 分钟）"),
+                      systemImage: "timer")
+            }
         }
 
         Menu {

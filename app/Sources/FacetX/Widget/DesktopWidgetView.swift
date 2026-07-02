@@ -11,10 +11,12 @@ struct DesktopWidgetView: View {
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: WidgetDataModel
+    @EnvironmentObject private var focus: FocusService
 
     @State private var quickText = ""
     @State private var quickProjectID: Project.ID?
     @State private var quickAddError = false
+    @State private var hoveredRowID: String?
 
     private var projectsByPrefix: [String: Project] {
         Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
@@ -30,6 +32,9 @@ struct DesktopWidgetView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
+                    if focus.session != nil {
+                        focusSection
+                    }
                     overviewSection
                     if !model.overdueItems.isEmpty {
                         overdueSection
@@ -94,26 +99,92 @@ struct DesktopWidgetView: View {
         return fmt.string(from: Date())
     }
 
+    // ── Focus ────────────────────────────────────────────────────────────────
+
+    @ViewBuilder
+    private var focusSection: some View {
+        if let session = focus.session {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.pink.opacity(0.15), lineWidth: 5)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(focus.progress))
+                        .stroke(Color.pink, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: session.isPaused ? "pause.fill" : "timer")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.pink)
+                }
+                .frame(width: 44, height: 44)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(session.target.title)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .lineLimit(1)
+                    Text(session.target.projectLabel)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Text(session.isPaused
+                         ? L10n.pick("Paused", "已暂停")
+                         : FocusService.clock(seconds: focus.remainingSeconds))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.pink)
+                }
+
+                Spacer(minLength: 4)
+
+                iconButton(session.isPaused ? "play.fill" : "pause.fill",
+                           help: session.isPaused ? L10n.pick("Resume", "继续")
+                                                  : L10n.pick("Pause", "暂停")) {
+                    session.isPaused ? focus.resume() : focus.pause()
+                }
+                iconButton("stop.fill", help: L10n.pick("End focus", "结束专注")) {
+                    focus.finish()
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .widgetSection()
+        }
+    }
+
     // ── Overview ─────────────────────────────────────────────────────────────
 
     private var overviewSection: some View {
-        HStack(spacing: 14) {
-            progressRing
-                .frame(width: 76, height: 76)
+        VStack(spacing: 9) {
+            HStack(spacing: 14) {
+                progressRing
+                    .frame(width: 76, height: 76)
 
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    statTile(value: model.todayOpenCount,
-                             label: L10n.pick("Open", "待办"), tint: .green)
-                    statTile(value: model.todayDoneCount,
-                             label: L10n.pick("Done", "已完成"), tint: .secondary)
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        statTile(value: model.todayOpenCount,
+                                 label: L10n.pick("Open", "待办"), tint: .green)
+                        statTile(value: model.todayDoneCount,
+                                 label: L10n.pick("Done", "已完成"), tint: .secondary)
+                    }
+                    HStack(spacing: 8) {
+                        statTile(value: model.todayEventCount,
+                                 label: L10n.pick("Events", "事件"), tint: .blue)
+                        statTile(value: model.overdueItems.count,
+                                 label: L10n.pick("Overdue", "逾期"),
+                                 tint: model.overdueItems.isEmpty ? .secondary : .red)
+                    }
                 }
-                HStack(spacing: 8) {
-                    statTile(value: model.todayEventCount,
-                             label: L10n.pick("Events", "事件"), tint: .blue)
-                    statTile(value: model.overdueItems.count,
-                             label: L10n.pick("Overdue", "逾期"),
-                             tint: model.overdueItems.isEmpty ? .secondary : .red)
+            }
+
+            if focus.todaySeconds >= 60 {
+                HStack(spacing: 4) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundStyle(.pink)
+                    Text(L10n.pick("Focused \(FocusService.format(seconds: focus.todaySeconds)) today",
+                                   "今日专注 \(FocusService.format(seconds: focus.todaySeconds))"))
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
                 }
             }
         }
@@ -290,12 +361,34 @@ struct DesktopWidgetView: View {
 
             Spacer(minLength: 4)
 
+            if focus.isFocusing(item.focusTargetID) {
+                Image(systemName: "timer")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.pink)
+                    .help(L10n.pick("Focusing now", "正在专注"))
+            } else if hoveredRowID == item.id, !item.isCompleted {
+                Button {
+                    let projectName = projectsByPrefix[item.projectPrefix]?.name ?? item.projectPrefix
+                    focus.start(target: item.focusTarget(projectName: projectName),
+                                minutes: settings.focusDurationMinutes)
+                } label: {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.pink)
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Start focus", "开始专注"))
+            }
+
             Text(dateLabel(item, style: dateStyle))
                 .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(dateStyle == .overdue ? Color.red : Color.secondary)
         }
         .padding(.vertical, 1)
+        .onHover { hovering in
+            hoveredRowID = hovering ? item.id : (hoveredRowID == item.id ? nil : hoveredRowID)
+        }
     }
 
     private func dateLabel(_ item: ProjectItem, style: RowDateStyle) -> String {
