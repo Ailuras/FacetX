@@ -39,10 +39,18 @@ struct GeneralSettingsTab: View {
                      systemImage: "gearshape",
                      warning: persistenceWarning) {
             SettingsCard(title: L10n.t(.interface), systemImage: "macwindow",
-                         subtitle: L10n.pick("Menu bar presence and app language.",
-                                             "菜单栏显示与应用语言。")) {
+                         subtitle: L10n.pick("Menu bar presence, desktop widget, and app language.",
+                                             "菜单栏显示、桌面小组件与应用语言。")) {
                 SettingsRow(title: L10n.t(.showInMenuBar), systemImage: "menubar.rectangle") {
                     Toggle("", isOn: $settings.menuBarEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                }
+                SettingsDivider()
+                SettingsRow(title: L10n.pick("Desktop widget", "桌面小组件"),
+                            systemImage: "widget.small") {
+                    Toggle("", isOn: $settings.desktopWidgetEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.mini)

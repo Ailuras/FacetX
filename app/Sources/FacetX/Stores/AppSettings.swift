@@ -41,6 +41,11 @@ final class AppSettings: ObservableObject {
     @Published var menuBarEnabled: Bool {
         didSet { settingsDidChange() }
     }
+    /// Whether the desktop widget panel (glass dashboard pinned to the desktop
+    /// layer) is shown.
+    @Published var desktopWidgetEnabled: Bool {
+        didSet { settingsDidChange() }
+    }
     /// UI language, "en" or "zh" (default English). Read into `L10n.language`
     /// at launch; switching it persists the choice and prompts a restart rather
     /// than refreshing the UI live, so every view renders the same language.
@@ -142,6 +147,7 @@ final class AppSettings: ObservableObject {
         self.weekGoalCalendarName = stored.weekGoalCalendarName
         self.defaultLiteratureListName = stored.defaultLiteratureListName ?? ""
         self.menuBarEnabled = stored.menuBarEnabled
+        self.desktopWidgetEnabled = stored.desktopWidgetEnabled ?? true
         self.language = stored.language ?? "en"
         self.startupProjectMode = stored.startupProjectMode ?? "none"
         self.startupProjectID = stored.startupProjectID ?? ""
@@ -303,6 +309,7 @@ final class AppSettings: ObservableObject {
         var weekGoalCalendarName: String
         var defaultLiteratureListName: String?
         var menuBarEnabled: Bool
+        var desktopWidgetEnabled: Bool?
         var language: String?
         var startupProjectMode: String?
         var startupProjectID: String?
@@ -330,6 +337,7 @@ final class AppSettings: ObservableObject {
                                      weekGoalCalendarName: "",
                                      defaultLiteratureListName: "",
                                      menuBarEnabled: true,
+                                     desktopWidgetEnabled: nil,
                                      language: nil,
                                      startupProjectMode: nil,
                                      startupProjectID: nil,
@@ -359,6 +367,7 @@ final class AppSettings: ObservableObject {
                             weekGoalCalendarName: weekGoalCalendarName,
                             defaultLiteratureListName: defaultLiteratureListName,
                             menuBarEnabled: menuBarEnabled,
+                            desktopWidgetEnabled: desktopWidgetEnabled,
                             language: language,
                             startupProjectMode: startupProjectMode,
                             startupProjectID: startupProjectID.isEmpty ? nil : startupProjectID,

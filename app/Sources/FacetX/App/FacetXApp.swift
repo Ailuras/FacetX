@@ -27,6 +27,8 @@ struct FacetXApp: App {
     @StateObject private var store = ProjectStore()
     @StateObject private var settings = AppSettings()
     @StateObject private var menuBarController = MenuBarController()
+    @StateObject private var widgetModel = WidgetDataModel()
+    @StateObject private var widgetController = DesktopWidgetController()
     @StateObject private var keyboard = KeyboardActionRouter()
     @StateObject private var toast = ToastController()
 
@@ -42,7 +44,11 @@ struct FacetXApp: App {
                     WindowPositionRestorer()
                 }
                 .task {
-                    menuBarController.configure(eventKit: eventKit, store: store, settings: settings)
+                    widgetModel.configure(eventKit: eventKit, store: store, settings: settings)
+                    widgetController.configure(eventKit: eventKit, store: store,
+                                               settings: settings, model: widgetModel)
+                    menuBarController.configure(eventKit: eventKit, store: store, settings: settings,
+                                                model: widgetModel, widgetController: widgetController)
                 }
                 .onAppear {
                     keyboard.setGlobalShortcutEnabled(settings.globalShortcutEnabled)
