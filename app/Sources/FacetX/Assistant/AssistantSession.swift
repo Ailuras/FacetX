@@ -27,8 +27,10 @@ final class AssistantSession: ObservableObject {
     @Published private(set) var totalOutputTokens = 0
 
     private var apiMessages: [[String: Any]] = []
+    /// Wire format owner of `apiMessages`; switching providers mid-chat resets
+    /// the API history (the transcript stays visible, context restarts).
+    private var historyProvider: String = ""
     private var toolbox: AgentToolbox?
-    private weak var settings: AppSettings?
     private weak var projectStore: ProjectStore?
     private var configured = false
 
@@ -37,18 +39,34 @@ final class AssistantSession: ObservableObject {
     func configure(eventKit: EventKitService, store: ProjectStore, settings: AppSettings) {
         guard !configured else { return }
         configured = true
-        self.settings = settings
         self.projectStore = store
         self.toolbox = AgentToolbox(eventKit: eventKit, projectStore: store, settings: settings)
     }
 
-    var hasAPIKey: Bool {
-        !(settings?.anthropicApiKey.isEmpty ?? true)
+    // ── Shared LLM API config (Settings → Integrations → LLM API) ────────────
+
+    /// Build the wire client for whichever provider the shared config selects:
+    /// DeepSeek/OpenAI speak OpenAI chat-completions, Anthropic its own format.
+    private func makeClient() -> LLMChatClient {
+        let lit = LibrarySettings.shared
+        let provider = lit.apiProvider
+        let apiKey = lit.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let configuredBase = lit.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let configuredModel = lit.apiModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = configuredBase.isEmpty ? provider.defaultBaseURL : configuredBase
+        let model = configuredModel.isEmpty ? provider.defaultModel : configuredModel
+        switch provider {
+        case .anthropic:
+            return AnthropicClient(apiKey: apiKey, model: model, baseURL: base)
+        case .deepseek, .openai:
+            return OpenAIChatClient(apiKey: apiKey, model: model, baseURL: base)
+        }
     }
 
     func clear() {
         entries.removeAll()
         apiMessages.removeAll()
+        historyProvider = ""
         totalInputTokens = 0
         totalOutputTokens = 0
     }
@@ -57,86 +75,86 @@ final class AssistantSession: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isBusy else { return }
         entries.append(AssistantEntry(role: .user, text: trimmed))
-        apiMessages.append(["role": "user", "content": trimmed])
         isBusy = true
         Task {
-            await runLoop()
+            await runLoop(userText: trimmed)
             isBusy = false
         }
     }
 
     // ── Agent loop ───────────────────────────────────────────────────────────
 
-    private func runLoop() async {
-        guard let settings, let toolbox else { return }
-        let client = AnthropicClient(apiKey: settings.anthropicApiKey,
-                                     model: settings.anthropicModel,
-                                     baseURL: settings.anthropicBaseURL)
+    private func runLoop(userText: String) async {
+        guard let toolbox else { return }
+        let client = makeClient()
         let tools = toolbox.definitions
         let system = buildSystemPrompt()
 
+        let providerKey = LibrarySettings.shared.apiProvider.rawValue
+        if providerKey != historyProvider {
+            apiMessages.removeAll()
+            historyProvider = providerKey
+        }
+        apiMessages.append(client.userMessage(userText))
+
         for _ in 0..<Self.maxLoopIterations {
-            let response: AnthropicClient.Response
+            let response: LLMResponse
             do {
                 response = try await client.send(system: system,
                                                  messages: apiMessages,
                                                  tools: tools)
             } catch {
                 entries.append(AssistantEntry(role: .error, text: error.localizedDescription))
-                // Drop the dangling user turn so a retry starts clean.
-                if apiMessages.last?["role"] as? String == "user" {
-                    apiMessages.removeLast()
-                }
                 return
             }
 
             totalInputTokens += response.inputTokens
             totalOutputTokens += response.outputTokens
 
-            // Echo the assistant content verbatim (text/tool_use/thinking blocks).
-            apiMessages.append(["role": "assistant", "content": response.content])
+            // Echo the assistant message verbatim in the provider's own format.
+            apiMessages.append(client.assistantMessage(response))
 
             let text = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty {
                 entries.append(AssistantEntry(role: .assistant, text: text))
             }
 
-            switch response.stopReason {
-            case "tool_use":
-                var results: [[String: Any]] = []
-                for call in response.toolUses {
+            switch response.stop {
+            case .toolUse:
+                guard !response.toolCalls.isEmpty else {
+                    entries.append(AssistantEntry(
+                        role: .error,
+                        text: L10n.pick("The model returned an invalid tool request.",
+                                        "模型返回了无效的工具调用。")))
+                    return
+                }
+                var results: [LLMToolResult] = []
+                for call in response.toolCalls {
                     entries.append(AssistantEntry(role: .tool(name: call.name),
                                                   text: toolSummary(call.name, call.input)))
                     let (result, isError) = await toolbox.execute(name: call.name, input: call.input)
-                    var block: [String: Any] = [
-                        "type": "tool_result",
-                        "tool_use_id": call.id,
-                        "content": result,
-                    ]
-                    if isError { block["is_error"] = true }
-                    results.append(block)
+                    results.append(LLMToolResult(id: call.id, content: result, isError: isError))
                 }
-                // All results for parallel calls go back in ONE user message.
-                apiMessages.append(["role": "user", "content": results])
+                apiMessages.append(contentsOf: client.toolResultMessages(results))
                 continue
 
-            case "pause_turn":
+            case .pauseTurn:
                 // Server-side pause: re-send as-is to resume.
                 continue
 
-            case "refusal":
+            case .refusal:
                 entries.append(AssistantEntry(
                     role: .error,
                     text: L10n.pick("The model declined this request.", "模型拒绝了这次请求。")))
                 return
 
-            case "max_tokens":
+            case .maxTokens:
                 entries.append(AssistantEntry(
                     role: .error,
                     text: L10n.pick("Response truncated (max tokens).", "回复因长度限制被截断。")))
                 return
 
-            default: // end_turn
+            case .endTurn:
                 return
             }
         }

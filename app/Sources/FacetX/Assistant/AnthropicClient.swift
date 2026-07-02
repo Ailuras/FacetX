@@ -1,83 +1,39 @@
 import Foundation
 
-/// Minimal native client for the Anthropic Messages API (there is no official
-/// Swift SDK, so this speaks raw HTTP per the documented wire format).
-///
-/// Payloads are untyped `[String: Any]` dictionaries on purpose: the agent
-/// loop must echo assistant content blocks (text / tool_use / thinking) back
-/// verbatim on the next turn, and a lossless passthrough is simpler and safer
-/// than mirroring every block type in Codable structs.
-///
-/// MainActor-bound because those dictionaries are not Sendable; the only work
-/// that crosses actors is URLSession's own Data/URLRequest transfer, and the
-/// await never blocks the main thread.
+/// Anthropic Messages API client (used when the shared LLM API provider is
+/// set to Anthropic). Content blocks are kept as untyped dictionaries so the
+/// agent loop echoes them back verbatim across turns.
 @MainActor
-struct AnthropicClient {
-    struct Response {
-        let content: [[String: Any]]
-        let stopReason: String
-        let model: String
-        let inputTokens: Int
-        let outputTokens: Int
-
-        /// Concatenated text blocks.
-        var text: String {
-            content
-                .filter { $0["type"] as? String == "text" }
-                .compactMap { $0["text"] as? String }
-                .joined(separator: "\n")
-        }
-
-        var toolUses: [(id: String, name: String, input: [String: Any])] {
-            content.compactMap { block in
-                guard block["type"] as? String == "tool_use",
-                      let id = block["id"] as? String,
-                      let name = block["name"] as? String else { return nil }
-                return (id, name, block["input"] as? [String: Any] ?? [:])
-            }
-        }
-    }
-
-    enum ClientError: LocalizedError {
-        case missingKey
-        case api(status: Int, type: String, message: String)
-        case malformedResponse
-
-        var errorDescription: String? {
-            switch self {
-            case .missingKey:
-                return L10n.pick("No API key. Add one in Settings → Integrations.",
-                                 "未配置 API Key，请在 设置 → 集成 中添加。")
-            case .api(let status, let type, let message):
-                return "[\(status) \(type)] \(message)"
-            case .malformedResponse:
-                return L10n.pick("Malformed API response.", "API 返回格式异常。")
-            }
-        }
-    }
-
+struct AnthropicClient: LLMChatClient {
     let apiKey: String
     let model: String
     let baseURL: String
 
-    private var endpoint: URL {
-        let base = baseURL.trimmingCharacters(in: .whitespaces)
-        let root = base.isEmpty ? "https://api.anthropic.com" : base
-        return URL(string: root.hasSuffix("/") ? "\(root)v1/messages" : "\(root)/v1/messages")!
+    private func endpoint() throws -> URL {
+        var root = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if root.isEmpty { root = "https://api.anthropic.com/v1" }
+        while root.hasSuffix("/") { root.removeLast() }
+        if !root.hasSuffix("/v1") { root += "/v1" }
+        guard let base = URL(string: root),
+              let scheme = base.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              base.host != nil,
+              base.query == nil,
+              base.fragment == nil,
+              let endpoint = URL(string: root + "/messages") else {
+            throw LLMClientError.invalidBaseURL(baseURL)
+        }
+        return endpoint
     }
 
-    /// One non-streaming Messages API call. The caller owns the agent loop:
-    /// on `stop_reason == "tool_use"` it executes the tools and calls again
-    /// with the assistant content + tool_result blocks appended.
     func send(system: String,
               messages: [[String: Any]],
-              tools: [[String: Any]],
-              maxTokens: Int = 16000) async throws -> Response {
-        guard !apiKey.isEmpty else { throw ClientError.missingKey }
+              tools: [[String: Any]]) async throws -> LLMResponse {
+        guard !apiKey.isEmpty else { throw LLMClientError.missingKey }
 
         var body: [String: Any] = [
             "model": model,
-            "max_tokens": maxTokens,
+            "max_tokens": 16000,
             "system": system,
             "messages": messages,
         ]
@@ -85,7 +41,7 @@ struct AnthropicClient {
             body["tools"] = tools
         }
 
-        var request = URLRequest(url: endpoint)
+        var request = URLRequest(url: try endpoint())
         request.httpMethod = "POST"
         request.timeoutInterval = 300
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -95,31 +51,76 @@ struct AnthropicClient {
 
         let (data, urlResponse) = try await URLSession.shared.data(for: request)
         guard let http = urlResponse as? HTTPURLResponse else {
-            throw ClientError.malformedResponse
+            throw LLMClientError.malformedResponse
         }
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw ClientError.malformedResponse
-        }
-
         if http.statusCode != 200 {
-            let error = json["error"] as? [String: Any]
-            throw ClientError.api(
+            let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let error = json?["error"] as? [String: Any]
+            throw LLMClientError.api(
                 status: http.statusCode,
-                type: error?["type"] as? String ?? "unknown_error",
-                message: error?["message"] as? String ?? String(data: data, encoding: .utf8) ?? ""
-            )
+                message: error?["message"] as? String
+                    ?? String(data: data, encoding: .utf8) ?? "")
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw LLMClientError.malformedResponse
         }
 
         guard let content = json["content"] as? [[String: Any]] else {
-            throw ClientError.malformedResponse
+            throw LLMClientError.malformedResponse
         }
+
+        let text = content
+            .filter { $0["type"] as? String == "text" }
+            .compactMap { $0["text"] as? String }
+            .joined(separator: "\n")
+
+        let toolCalls: [LLMToolCall] = content.compactMap { block in
+            guard block["type"] as? String == "tool_use",
+                  let id = block["id"] as? String,
+                  let name = block["name"] as? String else { return nil }
+            return LLMToolCall(id: id, name: name,
+                               input: block["input"] as? [String: Any] ?? [:])
+        }
+
+        let stop: LLMStopReason
+        switch json["stop_reason"] as? String {
+        case "tool_use": stop = .toolUse
+        case "pause_turn": stop = .pauseTurn
+        case "refusal": stop = .refusal
+        case "max_tokens": stop = .maxTokens
+        default: stop = .endTurn
+        }
+
         let usage = json["usage"] as? [String: Any]
-        return Response(
-            content: content,
-            stopReason: json["stop_reason"] as? String ?? "end_turn",
-            model: json["model"] as? String ?? model,
+        return LLMResponse(
+            stop: stop,
+            text: text,
+            toolCalls: toolCalls,
+            rawAssistantMessage: ["role": "assistant", "content": content],
             inputTokens: usage?["input_tokens"] as? Int ?? 0,
             outputTokens: usage?["output_tokens"] as? Int ?? 0
         )
+    }
+
+    func userMessage(_ text: String) -> [String: Any] {
+        ["role": "user", "content": text]
+    }
+
+    func assistantMessage(_ response: LLMResponse) -> [String: Any] {
+        response.rawAssistantMessage
+    }
+
+    func toolResultMessages(_ results: [LLMToolResult]) -> [[String: Any]] {
+        // Anthropic wants every result in ONE user message.
+        let blocks: [[String: Any]] = results.map { result in
+            var block: [String: Any] = [
+                "type": "tool_result",
+                "tool_use_id": result.id,
+                "content": result.content,
+            ]
+            if result.isError { block["is_error"] = true }
+            return block
+        }
+        return [["role": "user", "content": blocks]]
     }
 }

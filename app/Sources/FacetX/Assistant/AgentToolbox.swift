@@ -2,7 +2,7 @@ import Foundation
 import FacetXCore
 import PDFKit
 
-/// The assistant's tool layer: FacetX capabilities exposed as Anthropic
+/// The assistant's tool layer: FacetX capabilities exposed as portable
 /// tool-use definitions (MCP-style — name + description + JSON schema), with
 /// execution dispatched onto the app's real services. Kept UI-free so it can
 /// later back an actual MCP server as well.
@@ -20,8 +20,8 @@ final class AgentToolbox {
 
     // ── Definitions ──────────────────────────────────────────────────────────
 
-    /// Anthropic `tools` array. Descriptions state *when* to call each tool,
-    /// not just what it does.
+    /// Canonical tool definitions. Provider clients translate this shape to
+    /// their wire format. Descriptions state when to call each tool.
     var definitions: [[String: Any]] {
         [
             tool("list_projects",

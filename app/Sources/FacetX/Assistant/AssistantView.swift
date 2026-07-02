@@ -4,7 +4,7 @@ import SwiftUI
 /// calls rendered as inline chips so the user can see what the model did.
 struct AssistantView: View {
     @ObservedObject var session: AssistantSession
-    @EnvironmentObject private var settings: AppSettings
+    @State private var llmSettings = LibrarySettings.shared
 
     @State private var draft = ""
     @FocusState private var inputFocused: Bool
@@ -14,7 +14,7 @@ struct AssistantView: View {
             header
             Divider()
 
-            if !session.hasAPIKey {
+            if !hasAPIKey {
                 keyMissingState
             } else if session.entries.isEmpty {
                 emptyState
@@ -37,7 +37,7 @@ struct AssistantView: View {
                 .foregroundStyle(Color.accentColor)
             Text(L10n.pick("Assistant", "AI 助手"))
                 .font(.system(size: 14, weight: .semibold))
-            Text(settings.anthropicModel)
+            Text("\(llmSettings.apiProvider.displayName) · \(modelLabel)")
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)
@@ -233,8 +233,8 @@ struct AssistantView: View {
             Image(systemName: "key.slash")
                 .font(.system(size: 28))
                 .foregroundStyle(.secondary)
-            Text(L10n.pick("Add a Claude API key to enable the assistant.",
-                           "配置 Claude API Key 后即可使用助手。"))
+            Text(L10n.pick("Configure the LLM API (Settings → Integrations) to enable the assistant.",
+                           "在 设置 → 集成 → 大模型 API 中配置 API Key 后即可使用助手。"))
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
             Button(L10n.pick("Open Settings → Integrations", "打开 设置 → 集成")) {
@@ -257,7 +257,7 @@ struct AssistantView: View {
                 .lineLimit(1...6)
                 .focused($inputFocused)
                 .onSubmit(submit)
-                .disabled(!session.hasAPIKey)
+                .disabled(!hasAPIKey)
 
             Button(action: submit) {
                 Image(systemName: session.isBusy ? "hourglass" : "arrow.up.circle.fill")
@@ -273,8 +273,17 @@ struct AssistantView: View {
     }
 
     private var canSend: Bool {
-        session.hasAPIKey && !session.isBusy
+        hasAPIKey && !session.isBusy
             && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasAPIKey: Bool {
+        !llmSettings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var modelLabel: String {
+        let model = llmSettings.apiModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return model.isEmpty ? llmSettings.apiProvider.defaultModel : model
     }
 
     private func submit() {
