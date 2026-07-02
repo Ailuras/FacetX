@@ -17,5 +17,14 @@
   <string>FacetX reads your reminders to build a project-oriented view, gathering items whose title starts with a project name.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>
   <string>FacetX reads your calendar to build a project-oriented view, gathering events whose title starts with a project name.</string>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.facetx.project-item</string>
+      <key>UTTypeDescription</key><string>FacetX Project Item</string>
+      <key>UTTypeConformsTo</key>
+      <array><string>public.data</string></array>
+    </dict>
+  </array>
 </dict>
 </plist>
