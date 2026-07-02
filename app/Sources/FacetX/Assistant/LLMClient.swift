@@ -135,11 +135,12 @@ struct OpenAIChatClient: LLMChatClient {
         }
         if !tools.isEmpty {
             body["tools"] = tools.map { def in
-                let function: [String: Any] = [
+                var function: [String: Any] = [
                     "name": def["name"] ?? "",
                     "description": def["description"] ?? "",
                     "parameters": def["input_schema"] ?? [:],
                 ]
+                if provider == .openai { function["strict"] = true }
                 return [
                     "type": "function",
                     "function": function,

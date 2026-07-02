@@ -45,6 +45,9 @@ struct AssistantView: View {
         }
         .onChange(of: llmSettings.apiModel) {
             if thinkingLockedOn { llmSettings.assistantThinkingEnabled = true }
+            if !selectedModelEfforts.contains(llmSettings.assistantReasoningEffort) {
+                llmSettings.assistantReasoningEffort = llmSettings.apiProvider.defaultAssistantEffort
+            }
         }
         .task(id: modelCatalogKey) { await refreshModels() }
     }
@@ -356,7 +359,7 @@ struct AssistantView: View {
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
                 Picker("", selection: $llmSettings.assistantReasoningEffort) {
-                    ForEach(llmSettings.apiProvider.supportedAssistantEfforts) { effort in
+                    ForEach(selectedModelEfforts) { effort in
                         Text(effort.title).tag(effort)
                     }
                 }
@@ -478,6 +481,17 @@ struct AssistantView: View {
                 || value.hasPrefix("o3")
                 || value.hasPrefix("o4")
         }
+    }
+
+    private var selectedModelEfforts: [AssistantReasoningEffort] {
+        guard llmSettings.apiProvider == .anthropic else {
+            return llmSettings.apiProvider.supportedAssistantEfforts
+        }
+        let value = selectedModel.lowercased()
+        if value.contains("sonnet-4-6") || value.contains("opus-4-6") || value.contains("opus-4-5") {
+            return [.low, .medium, .high, .max]
+        }
+        return llmSettings.apiProvider.supportedAssistantEfforts
     }
 
     private var thinkingLockedOn: Bool {

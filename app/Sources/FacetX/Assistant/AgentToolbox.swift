@@ -11,6 +11,7 @@ final class AgentToolbox {
     private weak var eventKit: EventKitService?
     private weak var projectStore: ProjectStore?
     private weak var settings: AppSettings?
+    private var referencedItems: [String: AssistantItemMention] = [:]
 
     init(eventKit: EventKitService, projectStore: ProjectStore, settings: AppSettings) {
         self.eventKit = eventKit
@@ -25,76 +26,91 @@ final class AgentToolbox {
     var definitions: [[String: Any]] {
         [
             tool("list_projects",
-                 "List the user's active projects with their prefixes, taglines, and current week goals. Call this first whenever you need to know which projects exist or which prefix to use.",
+                 "List active projects and canonical prefixes. Use when the project is not explicit.",
                  properties: [:], required: []),
-
             tool("list_items",
-                 "List calendar events and reminder tasks. Call this before answering questions about the user's schedule or workload, and before creating items (to avoid duplicates).",
+                 "List FacetX items as JSON. Use reference_id for mutations; never match a title because titles can repeat.",
                  properties: [
-                    "project": prop("string", "Project name or prefix. Omit for all projects."),
-                    "scope": propEnum(["today", "overdue", "this_week", "upcoming", "all"],
-                                      "Time slice to return. 'upcoming' = next 14 days. Default 'this_week'."),
-                    "include_completed": prop("boolean", "Include completed tasks. Default false."),
+                    "project": nullableProp("string", "Project name/prefix, or null for all."),
+                    "scope": nullableEnum(["today", "overdue", "this_week", "upcoming", "all"], "Time scope, or null for this_week."),
+                    "include_completed": nullableProp("boolean", "Include completed tasks, or null for false."),
                  ], required: []),
-
+            tool("get_item",
+                 "Read one exact referenced item, including its local note/body when available.",
+                 properties: [
+                    "reference_id": prop("string", "Exact id from a drag reference or list_items."),
+                 ], required: ["reference_id"]),
             tool("create_task",
-                 "Create a reminder task in a project. Use for to-dos and action items. Call once per task.",
+                 "Create one reminder task. due_at is YYYY-MM-DD, local YYYY-MM-DDTHH:mm, or null. Priority applies only to tasks.",
                  properties: [
-                    "project": prop("string", "Project name or prefix (must match an existing project)."),
-                    "title": prop("string", "Task content, without the project prefix."),
-                    "due_date": prop("string", "Due date YYYY-MM-DD. Omit for no date."),
-                    "due_time": prop("string", "Due time HH:mm (24h). Only with due_date."),
-                    "tags": ["type": "array", "items": ["type": "string"],
-                             "description": "FacetX tags, without '#'."] as [String: Any],
+                    "project": prop("string", "Existing project name or prefix."),
+                    "title": prop("string", "Task title without project prefix."),
+                    "due_at": nullableProp("string", "Due date/time, or null."),
+                    "priority": nullableEnum(["none", "low", "medium", "high"], "Priority, or null for none."),
+                    "tags": nullableArray("string", "Tags without #, or null."),
                  ], required: ["project", "title"]),
-
             tool("create_event",
-                 "Create a calendar event in a project. Use for meetings and scheduled time blocks (anything with a start time or a specific day).",
+                 "Create one event. Timed values use local YYYY-MM-DDTHH:mm. All-day values use YYYY-MM-DD; end is exclusive and null means one day/default duration.",
                  properties: [
-                    "project": prop("string", "Project name or prefix (must match an existing project)."),
-                    "title": prop("string", "Event content, without the project prefix."),
-                    "date": prop("string", "Event date YYYY-MM-DD."),
-                    "start_time": prop("string", "Start time HH:mm (24h). Omit for an all-day event."),
-                    "duration_minutes": prop("integer", "Duration in minutes when start_time is set. Default 60."),
-                 ], required: ["project", "title", "date"]),
-
+                    "project": prop("string", "Existing project name or prefix."),
+                    "title": prop("string", "Event title without project prefix."),
+                    "start": prop("string", "Inclusive start date or timestamp."),
+                    "end": nullableProp("string", "Exclusive end date/timestamp, or null."),
+                    "all_day": prop("boolean", "Whether this is an all-day event."),
+                    "tags": nullableArray("string", "Tags without #, or null."),
+                 ], required: ["project", "title", "start", "all_day"]),
             tool("create_note",
-                 "Create a markdown note in a project (an all-day anchor event plus a local markdown body). Use when the user wants a plan, summary, or reference material saved as a note.",
+                 "Create a markdown note item. date is YYYY-MM-DD or null for today.",
                  properties: [
-                    "project": prop("string", "Project name or prefix."),
-                    "title": prop("string", "Note title, without the project prefix."),
-                    "body": prop("string", "Markdown body of the note."),
+                    "project": prop("string", "Existing project name or prefix."),
+                    "title": prop("string", "Note title without project prefix."),
+                    "body": prop("string", "Markdown body."),
+                    "date": nullableProp("string", "Anchor date YYYY-MM-DD, or null."),
                  ], required: ["project", "title", "body"]),
-
-            tool("complete_item",
-                 "Mark a reminder task as completed. Use the item id from list_items.",
+            tool("update_item",
+                 "Update an exact task/event. Null means keep the existing value. Event priority is unsupported.",
                  properties: [
-                    "item_id": prop("string", "The task's id as returned by list_items."),
-                 ], required: ["item_id"]),
-
+                    "reference_id": prop("string", "Exact id from a drag reference or list_items."),
+                    "title": nullableProp("string", "Replacement title, or null."),
+                    "scheduled_start": nullableProp("string", "Replacement due/start date or timestamp, or null."),
+                    "scheduled_end": nullableProp("string", "Replacement event end, or null."),
+                    "all_day": nullableProp("boolean", "Replacement event all-day flag, or null."),
+                    "priority": nullableEnum(["none", "low", "medium", "high"], "Replacement task priority, or null."),
+                    "tags": nullableArray("string", "Complete replacement tags, or null."),
+                 ], required: ["reference_id"]),
+            tool("set_task_completion",
+                 "Set the completion state of one exact reminder task.",
+                 properties: [
+                    "reference_id": prop("string", "Exact id from a drag reference or list_items."),
+                    "completed": prop("boolean", "Desired completion state."),
+                 ], required: ["reference_id", "completed"]),
+            tool("update_note",
+                 "Replace or append markdown on one exact referenced FacetX note.",
+                 properties: [
+                    "reference_id": prop("string", "Exact id from a dragged note or list_items."),
+                    "body": prop("string", "Markdown content."),
+                    "mode": propEnum(["replace", "append"], "Write mode."),
+                 ], required: ["reference_id", "body", "mode"]),
             tool("list_papers",
-                 "Search the user's literature library. Call before summarizing or discussing papers to get paper ids.",
+                 "Search the literature library and return paper ids.",
                  properties: [
-                    "query": prop("string", "Match against title/authors/venue. Omit to list recent papers."),
-                    "status": propEnum(["pending", "read", "starred", "skip"],
-                                       "Filter by reading status. Omit for all."),
+                    "query": nullableProp("string", "Title/author/venue query, or null."),
+                    "status": nullableEnum(["pending", "read", "starred", "skip"], "Reading status, or null."),
                  ], required: []),
-
             tool("read_paper",
-                 "Read a paper's content. Call with mode 'abstract' first; use 'full_text' (optionally with a page range) when the user wants a summary or details beyond the abstract. Long PDFs are paginated — check total_pages in the result and read in chunks.",
+                 "Read a paper abstract or paginated PDF text.",
                  properties: [
                     "paper_id": prop("string", "Paper id from list_papers."),
-                    "mode": propEnum(["abstract", "full_text"], "What to read. Default 'abstract'."),
-                    "page_start": prop("integer", "First PDF page to read (1-based, full_text only)."),
-                    "page_end": prop("integer", "Last PDF page to read (inclusive, full_text only)."),
+                    "mode": nullableEnum(["abstract", "full_text"], "Read mode, or null for abstract."),
+                    "page_start": nullableProp("integer", "First page, or null."),
+                    "page_end": nullableProp("integer", "Last page, or null."),
                  ], required: ["paper_id"]),
-
             tool("save_paper_note",
-                 "Save a note onto a paper (e.g. a summary you produced). Appends to the existing note unless replace is true.",
+                 "Replace or append a markdown note on a paper.",
                  properties: [
                     "paper_id": prop("string", "Paper id from list_papers."),
-                    "note": prop("string", "Markdown note content."),
-                    "replace": prop("boolean", "Replace the existing note instead of appending. Default false."),
+                    "note": prop("string", "Markdown note."),
+                    "replace": nullableProp("boolean", "True to replace, false/null to append."),
                  ], required: ["paper_id", "note"]),
         ]
     }
@@ -103,15 +119,22 @@ final class AgentToolbox {
 
     /// Execute one tool call; the returned string becomes the tool_result.
     /// Throws never — errors are returned as text so the model can adapt.
+    func registerReferences(_ mentions: [AssistantItemMention]) {
+        for mention in mentions { referencedItems[mention.referenceID] = mention }
+    }
+
     func execute(name: String, input: [String: Any]) async -> (result: String, isError: Bool) {
         do {
             switch name {
             case "list_projects": return (try listProjects(), false)
             case "list_items": return (try await listItems(input), false)
+            case "get_item": return (try await getItem(input), false)
             case "create_task": return (try await createTask(input), false)
             case "create_event": return (try await createEvent(input), false)
             case "create_note": return (try await createNote(input), false)
-            case "complete_item": return (try await completeItem(input), false)
+            case "update_item": return (try await updateItem(input), false)
+            case "set_task_completion": return (try await setTaskCompletion(input), false)
+            case "update_note": return (try await updateNote(input), false)
             case "list_papers": return (try listPapers(input), false)
             case "read_paper": return (try readPaper(input), false)
             case "save_paper_note": return (try savePaperNote(input), false)
@@ -208,46 +231,50 @@ final class AgentToolbox {
             }
         }
 
-        guard !items.isEmpty else { return "No items in scope '\(scope)'." }
-
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd HH:mm"
-        let dayFmt = DateFormatter()
-        dayFmt.dateFormat = "yyyy-MM-dd"
-
-        let capped = items.prefix(80)
-        var lines = capped.map { item -> String in
-            var parts = ["[\(item.id)]"]
-            parts.append(item.kind == .reminder ? (item.isCompleted ? "task(done)" : "task") : "event")
-            parts.append("\(item.projectPrefix): \(item.content)")
-            if let d = item.date {
-                parts.append(item.hasTime && !item.isAllDay ? fmt.string(from: d) : dayFmt.string(from: d))
-            }
-            if item.isOverdue { parts.append("OVERDUE") }
-            if !item.tags.isEmpty { parts.append("#" + item.tags.joined(separator: " #")) }
-            return "- " + parts.joined(separator: " | ")
-        }
-        if items.count > capped.count {
-            lines.append("(+\(items.count - capped.count) more items truncated)")
-        }
-        return lines.joined(separator: "\n")
+        let capped = Array(items.prefix(80))
+        let mentions = capped.map(AssistantItemMention.init(item:))
+        registerReferences(mentions)
+        return jsonString([
+            "items": mentions.map(\.promptObject),
+            "truncated_count": max(0, items.count - capped.count),
+        ])
     }
 
-    private func parseDay(_ raw: String?) -> Date? {
-        guard let raw, !raw.isEmpty else { return nil }
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        fmt.timeZone = .current
-        return fmt.date(from: raw)
+    private func parseDateValue(_ raw: String?) -> (date: Date, hasTime: Bool)? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: raw) { return (date, true) }
+        iso.formatOptions = [.withInternetDateTime]
+        if let date = iso.date(from: raw) { return (date, true) }
+
+        for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd HH:mm"] {
+            let formatter = DateFormatter()
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = .current
+            formatter.dateFormat = format
+            if let date = formatter.date(from: raw) { return (date, true) }
+        }
+        let day = DateFormatter()
+        day.calendar = Calendar(identifier: .gregorian)
+        day.locale = Locale(identifier: "en_US_POSIX")
+        day.timeZone = .current
+        day.dateFormat = "yyyy-MM-dd"
+        return day.date(from: raw).map { ($0, false) }
     }
 
-    private func combine(day: Date, time raw: String?) -> (date: Date, hasTime: Bool) {
-        guard let raw, !raw.isEmpty else { return (day, false) }
-        let parts = raw.split(separator: ":").compactMap { Int($0) }
-        guard parts.count == 2 else { return (day, false) }
-        let cal = Calendar.current
-        let date = cal.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day) ?? day
-        return (date, true)
+    private func priorityValue(_ raw: String?) -> Int? {
+        guard let raw else { return nil }
+        switch raw {
+        case "none": return 0
+        case "low": return 9
+        case "medium": return 5
+        case "high": return 1
+        default: return nil
+        }
     }
 
     private func createTask(_ input: [String: Any]) async throws -> String {
@@ -262,23 +289,20 @@ final class AgentToolbox {
         guard !listName.isEmpty else {
             throw ToolError.message("No reminder list configured for project \(project.name).")
         }
-        var dueDate: Date?
-        var hasTime = false
-        if let day = parseDay(input["due_date"] as? String) {
-            (dueDate, hasTime) = {
-                let combined = combine(day: day, time: input["due_time"] as? String)
-                return (combined.date, combined.hasTime)
-            }()
-        }
+        let due = parseDateValue(input["due_at"] as? String)
         let tags = (input["tags"] as? [Any])?.compactMap { $0 as? String } ?? []
+        let priority = priorityValue(input["priority"] as? String) ?? 0
+        let stableID = UUID().uuidString
         let created = await eventKit.createReminder(
             project: project.prefix, content: title,
-            listName: listName, dueDate: dueDate, dueIncludesTime: hasTime,
+            listName: listName, dueDate: due?.date, dueIncludesTime: due?.hasTime ?? false,
             tags: tags,
+            itemMetadata: FacetItemMetadata(itemID: stableID),
+            priority: priority,
             enabledLists: settings.effectiveReminderListNames
         )
-        guard created != nil else { throw ToolError.message("EventKit rejected the reminder.") }
-        return "Created task '\(project.prefix): \(title)'" + (dueDate != nil ? " due \(input["due_date"] as? String ?? "")" : "")
+        guard let created else { throw ToolError.message("EventKit rejected the reminder.") }
+        return jsonString(["created": true, "reference_id": stableID, "eventkit_id": created, "type": "task"])
     }
 
     private func createEvent(_ input: [String: Any]) async throws -> String {
@@ -289,26 +313,34 @@ final class AgentToolbox {
         guard let title = input["title"] as? String, !title.isEmpty else {
             throw ToolError.message("Missing 'title'.")
         }
-        guard let day = parseDay(input["date"] as? String) else {
-            throw ToolError.message("Missing or invalid 'date' (YYYY-MM-DD).")
+        let allDay = input["all_day"] as? Bool ?? false
+        guard let start = parseDateValue(input["start"] as? String) else {
+            throw ToolError.message("Missing or invalid 'start'.")
         }
         let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
         guard !calName.isEmpty else {
             throw ToolError.message("No calendar configured for project \(project.name).")
         }
-        let (start, hasTime) = combine(day: day, time: input["start_time"] as? String)
-        let duration = input["duration_minutes"] as? Int ?? 60
+        let end = parseDateValue(input["end"] as? String)?.date
+        if let end, end <= start.date {
+            throw ToolError.message("Event end must be after start.")
+        }
+        let tags = (input["tags"] as? [Any])?.compactMap { $0 as? String } ?? []
+        let duration = end.map { max(1, Int($0.timeIntervalSince(start.date) / 60)) }
+            ?? settings.defaultEventDurationMinutes
+        let stableID = UUID().uuidString
         let created = await eventKit.createEvent(
             project: project.prefix, content: title,
-            calendarName: calName, startDate: start,
-            durationMinutes: hasTime ? duration : settings.defaultEventDurationMinutes,
-            tags: [],
-            isAllDay: !hasTime,
+            calendarName: calName, startDate: start.date,
+            durationMinutes: duration,
+            tags: tags,
+            itemMetadata: FacetItemMetadata(itemID: stableID),
+            isAllDay: allDay,
+            endDate: end,
             enabledCalendars: settings.effectiveCalendarNames
         )
-        guard created != nil else { throw ToolError.message("EventKit rejected the event.") }
-        return "Created event '\(project.prefix): \(title)' on \(input["date"] as? String ?? "")"
-            + (hasTime ? " at \(input["start_time"] as? String ?? "") (\(duration) min)" : " (all day)")
+        guard let created else { throw ToolError.message("EventKit rejected the event.") }
+        return jsonString(["created": true, "reference_id": stableID, "eventkit_id": created, "type": "event"])
     }
 
     private func createNote(_ input: [String: Any]) async throws -> String {
@@ -324,30 +356,147 @@ final class AgentToolbox {
         guard !calName.isEmpty else {
             throw ToolError.message("No calendar configured for project \(project.name).")
         }
+        let anchorDate = parseDateValue(input["date"] as? String)?.date
+            ?? Calendar.current.startOfDay(for: Date())
+        let stableID = UUID().uuidString
         let eventId = await eventKit.createNote(
             project: project.prefix, content: title,
-            calendarName: calName, startDate: Calendar.current.startOfDay(for: Date()),
+            calendarName: calName, startDate: anchorDate,
             dataDirectory: project.effectiveDataDirectory,
+            itemMetadata: FacetItemMetadata(itemID: stableID),
             enabledCalendars: settings.effectiveCalendarNames
         )
         guard eventId != nil else { throw ToolError.message("Could not create the note anchor event.") }
-        // The anchor event carries a fresh facetID; find it to attach the body.
-        let items = try await fetchItems(prefixes: [project.prefix])
-        if let created = items.first(where: { $0.id == eventId }), let facetID = created.facetID {
-            ItemStore.shared.save(id: facetID, body: body)
-            _ = NoteStore.shared.save(dataDirectory: project.effectiveDataDirectory,
-                                      facetID: facetID, body: body)
-        }
-        return "Created note '\(project.prefix): \(title)' with \(body.count) characters."
+        ItemStore.shared.save(id: stableID, body: body)
+        _ = NoteStore.shared.save(
+            dataDirectory: project.effectiveDataDirectory,
+            facetID: stableID,
+            body: body
+        )
+        return jsonString([
+            "created": true,
+            "reference_id": stableID,
+            "eventkit_id": eventId ?? "",
+            "type": "note",
+        ])
     }
 
-    private func completeItem(_ input: [String: Any]) async throws -> String {
-        guard let eventKit else { throw ToolError.message("Service unavailable") }
-        guard let id = input["item_id"] as? String, !id.isEmpty else {
-            throw ToolError.message("Missing 'item_id'.")
+    private func resolveReference(_ raw: String?) async throws -> AssistantItemMention {
+        guard let raw, !raw.isEmpty else { throw ToolError.message("Missing 'reference_id'.") }
+        if let mention = referencedItems[raw] {
+            if let stableID = mention.stableID {
+                let current = try await fetchItems(prefixes: [mention.projectPrefix])
+                    .first { $0.facetID == stableID }
+                if let current {
+                    let refreshed = AssistantItemMention(item: current)
+                    referencedItems[raw] = refreshed
+                    return refreshed
+                }
+            }
+            return mention
         }
-        await eventKit.setReminderCompleted(id: id, completed: true)
-        return "Marked item \(id) as completed."
+        guard let projectStore else { throw ToolError.message("Service unavailable") }
+        let prefixes = Set(projectStore.activeProjects.map(\.prefix))
+        let items = try await fetchItems(prefixes: prefixes)
+        if let item = items.first(where: {
+            $0.facetID == raw || $0.id == raw || "eventkit:\($0.id)" == raw
+        }) {
+            let mention = AssistantItemMention(item: item)
+            referencedItems[mention.referenceID] = mention
+            return mention
+        }
+        throw ToolError.message("Unknown reference_id '\(raw)'. Refresh with list_items or drag the item again.")
+    }
+
+    private func getItem(_ input: [String: Any]) async throws -> String {
+        let mention = try await resolveReference(input["reference_id"] as? String)
+        var object = mention.promptObject
+        if let stableID = mention.stableID {
+            let body = ItemStore.shared.body(for: stableID)
+            if !body.isEmpty { object["body"] = body }
+        }
+        return jsonString(object)
+    }
+
+    private func updateItem(_ input: [String: Any]) async throws -> String {
+        guard let eventKit else { throw ToolError.message("Service unavailable") }
+        let mention = try await resolveReference(input["reference_id"] as? String)
+        let title = (input["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let title, title.isEmpty { throw ToolError.message("Title cannot be empty.") }
+
+        let parsedStart = parseDateValue(input["scheduled_start"] as? String)
+        let parsedEnd = parseDateValue(input["scheduled_end"] as? String)
+        let allDay = input["all_day"] as? Bool
+        let priorityRaw = input["priority"] as? String
+        if mention.kind == "event", priorityRaw != nil {
+            throw ToolError.message("Calendar events do not support priority.")
+        }
+        let tags = (input["tags"] as? [Any])?.compactMap { $0 as? String }
+        let start = parsedStart?.date ?? mention.date
+        if mention.kind == "event", start == nil {
+            throw ToolError.message("An event must have a scheduled_start.")
+        }
+        let success = await eventKit.updateItem(
+            id: mention.eventKitID,
+            project: mention.projectPrefix,
+            content: title ?? mention.title,
+            date: start,
+            useDate: mention.kind == "event" || start != nil,
+            dateIncludesTime: parsedStart?.hasTime ?? mention.hasTime,
+            containerName: mention.containerName,
+            tags: tags,
+            priority: priorityValue(priorityRaw) ?? mention.priority,
+            isAllDay: mention.kind == "event" ? (allDay ?? mention.isAllDay) : nil,
+            endDate: mention.kind == "event" ? (parsedEnd?.date ?? mention.endDate) : nil
+        )
+        guard success else { throw ToolError.message("EventKit rejected the item update.") }
+        return jsonString(["updated": true, "reference_id": mention.referenceID])
+    }
+
+    private func setTaskCompletion(_ input: [String: Any]) async throws -> String {
+        guard let eventKit else { throw ToolError.message("Service unavailable") }
+        let mention = try await resolveReference(input["reference_id"] as? String)
+        guard mention.kind == "task" else {
+            throw ToolError.message("Only reminder tasks have a completion state.")
+        }
+        guard let completed = input["completed"] as? Bool else {
+            throw ToolError.message("Missing 'completed'.")
+        }
+        await eventKit.setReminderCompleted(id: mention.eventKitID, completed: completed)
+        return jsonString([
+            "updated": true,
+            "reference_id": mention.referenceID,
+            "completed": completed,
+        ])
+    }
+
+    private func updateNote(_ input: [String: Any]) async throws -> String {
+        let mention = try await resolveReference(input["reference_id"] as? String)
+        guard mention.isNote, let stableID = mention.stableID else {
+            throw ToolError.message("The referenced item is not a FacetX note.")
+        }
+        guard let body = input["body"] as? String,
+              let mode = input["mode"] as? String else {
+            throw ToolError.message("Missing note body or mode.")
+        }
+        guard let project = try resolveProject(mention.projectPrefix) else {
+            throw ToolError.message("The note's project no longer exists.")
+        }
+        let existing = ItemStore.shared.body(for: stableID)
+        let merged = mode == "append" && !existing.isEmpty
+            ? existing + "\n\n---\n\n" + body
+            : body
+        ItemStore.shared.save(id: stableID, body: merged)
+        _ = NoteStore.shared.save(
+            dataDirectory: project.effectiveDataDirectory,
+            facetID: stableID,
+            body: merged
+        )
+        return jsonString([
+            "updated": true,
+            "reference_id": mention.referenceID,
+            "characters": merged.count,
+        ])
     }
 
     // ── Literature ───────────────────────────────────────────────────────────
@@ -450,14 +599,17 @@ final class AgentToolbox {
     // ── Schema helpers ───────────────────────────────────────────────────────
 
     private func tool(_ name: String, _ description: String,
-                      properties: [String: [String: Any]], required: [String]) -> [String: Any] {
+                      properties: [String: [String: Any]], required _: [String]) -> [String: Any] {
         [
             "name": name,
             "description": description,
             "input_schema": [
                 "type": "object",
                 "properties": properties,
-                "required": required,
+                // Strict function calling requires every property to be listed;
+                // semantic optionals are represented as nullable types.
+                "required": properties.keys.sorted(),
+                "additionalProperties": false,
             ] as [String: Any],
         ]
     }
@@ -468,5 +620,34 @@ final class AgentToolbox {
 
     private func propEnum(_ values: [String], _ description: String) -> [String: Any] {
         ["type": "string", "enum": values, "description": description]
+    }
+
+    private func nullableProp(_ type: String, _ description: String) -> [String: Any] {
+        ["type": [type, "null"], "description": description]
+    }
+
+    private func nullableEnum(_ values: [String], _ description: String) -> [String: Any] {
+        [
+            "type": ["string", "null"],
+            "enum": values.map { $0 as Any } + [NSNull()],
+            "description": description,
+        ]
+    }
+
+    private func nullableArray(_ itemType: String, _ description: String) -> [String: Any] {
+        [
+            "type": ["array", "null"],
+            "items": ["type": itemType],
+            "description": description,
+        ]
+    }
+
+    private func jsonString(_ object: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return string
     }
 }

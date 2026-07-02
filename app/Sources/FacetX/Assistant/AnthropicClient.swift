@@ -148,7 +148,7 @@ struct AnthropicClient: LLMChatClient {
         }
 
         if supportsEffort {
-            body["output_config"] = ["effort": reasoningEffort.rawValue]
+            body["output_config"] = ["effort": anthropicEffort]
         }
     }
 
@@ -160,5 +160,16 @@ struct AnthropicClient: LLMChatClient {
         case .xhigh: return 12_288
         case .max: return 15_000
         }
+    }
+
+    private var anthropicEffort: String {
+        let slug = model.lowercased()
+        let supportsXHigh = slug.contains("opus-4-8")
+            || slug.contains("opus-4-7")
+            || slug.contains("sonnet-5")
+            || slug.contains("fable")
+            || slug.contains("mythos")
+        if reasoningEffort == .xhigh, !supportsXHigh { return "high" }
+        return reasoningEffort.rawValue
     }
 }

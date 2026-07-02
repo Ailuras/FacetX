@@ -405,7 +405,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                      tags: [String] = [],
                      itemMetadata: FacetItemMetadata? = nil,
                      url: URL? = nil,
-                     isAllDay: Bool = false, enabledCalendars: Set<String>? = nil) async -> String? {
+                     isAllDay: Bool = false,
+                     endDate: Date? = nil,
+                     enabledCalendars: Set<String>? = nil) async -> String? {
         let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
         guard let cal = calendars.first(where: { $0.title == calendarName })
         else { return nil }
@@ -417,10 +419,16 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         e.isAllDay = isAllDay
         if isAllDay {
             e.startDate = Calendar.current.startOfDay(for: startDate)
-            e.endDate = Calendar.current.date(byAdding: .day, value: 1, to: e.startDate)!
+            let minimumEnd = Calendar.current.date(byAdding: .day, value: 1, to: e.startDate)!
+            if let endDate {
+                let normalized = Calendar.current.startOfDay(for: endDate)
+                e.endDate = max(normalized, minimumEnd)
+            } else {
+                e.endDate = minimumEnd
+            }
         } else {
             e.startDate = startDate
-            e.endDate = Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate)
+            e.endDate = endDate ?? Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate)
         }
         do {
             try store.save(e, span: .thisEvent, commit: true)
@@ -437,8 +445,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func createNote(project: String, content: String,
                     calendarName: String, startDate: Date,
                     dataDirectory: String?,
+                    itemMetadata: FacetItemMetadata? = nil,
                     enabledCalendars: Set<String>? = nil) async -> String? {
-        let metadata = FacetItemMetadata(itemID: UUID().uuidString)
+        let metadata = itemMetadata ?? FacetItemMetadata(itemID: UUID().uuidString)
         let eventId = await createEvent(
             project: project,
             content: content,

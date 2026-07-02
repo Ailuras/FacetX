@@ -95,6 +95,7 @@ final class AssistantSession: ObservableObject {
             ? L10n.pick("Review the referenced items.", "查看这些提及的项目条目。")
             : trimmed
         entries.append(AssistantEntry(role: .user, text: visibleText, mentions: mentions))
+        toolbox?.registerReferences(mentions)
         isBusy = true
         Task {
             await runLoop(userText: promptText(trimmed, mentions: mentions))
@@ -199,7 +200,7 @@ final class AssistantSession: ObservableObject {
 
     /// Short human-readable line shown under a tool-call chip.
     private func toolSummary(_ name: String, _ input: [String: Any]) -> String {
-        let interesting = ["project", "title", "query", "scope", "paper_id", "item_id", "date", "due_date", "mode"]
+        let interesting = ["project", "title", "query", "scope", "reference_id", "paper_id", "start", "due_at", "mode"]
         let parts = interesting.compactMap { key -> String? in
             guard let value = input[key] else { return nil }
             return "\(key): \(value)"
@@ -228,19 +229,24 @@ final class AssistantSession: ObservableObject {
         Today is \(today). Active projects: \(projectNames.isEmpty ? "(none yet)" : projectNames).
 
         Use the tools to read and change the user's real data:
+        - Dragged references are exact items. Use their reference_id with get_item, \
+        update_item, set_task_completion, or update_note; never identify an item by title.
         - Turning a plan into concrete work: list_projects and list_items first, then \
         create tasks/events one per item; put timed appointments in events, action \
         items in tasks. Summarize what you created at the end.
-        - Saving reference material or a written plan: create_note with markdown.
+        - Use local ISO timestamps (YYYY-MM-DDTHH:mm) for timed work and YYYY-MM-DD \
+        for all-day work. Set task priority only when the user states or clearly implies it.
+        - Saving reference material or a written plan: create_note with markdown. Use \
+        update_note only for an exact referenced note.
         - Papers: list_papers to find ids; read_paper (abstract first, then full_text \
         in page chunks for long PDFs); when the user asks for a summary, offer to \
         save it with save_paper_note.
 
         Rules: never invent project names — resolve them via list_projects. Check \
-        list_items before creating to avoid duplicates. Ask before deleting or bulk \
-        changes (you have no delete tool; say so if asked). Dates you pass to tools \
-        are in the user's local timezone. Keep answers concise and lead with the \
-        outcome. \(language)
+        list_items before creating to avoid duplicates. Never guess which duplicate-title \
+        item the user means; ask them to drag it in. Ask before bulk changes. Dates you \
+        pass to tools are in the user's local timezone. Keep answers concise and lead \
+        with the outcome. \(language)
         """
     }
 }
