@@ -1,11 +1,17 @@
 import SwiftUI
 
+enum FlowLayoutAlignment {
+    case leading
+    case center
+    case trailing
+}
+
 /// Wraps subviews onto multiple rows when the proposed width is exceeded.
 /// Used for tag chip clouds in the sidebar.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 6
     var lineSpacing: CGFloat = 6
-    var alignment: HorizontalAlignment = .leading
+    var alignment: FlowLayoutAlignment = .leading
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
@@ -19,7 +25,15 @@ struct FlowLayout: Layout {
         let rows = layout(subviews: subviews, maxWidth: bounds.width)
         var y = bounds.minY
         for row in rows {
-            var x = bounds.minX
+            var x: CGFloat
+            switch alignment {
+            case .leading:
+                x = bounds.minX
+            case .center:
+                x = bounds.midX - row.width / 2
+            case .trailing:
+                x = bounds.maxX - row.width
+            }
             for entry in row.items {
                 entry.subview.place(
                     at: CGPoint(x: x, y: y),

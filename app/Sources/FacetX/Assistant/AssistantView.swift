@@ -359,7 +359,7 @@ struct AssistantView: View {
     }
 
     private func mentionFlow(_ items: [AssistantItemMention], removable: Bool) -> some View {
-        FlowLayout(spacing: 6, lineSpacing: 6) {
+        FlowLayout(spacing: 6, lineSpacing: 6, alignment: .trailing) {
             ForEach(items) { mention in
                 HStack(spacing: 5) {
                     Image(systemName: mention.systemImage)
