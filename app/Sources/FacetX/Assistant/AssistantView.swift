@@ -12,7 +12,10 @@ struct AssistantView: View {
     @State private var isMentionDropTarget = false
     @State private var availableModels: [String] = []
     @State private var isLoadingModels = false
+    @State private var editingEntryID: UUID?
+    @State private var editDraft = ""
     @FocusState private var inputFocused: Bool
+    @FocusState private var editFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,6 +46,7 @@ struct AssistantView: View {
                 llmSettings.assistantReasoningEffort = .high
             }
         }
+        .onChange(of: session.activeConversationID) { cancelEdit() }
         .task(id: modelCatalogKey) { await refreshModels() }
     }
 
@@ -95,15 +99,22 @@ struct AssistantView: View {
                 if !entry.mentions.isEmpty {
                     mentionFlow(entry.mentions, removable: false)
                 }
-                Text(entry.text)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if editingEntryID == entry.id {
+                    userEditor(for: entry)
+                } else {
+                    Text(entry.text)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) { beginEditing(entry) }
+                        .help(L10n.pick("Double-click to edit and resend from here",
+                                        "双击可编辑并从此处重新开始"))
+                }
             }
             .padding(.leading, 10)
             .overlay(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.5))
+                    .fill(Color.accentColor.opacity(editingEntryID == entry.id ? 0.9 : 0.5))
                     .frame(width: 2)
             }
 
@@ -140,6 +151,59 @@ struct AssistantView: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// Inline editor shown in place of a user turn after a double-click. Sending
+    /// rewrites that turn and drops everything after it.
+    private func userEditor(for entry: AssistantEntry) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("", text: $editDraft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12.5, weight: .medium))
+                .lineLimit(1...12)
+                .focused($editFocused)
+                .onSubmit(commitEdit)
+
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                Button(L10n.pick("Cancel", "取消")) { cancelEdit() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Button(L10n.pick("Resend", "重发")) { commitEdit() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(editDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(9)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
+        )
+    }
+
+    private func beginEditing(_ entry: AssistantEntry) {
+        guard !session.isBusy else { return }
+        editingEntryID = entry.id
+        editDraft = entry.text
+        editFocused = true
+    }
+
+    private func cancelEdit() {
+        editingEntryID = nil
+        editDraft = ""
+    }
+
+    private func commitEdit() {
+        guard let id = editingEntryID else { return }
+        let text = editDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        editingEntryID = nil
+        editDraft = ""
+        session.editAndResend(entryID: id, newText: text)
     }
 
     private var thinkingIndicator: some View {

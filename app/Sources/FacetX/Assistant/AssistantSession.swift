@@ -218,6 +218,42 @@ final class AssistantSession: ObservableObject {
         }
     }
 
+    /// Rewind the conversation to a past user turn, replace its text, and run
+    /// again from there — everything after that turn (in both the transcript and
+    /// the raw API history) is discarded, matching the "edit & resend" model
+    /// where later exchanges no longer make sense once the prompt changed.
+    func editAndResend(entryID: UUID, newText: String) {
+        guard !isBusy else { return }
+        guard let entryIndex = entries.firstIndex(where: { $0.id == entryID }),
+              case .user = entries[entryIndex].role else { return }
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        // Which user turn is this (0-based)? Used to find the matching cut point
+        // in apiMessages, whose entries don't map 1:1 to transcript entries.
+        let userOrdinal = entries[..<entryIndex]
+            .reduce(0) { count, entry in
+                if case .user = entry.role { return count + 1 }
+                return count
+            }
+        let mentions = entries[entryIndex].mentions
+
+        entries.removeSubrange(entryIndex...)
+
+        var seenUsers = 0
+        var cut = apiMessages.count
+        for (index, message) in apiMessages.enumerated() where (message["role"] as? String) == "user" {
+            if seenUsers == userOrdinal { cut = index; break }
+            seenUsers += 1
+        }
+        apiMessages.removeSubrange(cut...)
+        // The kept history may no longer contain the paper's full text, so allow
+        // it to be re-injected on this fresh turn if the context is still on.
+        injectedPaperID = nil
+
+        send(trimmed, mentions: mentions)
+    }
+
     private func promptText(_ text: String, mentions: [AssistantItemMention]) -> String {
         var blocks: [String] = []
 
