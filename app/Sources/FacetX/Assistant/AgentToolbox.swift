@@ -367,7 +367,6 @@ final class AgentToolbox {
             enabledCalendars: settings.effectiveCalendarNames
         )
         guard eventId != nil else { throw ToolError.message("Could not create the note anchor event.") }
-        ItemStore.shared.save(id: stableID, body: body)
         _ = NoteStore.shared.save(
             dataDirectory: project.effectiveDataDirectory,
             facetID: stableID,
@@ -411,7 +410,14 @@ final class AgentToolbox {
     private func getItem(_ input: [String: Any]) async throws -> String {
         let mention = try await resolveReference(input["reference_id"] as? String)
         var object = mention.promptObject
-        if let stableID = mention.stableID {
+        if mention.isNote, let stableID = mention.stableID,
+           let project = try resolveProject(mention.projectPrefix) {
+            object["body"] = NoteStore.shared.body(
+                dataDirectory: project.effectiveDataDirectory,
+                facetID: stableID
+            )
+            object["body_format"] = "markdown"
+        } else if let stableID = mention.stableID {
             let body = ItemStore.shared.body(for: stableID)
             if !body.isEmpty { object["body"] = body }
         }
@@ -482,11 +488,13 @@ final class AgentToolbox {
         guard let project = try resolveProject(mention.projectPrefix) else {
             throw ToolError.message("The note's project no longer exists.")
         }
-        let existing = ItemStore.shared.body(for: stableID)
+        let existing = NoteStore.shared.body(
+            dataDirectory: project.effectiveDataDirectory,
+            facetID: stableID
+        )
         let merged = mode == "append" && !existing.isEmpty
             ? existing + "\n\n---\n\n" + body
             : body
-        ItemStore.shared.save(id: stableID, body: merged)
         _ = NoteStore.shared.save(
             dataDirectory: project.effectiveDataDirectory,
             facetID: stableID,
