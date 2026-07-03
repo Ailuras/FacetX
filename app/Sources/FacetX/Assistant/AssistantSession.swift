@@ -116,6 +116,16 @@ final class AssistantSession: ObservableObject {
         }
     }
 
+    func deleteConversation(_ id: UUID) {
+        guard !isBusy else { return }
+        if id == activeConversationID {
+            deleteCurrentConversation()
+            return
+        }
+        conversationStore.delete(id: id)
+        refreshConversationList()
+    }
+
     func send(_ text: String, mentions: [AssistantItemMention] = []) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !mentions.isEmpty, !isBusy else { return }
