@@ -46,13 +46,15 @@ struct AssistantSidebarPanel: View {
                     }
                 }
             } label: {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 11, weight: .medium))
+                Image(systemName: "clock")
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
             .help(L10n.pick("Conversation history", "历史会话"))
 
             Button {
