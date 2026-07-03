@@ -302,24 +302,31 @@ struct ItemRow: View {
                             .help(L10n.pick("Open link: \(url.absoluteString)", "打开链接：\(url.absoluteString)"))
                         }
 
-                        if focus.isFocusing(item.focusTargetID) {
-                            FacetInfoBadge(
-                                text: FocusService.clock(seconds: focus.remainingSeconds),
-                                systemImage: "timer",
-                                tint: .pink,
-                                fill: Color.pink.opacity(0.12)
-                            )
-                            .help(L10n.pick("Focusing now", "正在专注"))
-                        } else if let totals = focus.totalsByTarget[item.focusTargetID],
-                                  totals.seconds >= 60 {
+                        // Aggregate totals only — never a per-second countdown here.
+                        // A ticking badge would republish (and redraw) every row in
+                        // the list every second, since they all share one FocusService.
+                        // The live clock stays in the few single-instance surfaces
+                        // (menu bar, widget, the paper's own detail pane) where that
+                        // cost doesn't multiply by row count.
+                        let isFocusingThis = focus.isFocusing(item.focusTargetID)
+                        if let totals = focus.totalsByTarget[item.focusTargetID],
+                           totals.seconds >= 60 {
                             FacetInfoBadge(
                                 text: FocusService.format(seconds: totals.seconds),
-                                systemImage: "timer",
+                                systemImage: isFocusingThis ? "timer.circle.fill" : "timer",
                                 tint: .pink,
-                                fill: Color.pink.opacity(0.10)
+                                fill: Color.pink.opacity(isFocusingThis ? 0.16 : 0.10)
                             )
-                            .help(L10n.pick("Focused \(totals.sessions) times",
-                                            "累计专注 \(totals.sessions) 次"))
+                            .help(L10n.pick("Focused \(totals.sessions) times · \(FocusService.format(seconds: totals.seconds)) total",
+                                            "累计专注 \(totals.sessions) 次 · 共 \(FocusService.format(seconds: totals.seconds))"))
+                        } else if isFocusingThis {
+                            FacetInfoBadge(
+                                text: L10n.pick("Focusing", "专注中"),
+                                systemImage: "timer.circle.fill",
+                                tint: .pink,
+                                fill: Color.pink.opacity(0.16)
+                            )
+                            .help(L10n.pick("Focusing now", "正在专注"))
                         }
 
                         if let date = item.date {
