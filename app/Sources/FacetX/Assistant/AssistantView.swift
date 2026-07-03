@@ -43,6 +43,10 @@ struct AssistantView: View {
                 llmSettings.assistantReasoningEffort = provider.defaultAssistantEffort
             }
         }
+        .onChange(of: llmSettings.deepSeekAPIFormat) { _, format in
+            guard llmSettings.apiProvider == .deepseek else { return }
+            llmSettings.apiBaseURL = format.defaultBaseURL
+        }
         .onChange(of: llmSettings.apiModel) {
             if thinkingLockedOn { llmSettings.assistantThinkingEnabled = true }
             if !selectedModelEfforts.contains(llmSettings.assistantReasoningEffort) {
@@ -285,93 +289,104 @@ struct AssistantView: View {
     }
 
     private var modelControls: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach(TranslationProvider.allCases, id: \.self) { provider in
-                        Button {
-                            selectProvider(provider)
-                        } label: {
-                            if provider == llmSettings.apiProvider {
-                                Label(provider.displayName, systemImage: "checkmark")
-                            } else {
-                                Text(provider.displayName)
-                            }
-                        }
-                    }
-                } label: {
-                    Label(llmSettings.apiProvider.displayName, systemImage: "server.rack")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help(L10n.pick("Switch provider", "切换服务商"))
-
-                Divider().frame(height: 16)
-
-                Menu {
-                    ForEach(modelChoices, id: \.self) { model in
-                        Button {
-                            llmSettings.apiModel = model
-                        } label: {
-                            if model == selectedModel {
-                                Label(model, systemImage: "checkmark")
-                            } else {
-                                Text(model)
-                            }
-                        }
-                    }
-                    Divider()
+        HStack(spacing: 8) {
+            Menu {
+                ForEach(TranslationProvider.allCases, id: \.self) { provider in
                     Button {
-                        Task { await refreshModels() }
+                        selectProvider(provider)
                     } label: {
-                        Label(L10n.pick("Refresh models", "刷新模型"), systemImage: "arrow.clockwise")
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "cpu")
-                        Text(selectedModel)
-                            .font(.system(size: 10.5, design: .monospaced))
-                            .lineLimit(1)
-                        if isLoadingModels {
-                            ProgressView().controlSize(.mini)
+                        if provider == llmSettings.apiProvider {
+                            Label(provider.displayName, systemImage: "checkmark")
                         } else {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 7, weight: .bold))
+                            Text(provider.displayName)
                         }
                     }
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .menuStyle(.borderlessButton)
-                .help(L10n.pick("Switch model", "切换模型"))
-            }
-
-            HStack(spacing: 10) {
-                Toggle(L10n.pick("Thinking", "思考"), isOn: $llmSettings.assistantThinkingEnabled)
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .disabled(!modelSupportsThinking || thinkingLockedOn)
-
-                Spacer(minLength: 4)
-
-                Text(L10n.pick("Effort", "强度"))
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.tertiary)
-                Picker("", selection: $llmSettings.assistantReasoningEffort) {
-                    ForEach(selectedModelEfforts) { effort in
-                        Text(effort.title).tag(effort)
+                if llmSettings.apiProvider == .deepseek {
+                    Divider()
+                    Section(L10n.pick("DeepSeek protocol", "DeepSeek 协议")) {
+                        ForEach(DeepSeekAPIFormat.allCases) { format in
+                            Button {
+                                llmSettings.deepSeekAPIFormat = format
+                            } label: {
+                                if format == llmSettings.deepSeekAPIFormat {
+                                    Label(format.title, systemImage: "checkmark")
+                                } else {
+                                    Text(format.title)
+                                }
+                            }
+                        }
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .controlSize(.mini)
-                .fixedSize()
-                .disabled(!llmSettings.assistantThinkingEnabled)
+            } label: {
+                Label(llmSettings.apiProvider.displayName, systemImage: "server.rack")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help(L10n.pick("Switch provider", "切换服务商"))
+
+            Divider().frame(height: 16)
+
+            Menu {
+                ForEach(modelChoices, id: \.self) { model in
+                    Button {
+                        llmSettings.apiModel = model
+                    } label: {
+                        if model == selectedModel {
+                            Label(model, systemImage: "checkmark")
+                        } else {
+                            Text(model)
+                        }
+                    }
+                }
+                Divider()
+                Button {
+                    Task { await refreshModels() }
+                } label: {
+                    Label(L10n.pick("Refresh models", "刷新模型"), systemImage: "arrow.clockwise")
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "cpu")
+                    Text(selectedModel)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .lineLimit(1)
+                    if isLoadingModels {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 7, weight: .bold))
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .menuStyle(.borderlessButton)
+            .help(L10n.pick("Switch model", "切换模型"))
+
+            Divider().frame(height: 16)
+
+            Toggle(L10n.pick("Think", "思考"), isOn: $llmSettings.assistantThinkingEnabled)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .font(.system(size: 10.5, weight: .medium))
+                .fixedSize()
+                .disabled(!modelSupportsThinking || thinkingLockedOn)
+
+            Picker("", selection: $llmSettings.assistantReasoningEffort) {
+                ForEach(selectedModelEfforts) { effort in
+                    Text(effort.title).tag(effort)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .controlSize(.mini)
+            .fixedSize()
+            .disabled(!llmSettings.assistantThinkingEnabled)
+            .help(L10n.pick("Reasoning effort", "思考强度"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
