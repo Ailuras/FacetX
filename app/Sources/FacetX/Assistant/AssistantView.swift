@@ -327,13 +327,18 @@ struct AssistantView: View {
                     .disabled(!canSend)
                 }
             }
-            .padding(10)
-            .background(FacetTheme.quietPanel)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(FacetTheme.canvas)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(inputFocused ? Color.accentColor.opacity(0.55) : Color.primary.opacity(0.14),
+                            lineWidth: inputFocused ? 1.5 : 1)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { inputFocused = true }
             .padding(10)
         }
         .background(FacetTheme.panel.opacity(0.4))
@@ -424,7 +429,7 @@ struct AssistantView: View {
     }
 
     private func mentionFlow(_ items: [AssistantItemMention], removable: Bool) -> some View {
-        FlowLayout(spacing: 6, lineSpacing: 6, alignment: .trailing) {
+        FlowLayout(spacing: 6, lineSpacing: 6, alignment: .leading) {
             ForEach(items) { mention in
                 HStack(spacing: 5) {
                     Image(systemName: mention.systemImage)
