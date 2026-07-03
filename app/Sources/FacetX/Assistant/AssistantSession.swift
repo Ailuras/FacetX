@@ -198,6 +198,7 @@ final class AssistantSession: ObservableObject {
             historyProvider = providerKey
         }
         apiMessages.append(client.userMessage(userText))
+        persistCurrentConversation()
 
         for _ in 0..<Self.maxLoopIterations {
             let response: LLMResponse
