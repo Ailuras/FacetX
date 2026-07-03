@@ -146,7 +146,8 @@ struct ContentView: View {
                                     TopicDetailView(
                                         topic: topic,
                                         showAssistantPanel: $showAssistantPanel,
-                                        tagFilter: $tagFilter
+                                        tagFilter: $tagFilter,
+                                        assistant: assistant
                                     )
                                 } else {
                                     ContentUnavailableView(L10n.pick("Topic not found", "未找到主题"), systemImage: "tag")

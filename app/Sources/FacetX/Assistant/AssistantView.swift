@@ -51,7 +51,7 @@ struct AssistantView: View {
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
+                LazyVStack(alignment: .leading, spacing: 14) {
                     ForEach(session.entries) { entry in
                         entryView(entry)
                             .id(entry.id)
@@ -68,6 +68,12 @@ struct AssistantView: View {
                     proxy.scrollTo(session.entries.last?.id, anchor: .bottom)
                 }
             }
+            .onChange(of: session.entries.last) {
+                // Streamed replies grow the last entry in place rather than
+                // appending new ones, so follow it without re-animating on
+                // every delta — that would fight itself many times a second.
+                proxy.scrollTo(session.entries.last?.id, anchor: .bottom)
+            }
             .onChange(of: session.isBusy) {
                 if session.isBusy {
                     withAnimation { proxy.scrollTo("busy", anchor: .bottom) }
@@ -76,76 +82,63 @@ struct AssistantView: View {
         }
     }
 
+    /// Claude Code–style transcript: turns stack top-to-bottom in a single
+    /// left-aligned column instead of left/right chat bubbles. A user turn
+    /// gets a thin accent rule to mark where the human spoke; everything
+    /// else — assistant prose, reasoning, tool calls — flows as plain,
+    /// full-width text so long replies don't fight a bubble for width.
     @ViewBuilder
     private func entryView(_ entry: AssistantEntry) -> some View {
         switch entry.role {
         case .user:
-            HStack {
-                Spacer(minLength: 60)
-                VStack(alignment: .trailing, spacing: 6) {
-                    if !entry.mentions.isEmpty {
-                        mentionFlow(entry.mentions, removable: false)
-                    }
-                    Text(entry.text)
-                        .font(.system(size: 12.5))
-                        .textSelection(.enabled)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.accentColor.opacity(0.14))
-                        )
+            VStack(alignment: .leading, spacing: 6) {
+                if !entry.mentions.isEmpty {
+                    mentionFlow(entry.mentions, removable: false)
                 }
+                Text(entry.text)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.leading, 10)
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.5))
+                    .frame(width: 2)
             }
 
         case .assistant:
-            HStack {
-                Text(LocalizedStringKey(entry.text))
-                    .font(.system(size: 12.5))
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(FacetTheme.quietPanel)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(FacetTheme.hairline, lineWidth: 1)
-                    )
-                Spacer(minLength: 60)
-            }
+            AssistantMarkdownText(text: entry.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
         case .reasoning:
             AssistantReasoningView(text: entry.text)
 
         case .tool(let name):
-            HStack(spacing: 6) {
-                Image(systemName: "wrench.and.screwdriver.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.purple)
-                Text(name)
-                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.purple)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.purple)
+                    Text(name)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.purple)
+                }
                 if !entry.text.isEmpty {
                     Text(entry.text)
-                        .font(.system(size: 10))
+                        .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.purple.opacity(0.08))
-            )
+            .frame(maxWidth: .infinity, alignment: .leading)
 
         case .error:
             Label(entry.text, systemImage: "exclamationmark.triangle.fill")
                 .font(.system(size: 11.5))
                 .foregroundStyle(.red)
                 .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -244,6 +237,10 @@ struct AssistantView: View {
             VStack(alignment: .leading, spacing: 8) {
                 if !mentions.isEmpty {
                     mentionFlow(mentions, removable: true)
+                }
+
+                if let selection = session.pendingSelection, !selection.isEmpty {
+                    selectionQuote(selection)
                 }
 
                 HStack(alignment: .bottom, spacing: 10) {
@@ -354,7 +351,8 @@ struct AssistantView: View {
 
     private var canSend: Bool {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        return hasAPIKey && !session.isBusy && (!trimmed.isEmpty || !mentions.isEmpty)
+        let hasSelection = !(session.pendingSelection ?? "").isEmpty
+        return hasAPIKey && !session.isBusy && (!trimmed.isEmpty || !mentions.isEmpty || hasSelection)
     }
 
     private var hasAPIKey: Bool {
@@ -390,6 +388,40 @@ struct AssistantView: View {
                         .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
                 )
             }
+        }
+    }
+
+    /// The PDF passage the user selected while reading, shown as a removable
+    /// quote so it's clear the next question is scoped to it.
+    private func selectionQuote(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "quote.opening")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .padding(.top, 2)
+            Text(text)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                session.pendingSelection = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(Color.accentColor.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.accentColor.opacity(0.5))
+                .frame(width: 2)
+                .padding(.vertical, 4)
         }
     }
 
@@ -479,34 +511,41 @@ struct AssistantView: View {
     }
 }
 
+/// Renders assistant-authored text (code fences, tables, math, lists) via the
+/// same markdown-it + KaTeX bundle used for note previews, sized to fit its
+/// content instead of scrolling internally like a full-page preview.
+private struct AssistantMarkdownText: View {
+    let text: String
+    var variant: String = "chat"
+    @State private var height: CGFloat = 18
+
+    var body: some View {
+        MarkdownPreviewWeb(text: text, variant: variant) { measured in
+            guard abs(measured - height) > 0.5 else { return }
+            height = measured
+        }
+        .frame(height: height)
+    }
+}
+
 private struct AssistantReasoningView: View {
     let text: String
     @State private var expanded = false
 
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
-            Text(LocalizedStringKey(text))
-                .font(.system(size: 11.5))
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
+            AssistantMarkdownText(text: text, variant: "chat reasoning")
                 .padding(.top, 7)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
             Label(
-                L10n.pick("DeepSeek reasoning", "DeepSeek 思考过程"),
+                L10n.pick("Thought", "思考过程"),
                 systemImage: "brain.head.profile"
             )
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(FacetTheme.quietPanel.opacity(0.72))
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(FacetTheme.hairline, lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

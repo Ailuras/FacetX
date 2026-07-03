@@ -5,8 +5,16 @@ import WebKit
 /// The prebuilt web bundle lives in `Resources/NotePreview` (built from
 /// `web/note-editor`). The view is display-only: editing happens in the native
 /// `MarkdownEditor`; this just re-renders whenever `text` changes.
+///
+/// `variant` selects the bundle's CSS: `"note"` is the full-page preview used
+/// by `NoteDetailPane`; `"chat"` is a padding-free style meant to be dropped
+/// into a native chat bubble. When `onHeightChange` is set, the page reports
+/// its rendered content height so the SwiftUI side can size the bubble to fit
+/// instead of relying on the WebView's own (disabled) scrolling.
 struct MarkdownPreviewWeb: NSViewRepresentable {
     let text: String
+    var variant: String = "note"
+    var onHeightChange: ((CGFloat) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -28,6 +36,8 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.pendingText = text
+        context.coordinator.variant = variant
+        context.coordinator.onHeightChange = onHeightChange
         context.coordinator.render() // no-op until the page signals it is ready
     }
 
@@ -39,24 +49,38 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         weak var webView: WKWebView?
         var isReady = false
         var pendingText = ""
+        var variant = "note"
+        var onHeightChange: ((CGFloat) -> Void)?
         private var renderedText: String?
+        private var renderedVariant: String?
 
         func userContentController(_ controller: WKUserContentController,
                                    didReceive message: WKScriptMessage) {
             guard let body = message.body as? [String: Any],
-                  body["type"] as? String == "ready" else { return }
-            isReady = true
-            applyTheme()
-            renderedText = nil // force the first render
-            render()
+                  let type = body["type"] as? String else { return }
+            switch type {
+            case "ready":
+                isReady = true
+                applyTheme()
+                renderedText = nil // force the first render
+                render()
+            case "height":
+                if let value = body["value"] as? NSNumber {
+                    onHeightChange?(CGFloat(truncating: value))
+                }
+            default:
+                break
+            }
         }
 
         /// Push the current markdown to the renderer if it changed.
         func render() {
-            guard isReady, let webView, pendingText != renderedText else { return }
+            guard isReady, let webView,
+                  pendingText != renderedText || variant != renderedVariant else { return }
             renderedText = pendingText
+            renderedVariant = variant
             let json = Self.jsString(pendingText)
-            webView.evaluateJavaScript("window.FacetXPreview.setContent(\(json));")
+            webView.evaluateJavaScript("window.FacetXPreview.setContent(\(json), '\(variant)');")
         }
 
         func applyTheme() {

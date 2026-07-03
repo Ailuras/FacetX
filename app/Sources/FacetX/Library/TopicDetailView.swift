@@ -6,6 +6,12 @@ struct TopicDetailView: View {
     let topic: TrackPref
     let showAssistantPanel: Binding<Bool>
     @Binding var tagFilter: TagFilter
+    /// Held as a plain reference (not @ObservedObject): the reading view only
+    /// writes the active-paper context into it and never needs to redraw when
+    /// the session's own @Published state changes.
+    let assistant: AssistantSession
+
+    @State private var aiReadingContext = false
 
     @State private var store = PaperStore.shared
     @State private var metadata = MetadataStore.shared
@@ -228,11 +234,18 @@ struct TopicDetailView: View {
             withAnimation(detailPaneAnimation) { selectedPaper = nil }
         }
         .onChange(of: viewMode) { _, newValue in
-            if newValue == .reading { syncReader() }
+            if newValue == .reading { syncReader() } else { syncPaperContext() }
         }
         .onChange(of: readingPaperID) {
             if viewMode == .reading { syncReader() }
         }
+        .modifier(ReadingContextObservers(
+            currentPage: reader.currentPage,
+            hasSelection: reader.hasSelection,
+            onPageChange: syncPaperContext,
+            onSelectionChange: syncSelectionToAssistant,
+            onDisappear: { assistant.activePaperContext = nil }
+        ))
         .onAppear {
             loadPaperLinks()
             loadImportedTitles()
@@ -245,12 +258,15 @@ struct TopicDetailView: View {
             if newValue != nil {
                 showImportSidebar = false
                 paperBeingImported = nil
+                showAssistantPanel.wrappedValue = false
             } else {
                 detailFullscreen = false
             }
         }
         .onChange(of: showImportSidebar) { _, newValue in
-            if !newValue {
+            if newValue {
+                showAssistantPanel.wrappedValue = false
+            } else {
                 importFullscreen = false
                 paperBeingImported = nil
             }
@@ -358,6 +374,72 @@ struct TopicDetailView: View {
         } else {
             reader.clear()
         }
+        syncPaperContext()
+    }
+
+    /// Reflect the reading state into the assistant session's paper context.
+    /// Full text is extracted only when the paper actually changes; a plain page
+    /// turn just refreshes the volatile page counters so we don't re-parse the
+    /// whole PDF on every scroll.
+    private func syncPaperContext() {
+        guard aiReadingContext, viewMode == .reading, let paper = readingPaper else {
+            if assistant.activePaperContext != nil { assistant.activePaperContext = nil }
+            return
+        }
+        if assistant.activePaperContext?.paperID == paper.id {
+            assistant.activePaperContext?.currentPage = reader.currentPage
+            assistant.activePaperContext?.pageCount = reader.pageCount
+            return
+        }
+        let (fullText, truncated) = extractReadingText(for: paper)
+        assistant.activePaperContext = ActivePaperContext(
+            paperID: paper.id,
+            title: paper.title,
+            authors: paper.authors.joined(separator: ", "),
+            abstract: paper.abstract,
+            fullText: fullText,
+            truncated: truncated,
+            currentPage: reader.currentPage,
+            pageCount: reader.pageCount
+        )
+    }
+
+    /// Extract the paper's text for context injection, capped so a very long PDF
+    /// can't blow the model's context window; the model can still pull specific
+    /// pages verbatim via `read_paper` when it hits the truncation marker.
+    private func extractReadingText(for paper: Paper) -> (text: String, truncated: Bool) {
+        guard let path = paper.pdfLocalPath, !path.isEmpty,
+              let document = PDFDocument(url: PdfStorage.current().absoluteURL(forRelative: path)) else {
+            return ("", false)
+        }
+        var text = ""
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index), let pageText = page.string else { continue }
+            text += "\n--- page \(index + 1) ---\n" + pageText
+        }
+        let cap = 48_000
+        if text.count > cap { return (String(text.prefix(cap)), true) }
+        return (text, false)
+    }
+
+    private func toggleReadingContext() {
+        aiReadingContext.toggle()
+        syncPaperContext()
+        if aiReadingContext { showAssistantPanel.wrappedValue = true }
+    }
+
+    /// Mirror the current PDF selection into the composer's "quote" chip while
+    /// the reading context is on. PDFKit hands us the selection as a plain
+    /// string, so no parsing is required.
+    private func syncSelectionToAssistant() {
+        guard aiReadingContext else { return }
+        let selection = reader.pdfView.currentSelection?.string?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Keep the last non-empty selection so clicking into the composer (which
+        // clears the PDF selection) doesn't drop the quote before it's sent.
+        if let selection, !selection.isEmpty {
+            assistant.pendingSelection = selection
+        }
     }
 
     private var readingBar: some View {
@@ -377,6 +459,20 @@ struct TopicDetailView: View {
                 .pillGroupContainer()
             }
             paperDropdown
+            if readingPaper != nil {
+                HStack(spacing: 2) {
+                    FilterPillButton(
+                        systemName: aiReadingContext ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack",
+                        help: aiReadingContext
+                            ? L10n.pick("AI is reading this paper — click to stop sharing it", "AI 正以此文献为上下文 — 点击停止共享")
+                            : L10n.pick("Share this paper with the AI assistant as context", "把当前文献作为上下文提供给 AI 助手"),
+                        active: aiReadingContext
+                    ) {
+                        toggleReadingContext()
+                    }
+                }
+                .pillGroupContainer()
+            }
             Spacer()
             if reader.pageCount > 0 {
                 pdfToolCluster
@@ -1409,7 +1505,7 @@ struct TopicDetailView: View {
             } label: {
                 Image(systemName: showAssistantPanel.wrappedValue ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(showAssistantPanel.wrappedValue ? Color.accentColor : .secondary)
+                    .foregroundStyle(showAssistantPanel.wrappedValue ? Color.accentColor : .primary)
             }
             .help(showAssistantPanel.wrappedValue
                   ? L10n.pick("Hide AI assistant", "隐藏 AI 助手")
@@ -1677,5 +1773,22 @@ struct TopicDetailView: View {
             }
             self.paperLinks = map
         }
+    }
+}
+
+/// Bundles the reading-view → assistant observers into one modifier so they
+/// don't inflate `TopicDetailView.body` past the Swift type-checker's budget.
+private struct ReadingContextObservers: ViewModifier {
+    let currentPage: Int
+    let hasSelection: Bool
+    let onPageChange: () -> Void
+    let onSelectionChange: () -> Void
+    let onDisappear: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: currentPage) { onPageChange() }
+            .onChange(of: hasSelection) { onSelectionChange() }
+            .onDisappear { onDisappear() }
     }
 }

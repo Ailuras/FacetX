@@ -200,6 +200,7 @@ struct ProjectDetailView: View {
         .onChange(of: selectedDetailItem) { _, newItem in
             if newItem != nil {
                 showTodayPanel.wrappedValue = false
+                showAssistantPanel.wrappedValue = false
             } else {
                 focusTitleItemID = nil
                 preserveSelectionDuringReplacement = false
@@ -374,7 +375,7 @@ struct ProjectDetailView: View {
         } label: {
             Image(systemName: showAssistantPanel.wrappedValue ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(showAssistantPanel.wrappedValue ? Color.accentColor : .secondary)
+                .foregroundStyle(showAssistantPanel.wrappedValue ? Color.accentColor : .primary)
         }
         .help(showAssistantPanel.wrappedValue
               ? L10n.pick("Hide AI assistant", "隐藏 AI 助手")

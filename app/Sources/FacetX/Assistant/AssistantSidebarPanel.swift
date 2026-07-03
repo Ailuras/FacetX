@@ -23,13 +23,24 @@ struct AssistantSidebarPanel: View {
         }
     }
 
+    private var tokenSummary: String {
+        let cacheable = session.totalCacheHitTokens + session.totalCacheMissTokens
+        guard cacheable > 0 else {
+            return "\(session.totalInputTokens)↑ \(session.totalOutputTokens)↓"
+        }
+        let hitRate = Int((Double(session.totalCacheHitTokens) / Double(cacheable) * 100).rounded())
+        return "\(session.totalInputTokens)↑ \(session.totalOutputTokens)↓ · \(hitRate)% cached"
+    }
+
     private var headerActions: some View {
         HStack(spacing: 2) {
             if session.totalOutputTokens > 0 {
-                Text("\(session.totalInputTokens)↑ \(session.totalOutputTokens)↓")
+                Text(tokenSummary)
                     .font(.system(size: 9.5, design: .monospaced))
                     .foregroundStyle(.tertiary)
                     .padding(.trailing, 4)
+                    .help(L10n.pick("Input tokens ↑ · output tokens ↓ · % served from DeepSeek's prompt cache",
+                                    "输入 ↑ · 输出 ↓ · 命中 DeepSeek 提示缓存的比例"))
             }
 
             Button {
