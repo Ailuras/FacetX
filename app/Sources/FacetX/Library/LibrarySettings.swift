@@ -49,6 +49,7 @@ final class LibrarySettings {
     }
     var assistantThinkingEnabled: Bool { didSet { save() } }
     var assistantReasoningEffort: AssistantReasoningEffort { didSet { save() } }
+    var deepSeekAPIFormat: DeepSeekAPIFormat { didSet { save() } }
 
     @ObservationIgnored private var apiKeys: [String: String] = [:]
 
@@ -108,6 +109,7 @@ final class LibrarySettings {
         assistantThinkingEnabled = stored?.assistantThinkingEnabled ?? true
         assistantReasoningEffort = stored?.assistantReasoningEffort
             ?? selectedProvider.defaultAssistantEffort
+        deepSeekAPIFormat = stored?.deepSeekAPIFormat ?? .openAI
         openAlexMailto     = stored?.openAlexMailto ?? d.openalex.mailto
         perPage            = stored?.perPage ?? d.openalex.per_page
         defaultDays        = stored?.defaultDays ?? d.openalex.default_days
@@ -134,6 +136,7 @@ final class LibrarySettings {
         var targetLanguage: String?
         var assistantThinkingEnabled: Bool?
         var assistantReasoningEffort: AssistantReasoningEffort?
+        var deepSeekAPIFormat: DeepSeekAPIFormat?
         var openAlexMailto: String?
         var perPage: Int?
         var defaultDays: Int?
@@ -160,6 +163,7 @@ final class LibrarySettings {
             targetLanguage: targetLanguage,
             assistantThinkingEnabled: assistantThinkingEnabled,
             assistantReasoningEffort: assistantReasoningEffort,
+            deepSeekAPIFormat: deepSeekAPIFormat,
             openAlexMailto: openAlexMailto,
             perPage: perPage,
             defaultDays: defaultDays,

@@ -16,6 +16,7 @@ struct StoredAssistantConversation: Codable {
     var provider: TranslationProvider
     var model: String
     var baseURL: String
+    var deepSeekAPIFormat: DeepSeekAPIFormat
     var entries: [AssistantEntry]
     var apiMessages: Data
     var totalInputTokens: Int

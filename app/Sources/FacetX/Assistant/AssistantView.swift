@@ -122,6 +122,9 @@ struct AssistantView: View {
                 Spacer(minLength: 60)
             }
 
+        case .reasoning(let provider):
+            AssistantReasoningView(provider: provider, text: entry.text)
+
         case .tool(let name):
             HStack(spacing: 6) {
                 Image(systemName: "wrench.and.screwdriver.fill")
@@ -452,7 +455,9 @@ struct AssistantView: View {
     private func selectProvider(_ provider: TranslationProvider) {
         guard provider != llmSettings.apiProvider else { return }
         llmSettings.apiProvider = provider
-        llmSettings.apiBaseURL = provider.defaultBaseURL
+        llmSettings.apiBaseURL = provider == .deepseek
+            ? llmSettings.deepSeekAPIFormat.defaultBaseURL
+            : provider.defaultBaseURL
         llmSettings.apiModel = provider.defaultModel
         llmSettings.assistantReasoningEffort = provider.defaultAssistantEffort
         availableModels = []
@@ -546,6 +551,40 @@ struct AssistantView: View {
         draft = ""
         mentions = []
         session.send(text, mentions: referencedItems)
+    }
+}
+
+private struct AssistantReasoningView: View {
+    let provider: String
+    let text: String
+    @State private var expanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            Text(LocalizedStringKey(text))
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .padding(.top, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Label(
+                provider == "DeepSeek"
+                    ? L10n.pick("DeepSeek reasoning", "DeepSeek 思考过程")
+                    : L10n.pick("\(provider) reasoning summary", "\(provider) 思考摘要"),
+                systemImage: "brain.head.profile"
+            )
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(FacetTheme.quietPanel.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
     }
 }
 

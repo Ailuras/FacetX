@@ -76,6 +76,11 @@ struct AnthropicClient: LLMChatClient {
             .filter { $0["type"] as? String == "text" }
             .compactMap { $0["text"] as? String }
             .joined(separator: "\n")
+        let reasoning = content
+            .filter { $0["type"] as? String == "thinking" }
+            .compactMap { $0["thinking"] as? String }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .joined(separator: "\n")
 
         let toolCalls: [LLMToolCall] = content.compactMap { block in
             guard block["type"] as? String == "tool_use",
@@ -98,8 +103,9 @@ struct AnthropicClient: LLMChatClient {
         return LLMResponse(
             stop: stop,
             text: text,
+            reasoning: reasoning,
             toolCalls: toolCalls,
-            rawAssistantMessage: ["role": "assistant", "content": content],
+            rawAssistantMessages: [["role": "assistant", "content": content]],
             inputTokens: usage?["input_tokens"] as? Int ?? 0,
             outputTokens: usage?["output_tokens"] as? Int ?? 0
         )
@@ -109,8 +115,8 @@ struct AnthropicClient: LLMChatClient {
         ["role": "user", "content": text]
     }
 
-    func assistantMessage(_ response: LLMResponse) -> [String: Any] {
-        response.rawAssistantMessage
+    func assistantMessages(_ response: LLMResponse) -> [[String: Any]] {
+        response.rawAssistantMessages
     }
 
     func toolResultMessages(_ results: [LLMToolResult]) -> [[String: Any]] {
@@ -138,10 +144,10 @@ struct AnthropicClient: LLMChatClient {
                 body["thinking"] = [
                     "type": "enabled",
                     "budget_tokens": anthropicThinkingBudget,
-                    "display": "omitted",
+                    "display": "summarized",
                 ] as [String: Any]
             } else {
-                body["thinking"] = ["type": "adaptive", "display": "omitted"]
+                body["thinking"] = ["type": "adaptive", "display": "summarized"]
             }
         } else if isSonnet5 {
             body["thinking"] = ["type": "disabled"]

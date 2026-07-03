@@ -46,7 +46,7 @@ class TranslationService {
             throw TranslationError.noAPIKey
         }
 
-        let url = try endpointURL(path: provider.modelsEndpoint)
+        let url = try modelsEndpointURL()
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -77,19 +77,28 @@ class TranslationService {
             throw TranslationError.noAPIKey
         }
 
-        let url = try endpointURL(path: provider.chatEndpoint)
+        let chatPath = provider == .deepseek && usesAnthropicWire
+            ? "/v1/messages"
+            : provider.chatEndpoint
+        let url = try endpointURL(path: chatPath)
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("\(provider.authHeaderValuePrefix)\(apiKey)", forHTTPHeaderField: provider.authHeaderName)
+        if usesAnthropicWire {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        } else {
+            request.setValue("\(provider.authHeaderValuePrefix)\(apiKey)", forHTTPHeaderField: provider.authHeaderName)
+        }
 
-        if provider.requiresVersionHeader {
+        if provider.requiresVersionHeader || usesAnthropicWire {
             request.setValue(Self.anthropicAPIVersion, forHTTPHeaderField: "anthropic-version")
         }
 
         let bodyData: Data
         switch provider {
+        case .deepseek where usesAnthropicWire:
+            bodyData = try buildAnthropicChatBody(model: model, system: systemPrompt, user: userContent)
         case .deepseek, .openai:
             bodyData = try buildOpenAIChatBody(model: model, system: systemPrompt, user: userContent)
         case .anthropic:
@@ -104,6 +113,8 @@ class TranslationService {
         }
 
         switch provider {
+        case .deepseek where usesAnthropicWire:
+            return try parseAnthropicChatResponse(data: data)
         case .deepseek, .openai:
             return try parseOpenAIChatResponse(data: data)
         case .anthropic:
@@ -124,6 +135,25 @@ class TranslationService {
             throw TranslationError.invalidBaseURL(config.translate.base_url)
         }
         return url
+    }
+
+    private func modelsEndpointURL() throws -> URL {
+        if config.translate.provider == .deepseek && usesAnthropicWire {
+            var root = config.translate.base_url.trimmingCharacters(in: .whitespacesAndNewlines)
+            while root.hasSuffix("/") { root.removeLast() }
+            if root.hasSuffix("/anthropic") { root.removeLast("/anthropic".count) }
+            guard let url = URL(string: root + "/models") else {
+                throw TranslationError.invalidBaseURL(config.translate.base_url)
+            }
+            return url
+        }
+        return try endpointURL(path: config.translate.provider.modelsEndpoint)
+    }
+
+    private var usesAnthropicWire: Bool {
+        config.translate.provider == .anthropic
+            || (config.translate.provider == .deepseek
+                && config.translate.deepseek_api_format == .anthropic)
     }
 
     private func apiErrorMessage(data: Data, response: URLResponse) -> String {

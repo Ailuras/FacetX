@@ -149,6 +149,27 @@ enum TranslationProvider: String, Codable, CaseIterable {
     }
 }
 
+enum DeepSeekAPIFormat: String, Codable, CaseIterable, Identifiable {
+    case openAI = "openai"
+    case anthropic = "anthropic"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .openAI: return L10n.pick("OpenAI compatible", "OpenAI 兼容（Codex）")
+        case .anthropic: return L10n.pick("Anthropic compatible", "Anthropic 兼容（Claude）")
+        }
+    }
+
+    var defaultBaseURL: String {
+        switch self {
+        case .openAI: return "https://api.deepseek.com"
+        case .anthropic: return "https://api.deepseek.com/anthropic"
+        }
+    }
+}
+
 enum AssistantReasoningEffort: String, Codable, CaseIterable, Identifiable {
     case low
     case medium
@@ -171,6 +192,7 @@ enum AssistantReasoningEffort: String, Codable, CaseIterable, Identifiable {
 
 struct TranslateConfig {
     var provider: TranslationProvider
+    var deepseek_api_format: DeepSeekAPIFormat
     var enabled: Bool
     var target_language: String
     var model: String
@@ -257,6 +279,7 @@ class ConfigManager {
         cfg.openalex.default_max_results = s.defaultMaxResults
         cfg.openalex.topic_filter = s.topicFilter
         cfg.translate.provider = s.apiProvider
+        cfg.translate.deepseek_api_format = s.deepSeekAPIFormat
         cfg.translate.enabled = s.translateEnabled
         if !s.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             cfg.translate.base_url = s.apiBaseURL

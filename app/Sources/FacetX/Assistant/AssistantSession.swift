@@ -6,6 +6,7 @@ struct AssistantEntry: Identifiable, Equatable, Codable {
     enum Role: Equatable, Codable {
         case user
         case assistant
+        case reasoning(provider: String)
         case tool(name: String)
         case error
     }
@@ -87,9 +88,25 @@ final class AssistantSession: ObservableObject {
                 thinkingEnabled: lit.assistantThinkingEnabled,
                 reasoningEffort: effort
             )
-        case .deepseek, .openai:
-            return OpenAIChatClient(
-                provider: provider,
+        case .deepseek:
+            if lit.deepSeekAPIFormat == .anthropic {
+                return DeepSeekAnthropicClient(
+                    apiKey: apiKey,
+                    model: model,
+                    baseURL: base,
+                    thinkingEnabled: lit.assistantThinkingEnabled,
+                    reasoningEffort: effort
+                )
+            }
+            return DeepSeekOpenAIClient(
+                apiKey: apiKey,
+                model: model,
+                baseURL: base,
+                thinkingEnabled: lit.assistantThinkingEnabled,
+                reasoningEffort: effort
+            )
+        case .openai:
+            return OpenAIResponsesClient(
                 apiKey: apiKey,
                 model: model,
                 baseURL: base,
@@ -173,7 +190,9 @@ final class AssistantSession: ObservableObject {
         let tools = toolbox.definitions
         let system = buildSystemPrompt()
 
-        let providerKey = LibrarySettings.shared.apiProvider.rawValue
+        let providerKey = LibrarySettings.shared.apiProvider == .deepseek
+            ? "deepseek:\(LibrarySettings.shared.deepSeekAPIFormat.rawValue)"
+            : LibrarySettings.shared.apiProvider.rawValue
         if providerKey != historyProvider {
             apiMessages.removeAll()
             historyProvider = providerKey
@@ -195,7 +214,15 @@ final class AssistantSession: ObservableObject {
             totalOutputTokens += response.outputTokens
 
             // Echo the assistant message verbatim in the provider's own format.
-            apiMessages.append(client.assistantMessage(response))
+            apiMessages.append(contentsOf: client.assistantMessages(response))
+
+            let reasoning = response.reasoning.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !reasoning.isEmpty {
+                entries.append(AssistantEntry(
+                    role: .reasoning(provider: LibrarySettings.shared.apiProvider.displayName),
+                    text: reasoning
+                ))
+            }
 
             let text = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty {
@@ -267,6 +294,7 @@ final class AssistantSession: ObservableObject {
             provider: settings.apiProvider,
             model: settings.apiModel,
             baseURL: settings.apiBaseURL,
+            deepSeekAPIFormat: settings.deepSeekAPIFormat,
             entries: entries,
             apiMessages: rawMessages,
             totalInputTokens: totalInputTokens,
@@ -281,7 +309,9 @@ final class AssistantSession: ObservableObject {
         conversationCreatedAt = record.createdAt
         entries = record.entries
         apiMessages = ((try? JSONSerialization.jsonObject(with: record.apiMessages)) as? [[String: Any]]) ?? []
-        historyProvider = record.provider.rawValue
+        historyProvider = record.provider == .deepseek
+            ? "deepseek:\(record.deepSeekAPIFormat.rawValue)"
+            : record.provider.rawValue
         totalInputTokens = record.totalInputTokens
         totalOutputTokens = record.totalOutputTokens
         if updateSettings {
@@ -289,6 +319,7 @@ final class AssistantSession: ObservableObject {
             settings.apiProvider = record.provider
             settings.apiBaseURL = record.baseURL
             settings.apiModel = record.model
+            settings.deepSeekAPIFormat = record.deepSeekAPIFormat
         }
         registerVisibleReferences()
     }

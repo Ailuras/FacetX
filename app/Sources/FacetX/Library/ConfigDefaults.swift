@@ -33,6 +33,7 @@ extension AppConfig {
             ),
             translate: TranslateConfig(
                 provider: .deepseek,
+                deepseek_api_format: .openAI,
                 enabled: true,
                 target_language: "中文",
                 model: "deepseek-v4-flash",
