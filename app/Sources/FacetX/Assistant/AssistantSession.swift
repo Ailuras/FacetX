@@ -6,7 +6,7 @@ struct AssistantEntry: Identifiable, Equatable, Codable {
     enum Role: Equatable, Codable {
         case user
         case assistant
-        case reasoning(provider: String)
+        case reasoning
         case tool(name: String)
         case error
     }
@@ -38,9 +38,6 @@ final class AssistantSession: ObservableObject {
     @Published private(set) var activeConversationID = UUID()
 
     private var apiMessages: [[String: Any]] = []
-    /// Wire format owner of `apiMessages`; switching providers mid-chat resets
-    /// the API history (the transcript stays visible, context restarts).
-    private var historyProvider: String = ""
     private var toolbox: AgentToolbox?
     private weak var projectStore: ProjectStore?
     private var configured = false
@@ -52,7 +49,7 @@ final class AssistantSession: ObservableObject {
     init() {
         refreshConversationList()
         if let latest = conversationStore.records.first {
-            restore(latest, updateSettings: true)
+            restore(latest)
         }
     }
 
@@ -64,56 +61,25 @@ final class AssistantSession: ObservableObject {
         registerVisibleReferences()
     }
 
-    // ── Shared LLM API config (Settings → Integrations → LLM API) ────────────
+    // ── DeepSeek API config (Settings → Integrations) ───────────────────────
 
-    /// Build the wire client for whichever provider the shared config selects:
-    /// DeepSeek/OpenAI speak OpenAI chat-completions, Anthropic its own format.
-    private func makeClient() -> LLMChatClient {
+    private func makeClient() -> DeepSeekClient {
         let lit = LibrarySettings.shared
-        let provider = lit.apiProvider
         let apiKey = lit.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let configuredBase = lit.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let configuredModel = lit.apiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = configuredBase.isEmpty ? provider.defaultBaseURL : configuredBase
-        let model = configuredModel.isEmpty ? provider.defaultModel : configuredModel
-        let effort = provider.supportedAssistantEfforts.contains(lit.assistantReasoningEffort)
+        let base = configuredBase.isEmpty ? DeepSeekAPI.defaultBaseURL : configuredBase
+        let model = configuredModel.isEmpty ? DeepSeekAPI.defaultModel : configuredModel
+        let effort = DeepSeekAPI.supportedAssistantEfforts.contains(lit.assistantReasoningEffort)
             ? lit.assistantReasoningEffort
-            : provider.defaultAssistantEffort
-        switch provider {
-        case .anthropic:
-            return AnthropicClient(
-                apiKey: apiKey,
-                model: model,
-                baseURL: base,
-                thinkingEnabled: lit.assistantThinkingEnabled,
-                reasoningEffort: effort
-            )
-        case .deepseek:
-            if lit.deepSeekAPIFormat == .anthropic {
-                return DeepSeekAnthropicClient(
-                    apiKey: apiKey,
-                    model: model,
-                    baseURL: base,
-                    thinkingEnabled: lit.assistantThinkingEnabled,
-                    reasoningEffort: effort
-                )
-            }
-            return DeepSeekOpenAIClient(
-                apiKey: apiKey,
-                model: model,
-                baseURL: base,
-                thinkingEnabled: lit.assistantThinkingEnabled,
-                reasoningEffort: effort
-            )
-        case .openai:
-            return OpenAIResponsesClient(
-                apiKey: apiKey,
-                model: model,
-                baseURL: base,
-                thinkingEnabled: lit.assistantThinkingEnabled,
-                reasoningEffort: effort
-            )
-        }
+            : .high
+        return DeepSeekClient(
+            apiKey: apiKey,
+            model: model,
+            baseURL: base,
+            thinkingEnabled: lit.assistantThinkingEnabled,
+            reasoningEffort: effort
+        )
     }
 
     func newConversation() {
@@ -123,7 +89,6 @@ final class AssistantSession: ObservableObject {
         conversationCreatedAt = Date()
         entries.removeAll()
         apiMessages.removeAll()
-        historyProvider = ""
         totalInputTokens = 0
         totalOutputTokens = 0
     }
@@ -132,7 +97,7 @@ final class AssistantSession: ObservableObject {
         guard !isBusy, id != activeConversationID,
               let record = conversationStore.record(id: id) else { return }
         persistCurrentConversation()
-        restore(record, updateSettings: true)
+        restore(record)
     }
 
     func deleteCurrentConversation() {
@@ -140,13 +105,12 @@ final class AssistantSession: ObservableObject {
         conversationStore.delete(id: activeConversationID)
         refreshConversationList()
         if let next = conversationStore.records.first {
-            restore(next, updateSettings: true)
+            restore(next)
         } else {
             activeConversationID = UUID()
             conversationCreatedAt = Date()
             entries = []
             apiMessages = []
-            historyProvider = ""
             totalInputTokens = 0
             totalOutputTokens = 0
         }
@@ -190,13 +154,6 @@ final class AssistantSession: ObservableObject {
         let tools = toolbox.definitions
         let system = buildSystemPrompt()
 
-        let providerKey = LibrarySettings.shared.apiProvider == .deepseek
-            ? "deepseek:\(LibrarySettings.shared.deepSeekAPIFormat.rawValue)"
-            : LibrarySettings.shared.apiProvider.rawValue
-        if providerKey != historyProvider {
-            apiMessages.removeAll()
-            historyProvider = providerKey
-        }
         apiMessages.append(client.userMessage(userText))
         persistCurrentConversation()
 
@@ -214,13 +171,14 @@ final class AssistantSession: ObservableObject {
             totalInputTokens += response.inputTokens
             totalOutputTokens += response.outputTokens
 
-            // Echo the assistant message verbatim in the provider's own format.
-            apiMessages.append(contentsOf: client.assistantMessages(response))
+            // DeepSeek requires reasoning_content to be replayed unchanged
+            // when a thinking turn performs tool calls.
+            apiMessages.append(client.assistantMessage(response))
 
             let reasoning = response.reasoning.trimmingCharacters(in: .whitespacesAndNewlines)
             if !reasoning.isEmpty {
                 entries.append(AssistantEntry(
-                    role: .reasoning(provider: LibrarySettings.shared.apiProvider.displayName),
+                    role: .reasoning,
                     text: reasoning
                 ))
             }
@@ -249,10 +207,6 @@ final class AssistantSession: ObservableObject {
                 }
                 apiMessages.append(contentsOf: client.toolResultMessages(results))
                 persistCurrentConversation()
-                continue
-
-            case .pauseTurn:
-                // Server-side pause: re-send as-is to resume.
                 continue
 
             case .refusal:
@@ -292,10 +246,8 @@ final class AssistantSession: ObservableObject {
             title: title.map(String.init) ?? L10n.pick("New conversation", "新会话"),
             createdAt: conversationCreatedAt,
             updatedAt: Date(),
-            provider: settings.apiProvider,
             model: settings.apiModel,
             baseURL: settings.apiBaseURL,
-            deepSeekAPIFormat: settings.deepSeekAPIFormat,
             entries: entries,
             apiMessages: rawMessages,
             totalInputTokens: totalInputTokens,
@@ -305,23 +257,16 @@ final class AssistantSession: ObservableObject {
         refreshConversationList()
     }
 
-    private func restore(_ record: StoredAssistantConversation, updateSettings: Bool) {
+    private func restore(_ record: StoredAssistantConversation) {
         activeConversationID = record.id
         conversationCreatedAt = record.createdAt
         entries = record.entries
         apiMessages = ((try? JSONSerialization.jsonObject(with: record.apiMessages)) as? [[String: Any]]) ?? []
-        historyProvider = record.provider == .deepseek
-            ? "deepseek:\(record.deepSeekAPIFormat.rawValue)"
-            : record.provider.rawValue
         totalInputTokens = record.totalInputTokens
         totalOutputTokens = record.totalOutputTokens
-        if updateSettings {
-            let settings = LibrarySettings.shared
-            settings.apiProvider = record.provider
-            settings.apiBaseURL = record.baseURL
-            settings.apiModel = record.model
-            settings.deepSeekAPIFormat = record.deepSeekAPIFormat
-        }
+        let settings = LibrarySettings.shared
+        settings.apiBaseURL = record.baseURL
+        settings.apiModel = record.model
         registerVisibleReferences()
     }
 

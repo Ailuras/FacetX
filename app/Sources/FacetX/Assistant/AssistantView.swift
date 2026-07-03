@@ -38,19 +38,9 @@ struct AssistantView: View {
         .overlay {
             if isMentionDropTarget { mentionDropOverlay }
         }
-        .onChange(of: llmSettings.apiProvider) { _, provider in
-            if !provider.supportedAssistantEfforts.contains(llmSettings.assistantReasoningEffort) {
-                llmSettings.assistantReasoningEffort = provider.defaultAssistantEffort
-            }
-        }
-        .onChange(of: llmSettings.deepSeekAPIFormat) { _, format in
-            guard llmSettings.apiProvider == .deepseek else { return }
-            llmSettings.apiBaseURL = format.defaultBaseURL
-        }
         .onChange(of: llmSettings.apiModel) {
-            if thinkingLockedOn { llmSettings.assistantThinkingEnabled = true }
             if !selectedModelEfforts.contains(llmSettings.assistantReasoningEffort) {
-                llmSettings.assistantReasoningEffort = llmSettings.apiProvider.defaultAssistantEffort
+                llmSettings.assistantReasoningEffort = .high
             }
         }
         .task(id: modelCatalogKey) { await refreshModels() }
@@ -126,8 +116,8 @@ struct AssistantView: View {
                 Spacer(minLength: 60)
             }
 
-        case .reasoning(let provider):
-            AssistantReasoningView(provider: provider, text: entry.text)
+        case .reasoning:
+            AssistantReasoningView(text: entry.text)
 
         case .tool(let name):
             HStack(spacing: 6) {
@@ -230,8 +220,8 @@ struct AssistantView: View {
             Image(systemName: "key.slash")
                 .font(.system(size: 28))
                 .foregroundStyle(.secondary)
-            Text(L10n.pick("Configure the LLM API (Settings → Integrations) to enable the assistant.",
-                           "在 设置 → 集成 → 大模型 API 中配置 API Key 后即可使用助手。"))
+            Text(L10n.pick("Configure the DeepSeek API (Settings → Integrations) to enable the assistant.",
+                           "在 设置 → 集成 中配置 DeepSeek API Key 后即可使用助手。"))
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
             Button(L10n.pick("Open Settings → Integrations", "打开 设置 → 集成")) {
@@ -290,43 +280,11 @@ struct AssistantView: View {
 
     private var modelControls: some View {
         HStack(spacing: 8) {
-            Menu {
-                ForEach(TranslationProvider.allCases, id: \.self) { provider in
-                    Button {
-                        selectProvider(provider)
-                    } label: {
-                        if provider == llmSettings.apiProvider {
-                            Label(provider.displayName, systemImage: "checkmark")
-                        } else {
-                            Text(provider.displayName)
-                        }
-                    }
-                }
-                if llmSettings.apiProvider == .deepseek {
-                    Divider()
-                    Section(L10n.pick("DeepSeek protocol", "DeepSeek 协议")) {
-                        ForEach(DeepSeekAPIFormat.allCases) { format in
-                            Button {
-                                llmSettings.deepSeekAPIFormat = format
-                            } label: {
-                                if format == llmSettings.deepSeekAPIFormat {
-                                    Label(format.title, systemImage: "checkmark")
-                                } else {
-                                    Text(format.title)
-                                }
-                            }
-                        }
-                    }
-                }
-            } label: {
-                Label(llmSettings.apiProvider.displayName, systemImage: "server.rack")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            .menuStyle(.borderlessButton)
+            Label("DeepSeek", systemImage: "server.rack")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             .fixedSize()
-            .help(L10n.pick("Switch provider", "切换服务商"))
 
             Divider().frame(height: 16)
 
@@ -374,7 +332,6 @@ struct AssistantView: View {
                 .controlSize(.mini)
                 .font(.system(size: 10.5, weight: .medium))
                 .fixedSize()
-                .disabled(!modelSupportsThinking || thinkingLockedOn)
 
             Picker("", selection: $llmSettings.assistantReasoningEffort) {
                 ForEach(selectedModelEfforts) { effort in
@@ -467,78 +424,28 @@ struct AssistantView: View {
         inputFocused = true
     }
 
-    private func selectProvider(_ provider: TranslationProvider) {
-        guard provider != llmSettings.apiProvider else { return }
-        llmSettings.apiProvider = provider
-        llmSettings.apiBaseURL = provider == .deepseek
-            ? llmSettings.deepSeekAPIFormat.defaultBaseURL
-            : provider.defaultBaseURL
-        llmSettings.apiModel = provider.defaultModel
-        llmSettings.assistantReasoningEffort = provider.defaultAssistantEffort
-        availableModels = []
-    }
-
     private var selectedModel: String {
         let configured = llmSettings.apiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        return configured.isEmpty ? llmSettings.apiProvider.defaultModel : configured
+        return configured.isEmpty ? DeepSeekAPI.defaultModel : configured
     }
 
     private var modelChoices: [String] {
         var seen = Set<String>()
         let catalog = availableModels.filter(isAssistantModel)
-        return ([selectedModel] + catalog + llmSettings.apiProvider.suggestedModels)
+        return ([selectedModel] + catalog + DeepSeekAPI.suggestedModels)
             .filter { seen.insert($0).inserted }
     }
 
-    private var modelSupportsThinking: Bool {
-        switch llmSettings.apiProvider {
-        case .deepseek, .anthropic:
-            return true
-        case .openai:
-            let value = selectedModel.lowercased()
-            return value.hasPrefix("gpt-5")
-                || value.hasPrefix("o1")
-                || value.hasPrefix("o3")
-                || value.hasPrefix("o4")
-        }
-    }
-
     private var selectedModelEfforts: [AssistantReasoningEffort] {
-        guard llmSettings.apiProvider == .anthropic else {
-            return llmSettings.apiProvider.supportedAssistantEfforts
-        }
-        let value = selectedModel.lowercased()
-        if value.contains("sonnet-4-6") || value.contains("opus-4-6") || value.contains("opus-4-5") {
-            return [.low, .medium, .high, .max]
-        }
-        return llmSettings.apiProvider.supportedAssistantEfforts
-    }
-
-    private var thinkingLockedOn: Bool {
-        guard llmSettings.apiProvider == .anthropic else { return false }
-        let value = selectedModel.lowercased()
-        return value.contains("fable") || value.contains("mythos")
+        DeepSeekAPI.supportedAssistantEfforts
     }
 
     private func isAssistantModel(_ model: String) -> Bool {
-        let value = model.lowercased()
-        switch llmSettings.apiProvider {
-        case .deepseek:
-            return value.hasPrefix("deepseek-")
-        case .anthropic:
-            return value.hasPrefix("claude-")
-        case .openai:
-            return value.hasPrefix("gpt-5")
-                || value.hasPrefix("gpt-4.1")
-                || value.hasPrefix("gpt-4o")
-                || value.hasPrefix("o1")
-                || value.hasPrefix("o3")
-                || value.hasPrefix("o4")
-        }
+        model.lowercased().hasPrefix("deepseek-")
     }
 
     private var modelCatalogKey: String {
-        "\(llmSettings.apiProvider.rawValue)|\(llmSettings.apiBaseURL)|\(llmSettings.apiKey)"
+        "\(llmSettings.apiBaseURL)|\(llmSettings.apiKey)"
     }
 
     private func refreshModels() async {
@@ -570,7 +477,6 @@ struct AssistantView: View {
 }
 
 private struct AssistantReasoningView: View {
-    let provider: String
     let text: String
     @State private var expanded = false
 
@@ -584,9 +490,7 @@ private struct AssistantReasoningView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
             Label(
-                provider == "DeepSeek"
-                    ? L10n.pick("DeepSeek reasoning", "DeepSeek 思考过程")
-                    : L10n.pick("\(provider) reasoning summary", "\(provider) 思考摘要"),
+                L10n.pick("DeepSeek reasoning", "DeepSeek 思考过程"),
                 systemImage: "brain.head.profile"
             )
             .font(.system(size: 11, weight: .medium))

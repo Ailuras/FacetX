@@ -1,8 +1,7 @@
 import Foundation
 
-class TranslationService {
-    private static let anthropicAPIVersion = "2023-06-01"
-
+/// DeepSeek-only text translation and model discovery.
+final class TranslationService {
     let config: AppConfig
     let apiKey: String
 
@@ -21,198 +20,94 @@ class TranslationService {
             return cachedAbstractZh
         }
 
-        let provider = config.translate.provider
-        let targetLang = config.translate.target_language
-        let abstractPrompt = "You are a professional academic translator. Translate the following paper abstract into \(targetLang). Preserve technical terms in English where appropriate. Return ONLY the translated text, no explanations."
-
-        print("Translating paper abstract to \(targetLang) via \(provider.displayName)...")
-        return try await chatCompletion(systemPrompt: abstractPrompt, userContent: abstract)
+        let target = config.translate.target_language
+        let prompt = "You are a professional academic translator. Translate the following paper abstract into \(target). Preserve technical terms in English where appropriate. Return ONLY the translated text, no explanations."
+        print("Translating paper abstract to \(target) via DeepSeek...")
+        return try await chatCompletion(systemPrompt: prompt, userContent: abstract)
     }
 
-    func translateText(
-        _ text: String
-    ) async throws -> String {
-        let provider = config.translate.provider
-        let targetLang = config.translate.target_language
-        let prompt = "You are a professional academic translator. Translate the following text into \(targetLang). Preserve technical terms in English where appropriate. Return ONLY the translated text, no explanations."
-
-        print("Translating text to \(targetLang) via \(provider.displayName)...")
+    func translateText(_ text: String) async throws -> String {
+        let target = config.translate.target_language
+        let prompt = "You are a professional academic translator. Translate the following text into \(target). Preserve technical terms in English where appropriate. Return ONLY the translated text, no explanations."
+        print("Translating text to \(target) via DeepSeek...")
         return try await chatCompletion(systemPrompt: prompt, userContent: text)
     }
 
     func fetchModels() async throws -> [String] {
-        let provider = config.translate.provider
-        guard !apiKey.isEmpty else {
-            throw TranslationError.noAPIKey
-        }
-
-        let url = try modelsEndpointURL()
-
-        var request = URLRequest(url: url)
+        guard !apiKey.isEmpty else { throw TranslationError.noAPIKey }
+        var request = URLRequest(url: try endpointURL(path: "/models"))
         request.httpMethod = "GET"
-        request.setValue("\(provider.authHeaderValuePrefix)\(apiKey)", forHTTPHeaderField: provider.authHeaderName)
-        if provider.requiresVersionHeader {
-            request.setValue(Self.anthropicAPIVersion, forHTTPHeaderField: "anthropic-version")
-        }
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw TranslationError.apiError(apiErrorMessage(data: data, response: response))
         }
 
-        struct OpenAIModelsResponse: Decodable {
-            struct Model: Decodable { var id: String }
-            var data: [Model]
+        struct ModelsResponse: Decodable {
+            struct Model: Decodable { let id: String }
+            let data: [Model]
         }
-
-        let result = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return result.data.map(\.id).sorted()
+        return try JSONDecoder().decode(ModelsResponse.self, from: data).data.map(\.id).sorted()
     }
 
     private func chatCompletion(systemPrompt: String, userContent: String) async throws -> String {
-        let provider = config.translate.provider
-        let model = config.translate.model
-
-        guard !apiKey.isEmpty else {
-            throw TranslationError.noAPIKey
-        }
-
-        let chatPath = provider == .deepseek && usesAnthropicWire
-            ? "/v1/messages"
-            : provider.chatEndpoint
-        let url = try endpointURL(path: chatPath)
-
-        var request = URLRequest(url: url)
+        guard !apiKey.isEmpty else { throw TranslationError.noAPIKey }
+        var request = URLRequest(url: try endpointURL(path: "/chat/completions"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if usesAnthropicWire {
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        } else {
-            request.setValue("\(provider.authHeaderValuePrefix)\(apiKey)", forHTTPHeaderField: provider.authHeaderName)
-        }
-
-        if provider.requiresVersionHeader || usesAnthropicWire {
-            request.setValue(Self.anthropicAPIVersion, forHTTPHeaderField: "anthropic-version")
-        }
-
-        let bodyData: Data
-        switch provider {
-        case .deepseek where usesAnthropicWire:
-            bodyData = try buildAnthropicChatBody(model: model, system: systemPrompt, user: userContent)
-        case .deepseek, .openai:
-            bodyData = try buildOpenAIChatBody(model: model, system: systemPrompt, user: userContent)
-        case .anthropic:
-            bodyData = try buildAnthropicChatBody(model: model, system: systemPrompt, user: userContent)
-        }
-
-        request.httpBody = bodyData
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "model": config.translate.model,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": userContent],
+            ],
+            "thinking": ["type": "disabled"],
+            "temperature": 0.3,
+            "max_tokens": 2_048,
+        ] as [String: Any])
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw TranslationError.apiError(apiErrorMessage(data: data, response: response))
         }
 
-        switch provider {
-        case .deepseek where usesAnthropicWire:
-            return try parseAnthropicChatResponse(data: data)
-        case .deepseek, .openai:
-            return try parseOpenAIChatResponse(data: data)
-        case .anthropic:
-            return try parseAnthropicChatResponse(data: data)
+        struct ChatResponse: Decodable {
+            struct Choice: Decodable {
+                struct Message: Decodable { let content: String }
+                let message: Message
+            }
+            let choices: [Choice]
         }
+        let result = try JSONDecoder().decode(ChatResponse.self, from: data)
+        return result.choices.first?.message.content
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private func endpointURL(path: String) throws -> URL {
-        let trimmed = config.translate.base_url
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !trimmed.isEmpty,
-              let base = URL(string: trimmed),
+        var root = config.translate.base_url.trimmingCharacters(in: .whitespacesAndNewlines)
+        while root.hasSuffix("/") { root.removeLast() }
+        guard !root.isEmpty,
+              let base = URL(string: root),
               let scheme = base.scheme?.lowercased(),
               ["http", "https"].contains(scheme),
               base.host != nil,
-              let url = URL(string: "\(trimmed)\(path)") else {
+              base.query == nil,
+              base.fragment == nil,
+              let url = URL(string: root + path) else {
             throw TranslationError.invalidBaseURL(config.translate.base_url)
         }
         return url
     }
 
-    private func modelsEndpointURL() throws -> URL {
-        if config.translate.provider == .deepseek && usesAnthropicWire {
-            var root = config.translate.base_url.trimmingCharacters(in: .whitespacesAndNewlines)
-            while root.hasSuffix("/") { root.removeLast() }
-            if root.hasSuffix("/anthropic") { root.removeLast("/anthropic".count) }
-            guard let url = URL(string: root + "/models") else {
-                throw TranslationError.invalidBaseURL(config.translate.base_url)
-            }
-            return url
-        }
-        return try endpointURL(path: config.translate.provider.modelsEndpoint)
-    }
-
-    private var usesAnthropicWire: Bool {
-        config.translate.provider == .anthropic
-            || (config.translate.provider == .deepseek
-                && config.translate.deepseek_api_format == .anthropic)
-    }
-
     private func apiErrorMessage(data: Data, response: URLResponse) -> String {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let body = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return body?.isEmpty == false ? "API error \(status): \(body!)" : "API error \(status)"
+        return body?.isEmpty == false ? "DeepSeek API error \(status): \(body!)" : "DeepSeek API error \(status)"
     }
 
-    private func buildOpenAIChatBody(model: String, system: String, user: String) throws -> Data {
-        let payload: [String: Any] = [
-            "model": model,
-            "messages": [
-                ["role": "system", "content": system],
-                ["role": "user", "content": user]
-            ],
-            "temperature": 0.3,
-            "max_tokens": 2048
-        ]
-        return try JSONSerialization.data(withJSONObject: payload, options: [])
-    }
-
-    private func parseOpenAIChatResponse(data: Data) throws -> String {
-        struct OpenAIChatResponse: Decodable {
-            struct Choice: Decodable {
-                struct Message: Decodable { var content: String }
-                var message: Message
-            }
-            var choices: [Choice]
-        }
-        let result = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
-        return result.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
-
-    private func buildAnthropicChatBody(model: String, system: String, user: String, maxTokens: Int = 2048) throws -> Data {
-        let payload: [String: Any] = [
-            "model": model,
-            "system": system,
-            "messages": [
-                ["role": "user", "content": user]
-            ],
-            "max_tokens": maxTokens,
-            "temperature": 0.3
-        ]
-        return try JSONSerialization.data(withJSONObject: payload, options: [])
-    }
-
-    private func parseAnthropicChatResponse(data: Data) throws -> String {
-        struct AnthropicChatResponse: Decodable {
-            struct ContentBlock: Decodable {
-                var type: String
-                var text: String?
-            }
-            var content: [ContentBlock]
-        }
-        let result = try JSONDecoder().decode(AnthropicChatResponse.self, from: data)
-        return result.content.first { $0.type == "text" }?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
-
-    enum TranslationError: Error, LocalizedError {
+    enum TranslationError: LocalizedError {
         case noAPIKey
         case invalidBaseURL(String)
         case apiError(String)
@@ -220,9 +115,9 @@ class TranslationService {
         var errorDescription: String? {
             switch self {
             case .noAPIKey:
-                return "API key not set — add it in Settings ▸ API"
+                return L10n.pick("DeepSeek API key is not configured.", "未配置 DeepSeek API Key。")
             case .invalidBaseURL(let value):
-                return "Invalid API base URL: \(value)"
+                return L10n.pick("Invalid DeepSeek API base URL: \(value)", "DeepSeek API 地址无效：\(value)")
             case .apiError(let message):
                 return message
             }

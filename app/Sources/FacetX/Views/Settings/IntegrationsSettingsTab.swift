@@ -83,15 +83,15 @@ struct IntegrationsSettingsTab: View {
         }
     }
 
-    // MARK: - LLM API
+    // MARK: - DeepSeek API
 
     private var apiCard: some View {
-        SettingsCard(title: L10n.pick("LLM API", "大模型 API"), systemImage: "character.book.closed",
-                     subtitle: L10n.pick("Provider and credentials shared by the assistant and translation.",
-                                         "AI 助手与翻译等功能共用的服务商与凭据。")) {
+        SettingsCard(title: "DeepSeek API", systemImage: "character.book.closed",
+                     subtitle: L10n.pick("DeepSeek credentials shared by the assistant and translation.",
+                                         "AI 助手与翻译功能共用 DeepSeek 凭据。")) {
             HStack(spacing: 8) {
-                serviceMetric(title: L10n.pick("Provider", "服务商"),
-                              value: litSettings.apiProvider.displayName,
+                serviceMetric(title: L10n.pick("Service", "服务"),
+                              value: "DeepSeek",
                               systemImage: "server.rack",
                               tint: .purple)
                 serviceMetric(title: L10n.pick("Model", "模型"),
@@ -105,47 +105,11 @@ struct IntegrationsSettingsTab: View {
             }
 
             VStack(spacing: 0) {
-                SettingsRow(title: L10n.pick("Provider", "服务商"), systemImage: "server.rack") {
-                    Picker("", selection: $litSettings.apiProvider) {
-                        ForEach(TranslationProvider.allCases, id: \.self) { p in
-                            Text(p.displayName).tag(p)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-                    .onChange(of: litSettings.apiProvider) { _, p in
-                        litSettings.apiBaseURL = p == .deepseek
-                            ? litSettings.deepSeekAPIFormat.defaultBaseURL
-                            : p.defaultBaseURL
-                        litSettings.apiModel = p.defaultModel
-                        availableModels = []
-                        connectionMessage = nil
-                    }
-                }
-                compactDivider
                 SettingsRow(title: L10n.pick("API", "接口"), systemImage: "link") {
                     TextField("", text: $litSettings.apiBaseURL)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: SettingsUI.controlWidth)
                         .onChange(of: litSettings.apiBaseURL) { _, _ in connectionMessage = nil }
-                }
-                if litSettings.apiProvider == .deepseek {
-                    compactDivider
-                    SettingsRow(title: L10n.pick("Protocol", "协议"), systemImage: "arrow.left.arrow.right") {
-                        Picker("", selection: $litSettings.deepSeekAPIFormat) {
-                            ForEach(DeepSeekAPIFormat.allCases) { format in
-                                Text(format.title).tag(format)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: SettingsUI.controlWidth, alignment: .trailing)
-                        .onChange(of: litSettings.deepSeekAPIFormat) { _, format in
-                            litSettings.apiBaseURL = format.defaultBaseURL
-                            connectionMessage = nil
-                        }
-                    }
                 }
                 compactDivider
                 SettingsRow(title: L10n.pick("Credential", "凭据"), systemImage: "key") {

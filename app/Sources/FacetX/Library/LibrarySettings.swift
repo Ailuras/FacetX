@@ -30,28 +30,12 @@ final class LibrarySettings {
 
     // Translation API
     var translateEnabled: Bool { didSet { save() } }
-    var apiProvider: TranslationProvider {
-        didSet {
-            if oldValue != apiProvider {
-                apiKey = apiKeys[apiProvider.rawValue] ?? ""
-            }
-            save()
-        }
-    }
     var apiBaseURL: String { didSet { save() } }
     var apiModel: String { didSet { save() } }
     var targetLanguage: String { didSet { save() } }
-    var apiKey: String {
-        didSet {
-            apiKeys[apiProvider.rawValue] = apiKey.isEmpty ? nil : apiKey
-            save()
-        }
-    }
+    var apiKey: String { didSet { save() } }
     var assistantThinkingEnabled: Bool { didSet { save() } }
     var assistantReasoningEffort: AssistantReasoningEffort { didSet { save() } }
-    var deepSeekAPIFormat: DeepSeekAPIFormat { didSet { save() } }
-
-    @ObservationIgnored private var apiKeys: [String: String] = [:]
 
     // OpenAlex fetch params
     var openAlexMailto: String { didSet { save() } }
@@ -98,18 +82,14 @@ final class LibrarySettings {
             return value
         }
 
-        let selectedProvider = stored?.apiProvider ?? d.translate.provider
-
         storageDirectory   = stored?.storageDirectory ?? ""
         translateEnabled   = stored?.translateEnabled ?? d.translate.enabled
-        apiProvider        = selectedProvider
         apiBaseURL         = nonEmpty(stored?.apiBaseURL, fallback: d.translate.base_url)
         apiModel           = nonEmpty(stored?.apiModel, fallback: d.translate.model)
         targetLanguage     = nonEmpty(stored?.targetLanguage, fallback: d.translate.target_language)
+        apiKey             = stored?.apiKey ?? ""
         assistantThinkingEnabled = stored?.assistantThinkingEnabled ?? true
-        assistantReasoningEffort = stored?.assistantReasoningEffort
-            ?? selectedProvider.defaultAssistantEffort
-        deepSeekAPIFormat = stored?.deepSeekAPIFormat ?? .openAI
+        assistantReasoningEffort = stored?.assistantReasoningEffort ?? .high
         openAlexMailto     = stored?.openAlexMailto ?? d.openalex.mailto
         perPage            = stored?.perPage ?? d.openalex.per_page
         defaultDays        = stored?.defaultDays ?? d.openalex.default_days
@@ -121,22 +101,18 @@ final class LibrarySettings {
         recentDays         = stored?.recentDays ?? d.recommendation.recent_days
         sortKeyRaw         = stored?.sortKeyRaw ?? SortKey.score.rawValue
         sortAscending      = stored?.sortAscending ?? false
-        apiKeys = stored?.apiKeys ?? [:]
-        apiKey   = apiKeys[selectedProvider.rawValue] ?? ""
-
         save()
     }
 
     private struct Stored: Codable {
         var storageDirectory: String?
         var translateEnabled: Bool?
-        var apiProvider: TranslationProvider?
         var apiBaseURL: String?
         var apiModel: String?
         var targetLanguage: String?
+        var apiKey: String?
         var assistantThinkingEnabled: Bool?
         var assistantReasoningEffort: AssistantReasoningEffort?
-        var deepSeekAPIFormat: DeepSeekAPIFormat?
         var openAlexMailto: String?
         var perPage: Int?
         var defaultDays: Int?
@@ -148,22 +124,19 @@ final class LibrarySettings {
         var recentDays: Int?
         var sortKeyRaw: String?
         var sortAscending: Bool?
-        var apiKeys: [String: String]?
     }
 
     private func save() {
         configVersion += 1
-        let nonEmptyKeys = apiKeys.filter { !$0.value.isEmpty }
         let stored = Stored(
             storageDirectory: storageDirectory,
             translateEnabled: translateEnabled,
-            apiProvider: apiProvider,
             apiBaseURL: apiBaseURL,
             apiModel: apiModel,
             targetLanguage: targetLanguage,
+            apiKey: apiKey,
             assistantThinkingEnabled: assistantThinkingEnabled,
             assistantReasoningEffort: assistantReasoningEffort,
-            deepSeekAPIFormat: deepSeekAPIFormat,
             openAlexMailto: openAlexMailto,
             perPage: perPage,
             defaultDays: defaultDays,
@@ -174,8 +147,7 @@ final class LibrarySettings {
             highScoreThreshold: highScoreThreshold,
             recentDays: recentDays,
             sortKeyRaw: sortKeyRaw,
-            sortAscending: sortAscending,
-            apiKeys: nonEmptyKeys.isEmpty ? nil : nonEmptyKeys
+            sortAscending: sortAscending
         )
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         try? enc.encode(stored).write(to: url, options: .atomic)

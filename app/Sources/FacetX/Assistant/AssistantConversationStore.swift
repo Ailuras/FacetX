@@ -4,7 +4,6 @@ struct AssistantConversationSummary: Identifiable, Equatable {
     let id: UUID
     let title: String
     let updatedAt: Date
-    let provider: TranslationProvider
     let model: String
 }
 
@@ -13,10 +12,8 @@ struct StoredAssistantConversation: Codable {
     var title: String
     let createdAt: Date
     var updatedAt: Date
-    var provider: TranslationProvider
     var model: String
     var baseURL: String
-    var deepSeekAPIFormat: DeepSeekAPIFormat
     var entries: [AssistantEntry]
     var apiMessages: Data
     var totalInputTokens: Int
@@ -27,7 +24,6 @@ struct StoredAssistantConversation: Codable {
             id: id,
             title: title,
             updatedAt: updatedAt,
-            provider: provider,
             model: model
         )
     }

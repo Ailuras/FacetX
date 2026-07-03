@@ -53,146 +53,28 @@ struct RecommendationConfig {
     var recent_days: Int
 }
 
-enum TranslationProvider: String, Codable, CaseIterable {
-    case deepseek = "deepseek"
-    case openai = "openai"
-    case anthropic = "anthropic"
-
-    var displayName: String {
-        switch self {
-        case .deepseek:  return "DeepSeek"
-        case .openai:    return "OpenAI"
-        case .anthropic: return "Anthropic"
-        }
-    }
-
-    var defaultBaseURL: String {
-        switch self {
-        case .deepseek:  return "https://api.deepseek.com"
-        case .openai:    return "https://api.openai.com/v1"
-        case .anthropic: return "https://api.anthropic.com/v1"
-        }
-    }
-
-    var defaultModel: String {
-        switch self {
-        case .deepseek:  return "deepseek-v4-flash"
-        case .openai:    return "gpt-5.4-mini"
-        case .anthropic: return "claude-sonnet-5"
-        }
-    }
-
-    var suggestedModels: [String] {
-        switch self {
-        case .deepseek:
-            return ["deepseek-v4-flash", "deepseek-v4-pro"]
-        case .openai:
-            return ["gpt-5.4-mini", "gpt-5.4", "gpt-5.5"]
-        case .anthropic:
-            return ["claude-sonnet-5", "claude-opus-4-8", "claude-haiku-4-5"]
-        }
-    }
-
-    var supportedAssistantEfforts: [AssistantReasoningEffort] {
-        switch self {
-        case .deepseek: return [.high, .max]
-        case .openai: return [.low, .medium, .high, .xhigh]
-        case .anthropic: return [.low, .medium, .high, .xhigh, .max]
-        }
-    }
-
-    var defaultAssistantEffort: AssistantReasoningEffort {
-        switch self {
-        case .deepseek: return .high
-        case .openai, .anthropic: return .medium
-        }
-    }
-
-    var modelsEndpoint: String {
-        switch self {
-        case .deepseek, .openai:
-            return "/models"
-        case .anthropic:
-            return "/models"
-        }
-    }
-
-    var chatEndpoint: String {
-        switch self {
-        case .deepseek, .openai:
-            return "/chat/completions"
-        case .anthropic:
-            return "/messages"
-        }
-    }
-
-    var authHeaderName: String {
-        switch self {
-        case .deepseek, .openai:
-            return "Authorization"
-        case .anthropic:
-            return "x-api-key"
-        }
-    }
-
-    var authHeaderValuePrefix: String {
-        switch self {
-        case .deepseek, .openai:
-            return "Bearer "
-        case .anthropic:
-            return ""
-        }
-    }
-
-    var requiresVersionHeader: Bool {
-        self == .anthropic
-    }
-}
-
-enum DeepSeekAPIFormat: String, Codable, CaseIterable, Identifiable {
-    case openAI = "openai"
-    case anthropic = "anthropic"
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .openAI: return L10n.pick("OpenAI compatible", "OpenAI 兼容（Codex）")
-        case .anthropic: return L10n.pick("Anthropic compatible", "Anthropic 兼容（Claude）")
-        }
-    }
-
-    var defaultBaseURL: String {
-        switch self {
-        case .openAI: return "https://api.deepseek.com"
-        case .anthropic: return "https://api.deepseek.com/anthropic"
-        }
-    }
+enum DeepSeekAPI {
+    static let defaultBaseURL = "https://api.deepseek.com"
+    static let defaultModel = "deepseek-v4-flash"
+    static let suggestedModels = ["deepseek-v4-flash", "deepseek-v4-pro"]
+    static let supportedAssistantEfforts: [AssistantReasoningEffort] = [.high, .max]
 }
 
 enum AssistantReasoningEffort: String, Codable, CaseIterable, Identifiable {
-    case low
-    case medium
     case high
-    case xhigh
     case max
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .low: return L10n.pick("Low", "低")
-        case .medium: return L10n.pick("Medium", "中")
         case .high: return L10n.pick("High", "高")
-        case .xhigh: return L10n.pick("Extra High", "很高")
         case .max: return L10n.pick("Max", "最高")
         }
     }
 }
 
 struct TranslateConfig {
-    var provider: TranslationProvider
-    var deepseek_api_format: DeepSeekAPIFormat
     var enabled: Bool
     var target_language: String
     var model: String
@@ -278,8 +160,6 @@ class ConfigManager {
         cfg.openalex.default_days = s.defaultDays
         cfg.openalex.default_max_results = s.defaultMaxResults
         cfg.openalex.topic_filter = s.topicFilter
-        cfg.translate.provider = s.apiProvider
-        cfg.translate.deepseek_api_format = s.deepSeekAPIFormat
         cfg.translate.enabled = s.translateEnabled
         if !s.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             cfg.translate.base_url = s.apiBaseURL

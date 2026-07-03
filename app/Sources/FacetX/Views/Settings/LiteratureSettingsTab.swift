@@ -106,8 +106,8 @@ struct LiteratureSettingsTab: View {
 
     private var translationCard: some View {
         SettingsCard(title: L10n.pick("Translation", "翻译"), systemImage: "character.book.closed",
-                     subtitle: L10n.pick("Translate paper abstracts. Provider and API key live in Integrations → LLM API.",
-                                         "翻译文献摘要。服务商与密钥位于「集成 → 大模型 API」。")) {
+                     subtitle: L10n.pick("Translate paper abstracts with DeepSeek. Credentials live in Integrations.",
+                                         "使用 DeepSeek 翻译文献摘要，凭据位于「集成」。")) {
             SettingsRow(title: L10n.pick("Abstract Translation", "摘要翻译"), systemImage: "globe") {
                 HStack(spacing: 8) {
                     Toggle("", isOn: $settings.translateEnabled)
