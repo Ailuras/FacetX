@@ -2,18 +2,25 @@ import Foundation
 import SwiftUI
 
 /// One chat transcript entry as rendered in the UI.
-struct AssistantEntry: Identifiable, Equatable {
-    enum Role: Equatable {
+struct AssistantEntry: Identifiable, Equatable, Codable {
+    enum Role: Equatable, Codable {
         case user
         case assistant
         case tool(name: String)
         case error
     }
 
-    let id = UUID()
+    let id: UUID
     let role: Role
     var text: String
     var mentions: [AssistantItemMention] = []
+
+    init(id: UUID = UUID(), role: Role, text: String, mentions: [AssistantItemMention] = []) {
+        self.id = id
+        self.role = role
+        self.text = text
+        self.mentions = mentions
+    }
 }
 
 /// Drives the assistant conversation: keeps the UI transcript, the raw API
@@ -26,6 +33,8 @@ final class AssistantSession: ObservableObject {
     @Published private(set) var isBusy = false
     @Published private(set) var totalInputTokens = 0
     @Published private(set) var totalOutputTokens = 0
+    @Published private(set) var conversations: [AssistantConversationSummary] = []
+    @Published private(set) var activeConversationID = UUID()
 
     private var apiMessages: [[String: Any]] = []
     /// Wire format owner of `apiMessages`; switching providers mid-chat resets
@@ -34,14 +43,24 @@ final class AssistantSession: ObservableObject {
     private var toolbox: AgentToolbox?
     private weak var projectStore: ProjectStore?
     private var configured = false
+    private let conversationStore = AssistantConversationStore()
+    private var conversationCreatedAt = Date()
 
     private static let maxLoopIterations = 12
+
+    init() {
+        refreshConversationList()
+        if let latest = conversationStore.records.first {
+            restore(latest, updateSettings: true)
+        }
+    }
 
     func configure(eventKit: EventKitService, store: ProjectStore, settings: AppSettings) {
         guard !configured else { return }
         configured = true
         self.projectStore = store
         self.toolbox = AgentToolbox(eventKit: eventKit, projectStore: store, settings: settings)
+        registerVisibleReferences()
     }
 
     // ── Shared LLM API config (Settings → Integrations → LLM API) ────────────
@@ -80,12 +99,40 @@ final class AssistantSession: ObservableObject {
         }
     }
 
-    func clear() {
+    func newConversation() {
+        guard !isBusy else { return }
+        persistCurrentConversation()
+        activeConversationID = UUID()
+        conversationCreatedAt = Date()
         entries.removeAll()
         apiMessages.removeAll()
         historyProvider = ""
         totalInputTokens = 0
         totalOutputTokens = 0
+    }
+
+    func openConversation(_ id: UUID) {
+        guard !isBusy, id != activeConversationID,
+              let record = conversationStore.record(id: id) else { return }
+        persistCurrentConversation()
+        restore(record, updateSettings: true)
+    }
+
+    func deleteCurrentConversation() {
+        guard !isBusy else { return }
+        conversationStore.delete(id: activeConversationID)
+        refreshConversationList()
+        if let next = conversationStore.records.first {
+            restore(next, updateSettings: true)
+        } else {
+            activeConversationID = UUID()
+            conversationCreatedAt = Date()
+            entries = []
+            apiMessages = []
+            historyProvider = ""
+            totalInputTokens = 0
+            totalOutputTokens = 0
+        }
     }
 
     func send(_ text: String, mentions: [AssistantItemMention] = []) {
@@ -96,10 +143,12 @@ final class AssistantSession: ObservableObject {
             : trimmed
         entries.append(AssistantEntry(role: .user, text: visibleText, mentions: mentions))
         toolbox?.registerReferences(mentions)
+        persistCurrentConversation()
         isBusy = true
         Task {
             await runLoop(userText: promptText(trimmed, mentions: mentions))
             isBusy = false
+            persistCurrentConversation()
         }
     }
 
@@ -152,6 +201,7 @@ final class AssistantSession: ObservableObject {
             if !text.isEmpty {
                 entries.append(AssistantEntry(role: .assistant, text: text))
             }
+            persistCurrentConversation()
 
             switch response.stop {
             case .toolUse:
@@ -170,6 +220,7 @@ final class AssistantSession: ObservableObject {
                     results.append(LLMToolResult(id: call.id, content: result, isError: isError))
                 }
                 apiMessages.append(contentsOf: client.toolResultMessages(results))
+                persistCurrentConversation()
                 continue
 
             case .pauseTurn:
@@ -196,6 +247,58 @@ final class AssistantSession: ObservableObject {
         entries.append(AssistantEntry(
             role: .error,
             text: L10n.pick("Stopped after too many tool rounds.", "工具调用轮数过多，已停止。")))
+    }
+
+    // ── Conversation persistence ────────────────────────────────────────────
+
+    private func persistCurrentConversation() {
+        guard !entries.isEmpty else { return }
+        guard JSONSerialization.isValidJSONObject(apiMessages),
+              let rawMessages = try? JSONSerialization.data(withJSONObject: apiMessages) else { return }
+        let settings = LibrarySettings.shared
+        let title = entries.first(where: { if case .user = $0.role { return true }; return false })?
+            .text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefix(48)
+        let record = StoredAssistantConversation(
+            id: activeConversationID,
+            title: title.map(String.init) ?? L10n.pick("New conversation", "新会话"),
+            createdAt: conversationCreatedAt,
+            updatedAt: Date(),
+            provider: settings.apiProvider,
+            model: settings.apiModel,
+            baseURL: settings.apiBaseURL,
+            entries: entries,
+            apiMessages: rawMessages,
+            totalInputTokens: totalInputTokens,
+            totalOutputTokens: totalOutputTokens
+        )
+        conversationStore.upsert(record)
+        refreshConversationList()
+    }
+
+    private func restore(_ record: StoredAssistantConversation, updateSettings: Bool) {
+        activeConversationID = record.id
+        conversationCreatedAt = record.createdAt
+        entries = record.entries
+        apiMessages = ((try? JSONSerialization.jsonObject(with: record.apiMessages)) as? [[String: Any]]) ?? []
+        historyProvider = record.provider.rawValue
+        totalInputTokens = record.totalInputTokens
+        totalOutputTokens = record.totalOutputTokens
+        if updateSettings {
+            let settings = LibrarySettings.shared
+            settings.apiProvider = record.provider
+            settings.apiBaseURL = record.baseURL
+            settings.apiModel = record.model
+        }
+        registerVisibleReferences()
+    }
+
+    private func registerVisibleReferences() {
+        toolbox?.registerReferences(entries.flatMap(\.mentions))
+    }
+
+    private func refreshConversationList() {
+        conversations = conversationStore.records.map(\.summary)
     }
 
     /// Short human-readable line shown under a tool-call chip.

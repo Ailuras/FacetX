@@ -29,8 +29,47 @@ struct AssistantSidebarPanel: View {
                     .padding(.trailing, 4)
             }
 
+            Menu {
+                if session.conversations.isEmpty {
+                    Text(L10n.pick("No history", "暂无历史会话"))
+                } else {
+                    ForEach(session.conversations) { conversation in
+                        Button {
+                            session.openConversation(conversation.id)
+                        } label: {
+                            if conversation.id == session.activeConversationID {
+                                Label(conversation.title, systemImage: "checkmark")
+                            } else {
+                                Text(conversation.title)
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .help(L10n.pick("Conversation history", "历史会话"))
+
             Button {
-                session.clear()
+                session.newConversation()
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(session.isBusy)
+            .help(L10n.pick("New conversation", "新建会话"))
+
+            Button {
+                session.deleteCurrentConversation()
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 11, weight: .medium))
@@ -39,8 +78,8 @@ struct AssistantSidebarPanel: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(session.entries.isEmpty)
-            .help(L10n.pick("Clear conversation", "清空对话"))
+            .disabled(session.entries.isEmpty || session.isBusy)
+            .help(L10n.pick("Delete conversation", "删除当前会话"))
 
             Button {
                 withAnimation(FacetTheme.detailSpring) { isFullscreen.toggle() }
