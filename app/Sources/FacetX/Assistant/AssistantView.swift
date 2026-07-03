@@ -280,11 +280,13 @@ struct AssistantView: View {
 
     private var modelControls: some View {
         HStack(spacing: 8) {
+            Spacer(minLength: 0)
+
             Label("DeepSeek", systemImage: "server.rack")
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            .fixedSize()
+                .fixedSize()
 
             Divider().frame(height: 16)
 
@@ -320,9 +322,10 @@ struct AssistantView: View {
                     }
                 }
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize()
             }
             .menuStyle(.borderlessButton)
+            .fixedSize()
             .help(L10n.pick("Switch model", "切换模型"))
 
             Divider().frame(height: 16)
