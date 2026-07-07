@@ -24,7 +24,8 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         controller.add(context.coordinator, name: "facetx")
         config.userContentController = controller
 
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = PassThroughWebView(frame: .zero, configuration: config)
+        webView.shouldPassThroughScroll = (onHeightChange != nil)
         webView.setValue(false, forKey: "drawsBackground") // blend with the native pane
         context.coordinator.webView = webView
 
@@ -34,7 +35,10 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         return webView
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+        if let webView = nsView as? PassThroughWebView {
+            webView.shouldPassThroughScroll = (onHeightChange != nil)
+        }
         context.coordinator.pendingText = text
         context.coordinator.variant = variant
         context.coordinator.onHeightChange = onHeightChange
@@ -93,6 +97,18 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
             guard let data = try? JSONEncoder().encode(value),
                   let literal = String(data: data, encoding: .utf8) else { return "\"\"" }
             return literal
+        }
+    }
+}
+
+private final class PassThroughWebView: WKWebView {
+    var shouldPassThroughScroll = false
+
+    override func scrollWheel(with event: NSEvent) {
+        if shouldPassThroughScroll {
+            nextResponder?.scrollWheel(with: event)
+        } else {
+            super.scrollWheel(with: event)
         }
     }
 }
