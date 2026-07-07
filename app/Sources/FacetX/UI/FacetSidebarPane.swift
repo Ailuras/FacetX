@@ -202,7 +202,7 @@ private struct ResizableSidebarWidthModifier: ViewModifier {
             content
         } else {
             content
-                .frame(width: clampedWidth)
+                .frame(width: clampedWidth, alignment: handleEdge == .leading ? .trailing : .leading)
                 .overlay(alignment: handleEdge == .leading ? .leading : .trailing) {
                     resizeHandle
                 }
