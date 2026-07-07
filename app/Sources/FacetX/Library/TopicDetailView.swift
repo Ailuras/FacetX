@@ -314,12 +314,14 @@ struct TopicDetailView: View {
                 }
             }
             .onChange(of: detailFullscreen) { _, isFullscreen in
-                showAssistantPanel.wrappedValue = false
-                assistantFullscreen.wrappedValue = false
+                if isFullscreen {
+                    assistantFullscreen.wrappedValue = false
+                }
             }
             .onChange(of: importFullscreen) { _, isFullscreen in
-                showAssistantPanel.wrappedValue = false
-                assistantFullscreen.wrappedValue = false
+                if isFullscreen {
+                    assistantFullscreen.wrappedValue = false
+                }
             }
             .onChange(of: assistantFullscreen.wrappedValue) { _, isFullscreen in
                 if isFullscreen {
@@ -1321,7 +1323,11 @@ struct TopicDetailView: View {
 
     private var detailFullscreenToggle: some View {
         Button {
-            withAnimation(detailPaneAnimation) { detailFullscreen.toggle() }
+            withAnimation(detailPaneAnimation) {
+                detailFullscreen.toggle()
+                showAssistantPanel.wrappedValue = false
+                assistantFullscreen.wrappedValue = false
+            }
         } label: {
             Image(systemName: detailFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 12, weight: .medium))
@@ -1412,7 +1418,11 @@ struct TopicDetailView: View {
 
     private var importFullscreenToggle: some View {
         Button {
-            withAnimation(detailPaneAnimation) { importFullscreen.toggle() }
+            withAnimation(detailPaneAnimation) {
+                importFullscreen.toggle()
+                showAssistantPanel.wrappedValue = false
+                assistantFullscreen.wrappedValue = false
+            }
         } label: {
             Image(systemName: importFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 12, weight: .medium))

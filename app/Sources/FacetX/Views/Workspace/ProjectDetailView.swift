@@ -246,10 +246,10 @@ struct ProjectDetailView: View {
                 }
             }
             .onChange(of: detailFullscreen) { _, isFullscreen in
-                showTodayPanel.wrappedValue = false
-                showAssistantPanel.wrappedValue = false
-                todayFullscreen.wrappedValue = false
-                assistantFullscreen.wrappedValue = false
+                if isFullscreen {
+                    todayFullscreen.wrappedValue = false
+                    assistantFullscreen.wrappedValue = false
+                }
             }
             .onChange(of: todayFullscreen.wrappedValue) { _, isFullscreen in
                 if isFullscreen {
@@ -364,7 +364,13 @@ struct ProjectDetailView: View {
 
     private var fullscreenToggle: some View {
         Button {
-            withAnimation(detailPaneAnimation) { detailFullscreen.toggle() }
+            withAnimation(detailPaneAnimation) {
+                detailFullscreen.toggle()
+                showTodayPanel.wrappedValue = false
+                showAssistantPanel.wrappedValue = false
+                todayFullscreen.wrappedValue = false
+                assistantFullscreen.wrappedValue = false
+            }
         } label: {
             Image(systemName: detailFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 12, weight: .medium))
