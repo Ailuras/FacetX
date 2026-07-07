@@ -147,7 +147,9 @@ private struct AssistantHistoryPopover: View {
                             }
                         }
                     }
+                    .hideScrollIndicators()
                 }
+                .scrollIndicators(.hidden)
                 .frame(maxHeight: 320)
             }
         }

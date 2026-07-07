@@ -176,34 +176,16 @@ struct CommitsView: View {
                 assistantFullscreen.wrappedValue = false
             }
         }
-        .onChange(of: todayFullscreen.wrappedValue) { _, isFullscreen in
-            if isFullscreen {
-                withAnimation(detailPaneAnimation) {
-                    selectedCommit = nil
-                    detailFullscreen = false
-                }
-            } else {
-                if selectedCommit != nil {
-                    withAnimation(detailPaneAnimation) {
-                        selectedCommit = nil
-                        detailFullscreen = false
-                    }
-                }
+        .onChange(of: todayFullscreen.wrappedValue) { _, _ in
+            withAnimation(detailPaneAnimation) {
+                selectedCommit = nil
+                detailFullscreen = false
             }
         }
-        .onChange(of: assistantFullscreen.wrappedValue) { _, isFullscreen in
-            if isFullscreen {
-                withAnimation(detailPaneAnimation) {
-                    selectedCommit = nil
-                    detailFullscreen = false
-                }
-            } else {
-                if selectedCommit != nil {
-                    withAnimation(detailPaneAnimation) {
-                        selectedCommit = nil
-                        detailFullscreen = false
-                    }
-                }
+        .onChange(of: assistantFullscreen.wrappedValue) { _, _ in
+            withAnimation(detailPaneAnimation) {
+                selectedCommit = nil
+                detailFullscreen = false
             }
         }
     }

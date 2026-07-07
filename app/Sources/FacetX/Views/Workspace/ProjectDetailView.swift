@@ -251,34 +251,16 @@ struct ProjectDetailView: View {
                     assistantFullscreen.wrappedValue = false
                 }
             }
-            .onChange(of: todayFullscreen.wrappedValue) { _, isFullscreen in
-                if isFullscreen {
-                    withAnimation(detailPaneAnimation) {
-                        selectedDetailItem = nil
-                        detailFullscreen = false
-                    }
-                } else {
-                    if selectedDetailItem != nil {
-                        withAnimation(detailPaneAnimation) {
-                            selectedDetailItem = nil
-                            detailFullscreen = false
-                        }
-                    }
+            .onChange(of: todayFullscreen.wrappedValue) { _, _ in
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                    detailFullscreen = false
                 }
             }
-            .onChange(of: assistantFullscreen.wrappedValue) { _, isFullscreen in
-                if isFullscreen {
-                    withAnimation(detailPaneAnimation) {
-                        selectedDetailItem = nil
-                        detailFullscreen = false
-                    }
-                } else {
-                    if selectedDetailItem != nil {
-                        withAnimation(detailPaneAnimation) {
-                            selectedDetailItem = nil
-                            detailFullscreen = false
-                        }
-                    }
+            .onChange(of: assistantFullscreen.wrappedValue) { _, _ in
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                    detailFullscreen = false
                 }
             }
     }

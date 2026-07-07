@@ -323,23 +323,12 @@ struct TopicDetailView: View {
                     assistantFullscreen.wrappedValue = false
                 }
             }
-            .onChange(of: assistantFullscreen.wrappedValue) { _, isFullscreen in
-                if isFullscreen {
-                    withAnimation(detailPaneAnimation) {
-                        selectedPaper = nil
-                        showImportSidebar = false
-                        detailFullscreen = false
-                        importFullscreen = false
-                    }
-                } else {
-                    if selectedPaper != nil || showImportSidebar {
-                        withAnimation(detailPaneAnimation) {
-                            selectedPaper = nil
-                            showImportSidebar = false
-                            detailFullscreen = false
-                            importFullscreen = false
-                        }
-                    }
+            .onChange(of: assistantFullscreen.wrappedValue) { _, _ in
+                withAnimation(detailPaneAnimation) {
+                    selectedPaper = nil
+                    showImportSidebar = false
+                    detailFullscreen = false
+                    importFullscreen = false
                 }
             }
     }

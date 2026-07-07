@@ -66,7 +66,9 @@ struct AssistantView: View {
                     }
                 }
                 .padding(16)
+                .hideScrollIndicators()
             }
+            .scrollIndicators(.hidden)
             .onChange(of: session.entries.count) {
                 withAnimation(.easeOut(duration: 0.2)) {
                     proxy.scrollTo(session.entries.last?.id, anchor: .bottom)
