@@ -3,7 +3,7 @@ import FacetXCore
 import SwiftUI
 
 /// The active include/exclude tag filters with quick removal. Shared by the
-/// All, Week and Month views so the filter chips look identical everywhere.
+/// All and Plan views so the filter chips look identical everywhere.
 struct ActiveTagFilterBar: View {
     @EnvironmentObject private var settings: AppSettings
     @Binding var tagFilter: TagFilter
@@ -59,7 +59,7 @@ struct ActiveTagFilterBar: View {
 }
 
 /// A single pill button matching the All view's action-cluster styling. Shared
-/// so the Week/Month controls are pixel-identical to the All view.
+/// so the Plan controls are pixel-identical to the All view.
 struct FilterPillButton: View {
     let systemName: String
     let help: String
@@ -166,17 +166,17 @@ struct ItemFilterMenuButton: View {
     }
 }
 
-/// Shared action cluster for All, Week, and Month item lists.
+/// Shared action cluster for All and Plan item lists.
 struct ItemActionCluster<Accessory: View>: View {
     @Binding var itemFilter: ItemListFilter
     @Binding var showCompleted: Bool
-    /// Optional overdue-visibility toggle. `nil` hides the pill (Week/Month, which
+    /// Optional overdue-visibility toggle. `nil` hides the pill (Plan, which
     /// don't surface overdue separately); the All view passes a real binding.
     var showOverdue: Binding<Bool>?
     var animation: Animation = FacetTheme.listSpring
     let onAdd: () -> Void
     /// When set, the "+" becomes a menu letting the user pick what to create.
-    /// `nil` keeps the plain add button (used by Week/Month, which add by date).
+    /// `nil` keeps the plain add button (used by Plan, which adds by date).
     var onCreateKind: ((FacetKind) -> Void)?
     /// Whether the "New Note" option is selectable (needs a project data folder).
     var canCreateNote: Bool = true
@@ -274,7 +274,7 @@ extension ItemActionCluster where Accessory == EmptyView {
 
 extension View {
     /// The rounded, hairline-stroked container that wraps the All view's pill
-    /// action group. Shared so the Week/Month clusters match exactly.
+    /// action group. Shared so the Plan cluster matches exactly.
     func pillGroupContainer() -> some View {
         self
             .padding(.horizontal, 4)

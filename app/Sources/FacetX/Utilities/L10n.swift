@@ -45,17 +45,15 @@ enum L10n {
         case allTags, showAllTags, colorMenu
         case tagItemsUnit, tagClickInclude, tagClickExclude, tagClickClear
         // ProjectDetailView
-        case modeAll, modeWeek, modeMonth, modeGit
+        case modeAll, modePlan, modeGit
         case switchViewMode, refreshed, refresh
         case hideTodayPanel, showTodayTimeline
         case deleteItemTitle, paneReminder, paneSchedule
         case searchCommits, searchItems
-        // Week / Month / Today views
-        case today, noItems, noItemsSearch, noItemsDay
-        case tapDayHint, closeTodayPanel
+        // Plan / Today views
+        case today, noItems, noItemsSearch
+        case closeTodayPanel
         case prevWeek, nextWeek, currentWeek
-        case prevMonth, nextMonth, currentMonth, monthUnit
-        case addItemForDay
         case resultsUnit, hiddenUnit, shownUnit
         // Week goal
         case goalPlaceholderTitle, goalPlaceholderBody
@@ -120,8 +118,7 @@ enum L10n {
             case .tagClickClear:      return ("click to clear", "点击清除")
 
             case .modeAll:            return ("All", "全部")
-            case .modeWeek:           return ("Week", "周")
-            case .modeMonth:          return ("Month", "月")
+            case .modePlan:           return ("Plan", "日程")
             case .modeGit:            return ("Git", "Git")
             case .switchViewMode:     return ("Switch view mode", "切换视图模式")
             case .refreshed:          return ("Refreshed", "已刷新")
@@ -137,17 +134,10 @@ enum L10n {
             case .today:              return ("Today", "今天")
             case .noItems:            return ("No items", "暂无条目")
             case .noItemsSearch:      return ("No items match this search.", "没有符合搜索的条目。")
-            case .noItemsDay:         return ("No items for this day", "这一天暂无条目")
-            case .tapDayHint:         return ("Tap a day to view its items", "点按某天查看其条目")
             case .closeTodayPanel:    return ("Close Today panel", "关闭 Today 面板")
             case .prevWeek:           return ("Previous week", "上一周")
             case .nextWeek:           return ("Next week", "下一周")
             case .currentWeek:        return ("Go to current week", "回到本周")
-            case .prevMonth:          return ("Previous month", "上个月")
-            case .nextMonth:          return ("Next month", "下个月")
-            case .currentMonth:       return ("Go to current month", "回到本月")
-            case .monthUnit:          return ("Month", "月份")
-            case .addItemForDay:      return ("Add item for this day", "为这一天添加条目")
             case .resultsUnit:        return ("results", "结果")
             case .hiddenUnit:         return ("hidden", "已隐藏")
             case .shownUnit:          return ("shown", "显示")

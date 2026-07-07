@@ -2,7 +2,7 @@ import FacetXCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-extension WeekView {
+extension PlanView {
     @ViewBuilder var itemsSection: some View {
         if loading {
             ProgressView()
@@ -38,7 +38,7 @@ extension WeekView {
                 .listRowInsets(EdgeInsets(top: 2, leading: 14, bottom: 6, trailing: 14))
         } else {
             ForEach(group.items) { item in
-                weekItemRow(item)
+                planItemRow(item)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
@@ -109,8 +109,8 @@ extension WeekView {
             )
     }
 
-    private func dayDropDelegate(for date: Date, calendar cal: Calendar) -> WeekDayDropDelegate {
-        WeekDayDropDelegate(
+    func dayDropDelegate(for date: Date, calendar cal: Calendar) -> PlanDayDropDelegate {
+        PlanDayDropDelegate(
             date: date,
             draggedItem: $draggedItem,
             onEntered: { date in
@@ -134,7 +134,7 @@ extension WeekView {
         )
     }
 
-    func weekItemRow(_ item: ProjectItem) -> some View {
+    func planItemRow(_ item: ProjectItem) -> some View {
         StandardItemRow(
             item: item,
             projectPrefix: project.prefix,
@@ -159,7 +159,7 @@ extension WeekView {
                 itemToDelete = item
             }
         )
-        .onDrop(of: [.text], delegate: WeekItemDropDelegate(
+        .onDrop(of: [.text], delegate: PlanItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
             onEntered: { dragged, target in
@@ -310,7 +310,7 @@ extension WeekView {
 
 // MARK: – Drop delegate for dragging items onto a day block
 
-struct WeekItemDropDelegate: DropDelegate {
+struct PlanItemDropDelegate: DropDelegate {
     let item: ProjectItem
     @Binding var draggedItem: ProjectItem?
     var onEntered: (ProjectItem, ProjectItem) -> Void
@@ -332,7 +332,7 @@ struct WeekItemDropDelegate: DropDelegate {
     }
 }
 
-struct WeekDayDropDelegate: DropDelegate {
+struct PlanDayDropDelegate: DropDelegate {
     let date: Date
     @Binding var draggedItem: ProjectItem?
     var onEntered: (Date) -> Void

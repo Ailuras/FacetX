@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 // MARK: - Inline Editing Helpers
 
 /// Shared helper methods for inline title/notes editing to avoid duplicating
-/// the same logic across ContentView, TodayView, WeekView, etc.
+/// the same logic across ContentView, TodayView, PlanView, etc.
 enum ItemEditHelpers {
 
     /// Commit a title edit. Returns `true` if a mutation (or deletion) occurred.
@@ -196,7 +196,7 @@ enum ItemActionHelpers {
 
     /// Start date for `item` moved onto `day`, preserving the original
     /// time-of-day for timed items and snapping to the day start otherwise.
-    /// Mirrors WeekView's drag-move math so swipe / context-menu reschedules
+    /// Mirrors PlanView's drag-move math so swipe / context-menu reschedules
     /// behave identically to dragging an item across days.
     static func startDate(for item: ProjectItem, toDay day: Date,
                           calendar: Calendar = .current) -> Date {

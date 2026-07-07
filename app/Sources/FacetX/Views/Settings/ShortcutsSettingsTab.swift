@@ -36,9 +36,8 @@ struct ShortcutsSettingsTab: View {
                               rows: [
                                 (L10n.pick("Today", "今天"), "⌘T"),
                                 (L10n.pick("All", "全部"), "⌘1"),
-                                (L10n.pick("Week", "周"), "⌘2"),
-                                (L10n.pick("Month", "月"), "⌘3"),
-                                (L10n.pick("Git", "Git"), "⌘4"),
+                                (L10n.pick("Plan", "日程"), "⌘2"),
+                                (L10n.pick("Git", "Git"), "⌘3"),
                                 (L10n.pick("Previous Project", "上一个项目"), "⌘↑"),
                                 (L10n.pick("Next Project", "下一个项目"), "⌘↓")
                               ])

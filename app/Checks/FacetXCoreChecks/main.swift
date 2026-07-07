@@ -287,16 +287,12 @@ check(ItemArrangement.sorted(mixed, by: SortOption.nameAsc).map(\.id) == ["high"
       "nameAsc should sort by content alphabetically")
 check(ItemArrangement.sorted(mixed, by: SortOption.dateAsc).first?.id != "high",
       "dateAsc should not put tomorrow's item first")
-check(ItemArrangement.sorted(mixed, by: WeekSortOption.scheduleAsc, savedOrder: ["evt", "med", "high"]).map(\.id) == ["evt", "med", "high"],
-      "week schedule sort should use date first and manual order for same-time ties")
-check(ItemArrangement.sorted(mixed, by: WeekSortOption.priorityDesc).map(\.id) == ["high", "med", "evt"],
-      "week priority sort should put highest priority first")
-check(ItemArrangement.sorted(mixed, by: WeekSortOption.kindAsc).first?.id == "evt",
-      "week type sort should put events before reminders")
-check(ItemArrangement.sorted(mixed, by: MonthSortOption.dateAsc, savedOrder: ["evt", "med", "high"]).map(\.id) == ["evt", "med", "high"],
-      "month date sort should order by calendar date with manual same-day ties")
-check(ItemArrangement.sorted(mixed, by: MonthSortOption.titleAsc).map(\.id) == ["high", "med", "evt"],
-      "month title sort should order by item title")
+check(ItemArrangement.sorted(mixed, by: PlanSortOption.scheduleAsc, savedOrder: ["evt", "med", "high"]).map(\.id) == ["evt", "med", "high"],
+      "plan schedule sort should use date first and manual order for same-time ties")
+check(ItemArrangement.sorted(mixed, by: PlanSortOption.priorityDesc).map(\.id) == ["high", "med", "evt"],
+      "plan priority sort should put highest priority first")
+check(ItemArrangement.sorted(mixed, by: PlanSortOption.kindAsc).first?.id == "evt",
+      "plan type sort should put events before reminders")
 
 let alphaOnly = TagFilter(included: ["alpha"])
 check(ItemQuery.filtered(mixed, by: alphaOnly).map(\.id).sorted() == ["high", "med"],

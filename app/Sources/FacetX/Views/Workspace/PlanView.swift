@@ -1,7 +1,7 @@
 import FacetXCore
 import SwiftUI
 
-struct WeekView: View {
+struct PlanView: View {
     @EnvironmentObject var ek: EventKitService
     @EnvironmentObject var store: ProjectStore
     @EnvironmentObject var settings: AppSettings
@@ -29,9 +29,21 @@ struct WeekView: View {
     @State var draggedItem: ProjectItem?
     @State var dragSnapshot: [ProjectItem]?
     @State var dropTargetDate: Date?
-    @State var sortOption: WeekSortOption = .manual
+    @State var sortOption: PlanSortOption = .manual
 
     var listAnimation: Animation { FacetTheme.listSpring }
+
+    var planMonth: MonthYear {
+        MonthYear.containing(week.startDate)
+    }
+
+    var planEventStartDate: Date {
+        min(planMonth.startDate, week.startDate)
+    }
+
+    var planEventEndDate: Date {
+        max(planMonth.endDate, week.endDate)
+    }
 
     /// Week items after tag + search filtering but *before* the completed-items
     /// visibility filter — lets us both render the list and count what's hidden.
@@ -66,6 +78,24 @@ struct WeekView: View {
 
     var nonGoalItems: [ProjectItem] { weekItems }
 
+    var planMonthItems: [ProjectItem] {
+        var result = allItems.filter { item in
+            guard let date = item.date else { return false }
+            return planMonth.contains(date)
+        }
+        result = ItemQuery.filtered(result, by: tagFilter)
+        result = ItemQuery.filtered(result, by: itemFilter)
+        result = ItemQuery.searched(result, query: searchText)
+        return ItemQuery.completedVisibility(result, showCompleted: showCompleted)
+    }
+
+    var planItemsByMonthDay: [Int: [ProjectItem]] {
+        Dictionary(grouping: planMonthItems) { item in
+            guard let date = item.date else { return 0 }
+            return MonthYear.calendar.component(.day, from: date)
+        }
+    }
+
     var hasActiveSearch: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -83,14 +113,14 @@ struct WeekView: View {
     }
 
     func sortedItems(_ items: [ProjectItem],
-                     option: WeekSortOption? = nil,
+                     option: PlanSortOption? = nil,
                      savedOrder: [String]? = nil) -> [ProjectItem] {
         let selectedOption = option ?? sortOption
         let order = savedOrder ?? (selectedOption == .manual ? currentManualOrder : allItems.map(\.id))
         return ItemArrangement.sorted(items, by: selectedOption, savedOrder: order)
     }
 
-    func setSortOption(_ option: WeekSortOption) {
+    func setSortOption(_ option: PlanSortOption) {
         guard sortOption != option else { return }
         let currentOrder = allItems.map(\.id)
         sortOption = option
@@ -138,8 +168,9 @@ struct WeekView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            weekNav
+            planNav
             VStack(alignment: .leading, spacing: 14) {
+                monthMap
                 goalSection
                 itemsSection
                 Spacer()
@@ -173,6 +204,14 @@ struct WeekView: View {
             }
         } message: {
             Text(itemToDelete?.content ?? "")
+        }
+    }
+
+    func selectWeek(containing date: Date) {
+        let selectedWeek = ISOWeek.containing(date)
+        guard selectedWeek != week else { return }
+        withAnimation(listAnimation) {
+            week = selectedWeek
         }
     }
 }

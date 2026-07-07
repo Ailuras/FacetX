@@ -16,7 +16,7 @@ enum KeyboardCommand {
     // Navigation
     case today, prevProject, nextProject
     // View mode
-    case modeAll, modeWeek, modeMonth, modeGit
+    case modeAll, modePlan, modeGit
     // Window actions
     case newItem, refresh, toggleShowCompleted, focusSearch
     // Item actions

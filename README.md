@@ -15,7 +15,7 @@ Current release: **v1.0 release**.
 
 - Project workspaces combine reminders, scheduled events, and project metadata.
 - Today timeline shows cross-project work without moving data out of EventKit.
-- Week and month views support planning by project, day, and priority.
+- Plan view combines a month map, weekly focus, and day-by-day scheduling.
 - Week goals are backed by calendar events, so planning remains visible outside
   FacetX.
 - Menu bar quick capture creates prefixed reminders or events without opening

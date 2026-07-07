@@ -1,11 +1,11 @@
 import FacetXCore
 import SwiftUI
 
-extension WeekView {
-    var weekNav: some View {
+extension PlanView {
+    var planNav: some View {
         PeriodNavigationBar(
-            title: L10n.language == "zh" ? "第 \(week.week) 周" : "Week \(week.week)",
-            subtitle: weekRangeLabel,
+            title: L10n.t(.modePlan),
+            subtitle: "\(planMonth.label) · \(weekShortLabel)",
             previousHelp: L10n.t(.prevWeek),
             nextHelp: L10n.t(.nextWeek),
             currentHelp: L10n.t(.currentWeek),
@@ -44,7 +44,7 @@ extension WeekView {
                             fill: Color.accentColor.opacity(0.08)
                         )
                     }
-                    WeekSortMenu(selection: $sortOption, onSelect: setSortOption)
+                    PlanSortMenu(selection: $sortOption, onSelect: setSortOption)
                     ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
                         onCreateItem(week.startDate)
                     }
@@ -132,4 +132,7 @@ extension WeekView {
         return "\(startFormatter.string(from: start)) - \(endFormatter.string(from: end))"
     }
 
+    var weekShortLabel: String {
+        L10n.language == "zh" ? "第 \(week.week) 周" : "Week \(week.week)"
+    }
 }

@@ -27,7 +27,7 @@ struct SummaryChip: View {
 
     private var pill: some View {
         // Mirrors FacetInfoBadge's metrics exactly so the count chips across the
-        // All / Week / Month headers share one height and style. The explicit
+        // All / Plan headers share one height and style. The explicit
         // icon+text HStack (vs a Label) also avoids the vertical icon/title flip
         // a Label does when briefly compressed during the Today panel animation.
         HStack(spacing: 4) {

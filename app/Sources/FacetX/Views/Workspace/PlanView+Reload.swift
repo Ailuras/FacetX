@@ -1,7 +1,7 @@
 import FacetXCore
 import SwiftUI
 
-extension WeekView {
+extension PlanView {
     func syncGoalWithCalendar(for currentWeek: ISOWeek) async {
         guard ek.calendarAuthorized,
               !ek.calendarNames(enabled: settings.effectiveCalendarNames).isEmpty else { return }
@@ -28,10 +28,13 @@ extension WeekView {
 
     func reload() async {
         let requestedWeek = week
+        let requestedMonth = planMonth
         loading = allItems.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
-                                     enabledCalendars: settings.effectiveCalendarNames)
+                                     enabledCalendars: settings.effectiveCalendarNames,
+                                     eventStartDate: planEventStartDate,
+                                     eventEndDate: planEventEndDate)
         let tieOrder = allItems.isEmpty ? currentManualOrder : allItems.map(\.id)
         let sortedItems = sortedItems(
             fetched,
@@ -39,7 +42,7 @@ extension WeekView {
         )
         store.reportTags(projectID: project.id, items: sortedItems)
         await syncGoalWithCalendar(for: requestedWeek)
-        guard !Task.isCancelled, requestedWeek == week else { return }
+        guard !Task.isCancelled, requestedWeek == week, requestedMonth == planMonth else { return }
         if allItems.isEmpty {
             allItems = sortedItems
         } else {

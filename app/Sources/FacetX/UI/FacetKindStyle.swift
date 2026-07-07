@@ -44,8 +44,8 @@ extension FacetKind {
     }
 }
 
-/// One template for an item's row/calendar visuals so every surface (All, Week,
-/// Month, Today) stays consistent and new code doesn't re-derive icon/color.
+/// One template for an item's row/calendar visuals so every surface (All, Plan,
+/// Today) stays consistent and new code doesn't re-derive icon/color.
 extension ProjectItem {
     /// Tint by element type; tasks keep priority emphasis when prioritized.
     var rowTint: Color {

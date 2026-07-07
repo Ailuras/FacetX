@@ -15,7 +15,7 @@ struct ProjectDetailView: View {
     @Binding var tagFilter: TagFilter
 
     enum Mode: String, CaseIterable, Identifiable {
-        case all = "All", week = "Week", month = "Month", commits = "Git"
+        case all = "All", plan = "Plan", commits = "Git"
         var id: String { rawValue }
     }
 
@@ -96,8 +96,7 @@ struct ProjectDetailView: View {
                     Group {
                         switch mode {
                         case .all: allItemsView
-                        case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
-                        case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
+                        case .plan: PlanView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
                         case .commits:
                             CommitsView(
                                 project: project,
@@ -268,8 +267,7 @@ struct ProjectDetailView: View {
     private func handleCommand(_ cmd: KeyboardCommand) {
         switch cmd {
         case .modeAll:     mode = .all
-        case .modeWeek:    mode = .week
-        case .modeMonth:   mode = .month
+        case .modePlan:    mode = .plan
         case .modeGit:     mode = .commits
         case .newItem:     beginCreate(kind: .task)
         case .refresh:
@@ -381,8 +379,7 @@ struct ProjectDetailView: View {
     private func modeTitle(_ mode: Mode) -> String {
         switch mode {
         case .all:     return L10n.t(.modeAll)
-        case .week:    return L10n.t(.modeWeek)
-        case .month:   return L10n.t(.modeMonth)
+        case .plan:    return L10n.t(.modePlan)
         case .commits: return L10n.t(.modeGit)
         }
     }
@@ -743,7 +740,7 @@ struct ProjectDetailView: View {
     /// Drop-enter handler used by every row's `ItemDropDelegate`.
     /// Same kind → live reorder (existing behaviour).
     /// Different kind → optimistic kind swap so the row slides into the other
-    /// section during the drag, matching how WeekView previews cross-day moves.
+    /// section during the drag, matching how Plan previews cross-day moves.
     private func previewDropEntered(dragged: ProjectItem, target: ProjectItem) {
         if dragged.kind == target.kind {
             moveItem(from: dragged, to: target)

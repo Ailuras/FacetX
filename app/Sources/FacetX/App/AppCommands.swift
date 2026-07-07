@@ -27,14 +27,11 @@ struct AppCommands: Commands {
             Button("All") { router.commandPublisher.send(.modeAll) }
                 .keyboardShortcut("1", modifiers: .command)
 
-            Button("Week") { router.commandPublisher.send(.modeWeek) }
+            Button("Plan") { router.commandPublisher.send(.modePlan) }
                 .keyboardShortcut("2", modifiers: .command)
 
-            Button("Month") { router.commandPublisher.send(.modeMonth) }
-                .keyboardShortcut("3", modifiers: .command)
-
             Button("Git") { router.commandPublisher.send(.modeGit) }
-                .keyboardShortcut("4", modifiers: .command)
+                .keyboardShortcut("3", modifiers: .command)
 
             Divider()
 

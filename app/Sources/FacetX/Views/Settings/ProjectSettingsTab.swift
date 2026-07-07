@@ -341,8 +341,8 @@ struct ProjectSettingsTab: View {
                     .stroke(FacetTheme.hairline, lineWidth: 1)
             )
 
-            settingsNote(L10n.pick("Complete applies to tasks only. Other actions are shared by All, Today and Week.",
-                                   "完成仅对任务生效。其他操作在全部、今天和周视图中共用。"),
+            settingsNote(L10n.pick("Complete applies to tasks only. Other actions are shared by All, Today and Plan.",
+                                   "完成仅对任务生效。其他操作在全部、今天和日程中共用。"),
                          systemImage: "info.circle")
         }
     }

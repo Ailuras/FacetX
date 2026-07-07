@@ -1,7 +1,7 @@
 import FacetXCore
 import SwiftUI
 
-extension WeekView {
+extension PlanView {
     @ViewBuilder var goalSection: some View {
         if editingGoal {
             VStack(alignment: .leading, spacing: 10) {
