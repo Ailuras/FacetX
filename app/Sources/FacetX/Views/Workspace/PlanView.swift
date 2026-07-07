@@ -30,6 +30,7 @@ struct PlanView: View {
     @State var dragSnapshot: [ProjectItem]?
     @State var dropTargetDate: Date?
     @State var sortOption: PlanSortOption = .manual
+    @State var unscheduledCollapsed = false
 
     var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -172,6 +173,7 @@ struct PlanView: View {
             VStack(alignment: .leading, spacing: 14) {
                 monthMap
                 goalSection
+                unscheduledSection
                 itemsSection
                 Spacer()
             }
