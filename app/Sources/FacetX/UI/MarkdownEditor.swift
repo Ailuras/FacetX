@@ -84,10 +84,10 @@ struct MarkdownEditor: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = false
+        scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
-        scroll.autohidesScrollers = true
 
         // Build the text system manually so the view is a proper first responder
         // and tracks the scroll view's width.
