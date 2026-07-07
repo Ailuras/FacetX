@@ -118,7 +118,7 @@ struct NoteDetailPane: View {
                 Button {
                     fullWidth.toggle()
                 } label: {
-                    Image(systemName: fullWidth ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                    Image(systemName: fullWidth ? "arrow.right.and.line.vertical.and.arrow.left" : "arrow.left.and.line.vertical.and.arrow.right")
                         .font(.system(size: 11, weight: .medium))
                 }
                 .buttonStyle(.borderless)
