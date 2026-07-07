@@ -22,6 +22,22 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         let controller = WKUserContentController()
         controller.add(context.coordinator, name: "facetx")
+
+        // Inject CSS to hide the WebKit scrollbar. The subview-walk approach fails
+        // because WKScrollView is a private class that doesn't cast to NSScrollView.
+        let hideScrollbarCSS = """
+            ::-webkit-scrollbar { display: none !important; }
+            """
+        let script = WKUserScript(source: """
+            (function() {
+              var style = document.createElement('style');
+              style.textContent = '\(hideScrollbarCSS)';
+              document.head.appendChild(style);
+            })();
+            """,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true)
+        controller.addUserScript(script)
         config.userContentController = controller
 
         let webView = PassThroughWebView(frame: .zero, configuration: config)
