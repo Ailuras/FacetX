@@ -5,6 +5,7 @@ import SwiftUI
 struct TopicDetailView: View {
     let topic: TrackPref
     let showAssistantPanel: Binding<Bool>
+    let assistantFullscreen: Binding<Bool>
     @Binding var tagFilter: TagFilter
     /// Held as a plain reference (not @ObservedObject): the reading view only
     /// writes the active-paper context into it and never needs to redraw when
@@ -187,7 +188,7 @@ struct TopicDetailView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
+        let base = VStack(spacing: 0) {
             HStack(spacing: 0) {
                 if !importFullscreen && !detailFullscreen {
                     content
@@ -254,52 +255,93 @@ struct TopicDetailView: View {
         .onChange(of: ek.changeToken) { _, _ in
             loadPaperLinks()
         }
-        .onChange(of: selectedPaper?.id) { _, newValue in
-            if newValue != nil {
-                showImportSidebar = false
-                paperBeingImported = nil
-                showAssistantPanel.wrappedValue = false
-            } else {
-                detailFullscreen = false
-            }
-        }
-        .onChange(of: showImportSidebar) { _, newValue in
-            if newValue {
-                showAssistantPanel.wrappedValue = false
-            } else {
-                importFullscreen = false
-                paperBeingImported = nil
-            }
-        }
-        .onChange(of: showAssistantPanel.wrappedValue) { _, isShown in
-            guard isShown else { return }
-            withAnimation(detailPaneAnimation) {
-                selectedPaper = nil
-                showImportSidebar = false
-                detailFullscreen = false
-                importFullscreen = false
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .selectPaperInTopic)) { notification in
             guard let paperID = notification.userInfo?["paperID"] as? String else { return }
             if let paper = store.papers.first(where: { $0.id == paperID }) {
                 selectedPaper = paper
             }
         }
-        .alert(L10n.pick("Delete this paper?", "删除该文献？"), isPresented: .init(
-            get: { paperToDelete != nil },
-            set: { if !$0 { paperToDelete = nil } }
-        )) {
-            Button(L10n.pick("Cancel", "取消"), role: .cancel) { paperToDelete = nil }
-            Button(L10n.pick("Delete", "删除"), role: .destructive) {
-                if let paper = paperToDelete {
-                    deletePaper(paper)
+
+        return applySidebarObservers(base)
+            .alert(L10n.pick("Delete this paper?", "删除该文献？"), isPresented: .init(
+                get: { paperToDelete != nil },
+                set: { if !$0 { paperToDelete = nil } }
+            )) {
+                Button(L10n.pick("Cancel", "取消"), role: .cancel) { paperToDelete = nil }
+                Button(L10n.pick("Delete", "删除"), role: .destructive) {
+                    if let paper = paperToDelete {
+                        deletePaper(paper)
+                    }
+                    paperToDelete = nil
                 }
-                paperToDelete = nil
+            } message: {
+                Text(paperToDelete?.title ?? "")
             }
-        } message: {
-            Text(paperToDelete?.title ?? "")
-        }
+    }
+
+    @ViewBuilder
+    private func applySidebarObservers<V: View>(_ content: V) -> some View {
+        content
+            .onChange(of: selectedPaper?.id) { _, newValue in
+                if newValue != nil {
+                    if !assistantFullscreen.wrappedValue {
+                        showImportSidebar = false
+                        paperBeingImported = nil
+                        showAssistantPanel.wrappedValue = false
+                    }
+                } else {
+                    detailFullscreen = false
+                }
+            }
+            .onChange(of: showImportSidebar) { _, newValue in
+                if newValue {
+                    if !assistantFullscreen.wrappedValue {
+                        showAssistantPanel.wrappedValue = false
+                    }
+                } else {
+                    importFullscreen = false
+                    paperBeingImported = nil
+                }
+            }
+            .onChange(of: showAssistantPanel.wrappedValue) { _, isShown in
+                if isShown {
+                    if !detailFullscreen && !importFullscreen && (selectedPaper != nil || showImportSidebar) {
+                        withAnimation(detailPaneAnimation) {
+                            selectedPaper = nil
+                            showImportSidebar = false
+                            detailFullscreen = false
+                            importFullscreen = false
+                        }
+                    }
+                }
+            }
+            .onChange(of: detailFullscreen) { _, isFullscreen in
+                showAssistantPanel.wrappedValue = false
+                assistantFullscreen.wrappedValue = false
+            }
+            .onChange(of: importFullscreen) { _, isFullscreen in
+                showAssistantPanel.wrappedValue = false
+                assistantFullscreen.wrappedValue = false
+            }
+            .onChange(of: assistantFullscreen.wrappedValue) { _, isFullscreen in
+                if isFullscreen {
+                    withAnimation(detailPaneAnimation) {
+                        selectedPaper = nil
+                        showImportSidebar = false
+                        detailFullscreen = false
+                        importFullscreen = false
+                    }
+                } else {
+                    if selectedPaper != nil || showImportSidebar {
+                        withAnimation(detailPaneAnimation) {
+                            selectedPaper = nil
+                            showImportSidebar = false
+                            detailFullscreen = false
+                            importFullscreen = false
+                        }
+                    }
+                }
+            }
     }
 
     @ViewBuilder private var content: some View {

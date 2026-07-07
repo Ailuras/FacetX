@@ -7,6 +7,7 @@ struct TodayTimelinePanel: View {
     @EnvironmentObject var store: ProjectStore
     @EnvironmentObject var settings: AppSettings
     @Binding var isPresented: Bool
+    @Binding var isFullscreen: Bool
 
     @State private var items: [ProjectItem] = []
     @State private var selectedItem: ProjectItem?
@@ -46,7 +47,9 @@ struct TodayTimelinePanel: View {
             title: L10n.t(.today),
             systemImage: "sun.max.fill",
             closeHelp: L10n.t(.closeTodayPanel),
-            onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } }
+            fillWidth: isFullscreen,
+            onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } },
+            accessory: { todayFullscreenToggle }
         ) {
             ScrollViewReader { proxy in
                 ScrollView {
@@ -62,6 +65,23 @@ struct TodayTimelinePanel: View {
         .onAppear { Task { await reload() } }
         .onChange(of: ek.changeToken) { Task { await reload() } }
         .onChange(of: settings.changeToken) { Task { await reload() } }
+    }
+
+    private var todayFullscreenToggle: some View {
+        Button {
+            withAnimation(FacetTheme.detailSpring) { isFullscreen.toggle() }
+        } label: {
+            Image(systemName: isFullscreen
+                  ? "arrow.down.right.and.arrow.up.left"
+                  : "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")
+                           : L10n.pick("Fullscreen", "全屏"))
     }
 
     // MARK: – Scroll

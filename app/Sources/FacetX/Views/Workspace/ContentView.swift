@@ -16,6 +16,8 @@ struct ContentView: View {
     @State private var showTodayPanel = false
     @State private var showAssistantPanel = false
     @State private var assistantFullscreen = false
+    @State private var todayFullscreen = false
+
     @State private var discovered: [String] = []
     @State private var draftProject: ProjectDraft?
     @State private var editingProject: Project?
@@ -121,7 +123,7 @@ struct ContentView: View {
                 .navigationTitle("FacetX")
             } detail: {
                 HStack(spacing: 0) {
-                    if !assistantFullscreen {
+                    if !assistantFullscreen && !todayFullscreen {
                         Group {
                             switch selection {
                             case nil:
@@ -136,6 +138,8 @@ struct ContentView: View {
                                         project: project,
                                         showTodayPanel: $showTodayPanel,
                                         showAssistantPanel: $showAssistantPanel,
+                                        todayFullscreen: $todayFullscreen,
+                                        assistantFullscreen: $assistantFullscreen,
                                         tagFilter: $tagFilter
                                     )
                                 } else {
@@ -146,6 +150,7 @@ struct ContentView: View {
                                     TopicDetailView(
                                         topic: topic,
                                         showAssistantPanel: $showAssistantPanel,
+                                        assistantFullscreen: $assistantFullscreen,
                                         tagFilter: $tagFilter,
                                         assistant: assistant
                                     )
@@ -165,13 +170,17 @@ struct ContentView: View {
                         )
                         .transition(FacetSidebarStyle.transition)
                     } else if showTodayPanel {
-                        TodayTimelinePanel(isPresented: $showTodayPanel)
-                            .transition(FacetSidebarStyle.transition)
+                        TodayTimelinePanel(
+                            isPresented: $showTodayPanel,
+                            isFullscreen: $todayFullscreen
+                        )
+                        .transition(FacetSidebarStyle.transition)
                     }
                 }
                 .animation(FacetTheme.detailSpring, value: showTodayPanel)
                 .animation(FacetTheme.detailSpring, value: showAssistantPanel)
                 .animation(FacetTheme.detailSpring, value: assistantFullscreen)
+                .animation(FacetTheme.detailSpring, value: todayFullscreen)
             }
             .navigationSplitViewStyle(.balanced)
             .onReceive(keyboard.commandPublisher) { cmd in
@@ -254,7 +263,23 @@ struct ContentView: View {
                 }
             }
             .onChange(of: showTodayPanel) { _, isShown in
-                if isShown { showAssistantPanel = false }
+                if isShown {
+                    showAssistantPanel = false
+                } else {
+                    todayFullscreen = false
+                }
+            }
+            .onChange(of: todayFullscreen) { _, isFullscreen in
+                if isFullscreen {
+                    showAssistantPanel = false
+                    assistantFullscreen = false
+                }
+            }
+            .onChange(of: assistantFullscreen) { _, isFullscreen in
+                if isFullscreen {
+                    showTodayPanel = false
+                    todayFullscreen = false
+                }
             }
             .alert(L10n.t(.deleteProjectTitle), isPresented: .init(
                 get: { projectToDelete != nil },

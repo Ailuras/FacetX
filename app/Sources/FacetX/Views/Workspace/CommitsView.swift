@@ -11,6 +11,10 @@ struct CommitsView: View {
     let items: [ProjectItem]
     let searchText: String
     let refreshTrigger: Int
+    let showTodayPanel: Binding<Bool>
+    let showAssistantPanel: Binding<Bool>
+    let todayFullscreen: Binding<Bool>
+    let assistantFullscreen: Binding<Bool>
     let onItemsChanged: () async -> Void
 
     @State private var commits: [GitHubCommit] = []
@@ -20,6 +24,7 @@ struct CommitsView: View {
     @State private var dateRange: DateRange = .none
     @State private var selectedWeekDay: Date? = Calendar.current.startOfDay(for: Date())
     @State private var hoveredCommitID: GitHubCommit.ID?
+    @State private var detailFullscreen = false
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
@@ -114,17 +119,20 @@ struct CommitsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                unifiedHeader
-                commitsContent
+            if !detailFullscreen {
+                VStack(spacing: 0) {
+                    unifiedHeader
+                    commitsContent
+                }
+                .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if let commit = selectedCommit {
                 commitDetailPane(commit)
             }
         }
         .animation(detailPaneAnimation, value: selectedCommit != nil)
+        .animation(detailPaneAnimation, value: detailFullscreen)
         .background(FacetTheme.canvas)
         .task(id: project.id) { await reload() }
         .onChange(of: refreshTrigger) { Task { await reload() } }
@@ -133,6 +141,70 @@ struct CommitsView: View {
                   !visibleCommits.contains(where: { $0.id == selectedCommit.id }) else { return }
             withAnimation(detailPaneAnimation) {
                 self.selectedCommit = nil
+            }
+        }
+        .onChange(of: selectedCommit?.id) { _, newItem in
+            if newItem != nil {
+                if !todayFullscreen.wrappedValue && !assistantFullscreen.wrappedValue {
+                    showTodayPanel.wrappedValue = false
+                    showAssistantPanel.wrappedValue = false
+                }
+            } else {
+                detailFullscreen = false
+            }
+        }
+        .onChange(of: showTodayPanel.wrappedValue) { _, newValue in
+            if newValue {
+                if !detailFullscreen && selectedCommit != nil {
+                    withAnimation(detailPaneAnimation) {
+                        selectedCommit = nil
+                    }
+                }
+            }
+        }
+        .onChange(of: showAssistantPanel.wrappedValue) { _, newValue in
+            if newValue {
+                if !detailFullscreen && selectedCommit != nil {
+                    withAnimation(detailPaneAnimation) {
+                        selectedCommit = nil
+                    }
+                }
+            }
+        }
+        .onChange(of: detailFullscreen) { _, isFullscreen in
+            showTodayPanel.wrappedValue = false
+            showAssistantPanel.wrappedValue = false
+            todayFullscreen.wrappedValue = false
+            assistantFullscreen.wrappedValue = false
+        }
+        .onChange(of: todayFullscreen.wrappedValue) { _, isFullscreen in
+            if isFullscreen {
+                withAnimation(detailPaneAnimation) {
+                    selectedCommit = nil
+                    detailFullscreen = false
+                }
+            } else {
+                if selectedCommit != nil {
+                    withAnimation(detailPaneAnimation) {
+                        selectedCommit = nil
+                        detailFullscreen = false
+                    }
+                }
+            }
+        }
+        .onChange(of: assistantFullscreen.wrappedValue) { _, isFullscreen in
+            if isFullscreen {
+                withAnimation(detailPaneAnimation) {
+                    selectedCommit = nil
+                    detailFullscreen = false
+                }
+            } else {
+                if selectedCommit != nil {
+                    withAnimation(detailPaneAnimation) {
+                        selectedCommit = nil
+                        detailFullscreen = false
+                    }
+                }
             }
         }
     }
@@ -507,7 +579,13 @@ struct CommitsView: View {
         FacetSidebarPane(
             title: L10n.pick("Commit Detail", "提交详情"),
             systemImage: "curlybraces",
-            onClose: { selectedCommit = nil }
+            fillWidth: detailFullscreen,
+            onClose: {
+                withAnimation(detailPaneAnimation) {
+                    selectedCommit = nil
+                }
+            },
+            accessory: { commitsFullscreenToggle }
         ) {
             FacetSidebarContent {
                 commitTitleCard(commit)
@@ -523,6 +601,21 @@ struct CommitsView: View {
                 commitGitHubCard(commit)
             }
         }
+    }
+
+    private var commitsFullscreenToggle: some View {
+        Button {
+            withAnimation(detailPaneAnimation) { detailFullscreen.toggle() }
+        } label: {
+            Image(systemName: detailFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(detailFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")
+                               : L10n.pick("Fullscreen", "全屏"))
     }
 
     private func commitTitleCard(_ commit: GitHubCommit) -> some View {

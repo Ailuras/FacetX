@@ -10,6 +10,8 @@ struct ProjectDetailView: View {
     let project: Project
     let showTodayPanel: Binding<Bool>
     let showAssistantPanel: Binding<Bool>
+    let todayFullscreen: Binding<Bool>
+    let assistantFullscreen: Binding<Bool>
     @Binding var tagFilter: TagFilter
 
     enum Mode: String, CaseIterable, Identifiable {
@@ -97,9 +99,17 @@ struct ProjectDetailView: View {
                         case .week: WeekView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
                         case .month: MonthView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
                         case .commits:
-                            CommitsView(project: project, items: items, searchText: searchText, refreshTrigger: refreshTrigger) {
-                                await reload()
-                            }
+                            CommitsView(
+                                project: project,
+                                items: items,
+                                searchText: searchText,
+                                refreshTrigger: refreshTrigger,
+                                showTodayPanel: showTodayPanel,
+                                showAssistantPanel: showAssistantPanel,
+                                todayFullscreen: todayFullscreen,
+                                assistantFullscreen: assistantFullscreen,
+                                onItemsChanged: { await reload() }
+                            )
                         }
                     }
                     .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
@@ -139,90 +149,139 @@ struct ProjectDetailView: View {
     }
 
     private var decoratedContent: some View {
-        mainStack
-        .background(FacetTheme.canvas)
-        .navigationTitle(project.name)
-        .toolbar {
-            ToolbarItem(placement: .status) {
-                modePicker
-            }
-            ToolbarItem(placement: .automatic) {
-                ToolbarSearchField(text: $searchText, placeholder: mode == .commits ? L10n.t(.searchCommits) : L10n.t(.searchItems))
-                    .frame(width: 220, height: 24)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                toolbarActions
-            }
-        }
-        .task(id: project.id) { await reload() }
-        .onReceive(NotificationCenter.default.publisher(for: .selectItemInProjectDetail)) { notification in
-            guard let itemID = notification.userInfo?["itemID"] as? String else { return }
-            if let target = items.first(where: { $0.id == itemID }) {
-                selectedDetailItem = target
-            }
-        }
-        .onChange(of: ek.changeToken) { Task { await reload() } }
-        .onChange(of: settings.changeToken) { Task { await reload() } }
-        .onChange(of: showCompleted) {
-            if !showCompleted, selectedDetailItem?.isCompleted == true {
-                withAnimation(detailPaneAnimation) {
-                    selectedDetailItem = nil
+        let base = mainStack
+            .background(FacetTheme.canvas)
+            .navigationTitle(project.name)
+            .toolbar {
+                ToolbarItem(placement: .status) {
+                    modePicker
+                }
+                ToolbarItem(placement: .automatic) {
+                    ToolbarSearchField(text: $searchText, placeholder: mode == .commits ? L10n.t(.searchCommits) : L10n.t(.searchItems))
+                        .frame(width: 220, height: 24)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    toolbarActions
                 }
             }
-        }
-        .onChange(of: showOverdue) {
-            if !showOverdue, selectedDetailItem?.isOverdue == true {
-                withAnimation(detailPaneAnimation) {
-                    selectedDetailItem = nil
+            .task(id: project.id) { await reload() }
+            .onReceive(NotificationCenter.default.publisher(for: .selectItemInProjectDetail)) { notification in
+                guard let itemID = notification.userInfo?["itemID"] as? String else { return }
+                if let target = items.first(where: { $0.id == itemID }) {
+                    selectedDetailItem = target
                 }
             }
-        }
-        .onChange(of: mode) {
-            withAnimation(detailPaneAnimation) {
-                selectedDetailItem = nil
-                preserveSelectionDuringReplacement = false
-            }
-        }
-        .onChange(of: tagFilter) {
-            if let item = selectedDetailItem, !visibleItems.contains(where: { $0.id == item.id }) {
-                withAnimation(detailPaneAnimation) {
-                    selectedDetailItem = nil
+            .onChange(of: ek.changeToken) { Task { await reload() } }
+            .onChange(of: settings.changeToken) { Task { await reload() } }
+            .onChange(of: showCompleted) {
+                if !showCompleted, selectedDetailItem?.isCompleted == true {
+                    withAnimation(detailPaneAnimation) {
+                        selectedDetailItem = nil
+                    }
                 }
             }
-        }
-        .onChange(of: itemFilter) {
-            if selectedDetailItem != nil {
-                withAnimation(detailPaneAnimation) {
-                    selectedDetailItem = nil
+            .onChange(of: showOverdue) {
+                if !showOverdue, selectedDetailItem?.isOverdue == true {
+                    withAnimation(detailPaneAnimation) {
+                        selectedDetailItem = nil
+                    }
                 }
             }
-        }
-        .onChange(of: selectedDetailItem) { _, newItem in
-            if newItem != nil {
+            .onChange(of: mode) {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = nil
+                    preserveSelectionDuringReplacement = false
+                }
+            }
+            .onChange(of: tagFilter) {
+                if let item = selectedDetailItem, !visibleItems.contains(where: { $0.id == item.id }) {
+                    withAnimation(detailPaneAnimation) {
+                        selectedDetailItem = nil
+                    }
+                }
+            }
+            .onChange(of: itemFilter) {
+                if selectedDetailItem != nil {
+                    withAnimation(detailPaneAnimation) {
+                        selectedDetailItem = nil
+                    }
+                }
+            }
+
+        return applySidebarObservers(base)
+    }
+
+    @ViewBuilder
+    private func applySidebarObservers<V: View>(_ content: V) -> some View {
+        content
+            .onChange(of: selectedDetailItem) { _, newItem in
+                if newItem != nil {
+                    if !todayFullscreen.wrappedValue && !assistantFullscreen.wrappedValue {
+                        showTodayPanel.wrappedValue = false
+                        showAssistantPanel.wrappedValue = false
+                    }
+                } else {
+                    focusTitleItemID = nil
+                    preserveSelectionDuringReplacement = false
+                    detailFullscreen = false
+                }
+            }
+            .onChange(of: showTodayPanel.wrappedValue) { _, newValue in
+                if newValue {
+                    if !detailFullscreen && selectedDetailItem != nil {
+                        withAnimation(detailPaneAnimation) {
+                            selectedDetailItem = nil
+                            preserveSelectionDuringReplacement = false
+                        }
+                    }
+                }
+            }
+            .onChange(of: showAssistantPanel.wrappedValue) { _, newValue in
+                if newValue {
+                    if !detailFullscreen && selectedDetailItem != nil {
+                        withAnimation(detailPaneAnimation) {
+                            selectedDetailItem = nil
+                            preserveSelectionDuringReplacement = false
+                        }
+                    }
+                }
+            }
+            .onChange(of: detailFullscreen) { _, isFullscreen in
                 showTodayPanel.wrappedValue = false
                 showAssistantPanel.wrappedValue = false
-            } else {
-                focusTitleItemID = nil
-                preserveSelectionDuringReplacement = false
-                detailFullscreen = false
+                todayFullscreen.wrappedValue = false
+                assistantFullscreen.wrappedValue = false
             }
-        }
-        .onChange(of: showTodayPanel.wrappedValue) { _, newValue in
-            if newValue, selectedDetailItem != nil {
-                withAnimation(detailPaneAnimation) {
-                    selectedDetailItem = nil
-                    preserveSelectionDuringReplacement = false
+            .onChange(of: todayFullscreen.wrappedValue) { _, isFullscreen in
+                if isFullscreen {
+                    withAnimation(detailPaneAnimation) {
+                        selectedDetailItem = nil
+                        detailFullscreen = false
+                    }
+                } else {
+                    if selectedDetailItem != nil {
+                        withAnimation(detailPaneAnimation) {
+                            selectedDetailItem = nil
+                            detailFullscreen = false
+                        }
+                    }
                 }
             }
-        }
-        .onChange(of: showAssistantPanel.wrappedValue) { _, newValue in
-            if newValue, selectedDetailItem != nil {
-                withAnimation(detailPaneAnimation) {
-                    selectedDetailItem = nil
-                    preserveSelectionDuringReplacement = false
+            .onChange(of: assistantFullscreen.wrappedValue) { _, isFullscreen in
+                if isFullscreen {
+                    withAnimation(detailPaneAnimation) {
+                        selectedDetailItem = nil
+                        detailFullscreen = false
+                    }
+                } else {
+                    if selectedDetailItem != nil {
+                        withAnimation(detailPaneAnimation) {
+                            selectedDetailItem = nil
+                            detailFullscreen = false
+                        }
+                    }
                 }
             }
-        }
     }
 
     private func handleCommand(_ cmd: KeyboardCommand) {
