@@ -12,6 +12,8 @@ import WebKit
 /// its rendered content height so the SwiftUI side can size the bubble to fit
 /// instead of relying on the WebView's own (disabled) scrolling.
 struct MarkdownPreviewWeb: NSViewRepresentable {
+    @Environment(\.colorScheme) private var colorScheme
+
     let text: String
     var variant: String = "note"
     var fullWidth: Bool = false
@@ -60,6 +62,8 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         context.coordinator.variant = variant
         context.coordinator.fullWidth = fullWidth
         context.coordinator.onHeightChange = onHeightChange
+        context.coordinator.colorScheme = colorScheme
+        context.coordinator.applyTheme()
         context.coordinator.render() // no-op until the page signals it is ready
         context.coordinator.applyFullWidth()
     }
@@ -74,6 +78,7 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         var pendingText = ""
         var variant = "note"
         var fullWidth = false
+        var colorScheme: ColorScheme = .light
         var onHeightChange: ((CGFloat) -> Void)?
         private var renderedText: String?
         private var renderedVariant: String?
@@ -110,7 +115,7 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
 
         func applyTheme() {
             guard isReady, let webView else { return }
-            let isDark = webView.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let isDark = colorScheme == .dark
             webView.evaluateJavaScript("window.FacetXPreview.setTheme('\(isDark ? "dark" : "light")');")
         }
 
