@@ -17,6 +17,7 @@ extension PlanView {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .thinScrollIndicators()
         }
     }
 
