@@ -57,6 +57,20 @@ extension PlanView {
                     .background(Color.primary.opacity(0.04))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .help(L10n.pick("Review this week", "回顾本周"))
+                    Button {
+                        draftPlanWithAI()
+                    } label: {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(assistant.isBusy ? Color.secondary.opacity(0.45) : Color.accentColor)
+                            .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(Color.accentColor.opacity(assistant.isBusy ? 0.04 : 0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .disabled(assistant.isBusy)
+                    .help(L10n.pick("Draft this week's plan with AI", "用 AI 起草本周计划"))
                     PlanSortMenu(selection: $sortOption, onSelect: setSortOption)
                     ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
                         onCreateItem(week.startDate)

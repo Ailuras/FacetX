@@ -13,6 +13,7 @@ struct ProjectDetailView: View {
     let todayFullscreen: Binding<Bool>
     let assistantFullscreen: Binding<Bool>
     @Binding var tagFilter: TagFilter
+    let assistant: AssistantSession
 
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All", plan = "Plan", commits = "Git"
@@ -104,7 +105,7 @@ struct ProjectDetailView: View {
                     Group {
                         switch mode {
                         case .all: allItemsView
-                        case .plan: PlanView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
+                        case .plan: PlanView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, showAssistantPanel: showAssistantPanel, assistant: assistant, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
                         case .commits:
                             CommitsView(
                                 project: project,

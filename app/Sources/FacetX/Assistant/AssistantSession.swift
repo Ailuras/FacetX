@@ -193,15 +193,21 @@ final class AssistantSession: ObservableObject {
         refreshConversationList()
     }
 
-    func send(_ text: String, mentions: [AssistantItemMention] = []) {
+    func send(_ text: String, mentions: [AssistantItemMention] = [], displayText: String? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasSelection = !(pendingSelection ?? "").isEmpty
         guard !trimmed.isEmpty || !mentions.isEmpty || hasSelection, !isBusy else { return }
-        let visibleText = trimmed.isEmpty
-            ? (hasSelection
-               ? L10n.pick("Explain the selected passage.", "解释选中的这段内容。")
-               : L10n.pick("Review the referenced items.", "查看这些提及的项目条目。"))
-            : trimmed
+        let display = displayText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let visibleText: String
+        if let display, !display.isEmpty {
+            visibleText = display
+        } else if trimmed.isEmpty {
+            visibleText = hasSelection
+                ? L10n.pick("Explain the selected passage.", "解释选中的这段内容。")
+                : L10n.pick("Review the referenced items.", "查看这些提及的项目条目。")
+        } else {
+            visibleText = trimmed
+        }
         entries.append(AssistantEntry(role: .user, text: visibleText, mentions: mentions))
         toolbox?.registerReferences(mentions)
         // Build the augmented prompt now (it consumes the pending selection and

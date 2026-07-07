@@ -13,6 +13,8 @@ struct PlanView: View {
     @Binding var selectedItem: ProjectItem?
     @Binding var tagFilter: TagFilter
     @Binding var itemFilter: ItemListFilter
+    let showAssistantPanel: Binding<Bool>
+    let assistant: AssistantSession
     let refreshTrigger: Int
     let onCreateItem: (Date?) -> Void
 

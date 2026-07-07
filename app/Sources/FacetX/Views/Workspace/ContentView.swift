@@ -140,7 +140,8 @@ struct ContentView: View {
                                         showAssistantPanel: $showAssistantPanel,
                                         todayFullscreen: $todayFullscreen,
                                         assistantFullscreen: $assistantFullscreen,
-                                        tagFilter: $tagFilter
+                                        tagFilter: $tagFilter,
+                                        assistant: assistant
                                     )
                                 } else {
                                     ContentUnavailableView(L10n.t(.projectNotFound), systemImage: "folder")
