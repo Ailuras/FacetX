@@ -284,10 +284,8 @@ struct TopicDetailView: View {
         content
             .onChange(of: selectedPaper?.id) { _, newValue in
                 if newValue != nil {
-                    if !assistantFullscreen.wrappedValue {
-                        showImportSidebar = false
-                        paperBeingImported = nil
-                        showAssistantPanel.wrappedValue = false
+                    if showAssistantPanel.wrappedValue {
+                        detailFullscreen = true
                     }
                 } else {
                     detailFullscreen = false
@@ -295,8 +293,8 @@ struct TopicDetailView: View {
             }
             .onChange(of: showImportSidebar) { _, newValue in
                 if newValue {
-                    if !assistantFullscreen.wrappedValue {
-                        showAssistantPanel.wrappedValue = false
+                    if showAssistantPanel.wrappedValue {
+                        importFullscreen = true
                     }
                 } else {
                     importFullscreen = false

@@ -216,9 +216,8 @@ struct ProjectDetailView: View {
         content
             .onChange(of: selectedDetailItem) { _, newItem in
                 if newItem != nil {
-                    if !todayFullscreen.wrappedValue && !assistantFullscreen.wrappedValue {
-                        showTodayPanel.wrappedValue = false
-                        showAssistantPanel.wrappedValue = false
+                    if showTodayPanel.wrappedValue || showAssistantPanel.wrappedValue {
+                        detailFullscreen = true
                     }
                 } else {
                     focusTitleItemID = nil

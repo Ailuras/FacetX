@@ -145,9 +145,8 @@ struct CommitsView: View {
         }
         .onChange(of: selectedCommit?.id) { _, newItem in
             if newItem != nil {
-                if !todayFullscreen.wrappedValue && !assistantFullscreen.wrappedValue {
-                    showTodayPanel.wrappedValue = false
-                    showAssistantPanel.wrappedValue = false
+                if showTodayPanel.wrappedValue || showAssistantPanel.wrappedValue {
+                    detailFullscreen = true
                 }
             } else {
                 detailFullscreen = false
