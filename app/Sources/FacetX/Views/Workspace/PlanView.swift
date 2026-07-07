@@ -31,6 +31,7 @@ struct PlanView: View {
     @State var dropTargetDate: Date?
     @State var sortOption: PlanSortOption = .manual
     @State var unscheduledCollapsed = false
+    @State var showingReview = false
 
     var listAnimation: Animation { FacetTheme.listSpring }
 
@@ -78,6 +79,13 @@ struct PlanView: View {
     }
 
     var nonGoalItems: [ProjectItem] { weekItems }
+
+    var weekReviewItems: [ProjectItem] {
+        allItems.filter { item in
+            guard let date = item.date else { return false }
+            return week.contains(date)
+        }
+    }
 
     var planMonthItems: [ProjectItem] {
         var result = allItems.filter { item in
@@ -206,6 +214,17 @@ struct PlanView: View {
             }
         } message: {
             Text(itemToDelete?.content ?? "")
+        }
+        .sheet(isPresented: $showingReview) {
+            PlanReviewSheet(
+                project: project,
+                week: week,
+                goal: goal,
+                items: weekReviewItems,
+                onCarryOpenTasks: carryOpenTasksToNextWeek,
+                onCreateWeeklyNote: createWeeklyReviewNote
+            )
+            .environmentObject(settings)
         }
     }
 

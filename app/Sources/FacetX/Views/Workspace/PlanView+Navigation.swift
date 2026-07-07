@@ -44,6 +44,19 @@ extension PlanView {
                             fill: Color.accentColor.opacity(0.08)
                         )
                     }
+                    Button {
+                        showingReview = true
+                    } label: {
+                        Image(systemName: "checklist.checked")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .help(L10n.pick("Review this week", "回顾本周"))
                     PlanSortMenu(selection: $sortOption, onSelect: setSortOption)
                     ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
                         onCreateItem(week.startDate)
