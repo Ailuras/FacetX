@@ -89,6 +89,14 @@ struct ProjectDetailView: View {
         ItemQuery.counts(for: items)
     }
 
+    private struct FocusQueueEntry: Identifiable {
+        let item: ProjectItem
+        let score: Int
+        let reasons: [String]
+
+        var id: String { item.id }
+    }
+
     @ViewBuilder private var mainStack: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -491,6 +499,10 @@ struct ProjectDetailView: View {
         VStack(spacing: 0) {
             allViewInfoBar
 
+            if !focusQueueEntries.isEmpty {
+                focusQueueView
+            }
+
             allItemsList
                 .overlay {
                     if loading && items.isEmpty {
@@ -566,6 +578,206 @@ struct ProjectDetailView: View {
                 .thinScrollIndicators()
             }
         }
+    }
+
+    private var focusQueueEntries: [FocusQueueEntry] {
+        let goalTokens = focusGoalTokens
+        return visibleItems
+            .compactMap { focusEntry(for: $0, goalTokens: goalTokens) }
+            .sorted { lhs, rhs in
+                if lhs.score != rhs.score { return lhs.score > rhs.score }
+                switch (lhs.item.date, rhs.item.date) {
+                case let (l?, r?): return l < r
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): return lhs.item.content < rhs.item.content
+                }
+            }
+            .prefix(5)
+            .map { $0 }
+    }
+
+    private var focusGoalTokens: Set<String> {
+        let currentGoal = store.weekGoal(projectID: project.id, weekId: ISOWeek.containing(Date()).id)
+        let text = [currentGoal?.title, currentGoal?.body]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .lowercased()
+        let raw = text.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        return Set(raw.filter { $0.count >= 3 })
+    }
+
+    private func focusEntry(for item: ProjectItem, goalTokens: Set<String>) -> FocusQueueEntry? {
+        guard !item.isCompleted,
+              item.facetKind == .task || item.facetKind == .event else { return nil }
+
+        var score = 0
+        var reasons: [String] = []
+        let calendar = Calendar.current
+        let now = Date()
+
+        if item.isPinned {
+            score += 100
+            reasons.append(L10n.pick("Pinned", "置顶"))
+        }
+        if item.isOverdue {
+            score += 90
+            reasons.append(L10n.pick("Overdue", "逾期"))
+        }
+        if let date = item.date {
+            if calendar.isDateInToday(date) {
+                score += 80
+                reasons.append(L10n.pick("Today", "今天"))
+            } else if date > now,
+                      let soon = calendar.date(byAdding: .day, value: 7, to: calendar.startOfDay(for: now)),
+                      date < soon {
+                score += 28
+                reasons.append(L10n.pick("Soon", "近期"))
+            }
+        } else if item.facetKind == .task {
+            score += 16
+            reasons.append(L10n.pick("Unscheduled", "未安排"))
+        }
+
+        switch item.priority {
+        case 1...4:
+            score += 55
+            reasons.append(L10n.pick("High", "高优先级"))
+        case 5:
+            score += 25
+            reasons.append(L10n.pick("Medium", "中优先级"))
+        case 6...9:
+            score += 10
+        default:
+            break
+        }
+
+        if !goalTokens.isEmpty, itemMatchesGoal(item, tokens: goalTokens) {
+            score += 36
+            reasons.append(L10n.pick("Goal", "目标相关"))
+        }
+
+        guard score > 0 else { return nil }
+        return FocusQueueEntry(item: item, score: score, reasons: Array(reasons.prefix(3)))
+    }
+
+    private func itemMatchesGoal(_ item: ProjectItem, tokens: Set<String>) -> Bool {
+        let haystack = ([item.content, item.notes ?? ""] + item.tags)
+            .joined(separator: " ")
+            .lowercased()
+        return tokens.contains { haystack.contains($0) }
+    }
+
+    private var focusQueueView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label(L10n.pick("Focus", "下一步"), systemImage: "scope")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.86))
+                Text("\(focusQueueEntries.count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.12))
+                    .clipShape(Capsule())
+                Spacer()
+            }
+
+            FlowLayout(spacing: 8, lineSpacing: 8, alignment: .leading) {
+                ForEach(focusQueueEntries) { entry in
+                    focusQueueChip(entry)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
+    }
+
+    private func focusQueueChip(_ entry: FocusQueueEntry) -> some View {
+        HStack(spacing: 7) {
+            Button {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = entry.item
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: entry.item.facetKind.systemImage)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(entry.item.rowTint)
+                    Text(entry.item.content)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .frame(maxWidth: 180, alignment: .leading)
+                    ForEach(entry.reasons, id: \.self) { reason in
+                        Text(reason)
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(entry.item.rowTint)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(entry.item.rowTint.opacity(0.11))
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .help(L10n.pick("Open item", "打开条目"))
+
+            Button {
+                Task { await completeFocusItem(entry.item) }
+            } label: {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(L10n.pick("Mark complete", "标记完成"))
+
+            if !isToday(entry.item) {
+                Button {
+                    Task { await scheduleFocusItemToday(entry.item) }
+                } label: {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Schedule today", "安排到今天"))
+            }
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 32)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(entry.item.rowTint.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private func isToday(_ item: ProjectItem) -> Bool {
+        guard let date = item.date else { return false }
+        return Calendar.current.isDateInToday(date)
+    }
+
+    private func completeFocusItem(_ item: ProjectItem) async {
+        await ItemActionHelpers.toggleCompletion(item, completed: true, ek: ek)
+        await reload()
+    }
+
+    private func scheduleFocusItemToday(_ item: ProjectItem) async {
+        let today = Calendar.current.startOfDay(for: Date())
+        await ItemActionHelpers.reschedule(item, toDay: today, ek: ek)
+        await reload()
     }
 
     private var emptyAllItemsView: some View {
