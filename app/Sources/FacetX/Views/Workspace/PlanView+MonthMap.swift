@@ -68,7 +68,7 @@ extension PlanView {
                     monthDayCell(day)
                 } else {
                     Color.clear
-                        .frame(height: 36)
+                        .frame(height: 40)
                 }
             }
         }
@@ -80,6 +80,7 @@ extension PlanView {
         }
 
         let items = planItemsByMonthDay[day] ?? []
+        let load = PlanDayLoad.measure(items, calendar: MonthYear.calendar)
         let isCurrentWeek = week.contains(date)
         let isToday = MonthYear.calendar.isDateInToday(date)
         let isDropTarget = dropTargetDate.map { MonthYear.calendar.isDate($0, inSameDayAs: date) } ?? false
@@ -109,9 +110,12 @@ extension PlanView {
             }
             .padding(.horizontal, 7)
             .padding(.vertical, 5)
-            .frame(height: 36)
+            .frame(height: 40)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(monthCellFill(isCurrentWeek: isCurrentWeek, hasItems: !items.isEmpty, isDropTarget: isDropTarget))
+            .overlay(alignment: .bottom) {
+                monthLoadBar(load)
+            }
             .overlay(monthCellStroke(isCurrentWeek: isCurrentWeek, isToday: isToday, isDropTarget: isDropTarget))
             .contentShape(Rectangle())
             .onTapGesture {
@@ -122,7 +126,7 @@ extension PlanView {
                 onCreateItem(date)
             }
             .onDrop(of: [.text], delegate: dayDropDelegate(for: date, calendar: MonthYear.calendar))
-            .help(L10n.language == "zh" ? "选择第 \(ISOWeek.containing(date).week) 周" : "Select Week \(ISOWeek.containing(date).week)")
+            .help(monthCellHelp(for: date, load: load))
         )
     }
 
@@ -133,6 +137,26 @@ extension PlanView {
                 .fill(color.opacity(0.78))
                 .frame(width: 5, height: 5)
         }
+    }
+
+    @ViewBuilder
+    private func monthLoadBar(_ load: PlanDayLoad) -> some View {
+        if load.hasWork {
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(load.level.color.opacity(0.78))
+                .frame(height: 3)
+                .padding(.horizontal, 7)
+                .padding(.bottom, 3)
+                .help(load.detailLabel)
+        }
+    }
+
+    private func monthCellHelp(for date: Date, load: PlanDayLoad) -> String {
+        let base = L10n.language == "zh"
+            ? "选择第 \(ISOWeek.containing(date).week) 周"
+            : "Select Week \(ISOWeek.containing(date).week)"
+        guard load.hasWork else { return base }
+        return "\(base) · \(load.detailLabel)"
     }
 
     private func monthCellFill(isCurrentWeek: Bool, hasItems: Bool, isDropTarget: Bool) -> some View {

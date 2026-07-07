@@ -50,6 +50,7 @@ extension PlanView {
     private func dayHeader(_ group: DayGroup) -> some View {
         let cal = Calendar.current
         let isDropTarget = dropTargetDate.map { cal.isDate($0, inSameDayAs: group.date) } ?? false
+        let load = PlanDayLoad.measure(group.items)
 
         return HStack(spacing: 6) {
             Text(group.label)
@@ -65,6 +66,7 @@ extension PlanView {
                     .clipShape(Capsule())
             }
             Spacer()
+            dayLoadPill(load)
             Text("\(group.items.count)")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.tertiary)
@@ -84,6 +86,25 @@ extension PlanView {
         .contentShape(Rectangle())
         .background(dayDropHighlight(isDropTarget, fill: 0.10))
         .onDrop(of: [.text], delegate: dayDropDelegate(for: group.date, calendar: cal))
+    }
+
+    @ViewBuilder
+    private func dayLoadPill(_ load: PlanDayLoad) -> some View {
+        if load.hasWork {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(load.level.color.opacity(0.86))
+                    .frame(width: 5, height: 5)
+                Text(load.shortLabel)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(load.level.color)
+            }
+            .padding(.horizontal, 6)
+            .frame(height: 20)
+            .background(load.level.color.opacity(load.level.fillOpacity))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .help(load.detailLabel)
+        }
     }
 
     private func emptyDayRow(_ group: DayGroup) -> some View {
