@@ -27,8 +27,10 @@ struct HiddenScrollIndicators: NSViewRepresentable {
     private static func disableScrollers(from view: NSView) {
         guard let scrollView = view.enclosingScrollView else { return }
         scrollView.scrollerStyle = .overlay
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.verticalScroller?.alphaValue = 0
+        scrollView.horizontalScroller?.alphaValue = 0
     }
 }
 
@@ -123,8 +125,10 @@ struct HiddenTextEditorScroller: NSViewRepresentable {
             if !textScrollViews.isEmpty {
                 for scrollView in textScrollViews {
                     scrollView.scrollerStyle = .overlay
-                    scrollView.hasVerticalScroller = false
-                    scrollView.hasHorizontalScroller = false
+                    scrollView.hasVerticalScroller = true
+                    scrollView.hasHorizontalScroller = true
+                    scrollView.verticalScroller?.alphaValue = 0
+                    scrollView.horizontalScroller?.alphaValue = 0
                 }
                 return true
             }
