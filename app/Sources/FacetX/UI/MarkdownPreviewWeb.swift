@@ -86,6 +86,7 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
             case "ready":
                 isReady = true
                 applyTheme()
+                applyFullWidth()
                 renderedText = nil // force the first render
                 render()
             case "height":
