@@ -103,7 +103,6 @@ struct DeepSeekClient {
                         "model": model,
                         "messages": [["role": "system", "content": system]] + messages,
                         "max_tokens": 16_000,
-                        "parallel_tool_calls": true,
                         "thinking": ["type": thinkingEnabled ? "enabled" : "disabled"],
                         "stream": true,
                         "stream_options": ["include_usage": true],
