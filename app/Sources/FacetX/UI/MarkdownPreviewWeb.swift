@@ -14,6 +14,7 @@ import WebKit
 struct MarkdownPreviewWeb: NSViewRepresentable {
     let text: String
     var variant: String = "note"
+    var fullWidth: Bool = false
     var onHeightChange: ((CGFloat) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -57,8 +58,10 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         }
         context.coordinator.pendingText = text
         context.coordinator.variant = variant
+        context.coordinator.fullWidth = fullWidth
         context.coordinator.onHeightChange = onHeightChange
         context.coordinator.render() // no-op until the page signals it is ready
+        context.coordinator.applyFullWidth()
     }
 
     private static var bundleURL: URL? {
@@ -70,6 +73,7 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         var isReady = false
         var pendingText = ""
         var variant = "note"
+        var fullWidth = false
         var onHeightChange: ((CGFloat) -> Void)?
         private var renderedText: String?
         private var renderedVariant: String?
@@ -107,6 +111,11 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
             guard isReady, let webView else { return }
             let isDark = webView.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             webView.evaluateJavaScript("window.FacetXPreview.setTheme('\(isDark ? "dark" : "light")');")
+        }
+
+        func applyFullWidth() {
+            guard isReady, let webView else { return }
+            webView.evaluateJavaScript("window.FacetXPreview.setFullWidth(\(fullWidth ? "true" : "false"));")
         }
 
         private static func jsString(_ value: String) -> String {

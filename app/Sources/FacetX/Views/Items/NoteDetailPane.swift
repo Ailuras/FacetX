@@ -14,6 +14,7 @@ struct NoteDetailPane: View {
     @State private var text: String = ""
     @State private var loaded = false
     @AppStorage("noteEditing") private var editing = true
+    @AppStorage("noteFullWidth") private var fullWidth = false
     @StateObject private var editorController = MarkdownEditorController()
 
     private var dataDirectory: String { project.effectiveDataDirectory }
@@ -91,7 +92,7 @@ struct NoteDetailPane: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(16)
             } else {
-                MarkdownPreviewWeb(text: text)
+                MarkdownPreviewWeb(text: text, fullWidth: fullWidth)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -111,6 +112,20 @@ struct NoteDetailPane: View {
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             Spacer()
+
+            // Full-width toggle (preview only)
+            if !editing {
+                Button {
+                    fullWidth.toggle()
+                } label: {
+                    Image(systemName: fullWidth ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.borderless)
+                .help(fullWidth
+                      ? L10n.pick("Constrain width", "恢复限制宽度")
+                      : L10n.pick("Full width", "全宽显示"))
+            }
 
             Picker("", selection: $editing) {
                 Text(L10n.pick("Preview", "预览")).tag(false)

@@ -84,6 +84,9 @@ window.FacetXPreview = {
   setTheme(mode) {
     document.documentElement.dataset.theme = mode === 'dark' ? 'dark' : 'light'
   },
+  setFullWidth(enabled) {
+    root.classList.toggle('full-width', !!enabled)
+  },
 }
 
 postToNative({ type: 'ready' })

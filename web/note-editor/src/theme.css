@@ -95,6 +95,14 @@ html, body {
   font-size: 11.5px;
 }
 
+/* ── Full-width variant ───────────────────────────────────────────────────── */
+/* Toggled by the native side via setFullWidth(true): removes the 760 px
+   measure cap so the content fills the available column width. */
+.markdown-body.full-width {
+  max-width: none;
+  margin: 0;
+}
+
 /* ── Text blocks ──────────────────────────────────────────────────────────── */
 .markdown-body p { margin: 0 0 1em; }
 .markdown-body a { color: var(--fx-link); text-decoration: none; }
