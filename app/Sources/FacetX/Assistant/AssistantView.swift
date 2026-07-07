@@ -97,28 +97,13 @@ struct AssistantView: View {
     private func entryView(_ entry: AssistantEntry) -> some View {
         switch entry.role {
         case .user:
-            VStack(alignment: .leading, spacing: 6) {
-                if !entry.mentions.isEmpty {
-                    mentionFlow(entry.mentions, removable: false)
-                }
-                if editingEntryID == entry.id {
-                    userEditor(for: entry)
-                } else {
-                    Text(entry.text)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) { beginEditing(entry) }
-                        .help(L10n.pick("Double-click to edit and resend from here",
-                                        "双击可编辑并从此处重新开始"))
-                }
-            }
-            .padding(.leading, 10)
-            .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(Color.accentColor.opacity(editingEntryID == entry.id ? 0.9 : 0.5))
-                    .frame(width: 2)
-            }
+            UserEntryView(
+                entry: entry,
+                isEditing: editingEntryID == entry.id,
+                onEdit: { beginEditing(entry) },
+                editorContent: { userEditor(for: entry) },
+                mentionContent: { mentionFlow(entry.mentions, removable: false) }
+            )
 
         case .assistant:
             AssistantMarkdownText(text: entry.text)
@@ -582,7 +567,73 @@ struct AssistantView: View {
     }
 }
 
-/// Renders assistant-authored text (code fences, tables, math, lists) via the
+/// A user-turn bubble with a tinted background and a hover-revealed edit button.
+private struct UserEntryView<EditorContent: View, MentionContent: View>: View {
+    let entry: AssistantEntry
+    let isEditing: Bool
+    let onEdit: () -> Void
+    @ViewBuilder let editorContent: () -> EditorContent
+    @ViewBuilder let mentionContent: () -> MentionContent
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Accent rule
+            RoundedRectangle(cornerRadius: 1, style: .continuous)
+                .fill(Color.accentColor.opacity(isEditing ? 0.9 : 0.55))
+                .frame(width: 2)
+                .padding(.trailing, 10)
+
+            VStack(alignment: .leading, spacing: 6) {
+                if !entry.mentions.isEmpty {
+                    mentionContent()
+                }
+                if isEditing {
+                    editorContent()
+                } else {
+                    Text(entry.text)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) { onEdit() }
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            // Edit button — always visible but more prominent on hover
+            if !isEditing {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(isHovered ? Color.accentColor : Color.secondary.opacity(0.6))
+                        .frame(width: 22, height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(isHovered
+                                      ? Color.accentColor.opacity(0.12)
+                                      : Color.primary.opacity(0.04))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Edit and resend from here", "编辑并从此处重新开始"))
+                .padding(.top, 1)
+            }
+        }
+        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.accentColor.opacity(isEditing ? 0.1 : (isHovered ? 0.08 : 0.06)))
+        )
+        .onHover { isHovered = $0 }
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .animation(.easeInOut(duration: 0.15), value: isEditing)
+    }
+}
+
+
 /// same markdown-it + KaTeX bundle used for note previews, sized to fit its
 /// content instead of scrolling internally like a full-page preview.
 private struct AssistantMarkdownText: View {
