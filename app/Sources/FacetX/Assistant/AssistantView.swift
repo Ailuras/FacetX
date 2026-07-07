@@ -459,7 +459,9 @@ struct AssistantView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
+                .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
             Button {
                 session.pendingSelection = nil
             } label: {

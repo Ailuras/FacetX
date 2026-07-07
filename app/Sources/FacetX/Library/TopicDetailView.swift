@@ -242,7 +242,7 @@ struct TopicDetailView: View {
         }
         .modifier(ReadingContextObservers(
             currentPage: reader.currentPage,
-            hasSelection: reader.hasSelection,
+            selectionText: reader.selectionText,
             onPageChange: syncPaperContext,
             onSelectionChange: syncSelectionToAssistant,
             onDisappear: { assistant.activePaperContext = nil }
@@ -464,11 +464,10 @@ struct TopicDetailView: View {
     /// string, so no parsing is required.
     private func syncSelectionToAssistant() {
         guard aiReadingContext else { return }
-        let selection = reader.pdfView.currentSelection?.string?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
         // Keep the last non-empty selection so clicking into the composer (which
         // clears the PDF selection) doesn't drop the quote before it's sent.
-        if let selection, !selection.isEmpty {
+        let selection = reader.selectionText
+        if !selection.isEmpty {
             assistant.pendingSelection = selection
         }
     }
@@ -1819,7 +1818,7 @@ struct TopicDetailView: View {
 /// don't inflate `TopicDetailView.body` past the Swift type-checker's budget.
 private struct ReadingContextObservers: ViewModifier {
     let currentPage: Int
-    let hasSelection: Bool
+    let selectionText: String
     let onPageChange: () -> Void
     let onSelectionChange: () -> Void
     let onDisappear: () -> Void
@@ -1827,7 +1826,7 @@ private struct ReadingContextObservers: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onChange(of: currentPage) { onPageChange() }
-            .onChange(of: hasSelection) { onSelectionChange() }
+            .onChange(of: selectionText) { onSelectionChange() }
             .onDisappear { onDisappear() }
     }
 }

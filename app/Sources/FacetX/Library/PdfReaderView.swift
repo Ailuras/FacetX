@@ -11,6 +11,7 @@ final class PdfReaderModel {
     var currentPage = 1
     var pageCount = 0
     var hasSelection = false
+    var selectionText = ""
     var activeAnnotation: PDFAnnotation? = nil
     var outlineItems: [PdfOutlineItem] = []
     var annotations: [PdfAnnotationItem] = []
@@ -42,6 +43,7 @@ final class PdfReaderModel {
         pageCount = document?.pageCount ?? 0
         currentPage = 1
         hasSelection = false
+        selectionText = ""
         activeAnnotation = nil
         loadOutline()
         loadAnnotations()
@@ -54,6 +56,7 @@ final class PdfReaderModel {
         pageCount = 0
         currentPage = 1
         hasSelection = false
+        selectionText = ""
         activeAnnotation = nil
         outlineItems = []
         annotations = []
@@ -92,7 +95,9 @@ final class PdfReaderModel {
     }
 
     private func syncSelection() {
-        hasSelection = pdfView.currentSelection != nil
+        selectionText = pdfView.currentSelection?.string?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        hasSelection = !selectionText.isEmpty
     }
 
     // MARK: - Outline Operations
@@ -168,6 +173,7 @@ final class PdfReaderModel {
         saveDocument()
         pdfView.clearSelection()
         hasSelection = false
+        selectionText = ""
         
         // Force redraw of PDFView to reflect the added annotation
         pdfView.layoutDocumentView()
@@ -202,6 +208,7 @@ final class PdfReaderModel {
         activeAnnotation = annotation
         pdfView.clearSelection()
         hasSelection = false
+        selectionText = ""
         
         pdfView.layoutDocumentView()
     }
