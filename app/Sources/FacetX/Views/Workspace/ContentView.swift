@@ -154,7 +154,7 @@ struct ContentView: View {
                                 }
                             }
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                     }
 
                     if showAssistantPanel {

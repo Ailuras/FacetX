@@ -191,7 +191,7 @@ struct TopicDetailView: View {
             HStack(spacing: 0) {
                 if !importFullscreen && !detailFullscreen {
                     content
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                 }
 
                 if showImportSidebar {
@@ -853,7 +853,7 @@ struct TopicDetailView: View {
                 }
 
                 PdfReaderRepresentable(model: reader)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                     .background(FacetTheme.canvas)
             }
         } else {
