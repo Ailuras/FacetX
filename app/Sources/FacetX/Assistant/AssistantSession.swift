@@ -451,7 +451,8 @@ final class AssistantSession: ObservableObject {
 
     /// Short human-readable line shown under a tool-call chip.
     private func toolSummary(_ name: String, _ input: [String: Any]) -> String {
-        let interesting = ["project", "title", "query", "scope", "reference_id", "paper_id", "start", "due_at", "mode"]
+        let interesting = ["project", "target_project", "title", "query", "scope",
+                           "reference_id", "paper_id", "start", "due_at", "mode", "week"]
         let parts = interesting.compactMap { key -> String? in
             guard let value = input[key] else { return nil }
             return "\(key): \(value)"

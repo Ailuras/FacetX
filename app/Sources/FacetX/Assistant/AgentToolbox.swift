@@ -29,10 +29,12 @@ final class AgentToolbox {
                  "List active projects and canonical prefixes. Use when the project is not explicit.",
                  properties: [:], required: []),
             tool("list_items",
-                 "List FacetX items as JSON. Use reference_id for mutations; never match a title because titles can repeat.",
+                 "List FacetX items as JSON. Use reference_id for mutations; never match a title because titles can repeat. For date-range queries (e.g. completed work in a period) supply date_from and date_to and set scope to 'all'.",
                  properties: [
                     "project": nullableProp("string", "Project name/prefix, or null for all."),
-                    "scope": nullableEnum(["today", "overdue", "this_week", "upcoming", "all"], "Time scope, or null for this_week."),
+                    "scope": nullableEnum(["today", "overdue", "this_week", "upcoming", "all"], "Time scope, or null for this_week. Use 'all' with date_from/date_to for explicit ranges."),
+                    "date_from": nullableProp("string", "Inclusive start date YYYY-MM-DD, or null. Requires scope 'all'."),
+                    "date_to": nullableProp("string", "Inclusive end date YYYY-MM-DD, or null. Requires scope 'all'."),
                     "include_completed": nullableProp("boolean", "Include completed tasks, or null for false."),
                  ], required: []),
             tool("get_item",
@@ -91,6 +93,31 @@ final class AgentToolbox {
                     "body": prop("string", "Markdown content."),
                     "mode": propEnum(["replace", "append"], "Write mode."),
                  ], required: ["reference_id", "body", "mode"]),
+            tool("delete_item",
+                 "Permanently delete one exact task, event, or note from EventKit. Irreversible — confirm with the user before calling.",
+                 properties: [
+                    "reference_id": prop("string", "Exact id from a drag reference or list_items."),
+                 ], required: ["reference_id"]),
+            tool("move_item",
+                 "Move an exact task or event to a different project by rewriting its title prefix. The item's container (reminder list / calendar) is updated when possible.",
+                 properties: [
+                    "reference_id": prop("string", "Exact id from a drag reference or list_items."),
+                    "target_project": prop("string", "Destination project name or prefix."),
+                 ], required: ["reference_id", "target_project"]),
+            tool("list_week_goals",
+                 "Read week goals across all (or one) project. week is an ISO-8601 Monday-start week string like '2026-W22', or null for the current week.",
+                 properties: [
+                    "project": nullableProp("string", "Project name/prefix, or null for all projects."),
+                    "week": nullableProp("string", "Week ID like '2026-W22', or null for the current week."),
+                 ], required: []),
+            tool("set_week_goal",
+                 "Create or update a week goal for one project. week is ISO-8601 like '2026-W22', or null for the current week. Empty title clears the goal.",
+                 properties: [
+                    "project": prop("string", "Existing project name or prefix."),
+                    "week": nullableProp("string", "Week ID like '2026-W22', or null for the current week."),
+                    "title": prop("string", "Goal title. Empty string clears the goal."),
+                    "body": nullableProp("string", "Optional markdown body / sub-goals, or null."),
+                 ], required: ["project", "title"]),
             tool("list_papers",
                  "Search the literature library and return paper ids.",
                  properties: [
@@ -135,6 +162,10 @@ final class AgentToolbox {
             case "update_item": return (try await updateItem(input), false)
             case "set_task_completion": return (try await setTaskCompletion(input), false)
             case "update_note": return (try await updateNote(input), false)
+            case "delete_item": return (try await deleteItem(input), false)
+            case "move_item": return (try await moveItem(input), false)
+            case "list_week_goals": return (try listWeekGoals(input), false)
+            case "set_week_goal": return (try await setWeekGoal(input), false)
             case "list_papers": return (try listPapers(input), false)
             case "read_paper": return (try readPaper(input), false)
             case "save_paper_note": return (try savePaperNote(input), false)
@@ -226,7 +257,19 @@ final class AgentToolbox {
             case "upcoming":
                 guard let d = item.date else { return item.kind == .reminder }
                 return d >= todayStart && d <= cal.date(byAdding: .day, value: 14, to: todayStart)!
-            default:
+            default: // "all" or explicit date range
+                if let fromStr = input["date_from"] as? String,
+                   let toStr = input["date_to"] as? String,
+                   let fromDate = parseDateValue(fromStr)?.date,
+                   let toDate = parseDateValue(toStr)?.date {
+                    // inclusive end: extend to end of day
+                    let rangeEnd = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: toDate))!
+                    if let d = item.date {
+                        return d >= cal.startOfDay(for: fromDate) && d < rangeEnd
+                    }
+                    // undated reminders: only include when no date filter is requested
+                    return false
+                }
                 return true
             }
         }
@@ -507,6 +550,133 @@ final class AgentToolbox {
         ])
     }
 
+    // ── Delete / move ────────────────────────────────────────────────────────
+
+    private func deleteItem(_ input: [String: Any]) async throws -> String {
+        guard let eventKit else { throw ToolError.message("Service unavailable") }
+        let mention = try await resolveReference(input["reference_id"] as? String)
+        let deleted = await eventKit.deleteItem(id: mention.eventKitID)
+        guard deleted else { throw ToolError.message("EventKit could not delete the item.") }
+        // Remove from local note / item stores too
+        if mention.isNote, let stableID = mention.stableID,
+           let project = try resolveProject(mention.projectPrefix) {
+            _ = NoteStore.shared.save(dataDirectory: project.effectiveDataDirectory,
+                                      facetID: stableID, body: "")
+        }
+        referencedItems.removeValue(forKey: mention.referenceID)
+        return jsonString(["deleted": true, "reference_id": mention.referenceID])
+    }
+
+    private func moveItem(_ input: [String: Any]) async throws -> String {
+        guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
+        let mention = try await resolveReference(input["reference_id"] as? String)
+        guard let target = try resolveProject(input["target_project"] as? String) else {
+            throw ToolError.message("Missing 'target_project'.")
+        }
+        guard mention.projectPrefix != target.prefix else {
+            return jsonString(["moved": false, "reason": "Item is already in that project."])
+        }
+        // Determine the right container for the target project
+        let newContainer: String
+        if mention.kind == "task" {
+            newContainer = settings.reminderSaveTarget(projectListName: target.reminderListName)
+            guard !newContainer.isEmpty else {
+                throw ToolError.message("No reminder list configured for project \(target.name).")
+            }
+        } else {
+            newContainer = settings.calendarSaveTarget(projectCalendarName: target.calendarName)
+            guard !newContainer.isEmpty else {
+                throw ToolError.message("No calendar configured for project \(target.name).")
+            }
+        }
+        let success = await eventKit.updateItem(
+            id: mention.eventKitID,
+            project: target.prefix,
+            content: mention.title,
+            date: mention.date,
+            useDate: mention.kind == "event" || mention.date != nil,
+            dateIncludesTime: mention.hasTime,
+            containerName: newContainer,
+            tags: nil,
+            priority: mention.priority,
+            isAllDay: mention.kind == "event" ? mention.isAllDay : nil,
+            endDate: mention.kind == "event" ? mention.endDate : nil
+        )
+        guard success else { throw ToolError.message("EventKit rejected the move.") }
+        return jsonString([
+            "moved": true,
+            "reference_id": mention.referenceID,
+            "from_project": mention.projectPrefix,
+            "to_project": target.prefix,
+        ])
+    }
+
+    // ── Week goals ───────────────────────────────────────────────────────────
+
+    private func listWeekGoals(_ input: [String: Any]) throws -> String {
+        guard let projectStore else { throw ToolError.message("Service unavailable") }
+        let weekRaw = input["week"] as? String
+        let week = parseISOWeek(weekRaw) ?? ISOWeek.containing(Date())
+        let projects: [Project]
+        if let project = try resolveProject(input["project"] as? String) {
+            projects = [project]
+        } else {
+            projects = projectStore.activeProjects
+        }
+        let lines = projects.compactMap { project -> String? in
+            guard let goal = project.weekGoals.first(where: { $0.weekId == week.id }) else {
+                return nil
+            }
+            var line = "- \(project.name) (\(week.id)): \(goal.title)"
+            if !goal.body.isEmpty { line += "\n  \(goal.body)" }
+            return line
+        }
+        if lines.isEmpty {
+            return "No week goals set for \(week.id)."
+        }
+        return "Week goals for \(week.id):\n" + lines.joined(separator: "\n")
+    }
+
+    private func setWeekGoal(_ input: [String: Any]) async throws -> String {
+        guard let projectStore, let eventKit, let settings else {
+            throw ToolError.message("Service unavailable")
+        }
+        guard let project = try resolveProject(input["project"] as? String) else {
+            throw ToolError.message("Missing 'project'.")
+        }
+        guard let title = input["title"] as? String else {
+            throw ToolError.message("Missing 'title'.")
+        }
+        let weekRaw = input["week"] as? String
+        let week = parseISOWeek(weekRaw) ?? ISOWeek.containing(Date())
+        let body = (input["body"] as? String) ?? ""
+        let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
+
+        // Sync to EventKit goal event if calendar is configured
+        var eventId: String? = project.weekGoals.first(where: { $0.weekId == week.id })?.eventId
+        if !trimmedTitle.isEmpty {
+            let calName = project.weekGoalCalendarName ?? settings.weekGoalCalendarName
+            if !calName.isEmpty {
+                let newId = await eventKit.createOrUpdateGoalEvent(
+                    project: project.prefix,
+                    title: trimmedTitle,
+                    body: body,
+                    week: week,
+                    calendarName: calName,
+                    existingEventId: eventId,
+                    enabledCalendars: settings.effectiveCalendarNames
+                )
+                if let newId { eventId = newId }
+            }
+        }
+        projectStore.setWeekGoal(projectID: project.id, weekId: week.id,
+                                 title: trimmedTitle, body: body, eventId: eventId)
+        if trimmedTitle.isEmpty {
+            return jsonString(["cleared": true, "project": project.name, "week": week.id])
+        }
+        return jsonString(["set": true, "project": project.name, "week": week.id, "title": trimmedTitle])
+    }
+
     // ── Literature ───────────────────────────────────────────────────────────
 
     private func listPapers(_ input: [String: Any]) throws -> String {
@@ -604,7 +774,18 @@ final class AgentToolbox {
         return "Saved note on '\(paper.title)' (\(merged.count) characters total)."
     }
 
+    /// Parse an ISO-8601 week string like "2026-W22" into an ISOWeek.
+    private func parseISOWeek(_ raw: String?) -> ISOWeek? {
+        guard let raw else { return nil }
+        let parts = raw.split(separator: "-W", maxSplits: 1)
+        guard parts.count == 2,
+              let year = Int(parts[0]),
+              let week = Int(parts[1]) else { return nil }
+        return ISOWeek(year: year, week: week)
+    }
+
     // ── Schema helpers ───────────────────────────────────────────────────────
+
 
     private func tool(_ name: String, _ description: String,
                       properties: [String: [String: Any]], required _: [String]) -> [String: Any] {
