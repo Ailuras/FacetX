@@ -3,9 +3,9 @@ import Foundation
 /// Reads and writes a project's note markdown files.
 ///
 /// Each note is a plain `.md` file named by its anchor item's stable `facetID`,
-/// stored under `<project dataDirectory>/Notes/`. The event anchor in EventKit
-/// supplies the note's title and date; this store owns the body text. The app
-/// is not sandboxed, so paths are used directly.
+/// stored under the app-wide notes root plus a project folder. The event anchor
+/// in EventKit supplies the note's title and date; this store owns the body
+/// text. The app is not sandboxed, so paths are used directly.
 @MainActor
 final class NoteStore {
     static let shared = NoteStore()

@@ -17,10 +17,6 @@ struct Project: Identifiable, Codable, Hashable {
     var noteCalendarName: String?
     var weekGoalCalendarName: String?
     var literatureListName: String?
-    /// Absolute path to the project's local data folder (markdown notes and
-    /// future file-backed content live here). The app is not sandboxed, so the
-    /// plain path is stored directly.
-    var dataDirectory: String?
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
     var itemOrder: [String] = []
@@ -35,7 +31,6 @@ struct Project: Identifiable, Codable, Hashable {
          reminderListName: String? = nil, calendarName: String? = nil,
          noteCalendarName: String? = nil,
          weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
-         dataDirectory: String? = nil,
          colorName: String? = nil, iconName: String? = nil,
          githubRepo: String? = nil) {
         self.name = name
@@ -46,22 +41,9 @@ struct Project: Identifiable, Codable, Hashable {
         self.noteCalendarName = noteCalendarName
         self.weekGoalCalendarName = weekGoalCalendarName
         self.literatureListName = literatureListName
-        self.dataDirectory = dataDirectory
         self.colorName = colorName
         self.iconName = iconName
         self.githubRepo = githubRepo
-    }
-
-    /// The folder notes are read/written from: the user-chosen `dataDirectory`
-    /// when set, otherwise a per-project default under Application Support so
-    /// notes work even before a custom location is picked.
-    var effectiveDataDirectory: String {
-        if let dataDirectory, !dataDirectory.isEmpty { return dataDirectory }
-        let safePrefix = prefix.replacingOccurrences(of: "/", with: "-")
-        return AppSupport.directory()
-            .appendingPathComponent("ProjectData", isDirectory: true)
-            .appendingPathComponent(safePrefix.isEmpty ? id.uuidString : safePrefix, isDirectory: true)
-            .path
     }
 }
 
@@ -118,7 +100,6 @@ final class ProjectStore: ObservableObject {
                        reminderListName: String? = nil, calendarName: String? = nil,
                        noteCalendarName: String? = nil,
                        weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
-                       dataDirectory: String? = nil,
                        colorName: String? = nil, iconName: String? = nil,
                        githubRepo: String? = nil) -> Project.ID {
         let maxOrder = projects.map(\.sortOrder).max() ?? -1
@@ -126,7 +107,6 @@ final class ProjectStore: ObservableObject {
                               reminderListName: reminderListName, calendarName: calendarName,
                               noteCalendarName: noteCalendarName,
                               weekGoalCalendarName: weekGoalCalendarName, literatureListName: literatureListName,
-                              dataDirectory: dataDirectory,
                               colorName: colorName, iconName: iconName,
                               githubRepo: githubRepo)
         project.sortOrder = maxOrder + 1

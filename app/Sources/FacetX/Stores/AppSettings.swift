@@ -104,6 +104,9 @@ final class AppSettings: ObservableObject {
     @Published var defaultNoteSessionMinutes: Int {
         didSet { settingsDidChange() }
     }
+    @Published var defaultNotesDirectory: String {
+        didSet { settingsDidChange() }
+    }
     @Published var todayViewMode: String {
         didSet { settingsDidChange() }
     }
@@ -181,6 +184,7 @@ final class AppSettings: ObservableObject {
         self.defaultNoteSessionMinutes = Self.nearestDuration(stored.defaultNoteSessionMinutes ?? 45,
                                                               presets: durationPresets,
                                                               fallback: 45)
+        self.defaultNotesDirectory = stored.defaultNotesDirectory ?? ""
         self.todayViewMode = stored.todayViewMode
         let timelineStart = min(max(stored.todayTimelineStartHour, 0), 23)
         let timelineEnd = min(max(stored.todayTimelineEndHour, 1), 24)
@@ -198,6 +202,33 @@ final class AppSettings: ObservableObject {
 
     private static func nearestDuration(_ value: Int, presets: [Int], fallback: Int) -> Int {
         presets.min(by: { abs($0 - value) < abs($1 - value) }) ?? fallback
+    }
+
+    var effectiveNotesRootDirectory: String {
+        let trimmed = defaultNotesDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return (trimmed as NSString).expandingTildeInPath }
+        return AppSupport.directory()
+            .appendingPathComponent("ProjectData", isDirectory: true)
+            .path
+    }
+
+    func noteDataDirectory(for project: Project) -> String {
+        URL(fileURLWithPath: effectiveNotesRootDirectory)
+            .appendingPathComponent(Self.projectNotesFolderName(project), isDirectory: true)
+            .path
+    }
+
+    private static func projectNotesFolderName(_ project: Project) -> String {
+        let base = project.prefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? project.id.uuidString
+            : project.prefix
+        let invalid = CharacterSet(charactersIn: "/:\\")
+            .union(.newlines)
+            .union(.controlCharacters)
+        let parts = base.components(separatedBy: invalid)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? project.id.uuidString : parts.joined(separator: "-")
     }
 
     /// Is this reminder list enabled? Empty config = all reminder lists enabled.
@@ -361,6 +392,7 @@ final class AppSettings: ObservableObject {
         var defaultEventDurationMinutes: Int
         var defaultPaperSessionMinutes: Int?
         var defaultNoteSessionMinutes: Int?
+        var defaultNotesDirectory: String?
         var todayViewMode: String
         var todayTimelineStartHour: Int
         var todayTimelineEndHour: Int
@@ -393,6 +425,7 @@ final class AppSettings: ObservableObject {
                                      defaultEventDurationMinutes: 120,
                                      defaultPaperSessionMinutes: nil,
                                      defaultNoteSessionMinutes: nil,
+                                     defaultNotesDirectory: nil,
                                      todayViewMode: "list",
                                      todayTimelineStartHour: 6,
                                      todayTimelineEndHour: 24,
@@ -427,6 +460,7 @@ final class AppSettings: ObservableObject {
                             defaultEventDurationMinutes: defaultEventDurationMinutes,
                             defaultPaperSessionMinutes: defaultPaperSessionMinutes,
                             defaultNoteSessionMinutes: defaultNoteSessionMinutes,
+                            defaultNotesDirectory: defaultNotesDirectory.isEmpty ? nil : defaultNotesDirectory,
                             todayViewMode: todayViewMode,
                             todayTimelineStartHour: todayTimelineStartHour,
                             todayTimelineEndHour: todayTimelineEndHour,

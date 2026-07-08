@@ -40,13 +40,13 @@ extension PlanView {
             content: title,
             calendarName: calName,
             startDate: week.endDate.addingTimeInterval(-1),
-            dataDirectory: project.effectiveDataDirectory,
+            dataDirectory: settings.noteDataDirectory(for: project),
             itemMetadata: FacetItemMetadata(itemID: stableID),
             enabledCalendars: settings.effectiveCalendarNames
         )
         guard eventId != nil else { return false }
         let saved = NoteStore.shared.save(
-            dataDirectory: project.effectiveDataDirectory,
+            dataDirectory: settings.noteDataDirectory(for: project),
             facetID: stableID,
             body: body
         )

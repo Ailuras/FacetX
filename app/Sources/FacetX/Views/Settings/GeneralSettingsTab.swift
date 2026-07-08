@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct GeneralSettingsTab: View {
@@ -124,14 +125,42 @@ struct GeneralSettingsTab: View {
             SettingsCard(title: L10n.t(.storage), systemImage: "externaldrive",
                          subtitle: L10n.pick("Where FacetX keeps its data on disk.",
                                              "FacetX 在磁盘上保存数据的位置。")) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(L10n.t(.applicationSupport))
-                        .font(SettingsUI.rowFont)
-                    Text(AppSupport.directory().path)
-                        .font(SettingsUI.secondaryFont)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .textSelection(.enabled)
+                VStack(spacing: 0) {
+                    SettingsRow(title: L10n.t(.applicationSupport), systemImage: "externaldrive") {
+                        Text(AppSupport.directory().path)
+                            .font(SettingsUI.secondaryFont)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                    }
+                    SettingsDivider()
+                    SettingsRow(title: L10n.pick("Notes Folder", "笔记文件夹"), systemImage: "note.text") {
+                        HStack(spacing: 6) {
+                            Text(settings.effectiveNotesRootDirectory)
+                                .font(SettingsUI.secondaryFont)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: 280, alignment: .trailing)
+                                .textSelection(.enabled)
+                            if !settings.defaultNotesDirectory.isEmpty {
+                                Button {
+                                    settings.defaultNotesDirectory = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help(L10n.pick("Use default location", "使用默认位置"))
+                            }
+                            Button(L10n.pick("Choose...", "选择...")) {
+                                chooseNotesFolder()
+                            }
+                            .controlSize(.small)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -142,6 +171,19 @@ struct GeneralSettingsTab: View {
 
     private var persistenceWarning: String? {
         store.persistenceError ?? settings.persistenceError
+    }
+
+    private func chooseNotesFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = L10n.pick("Choose", "选择")
+        panel.directoryURL = URL(fileURLWithPath: settings.effectiveNotesRootDirectory)
+        if panel.runModal() == .OK, let url = panel.url {
+            settings.defaultNotesDirectory = url.path
+        }
     }
 
     // MARK: - Index Reconstruction

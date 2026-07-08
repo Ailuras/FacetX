@@ -183,7 +183,7 @@ struct ProjectDetailView: View {
             Button(L10n.t(.delete), role: .destructive) {
                 if let item = itemToDelete {
                     if item.facetKind == .note, let facetID = item.facetID {
-                        NoteStore.shared.delete(dataDirectory: project.effectiveDataDirectory, facetID: facetID)
+                        NoteStore.shared.delete(dataDirectory: settings.noteDataDirectory(for: project), facetID: facetID)
                     }
                     Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
                 }
@@ -1378,7 +1378,7 @@ struct ProjectDetailView: View {
     }
 
     private func createNoteItem(initialDate: Date?) {
-        let dataDirectory = project.effectiveDataDirectory
+        let dataDirectory = settings.noteDataDirectory(for: project)
         let calName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
         guard !calName.isEmpty else {
             toast.show(L10n.pick("Choose a calendar first", "请先选择一个日历"), type: .error)

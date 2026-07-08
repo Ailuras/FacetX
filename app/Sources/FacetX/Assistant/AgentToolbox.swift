@@ -414,13 +414,13 @@ final class AgentToolbox {
         let eventId = await eventKit.createNote(
             project: project.prefix, content: title,
             calendarName: calName, startDate: anchorDate,
-            dataDirectory: project.effectiveDataDirectory,
+            dataDirectory: settings.noteDataDirectory(for: project),
             itemMetadata: FacetItemMetadata(itemID: stableID),
             enabledCalendars: settings.effectiveCalendarNames
         )
         guard eventId != nil else { throw ToolError.message("Could not create the note anchor event.") }
         _ = NoteStore.shared.save(
-            dataDirectory: project.effectiveDataDirectory,
+            dataDirectory: settings.noteDataDirectory(for: project),
             facetID: stableID,
             body: body
         )
@@ -460,12 +460,13 @@ final class AgentToolbox {
     }
 
     private func getItem(_ input: [String: Any]) async throws -> String {
+        guard let settings else { throw ToolError.message("Service unavailable") }
         let mention = try await resolveReference(input["reference_id"] as? String)
         var object = mention.promptObject
         if mention.isNote, let stableID = mention.stableID,
            let project = try resolveProject(mention.projectPrefix) {
             object["body"] = NoteStore.shared.body(
-                dataDirectory: project.effectiveDataDirectory,
+                dataDirectory: settings.noteDataDirectory(for: project),
                 facetID: stableID
             )
             object["body_format"] = "markdown"
@@ -529,6 +530,7 @@ final class AgentToolbox {
     }
 
     private func updateNote(_ input: [String: Any]) async throws -> String {
+        guard let settings else { throw ToolError.message("Service unavailable") }
         let mention = try await resolveReference(input["reference_id"] as? String)
         guard mention.isNote, let stableID = mention.stableID else {
             throw ToolError.message("The referenced item is not a FacetX note.")
@@ -541,14 +543,14 @@ final class AgentToolbox {
             throw ToolError.message("The note's project no longer exists.")
         }
         let existing = NoteStore.shared.body(
-            dataDirectory: project.effectiveDataDirectory,
+            dataDirectory: settings.noteDataDirectory(for: project),
             facetID: stableID
         )
         let merged = mode == "append" && !existing.isEmpty
             ? existing + "\n\n---\n\n" + body
             : body
         _ = NoteStore.shared.save(
-            dataDirectory: project.effectiveDataDirectory,
+            dataDirectory: settings.noteDataDirectory(for: project),
             facetID: stableID,
             body: merged
         )
@@ -562,14 +564,14 @@ final class AgentToolbox {
     // ── Delete / move ────────────────────────────────────────────────────────
 
     private func deleteItem(_ input: [String: Any]) async throws -> String {
-        guard let eventKit else { throw ToolError.message("Service unavailable") }
+        guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
         let mention = try await resolveReference(input["reference_id"] as? String)
         let deleted = await eventKit.deleteItem(id: mention.eventKitID)
         guard deleted else { throw ToolError.message("EventKit could not delete the item.") }
         // Remove from local note / item stores too
         if mention.isNote, let stableID = mention.stableID,
            let project = try resolveProject(mention.projectPrefix) {
-            _ = NoteStore.shared.save(dataDirectory: project.effectiveDataDirectory,
+            _ = NoteStore.shared.save(dataDirectory: settings.noteDataDirectory(for: project),
                                       facetID: stableID, body: "")
         }
         referencedItems.removeValue(forKey: mention.referenceID)

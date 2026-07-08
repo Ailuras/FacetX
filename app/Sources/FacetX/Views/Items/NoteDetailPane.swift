@@ -7,6 +7,8 @@ import UniformTypeIdentifiers
 /// Preview is a read-only markdown-it + KaTeX render in a WKWebView. The editor
 /// writes back to the project's local `.md` file.
 struct NoteDetailPane: View {
+    @EnvironmentObject private var settings: AppSettings
+
     let item: ProjectItem
     let project: Project
     let onClose: () -> Void
@@ -17,7 +19,7 @@ struct NoteDetailPane: View {
     @AppStorage("noteFullWidth") private var fullWidth = false
     @StateObject private var editorController = MarkdownEditorController()
 
-    private var dataDirectory: String { project.effectiveDataDirectory }
+    private var dataDirectory: String { settings.noteDataDirectory(for: project) }
     private var facetID: String? { item.facetID }
 
     var body: some View {

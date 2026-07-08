@@ -251,65 +251,6 @@ struct ProjectEditorPicker: View {
     }
 }
 
-/// Picks a local folder for the project's data (markdown notes, future files).
-/// Opens an NSOpenPanel; stores the chosen absolute path. The app is not
-/// sandboxed, so no security-scoped bookmark is required.
-struct ProjectEditorDirectoryPicker: View {
-    let title: String
-    @Binding var path: String
-
-    private var displayName: String {
-        path.isEmpty ? L10n.pick("Not set", "未设置")
-                     : (path as NSString).abbreviatingWithTildeInPath
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-            Spacer()
-
-            HStack(spacing: 6) {
-                Text(displayName)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(path.isEmpty ? .secondary : .primary)
-                    .frame(maxWidth: 170, alignment: .trailing)
-                if !path.isEmpty {
-                    Button {
-                        path = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(L10n.pick("Clear", "清除"))
-                }
-                Button(L10n.pick("Choose…", "选择…")) { choose() }
-                    .controlSize(.small)
-            }
-        }
-    }
-
-    private func choose() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = L10n.pick("Choose", "选择")
-        if !path.isEmpty {
-            panel.directoryURL = URL(fileURLWithPath: path)
-        }
-        if panel.runModal() == .OK, let url = panel.url {
-            path = url.path
-        }
-    }
-}
-
 struct ProjectEditorHelp: View {
     let text: String
 

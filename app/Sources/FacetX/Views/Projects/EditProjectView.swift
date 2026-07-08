@@ -17,7 +17,6 @@ struct EditProjectView: View {
     @State private var noteCalendarName = ""
     @State private var weekGoalCalendarName = ""
     @State private var literatureListName = ""
-    @State private var dataDirectory = ""
     @State private var githubRepo = ""
     @State private var colorName = ProjectAppearance.defaultColorName
     @State private var iconName = ProjectAppearance.defaultIconName
@@ -109,10 +108,6 @@ struct EditProjectView: View {
                 ProjectEditorWarning(L10n.pick("Tasks, events, papers and notes need separate default save targets.",
                                                "任务、事件、文献和笔记需要使用互不相同的默认保存位置。"))
             }
-            Divider().opacity(0.42)
-            ProjectEditorDirectoryPicker(title: L10n.pick("Data Folder", "数据目录"), path: $dataDirectory)
-            ProjectEditorHelp(L10n.pick("Where notes and other local files for this project are stored.",
-                                        "该项目的笔记及其他本地文件的存放位置。"))
         }
     }
 
@@ -166,7 +161,6 @@ struct EditProjectView: View {
         literatureListName = firstAvailable(project.literatureListName,
                                                settings.defaultLiteratureListName,
                                                in: reminderLists)
-        dataDirectory = project.dataDirectory ?? ""
     }
 
     private func save() {
@@ -179,7 +173,6 @@ struct EditProjectView: View {
         updated.noteCalendarName = noteCalendarName.isEmpty ? nil : noteCalendarName
         updated.weekGoalCalendarName = weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName
         updated.literatureListName = literatureListName.isEmpty ? nil : literatureListName
-        updated.dataDirectory = dataDirectory.isEmpty ? nil : dataDirectory
         updated.colorName = colorName
         updated.iconName = iconName
         let repo = githubRepo.trimmingCharacters(in: .whitespaces)
