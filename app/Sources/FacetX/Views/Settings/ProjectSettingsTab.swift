@@ -31,7 +31,8 @@ struct ProjectSettingsTab: View {
             }
 
             containersSection
-            projectItemsCard
+            defaultSaveTargetsCard
+            defaultDurationsCard
             swipeActionsCard
             todayViewCard
         }
@@ -263,10 +264,10 @@ struct ProjectSettingsTab: View {
 
     // MARK: - Defaults
 
-    private var projectItemsCard: some View {
-        SettingsCard(title: L10n.pick("Project Defaults", "项目默认值"), systemImage: "tray.and.arrow.down",
-                     subtitle: L10n.pick("Where new items are saved and how timeline sessions are sized.",
-                                         "新建条目的保存位置与时间线默认时长。")) {
+    private var defaultSaveTargetsCard: some View {
+        SettingsCard(title: L10n.pick("Default Lists & Calendars", "默认列表与日历"), systemImage: "tray.and.arrow.down",
+                     subtitle: L10n.pick("Where new tasks, events, papers and week goals are saved.",
+                                         "新建任务、事件、文献与周目标的保存位置。")) {
             VStack(spacing: 0) {
                 defaultPickerRow(title: L10n.pick("Task List", "任务列表"),
                                  systemImage: "checklist",
@@ -297,6 +298,27 @@ struct ProjectSettingsTab: View {
                     .padding(.horizontal, 4)
                 }
                 compactDivider
+                defaultPickerRow(title: L10n.pick("Week Goal Calendar", "周目标日历"),
+                                 systemImage: "target",
+                                 selection: $settings.weekGoalCalendarName,
+                                 values: enabledCalendarNames)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(FacetTheme.panel.opacity(0.42))
+            .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+        }
+    }
+
+    private var defaultDurationsCard: some View {
+        SettingsCard(title: L10n.pick("Default Durations", "默认时长"), systemImage: "timer",
+                     subtitle: L10n.pick("Default blocks used when items become scheduled timeline sessions.",
+                                         "条目安排到时间线时使用的默认时间块。")) {
+            VStack(spacing: 0) {
                 durationPickerRow(title: L10n.pick("Event Duration", "事件时长"),
                                   systemImage: "clock",
                                   subtitle: L10n.pick("Default block size for new calendar events.",
@@ -314,11 +336,6 @@ struct ProjectSettingsTab: View {
                                   subtitle: L10n.pick("Default timeline block for scheduled notes.",
                                                      "笔记安排到时间线后的默认时间块。"),
                                   selection: $settings.defaultNoteSessionMinutes)
-                compactDivider
-                defaultPickerRow(title: L10n.pick("Week Goal Calendar", "周目标日历"),
-                                 systemImage: "target",
-                                 selection: $settings.weekGoalCalendarName,
-                                 values: enabledCalendarNames)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 2)
