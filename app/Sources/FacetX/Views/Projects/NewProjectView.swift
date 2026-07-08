@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NewProjectView: View {
     let draft: ProjectDraft
-    let onCreate: (String, String?, String, String?, String?, String?, String?, String?, String, String, String?) -> Void
+    let onCreate: (String, String?, String, String?, String?, String?, String?, String?, String, String, String?, String?) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
@@ -14,11 +14,12 @@ struct NewProjectView: View {
     @State private var weekGoalCalendarName: String
     @State private var literatureListName: String
     @State private var githubRepo: String
+    @State private var githubLocalPath: String
     @State private var colorName: String
     @State private var iconName: String
 
     init(draft: ProjectDraft,
-         onCreate: @escaping (String, String?, String, String?, String?, String?, String?, String?, String, String, String?) -> Void,
+         onCreate: @escaping (String, String?, String, String?, String?, String?, String?, String?, String, String, String?, String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.draft = draft
         self.onCreate = onCreate
@@ -32,6 +33,7 @@ struct NewProjectView: View {
         _weekGoalCalendarName = State(initialValue: draft.weekGoalCalendarName)
         _literatureListName = State(initialValue: draft.literatureListName)
         _githubRepo = State(initialValue: draft.githubRepo)
+        _githubLocalPath = State(initialValue: draft.githubLocalPath)
         _colorName = State(initialValue: draft.colorName)
         _iconName = State(initialValue: draft.iconName)
     }
@@ -106,7 +108,7 @@ struct NewProjectView: View {
 
     private var integrationsCard: some View {
         ProjectEditorCard(title: L10n.pick("Integrations", "集成"), systemImage: "curlybraces") {
-            ProjectEditorGitHubRepoPicker(selection: $githubRepo)
+            ProjectEditorGitHubRepoPicker(selection: $githubRepo, localPath: $githubLocalPath)
         }
     }
 
@@ -138,6 +140,7 @@ struct NewProjectView: View {
     private func create() {
         let prefix = trimmedPrefix.isEmpty ? nil : trimmedPrefix
         let repo = githubRepo.trimmingCharacters(in: .whitespaces)
+        let repoPath = githubLocalPath.trimmingCharacters(in: .whitespaces)
         onCreate(trimmedName, prefix, tagline.trimmingCharacters(in: .whitespaces),
                  reminderListName.isEmpty ? nil : reminderListName,
                  calendarName.isEmpty ? nil : calendarName,
@@ -146,6 +149,7 @@ struct NewProjectView: View {
                  literatureListName.isEmpty ? nil : literatureListName,
                  colorName,
                  iconName,
-                 repo.isEmpty ? nil : repo)
+                 repo.isEmpty ? nil : repo,
+                 repoPath.isEmpty ? nil : repoPath)
     }
 }

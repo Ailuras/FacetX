@@ -26,13 +26,15 @@ struct Project: Identifiable, Codable, Hashable {
     var sortOrder: Int = 0
     /// GitHub repository in "owner/repo" format (optional).
     var githubRepo: String?
+    var githubLocalPath: String?
 
     init(name: String, prefix: String? = nil, tagline: String = "",
          reminderListName: String? = nil, calendarName: String? = nil,
          noteCalendarName: String? = nil,
          weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
          colorName: String? = nil, iconName: String? = nil,
-         githubRepo: String? = nil) {
+         githubRepo: String? = nil,
+         githubLocalPath: String? = nil) {
         self.name = name
         self.prefix = prefix ?? name
         self.tagline = tagline
@@ -44,6 +46,7 @@ struct Project: Identifiable, Codable, Hashable {
         self.colorName = colorName
         self.iconName = iconName
         self.githubRepo = githubRepo
+        self.githubLocalPath = githubLocalPath
     }
 }
 
@@ -101,14 +104,16 @@ final class ProjectStore: ObservableObject {
                        noteCalendarName: String? = nil,
                        weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
                        colorName: String? = nil, iconName: String? = nil,
-                       githubRepo: String? = nil) -> Project.ID {
+                       githubRepo: String? = nil,
+                       githubLocalPath: String? = nil) -> Project.ID {
         let maxOrder = projects.map(\.sortOrder).max() ?? -1
         var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
                               noteCalendarName: noteCalendarName,
                               weekGoalCalendarName: weekGoalCalendarName, literatureListName: literatureListName,
                               colorName: colorName, iconName: iconName,
-                              githubRepo: githubRepo)
+                              githubRepo: githubRepo,
+                              githubLocalPath: githubLocalPath)
         project.sortOrder = maxOrder + 1
         projects.append(project)
         save()

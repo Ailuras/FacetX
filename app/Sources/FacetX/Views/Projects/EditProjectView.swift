@@ -18,6 +18,7 @@ struct EditProjectView: View {
     @State private var weekGoalCalendarName = ""
     @State private var literatureListName = ""
     @State private var githubRepo = ""
+    @State private var githubLocalPath = ""
     @State private var colorName = ProjectAppearance.defaultColorName
     @State private var iconName = ProjectAppearance.defaultIconName
     @State private var reminderLists: [String] = []
@@ -113,7 +114,7 @@ struct EditProjectView: View {
 
     private var integrationsCard: some View {
         ProjectEditorCard(title: L10n.pick("Integrations", "集成"), systemImage: "curlybraces") {
-            ProjectEditorGitHubRepoPicker(selection: $githubRepo)
+            ProjectEditorGitHubRepoPicker(selection: $githubRepo, localPath: $githubLocalPath)
         }
     }
 
@@ -144,6 +145,7 @@ struct EditProjectView: View {
         prefix = project.prefix
         tagline = project.tagline
         githubRepo = project.githubRepo ?? ""
+        githubLocalPath = project.githubLocalPath ?? ""
         colorName = project.colorName ?? ProjectAppearance.defaultColorName
         iconName = project.iconName ?? ProjectAppearance.defaultIconName
         reminderListName = firstAvailable(project.reminderListName,
@@ -177,6 +179,8 @@ struct EditProjectView: View {
         updated.iconName = iconName
         let repo = githubRepo.trimmingCharacters(in: .whitespaces)
         updated.githubRepo = repo.isEmpty ? nil : repo
+        let repoPath = githubLocalPath.trimmingCharacters(in: .whitespaces)
+        updated.githubLocalPath = repoPath.isEmpty ? nil : repoPath
         store.update(updated)
         onClose()
     }
