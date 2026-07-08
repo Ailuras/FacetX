@@ -126,6 +126,31 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         )
     }
 
+    public func replacingSchedule(_ date: Date, endDate: Date?, hasTime: Bool, isAllDay: Bool) -> ProjectItem {
+        ProjectItem(
+            id: id,
+            kind: kind,
+            rawTitle: rawTitle,
+            projectPrefix: projectPrefix,
+            content: content,
+            containerName: containerName,
+            isCompleted: isCompleted,
+            date: date,
+            notes: notes,
+            tags: tags,
+            priority: priority,
+            url: url,
+            hasTime: hasTime,
+            isAllDay: isAllDay,
+            endDate: endDate,
+            facetID: facetID,
+            linkedPaperIDs: linkedPaperIDs,
+            linkedCommits: linkedCommits,
+            isNote: isNote,
+            isPinned: isPinned
+        )
+    }
+
     /// Apply locally-stored state (pin flag + resolved completion) onto an item
     /// freshly built from EventKit. Used by the hydration pass in `EventKitService`.
     public func applyingLocalState(isPinned: Bool, isCompleted: Bool) -> ProjectItem {

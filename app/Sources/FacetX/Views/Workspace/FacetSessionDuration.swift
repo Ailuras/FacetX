@@ -6,13 +6,14 @@ enum FacetSessionDuration {
         for item: ProjectItem,
         eventDefaultMinutes: Int,
         paperDefaultMinutes: Int,
-        noteDefaultMinutes: Int
+        noteDefaultMinutes: Int,
+        treatsAllDayEventsAsTimed: Bool = false
     ) -> Int? {
         switch item.facetKind {
         case .task:
             return nil
         case .event:
-            guard !item.isAllDay else { return nil }
+            guard treatsAllDayEventsAsTimed || !item.isAllDay else { return nil }
             return explicitMinutes(for: item) ?? max(eventDefaultMinutes, 15)
         case .paper:
             return max(paperDefaultMinutes, 15)
@@ -25,13 +26,15 @@ enum FacetSessionDuration {
         for item: ProjectItem,
         eventDefaultMinutes: Int,
         paperDefaultMinutes: Int,
-        noteDefaultMinutes: Int
+        noteDefaultMinutes: Int,
+        treatsAllDayEventsAsTimed: Bool = false
     ) -> Double {
         guard let minutes = defaultMinutes(
             for: item,
             eventDefaultMinutes: eventDefaultMinutes,
             paperDefaultMinutes: paperDefaultMinutes,
-            noteDefaultMinutes: noteDefaultMinutes
+            noteDefaultMinutes: noteDefaultMinutes,
+            treatsAllDayEventsAsTimed: treatsAllDayEventsAsTimed
         ) else {
             return 0.33
         }
@@ -44,13 +47,15 @@ enum FacetSessionDuration {
         eventDefaultMinutes: Int,
         paperDefaultMinutes: Int,
         noteDefaultMinutes: Int,
+        treatsAllDayEventsAsTimed: Bool = false,
         calendar: Calendar = .current
     ) -> Date? {
         guard let minutes = defaultMinutes(
             for: item,
             eventDefaultMinutes: eventDefaultMinutes,
             paperDefaultMinutes: paperDefaultMinutes,
-            noteDefaultMinutes: noteDefaultMinutes
+            noteDefaultMinutes: noteDefaultMinutes,
+            treatsAllDayEventsAsTimed: treatsAllDayEventsAsTimed
         ) else {
             return nil
         }

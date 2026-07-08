@@ -34,12 +34,6 @@ struct TodayTimelinePanel: View {
         }
     }
 
-    var todayDateLabel: String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "EEEE, MMMM d"
-        return fmt.string(from: Date())
-    }
-
     // MARK: – Body
 
     var body: some View {
@@ -124,87 +118,92 @@ struct TodayTimelinePanel: View {
 
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 0) {
-                    // Hour labels
+                // Hour labels
+                VStack(spacing: 0) {
+                    ForEach(startHour..<endHour, id: \.self) { hour in
+                        Text(hourLabel(hour))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 2)
+                            .frame(height: hourHeight, alignment: .top)
+                    }
+                    Text(hourLabel(endHour))
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 2)
+                        .frame(height: 0, alignment: .top)
+                }
+                .frame(width: 42)
+
+                // Item cards with grid
+                ZStack(alignment: .topLeading) {
+                    // Grid lines
                     VStack(spacing: 0) {
-                        ForEach(startHour..<endHour, id: \.self) { hour in
-                            Text(String(format: "%02d:00", hour))
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.tertiary)
-                                .padding(.top, 2)
+                        ForEach(startHour..<endHour, id: \.self) { _ in
+                            Rectangle()
+                                .fill(FacetTheme.hairline)
+                                .frame(height: 0.5)
                                 .frame(height: hourHeight, alignment: .top)
                         }
                     }
-                    .frame(width: 42)
 
-                    // Item cards with grid
-                    ZStack(alignment: .topLeading) {
-                        // Grid lines
-                        VStack(spacing: 0) {
-                            ForEach(startHour..<endHour, id: \.self) { _ in
-                                Rectangle()
-                                    .fill(FacetTheme.hairline)
-                                    .frame(height: 0.5)
-                                    .frame(height: hourHeight, alignment: .top)
-                            }
+                    // Item cards — laid out in overlap columns within the area width.
+                    GeometryReader { geo in
+                        ForEach(itemPositions.indices, id: \.self) { idx in
+                            compactTimelineCard(itemPositions[idx], containerWidth: geo.size.width)
                         }
+                    }
 
-                        // Item cards — laid out in overlap columns within the area width.
-                        GeometryReader { geo in
-                            ForEach(itemPositions.indices, id: \.self) { idx in
-                                compactTimelineCard(itemPositions[idx], containerWidth: geo.size.width)
-                            }
-                        }
+                    // Live drag time indicator
+                    if let draggingID = draggingItemID,
+                       let draggingPos = itemPositions.first(where: { $0.item.id == draggingID }),
+                       let originalDate = draggingPos.item.date {
+                        let rawMinutes = (dragOffsetY / hourHeight) * 60
+                        let snappedMinutes = Int((rawMinutes / 15).rounded()) * 15
+                        let previewDate = Calendar.current.date(
+                            byAdding: .minute, value: snappedMinutes, to: originalDate
+                        ) ?? originalDate
+                        Text(dragTimeLabel(previewDate))
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.85))
+                            .clipShape(Capsule())
+                            .offset(y: draggingPos.yOffset + dragOffsetY - 20)
+                            .allowsHitTesting(false)
+                            .zIndex(200)
+                    }
 
-                        // Live drag time indicator
-                        if let draggingID = draggingItemID,
-                           let draggingPos = itemPositions.first(where: { $0.item.id == draggingID }),
-                           let originalDate = draggingPos.item.date {
-                            let rawMinutes = (dragOffsetY / hourHeight) * 60
-                            let snappedMinutes = Int((rawMinutes / 15).rounded()) * 15
-                            let previewDate = Calendar.current.date(
-                                byAdding: .minute, value: snappedMinutes, to: originalDate
-                            ) ?? originalDate
-                            Text(dragTimeLabel(previewDate))
+                    // Live drop guide for items dragged in from the All list
+                    if let preview = dropPreview {
+                        HStack(spacing: 5) {
+                            Text(preview.label)
                                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(Color.blue.opacity(0.85))
+                                .background(Color.accentColor)
                                 .clipShape(Capsule())
-                                .offset(y: draggingPos.yOffset + dragOffsetY - 20)
-                                .allowsHitTesting(false)
-                                .zIndex(200)
+                            Rectangle()
+                                .fill(Color.accentColor.opacity(0.55))
+                                .frame(height: 1.5)
                         }
-
-                        // Live drop guide for items dragged in from the All list
-                        if let preview = dropPreview {
-                            HStack(spacing: 5) {
-                                Text(preview.label)
-                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 2)
-                                    .background(Color.accentColor)
-                                    .clipShape(Capsule())
-                                Rectangle()
-                                    .fill(Color.accentColor.opacity(0.55))
-                                    .frame(height: 1.5)
-                            }
-                            .offset(y: preview.y - 8)
-                            .allowsHitTesting(false)
-                            .zIndex(180)
-                        }
+                        .offset(y: preview.y - 8)
+                        .allowsHitTesting(false)
+                        .zIndex(180)
                     }
-                    .frame(height: totalHeight)
-                    .frame(maxWidth: .infinity)
-                    .onDrop(of: ItemDragHelpers.acceptedTypes, delegate: TimelineDropDelegate(
-                        startHour: startHour,
-                        endHour: endHour,
-                        hourHeight: hourHeight,
-                        onPreview: { dropPreview = $0 },
-                        onCommit: { provider, date in handleTimelineDrop(provider: provider, date: date) }
-                    ))
                 }
+                .frame(height: totalHeight)
+                .frame(maxWidth: .infinity)
+                .onDrop(of: ItemDragHelpers.acceptedTypes, delegate: TimelineDropDelegate(
+                    startHour: startHour,
+                    endHour: endHour,
+                    hourHeight: hourHeight,
+                    onPreview: { dropPreview = $0 },
+                    onCommit: { provider, date in handleTimelineDrop(provider: provider, date: date) }
+                ))
+            }
             .padding(.horizontal, timelineContentInset)
             .padding(.vertical, 14)
         }
@@ -393,6 +392,10 @@ struct TodayTimelinePanel: View {
         return "\(fmt.string(from: start)) – \(fmt.string(from: end))"
     }
 
+    private func hourLabel(_ hour: Int) -> String {
+        hour == 24 ? "00:00" : String(format: "%02d:00", hour)
+    }
+
     private func timeString(for item: ProjectItem, start: Date) -> String {
         guard let end = timelineEnd(for: item, start: start) else {
             let fmt = DateFormatter()
@@ -416,7 +419,8 @@ struct TodayTimelinePanel: View {
             start: start,
             eventDefaultMinutes: settings.defaultEventDurationMinutes,
             paperDefaultMinutes: settings.defaultPaperSessionMinutes,
-            noteDefaultMinutes: settings.defaultNoteSessionMinutes
+            noteDefaultMinutes: settings.defaultNoteSessionMinutes,
+            treatsAllDayEventsAsTimed: true
         )
     }
 
@@ -424,7 +428,7 @@ struct TodayTimelinePanel: View {
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
         let newEndDate = timelineEnd(for: item, start: newDate)
         var updated = items
-        updated[idx] = item.replacingDate(newDate, endDate: newEndDate, hasTime: true)
+        updated[idx] = item.replacingSchedule(newDate, endDate: newEndDate, hasTime: true, isAllDay: false)
         items = updated
     }
 
@@ -500,23 +504,7 @@ struct TodayTimelinePanel: View {
     private func applyDroppedOptimistic(item: ProjectItem, start: Date, end: Date?) {
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
         var updated = items
-        updated[idx] = ProjectItem(
-            id: item.id,
-            kind: item.kind,
-            rawTitle: item.rawTitle,
-            projectPrefix: item.projectPrefix,
-            content: item.content,
-            containerName: item.containerName,
-            isCompleted: item.isCompleted,
-            date: start,
-            notes: item.notes,
-            tags: item.tags,
-            priority: item.priority,
-            url: item.url,
-            hasTime: true,
-            isAllDay: false,
-            endDate: end
-        )
+        updated[idx] = item.replacingSchedule(start, endDate: end, hasTime: true, isAllDay: false)
         items = updated
     }
 }
