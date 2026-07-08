@@ -648,8 +648,9 @@ struct ProjectDetailView: View {
     }
 
     private var remainingFocusQueueGroups: [(bucket: FocusQueueBucket, entries: [FocusQueueEntry])] {
-        FocusQueueBucket.allCases.compactMap { bucket in
-            let entries = remainingFocusQueueEntries.filter { $0.bucket == bucket }
+        let remaining = remainingFocusQueueEntries
+        return FocusQueueBucket.allCases.compactMap { bucket in
+            let entries = remaining.filter { $0.bucket == bucket }
             return entries.isEmpty ? nil : (bucket, entries)
         }
     }
@@ -965,38 +966,18 @@ struct ProjectDetailView: View {
             .buttonStyle(.plain)
             .help(L10n.pick("Open item", "打开条目"))
 
-            Button {
+            focusQueueActionButton(systemImage: "checkmark",
+                                   tint: entry.item.rowTint,
+                                   help: L10n.pick("Mark complete", "标记完成")) {
                 Task { await completeFocusItem(entry.item) }
-            } label: {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .frame(width: 20, height: 20)
-                    .contentShape(Rectangle())
-                    .facetHoverSurface(tint: entry.item.rowTint,
-                                       fill: Color.clear,
-                                       hoverFill: entry.item.rowTint.opacity(0.12),
-                                       hoverStroke: entry.item.rowTint.opacity(0.30),
-                                       cornerRadius: 5)
             }
-            .buttonStyle(.plain)
-            .help(L10n.pick("Mark complete", "标记完成"))
 
             if !isToday(entry.item) {
-                Button {
+                focusQueueActionButton(systemImage: "calendar",
+                                       tint: entry.item.rowTint,
+                                       help: L10n.pick("Schedule today", "安排到今天")) {
                     Task { await scheduleFocusItemToday(entry.item) }
-                } label: {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 9, weight: .semibold))
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
-                        .facetHoverSurface(tint: entry.item.rowTint,
-                                           fill: Color.clear,
-                                           hoverFill: entry.item.rowTint.opacity(0.12),
-                                           hoverStroke: entry.item.rowTint.opacity(0.30),
-                                           cornerRadius: 5)
                 }
-                .buttonStyle(.plain)
-                .help(L10n.pick("Schedule today", "安排到今天"))
             }
         }
         .padding(.horizontal, 9)

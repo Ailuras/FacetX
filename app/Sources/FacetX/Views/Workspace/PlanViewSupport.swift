@@ -9,8 +9,6 @@ struct DayGroup: Identifiable {
     let isToday: Bool
 
     var id: Date { date }
-    var scheduleItems: [ProjectItem] { items.filter { $0.kind == .event } }
-    var taskItems: [ProjectItem] { items.filter { $0.kind == .reminder } }
 }
 
 struct PlanDayLoad {
