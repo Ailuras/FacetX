@@ -165,8 +165,11 @@ final class AppSettings: ObservableObject {
         let rawDuration = stored.defaultEventDurationMinutes
         self.defaultEventDurationMinutes = durationPresets.min(by: { abs($0 - rawDuration) < abs($1 - rawDuration) }) ?? 60
         self.todayViewMode = stored.todayViewMode
-        self.todayTimelineStartHour = stored.todayTimelineStartHour
-        self.todayTimelineEndHour = stored.todayTimelineEndHour
+        let timelineStart = min(max(stored.todayTimelineStartHour, 0), 23)
+        let timelineEnd = min(max(stored.todayTimelineEndHour, 1), 24)
+        let normalizedTimelineStart = min(timelineStart, timelineEnd - 1)
+        self.todayTimelineStartHour = normalizedTimelineStart
+        self.todayTimelineEndHour = max(timelineEnd, normalizedTimelineStart + 1)
         self.githubToken = stored.githubToken ?? ""
         self.globalShortcutEnabled = stored.globalShortcutEnabled
         self.leadingSwipeAction = stored.leadingSwipeAction ?? "tomorrow"
@@ -356,7 +359,7 @@ final class AppSettings: ObservableObject {
                                      defaultEventDurationMinutes: 120,
                                      todayViewMode: "list",
                                      todayTimelineStartHour: 6,
-                                     todayTimelineEndHour: 23,
+                                     todayTimelineEndHour: 24,
                                      githubToken: nil,
                                      globalShortcutEnabled: false,
                                      leadingSwipeAction: "tomorrow",

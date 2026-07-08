@@ -43,7 +43,7 @@ struct ProjectSettingsTab: View {
         .onChange(of: settings.changeToken) { ensureDefaults() }
         .onChange(of: settings.todayTimelineStartHour) {
             if settings.todayTimelineStartHour >= settings.todayTimelineEndHour {
-                settings.todayTimelineEndHour = min(settings.todayTimelineStartHour + 1, 23)
+                settings.todayTimelineEndHour = min(settings.todayTimelineStartHour + 1, 24)
             }
         }
         .onChange(of: settings.todayTimelineEndHour) {
@@ -355,11 +355,11 @@ struct ProjectSettingsTab: View {
 
             VStack(spacing: 0) {
                 SettingsRow(title: L10n.pick("Start Hour", "开始时间"), systemImage: "sunrise") {
-                    hourStepper(value: $settings.todayTimelineStartHour, range: 0...22)
+                    hourStepper(value: $settings.todayTimelineStartHour, range: 0...23)
                 }
                 compactDivider
                 SettingsRow(title: L10n.pick("End Hour", "结束时间"), systemImage: "sunset") {
-                    hourStepper(value: $settings.todayTimelineEndHour, range: 1...23)
+                    hourStepper(value: $settings.todayTimelineEndHour, range: 1...24)
                 }
             }
             .padding(.horizontal, 10)
@@ -569,7 +569,8 @@ struct ProjectSettingsTab: View {
     }
 
     private func formattedHour(_ hour: Int) -> String {
-        String(format: "%02d:00", hour)
+        if hour == 24 { return "00:00" }
+        return String(format: "%02d:00", hour)
     }
 
     private func swipeActionTitle(_ action: SwipeAction) -> String {
@@ -646,7 +647,7 @@ struct ProjectSettingsTab: View {
 
     private func ensureTimelineRange() {
         if settings.todayTimelineStartHour >= settings.todayTimelineEndHour {
-            settings.todayTimelineEndHour = min(settings.todayTimelineStartHour + 1, 23)
+            settings.todayTimelineEndHour = min(settings.todayTimelineStartHour + 1, 24)
         }
     }
 }
