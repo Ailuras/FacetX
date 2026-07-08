@@ -80,7 +80,13 @@ extension PlanView {
         }
 
         let items = planItemsByMonthDay[day] ?? []
-        let load = PlanDayLoad.measure(items, calendar: MonthYear.calendar)
+        let load = PlanDayLoad.measure(
+            items,
+            calendar: MonthYear.calendar,
+            eventDefaultMinutes: settings.defaultEventDurationMinutes,
+            paperDefaultMinutes: settings.defaultPaperSessionMinutes,
+            noteDefaultMinutes: settings.defaultNoteSessionMinutes
+        )
         let isCurrentWeek = week.contains(date)
         let isToday = MonthYear.calendar.isDateInToday(date)
         let isDropTarget = dropTargetDate.map { MonthYear.calendar.isDate($0, inSameDayAs: date) } ?? false

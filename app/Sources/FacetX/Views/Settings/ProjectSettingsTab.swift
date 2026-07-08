@@ -265,8 +265,8 @@ struct ProjectSettingsTab: View {
 
     private var projectItemsCard: some View {
         SettingsCard(title: L10n.pick("Project Defaults", "项目默认值"), systemImage: "tray.and.arrow.down",
-                     subtitle: L10n.pick("Where new items and week goals are saved.",
-                                         "新建条目与周目标的保存位置。")) {
+                     subtitle: L10n.pick("Where new items are saved and how timeline sessions are sized.",
+                                         "新建条目的保存位置与时间线默认时长。")) {
             VStack(spacing: 0) {
                 defaultPickerRow(title: L10n.pick("Task List", "任务列表"),
                                  systemImage: "checklist",
@@ -299,9 +299,21 @@ struct ProjectSettingsTab: View {
                 compactDivider
                 durationPickerRow(title: L10n.pick("Event Duration", "事件时长"),
                                   systemImage: "clock",
-                                  subtitle: L10n.pick("Applies to Item Calendar and Literature Calendar.",
-                                                     "适用于条目日历与文献日历。"),
+                                  subtitle: L10n.pick("Default block size for new calendar events.",
+                                                     "新建日历事件的默认时间块。"),
                                   selection: $settings.defaultEventDurationMinutes)
+                compactDivider
+                durationPickerRow(title: L10n.pick("Paper Reading", "文献阅读"),
+                                  systemImage: "books.vertical",
+                                  subtitle: L10n.pick("Default timeline block for scheduled papers.",
+                                                     "文献安排到时间线后的默认时间块。"),
+                                  selection: $settings.defaultPaperSessionMinutes)
+                compactDivider
+                durationPickerRow(title: L10n.pick("Note Session", "笔记整理"),
+                                  systemImage: "note.text",
+                                  subtitle: L10n.pick("Default timeline block for scheduled notes.",
+                                                     "笔记安排到时间线后的默认时间块。"),
+                                  selection: $settings.defaultNoteSessionMinutes)
                 compactDivider
                 defaultPickerRow(title: L10n.pick("Week Goal Calendar", "周目标日历"),
                                  systemImage: "target",
@@ -642,6 +654,16 @@ struct ProjectSettingsTab: View {
             settings.defaultEventDurationMinutes = 5
         } else if settings.defaultEventDurationMinutes > 1440 {
             settings.defaultEventDurationMinutes = 1440
+        }
+        if settings.defaultPaperSessionMinutes < 5 {
+            settings.defaultPaperSessionMinutes = 5
+        } else if settings.defaultPaperSessionMinutes > 1440 {
+            settings.defaultPaperSessionMinutes = 1440
+        }
+        if settings.defaultNoteSessionMinutes < 5 {
+            settings.defaultNoteSessionMinutes = 5
+        } else if settings.defaultNoteSessionMinutes > 1440 {
+            settings.defaultNoteSessionMinutes = 1440
         }
     }
 

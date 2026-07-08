@@ -94,7 +94,12 @@ struct PlanReviewSheet: View {
     }
 
     private var weekLoad: PlanDayLoad {
-        PlanDayLoad.measure(items)
+        PlanDayLoad.measure(
+            items,
+            eventDefaultMinutes: settings.defaultEventDurationMinutes,
+            paperDefaultMinutes: settings.defaultPaperSessionMinutes,
+            noteDefaultMinutes: settings.defaultNoteSessionMinutes
+        )
     }
 
     var body: some View {

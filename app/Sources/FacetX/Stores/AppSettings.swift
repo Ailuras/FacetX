@@ -95,6 +95,12 @@ final class AppSettings: ObservableObject {
     @Published var defaultEventDurationMinutes: Int {
         didSet { settingsDidChange() }
     }
+    @Published var defaultPaperSessionMinutes: Int {
+        didSet { settingsDidChange() }
+    }
+    @Published var defaultNoteSessionMinutes: Int {
+        didSet { settingsDidChange() }
+    }
     @Published var todayViewMode: String {
         didSet { settingsDidChange() }
     }
@@ -162,8 +168,15 @@ final class AppSettings: ObservableObject {
         self.lastOpenedKind = stored.lastOpenedKind ?? "project"
         self.lastOpenedTopicID = stored.lastOpenedTopicID ?? ""
         let durationPresets = [15, 30, 45, 60, 90, 120, 180, 240]
-        let rawDuration = stored.defaultEventDurationMinutes
-        self.defaultEventDurationMinutes = durationPresets.min(by: { abs($0 - rawDuration) < abs($1 - rawDuration) }) ?? 60
+        self.defaultEventDurationMinutes = Self.nearestDuration(stored.defaultEventDurationMinutes,
+                                                                presets: durationPresets,
+                                                                fallback: 60)
+        self.defaultPaperSessionMinutes = Self.nearestDuration(stored.defaultPaperSessionMinutes ?? 60,
+                                                               presets: durationPresets,
+                                                               fallback: 60)
+        self.defaultNoteSessionMinutes = Self.nearestDuration(stored.defaultNoteSessionMinutes ?? 45,
+                                                              presets: durationPresets,
+                                                              fallback: 45)
         self.todayViewMode = stored.todayViewMode
         let timelineStart = min(max(stored.todayTimelineStartHour, 0), 23)
         let timelineEnd = min(max(stored.todayTimelineEndHour, 1), 24)
@@ -177,6 +190,10 @@ final class AppSettings: ObservableObject {
         self.tagColors = stored.tagColors ?? [:]
         self.persistenceError = persistenceError
         L10n.language = self.language
+    }
+
+    private static func nearestDuration(_ value: Int, presets: [Int], fallback: Int) -> Int {
+        presets.min(by: { abs($0 - value) < abs($1 - value) }) ?? fallback
     }
 
     /// Is this reminder list enabled? Empty config = all reminder lists enabled.
@@ -328,6 +345,8 @@ final class AppSettings: ObservableObject {
         var lastOpenedKind: String?
         var lastOpenedTopicID: String?
         var defaultEventDurationMinutes: Int
+        var defaultPaperSessionMinutes: Int?
+        var defaultNoteSessionMinutes: Int?
         var todayViewMode: String
         var todayTimelineStartHour: Int
         var todayTimelineEndHour: Int
@@ -357,6 +376,8 @@ final class AppSettings: ObservableObject {
                                      lastOpenedKind: nil,
                                      lastOpenedTopicID: nil,
                                      defaultEventDurationMinutes: 120,
+                                     defaultPaperSessionMinutes: nil,
+                                     defaultNoteSessionMinutes: nil,
                                      todayViewMode: "list",
                                      todayTimelineStartHour: 6,
                                      todayTimelineEndHour: 24,
@@ -388,6 +409,8 @@ final class AppSettings: ObservableObject {
                             lastOpenedKind: lastOpenedKind,
                             lastOpenedTopicID: lastOpenedTopicID.isEmpty ? nil : lastOpenedTopicID,
                             defaultEventDurationMinutes: defaultEventDurationMinutes,
+                            defaultPaperSessionMinutes: defaultPaperSessionMinutes,
+                            defaultNoteSessionMinutes: defaultNoteSessionMinutes,
                             todayViewMode: todayViewMode,
                             todayTimelineStartHour: todayTimelineStartHour,
                             todayTimelineEndHour: todayTimelineEndHour,

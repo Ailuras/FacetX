@@ -50,7 +50,12 @@ extension PlanView {
     private func dayHeader(_ group: DayGroup) -> some View {
         let cal = Calendar.current
         let isDropTarget = dropTargetDate.map { cal.isDate($0, inSameDayAs: group.date) } ?? false
-        let load = PlanDayLoad.measure(group.items)
+        let load = PlanDayLoad.measure(
+            group.items,
+            eventDefaultMinutes: settings.defaultEventDurationMinutes,
+            paperDefaultMinutes: settings.defaultPaperSessionMinutes,
+            noteDefaultMinutes: settings.defaultNoteSessionMinutes
+        )
 
         return HStack(spacing: 6) {
             Text(group.label)

@@ -89,18 +89,27 @@ struct PlanDayLoad {
         )
     }
 
-    static func measure(_ items: [ProjectItem], calendar: Calendar = .current) -> PlanDayLoad {
+    static func measure(
+        _ items: [ProjectItem],
+        calendar: Calendar = .current,
+        eventDefaultMinutes: Int = 60,
+        paperDefaultMinutes: Int = 60,
+        noteDefaultMinutes: Int = 45
+    ) -> PlanDayLoad {
         let activeItems = items.filter { !$0.isCompleted }
         let taskCount = activeItems.filter { $0.facetKind == .task }.count
         let highPriorityCount = activeItems.filter { item in
             item.facetKind == .task && (1...4).contains(item.priority)
         }.count
         let timedMinutes = activeItems.reduce(0) { total, item in
-            guard item.facetKind == .event,
-                  !item.isAllDay,
-                  let start = item.date else { return total }
-            let end = item.endDate ?? calendar.date(byAdding: .hour, value: 1, to: start) ?? start
-            return total + max(15, Int(end.timeIntervalSince(start) / 60))
+            guard item.date != nil,
+                  let minutes = FacetSessionDuration.defaultMinutes(
+                    for: item,
+                    eventDefaultMinutes: eventDefaultMinutes,
+                    paperDefaultMinutes: paperDefaultMinutes,
+                    noteDefaultMinutes: noteDefaultMinutes
+                  ) else { return total }
+            return total + minutes
         }
         return PlanDayLoad(
             timedMinutes: timedMinutes,

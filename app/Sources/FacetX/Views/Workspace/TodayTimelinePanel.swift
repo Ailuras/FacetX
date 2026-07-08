@@ -19,9 +19,6 @@ struct TodayTimelinePanel: View {
 
     // MARK: – Derived
 
-    private var defaultPaperSessionMinutes: Int { 60 }
-    private var defaultNoteSessionMinutes: Int { 45 }
-
     var projectsByPrefix: [String: Project] {
         Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
     }
@@ -234,7 +231,12 @@ struct TodayTimelinePanel: View {
         let sorted = todayTimelineItems.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
             guard let date = item.date else { return nil }
             let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
-            return (item, h, max(timelineDurationHours(for: item), 0.5))
+            return (item, h, max(FacetSessionDuration.hours(
+                for: item,
+                eventDefaultMinutes: settings.defaultEventDurationMinutes,
+                paperDefaultMinutes: settings.defaultPaperSessionMinutes,
+                noteDefaultMinutes: settings.defaultNoteSessionMinutes
+            ), 0.5))
         }.sorted { $0.start < $1.start }
 
         var result: [PositionedTimelineItem] = sorted.map { entry in
@@ -408,36 +410,14 @@ struct TodayTimelinePanel: View {
         return fmt.string(from: date)
     }
 
-    private func explicitDurationMinutes(for item: ProjectItem) -> Int? {
-        guard !item.isAllDay, let start = item.date, let end = item.endDate, end > start else {
-            return nil
-        }
-        return max(Int((end.timeIntervalSince(start) / 60).rounded()), 15)
-    }
-
-    private func defaultTimelineDurationMinutes(for item: ProjectItem) -> Int? {
-        switch item.facetKind {
-        case .task:
-            return nil
-        case .event:
-            return explicitDurationMinutes(for: item) ?? max(settings.defaultEventDurationMinutes, 15)
-        case .paper:
-            return defaultPaperSessionMinutes
-        case .note:
-            return explicitDurationMinutes(for: item) ?? defaultNoteSessionMinutes
-        }
-    }
-
-    private func timelineDurationHours(for item: ProjectItem) -> Double {
-        guard let minutes = defaultTimelineDurationMinutes(for: item) else {
-            return 0.33
-        }
-        return Double(minutes) / 60.0
-    }
-
     private func timelineEnd(for item: ProjectItem, start: Date) -> Date? {
-        guard let minutes = defaultTimelineDurationMinutes(for: item) else { return nil }
-        return Calendar.current.date(byAdding: .minute, value: minutes, to: start)
+        FacetSessionDuration.endDate(
+            for: item,
+            start: start,
+            eventDefaultMinutes: settings.defaultEventDurationMinutes,
+            paperDefaultMinutes: settings.defaultPaperSessionMinutes,
+            noteDefaultMinutes: settings.defaultNoteSessionMinutes
+        )
     }
 
     private func applyOptimisticReschedule(item: ProjectItem, newDate: Date) {

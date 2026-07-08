@@ -79,7 +79,13 @@ extension PlanView {
                 return calendar.isDate(itemDate, inSameDayAs: date)
             }
             let activeItems = dayItems.filter { !$0.isCompleted }
-            let load = PlanDayLoad.measure(activeItems, calendar: calendar)
+            let load = PlanDayLoad.measure(
+                activeItems,
+                calendar: calendar,
+                eventDefaultMinutes: settings.defaultEventDurationMinutes,
+                paperDefaultMinutes: settings.defaultPaperSessionMinutes,
+                noteDefaultMinutes: settings.defaultNoteSessionMinutes
+            )
             return [
                 "date": isoDate(date),
                 "day_load": [
