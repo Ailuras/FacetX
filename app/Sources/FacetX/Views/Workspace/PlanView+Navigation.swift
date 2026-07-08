@@ -47,7 +47,7 @@ extension PlanView {
                     Button {
                         showingReview = true
                     } label: {
-                        Image(systemName: "checklist.checked")
+                        Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 11, weight: .semibold))
                             .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
                             .contentShape(Rectangle())

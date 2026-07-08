@@ -125,7 +125,7 @@ struct PlanReviewSheet: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "checklist.checked")
+            Image(systemName: "doc.text.magnifyingglass")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 28, height: 28)
