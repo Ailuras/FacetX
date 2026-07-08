@@ -1285,7 +1285,8 @@ struct ProjectDetailView: View {
         loading = items.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
-                                     enabledCalendars: settings.effectiveCalendarNames)
+                                     enabledCalendars: settings.effectiveCalendarNames,
+                                     noteCalendarName: settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName))
         store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
         let selectedId = selectionID ?? selectedDetailItem?.id
@@ -1378,7 +1379,7 @@ struct ProjectDetailView: View {
 
     private func createNoteItem(initialDate: Date?) {
         let dataDirectory = project.effectiveDataDirectory
-        let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
+        let calName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
         guard !calName.isEmpty else {
             toast.show(L10n.pick("Choose a calendar first", "请先选择一个日历"), type: .error)
             return

@@ -14,6 +14,7 @@ struct EditProjectView: View {
     @State private var tagline = ""
     @State private var reminderListName = ""
     @State private var calendarName = ""
+    @State private var noteCalendarName = ""
     @State private var weekGoalCalendarName = ""
     @State private var literatureListName = ""
     @State private var dataDirectory = ""
@@ -57,7 +58,7 @@ struct EditProjectView: View {
                 Button(L10n.pick("Save", "保存")) { save() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(trimmedName.isEmpty)
+                    .disabled(trimmedName.isEmpty || !hasDistinctItemSaveLocations)
             }
             .controlSize(.small)
             .padding(.horizontal, 18)
@@ -99,13 +100,14 @@ struct EditProjectView: View {
 
     private var saveLocationsCard: some View {
         ProjectEditorCard(title: L10n.pick("Save Locations", "保存位置"), systemImage: "tray.and.arrow.down") {
-            ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: reminderLists)
-            ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: calendars)
+            ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: reminderLists.filter { $0 != literatureListName })
+            ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: calendars.filter { $0 != noteCalendarName })
+            ProjectEditorPicker(title: L10n.pick("Note Calendar", "笔记日历"), selection: $noteCalendarName, options: calendars.filter { $0 != calendarName })
             ProjectEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: calendars)
-            ProjectEditorPicker(title: L10n.pick("Paper List", "文献列表"), selection: $literatureListName, options: reminderLists)
-            if reminderListName == literatureListName && !reminderListName.isEmpty {
-                ProjectEditorWarning(L10n.pick("Reminders and Paper List should not be the same.",
-                                               "提醒事项列表与文献列表不应相同。"))
+            ProjectEditorPicker(title: L10n.pick("Paper List", "文献列表"), selection: $literatureListName, options: reminderLists.filter { $0 != reminderListName })
+            if !hasDistinctItemSaveLocations {
+                ProjectEditorWarning(L10n.pick("Tasks, events, papers and notes need separate default save targets.",
+                                               "任务、事件、文献和笔记需要使用互不相同的默认保存位置。"))
             }
             Divider().opacity(0.42)
             ProjectEditorDirectoryPicker(title: L10n.pick("Data Folder", "数据目录"), path: $dataDirectory)
@@ -155,6 +157,9 @@ struct EditProjectView: View {
         calendarName = firstAvailable(project.calendarName,
                                       settings.defaultCalendarName,
                                       in: calendars)
+        noteCalendarName = firstAvailable(project.noteCalendarName,
+                                          settings.defaultNoteCalendarName,
+                                          in: calendars)
         weekGoalCalendarName = firstAvailable(project.weekGoalCalendarName,
                                              settings.weekGoalCalendarName,
                                              in: calendars)
@@ -171,6 +176,7 @@ struct EditProjectView: View {
         updated.tagline = tagline.trimmingCharacters(in: .whitespaces)
         updated.reminderListName = reminderListName.isEmpty ? nil : reminderListName
         updated.calendarName = calendarName.isEmpty ? nil : calendarName
+        updated.noteCalendarName = noteCalendarName.isEmpty ? nil : noteCalendarName
         updated.weekGoalCalendarName = weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName
         updated.literatureListName = literatureListName.isEmpty ? nil : literatureListName
         updated.dataDirectory = dataDirectory.isEmpty ? nil : dataDirectory
@@ -186,6 +192,15 @@ struct EditProjectView: View {
         if let preferred, options.contains(preferred) { return preferred }
         if options.contains(fallback) { return fallback }
         return options.first ?? ""
+    }
+
+    private var hasDistinctItemSaveLocations: Bool {
+        !reminderListName.isEmpty
+            && !calendarName.isEmpty
+            && !noteCalendarName.isEmpty
+            && !literatureListName.isEmpty
+            && reminderListName != literatureListName
+            && calendarName != noteCalendarName
     }
 
     private func archive() {

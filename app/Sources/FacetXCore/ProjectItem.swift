@@ -183,7 +183,8 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             itemID: facetID ?? UUID().uuidString,
             paperIDs: linkedPaperIDs,
             commits: linkedCommits,
-            tags: tags
+            tags: tags,
+            kind: isNote ? .note : nil
         )
     }
 

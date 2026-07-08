@@ -82,12 +82,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func items(forProject project: String,
                enabledReminderLists: Set<String>? = nil,
                enabledCalendars: Set<String>? = nil,
+               noteCalendarName: String? = nil,
                eventStartDate: Date? = nil,
                eventEndDate: Date? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
         await items(forProjects: [project],
                     enabledReminderLists: enabledReminderLists,
                     enabledCalendars: enabledCalendars,
+                    noteCalendarByProject: noteCalendarName.nonEmpty.map { [project: $0] } ?? [:],
                     eventStartDate: eventStartDate,
                     eventEndDate: eventEndDate,
                     eventWindowDays: eventWindowDays)
@@ -98,6 +100,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func items(forProjects prefixes: Set<String>,
                enabledReminderLists: Set<String>? = nil,
                enabledCalendars: Set<String>? = nil,
+               noteCalendarByProject: [String: String] = [:],
                eventStartDate: Date? = nil,
                eventEndDate: Date? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
@@ -113,13 +116,22 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             let store = ItemStore.shared
             let states = store.localState(forIDs: rawItems.compactMap(\.facetID))
             return rawItems.map { item in
-                guard let facetID = item.facetID, let state = states[facetID] else { return item }
-                let merged = item.withMergedMetadata(
+                let noteCalendarName = noteCalendarByProject[item.projectPrefix]
+                let isCalendarNote = item.kind == .event && noteCalendarName == item.containerName
+                let classified = item.withMergedMetadata(
+                    notes: item.notes,
+                    tags: item.tags,
+                    paperIDs: item.linkedPaperIDs,
+                    commits: item.linkedCommits,
+                    isNote: item.isNote || isCalendarNote
+                )
+                guard let facetID = classified.facetID, let state = states[facetID] else { return classified }
+                let merged = classified.withMergedMetadata(
                     notes: state.noteBody.isEmpty ? nil : state.noteBody,
                     tags: state.tags,
                     paperIDs: state.paperIDs,
                     commits: state.commits,
-                    isNote: item.kind == .event && state.isNote
+                    isNote: classified.isNote
                 )
                 // Reminders carry native EventKit completion; events/notes have
                 // none, so their completion lives in the local store alongside
@@ -305,7 +317,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                 endDate: e.endDate,
                 facetID: itemMetadata?.itemID,
                 linkedPaperIDs: [],
-                linkedCommits: []
+                linkedCommits: [],
+                isNote: itemMetadata?.kind == .note
             )
         }
     }
@@ -447,7 +460,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     dataDirectory: String?,
                     itemMetadata: FacetItemMetadata? = nil,
                     enabledCalendars: Set<String>? = nil) async -> String? {
-        let metadata = itemMetadata ?? FacetItemMetadata(itemID: UUID().uuidString)
+        let metadata = (itemMetadata ?? FacetItemMetadata(itemID: UUID().uuidString)).withKind(.note)
         let eventId = await createEvent(
             project: project,
             content: content,
@@ -459,7 +472,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         )
         guard eventId != nil else { return nil }
         await MainActor.run {
-            ItemStore.shared.setIsNote(true, for: metadata.itemID)
             if let dataDirectory, !dataDirectory.isEmpty {
                 NoteStore.shared.save(dataDirectory: dataDirectory, facetID: metadata.itemID, body: "")
             }
@@ -481,6 +493,13 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     ItemStore.shared.saveAll(id: stableID, body: "", tags: tgs, paperIDs: papers, commits: cms)
                 }
             }
+        }
+        if let kind = itemMetadata?.kind {
+            let metadata = FacetMetadata(tags: tgs, fields: [
+                "item-id": stableID,
+                "kind": kind.rawValue
+            ])
+            return FacetMetadata.compose(userNotes: "", metadata: metadata)
         }
         return stableID
     }
@@ -739,10 +758,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return false
     }
 
-    /// Replace a task/event notes field with canonical stable item ID.
+    /// Replace a task/event notes field with canonical FacetX item metadata.
     func rewriteItemMetadata(id: String, metadata itemMetadata: FacetItemMetadata) async -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
-        item.notes = itemMetadata.itemID
+        item.notes = composeItemNotes(tags: itemMetadata.tags, itemMetadata: itemMetadata)
 
         do {
             if let reminder = item as? EKReminder {

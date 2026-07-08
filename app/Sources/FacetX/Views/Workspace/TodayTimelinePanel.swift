@@ -96,11 +96,19 @@ struct TodayTimelinePanel: View {
     // MARK: – Reload
 
     private func reload() async {
-        let prefixes = Set(store.activeProjects.map(\.prefix))
+        let projects = store.activeProjects
+        let prefixes = Set(projects.map(\.prefix))
+        let noteCalendarByProject: [String: String] = Dictionary(
+            uniqueKeysWithValues: projects.compactMap { project in
+                let calendarName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
+                return calendarName.isEmpty ? nil : (project.prefix, calendarName)
+            }
+        )
         let fetched = await ek.items(
             forProjects: prefixes,
             enabledReminderLists: settings.effectiveReminderListNames,
-            enabledCalendars: settings.effectiveCalendarNames
+            enabledCalendars: settings.effectiveCalendarNames,
+            noteCalendarByProject: noteCalendarByProject
         )
         items = fetched
     }

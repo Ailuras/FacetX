@@ -73,6 +73,10 @@ check(parsedItemMetadata?.itemID == "12345678-ABCD-EF01-2345-6789ABCDEF01", "ite
 let legacyNotes = "FacetX-Metadata-Begin\nfacetx-kind: item-v1\nitem-id: legacy-id-123\nnote-id: legacy-note-456\nFacetX-Metadata-End"
 let parsedLegacy = FacetItemMetadata.parse(notes: legacyNotes)
 check(parsedLegacy?.itemID == "legacy-id-123", "legacy metadata block parsing should extract item ID")
+let noteKindNotes = "FacetX-Metadata-Begin\nitem-id: note-id-123\nkind: note\nFacetX-Metadata-End"
+let parsedNoteKind = FacetItemMetadata.parse(notes: noteKindNotes)
+check(parsedNoteKind?.itemID == "note-id-123", "note metadata should preserve item ID")
+check(parsedNoteKind?.kind == .note, "note metadata should preserve facet kind")
 let june = MonthYear(year: 2026, month: 6)
 guard let juneStart = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)),
       let juneEnd = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 23)),

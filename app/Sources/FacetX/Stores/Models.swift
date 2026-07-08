@@ -14,6 +14,7 @@ struct Project: Identifiable, Codable, Hashable {
     /// Where new project reminders/events are saved by default.
     var reminderListName: String?
     var calendarName: String?
+    var noteCalendarName: String?
     var weekGoalCalendarName: String?
     var literatureListName: String?
     /// Absolute path to the project's local data folder (markdown notes and
@@ -32,6 +33,7 @@ struct Project: Identifiable, Codable, Hashable {
 
     init(name: String, prefix: String? = nil, tagline: String = "",
          reminderListName: String? = nil, calendarName: String? = nil,
+         noteCalendarName: String? = nil,
          weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
          dataDirectory: String? = nil,
          colorName: String? = nil, iconName: String? = nil,
@@ -41,6 +43,7 @@ struct Project: Identifiable, Codable, Hashable {
         self.tagline = tagline
         self.reminderListName = reminderListName
         self.calendarName = calendarName
+        self.noteCalendarName = noteCalendarName
         self.weekGoalCalendarName = weekGoalCalendarName
         self.literatureListName = literatureListName
         self.dataDirectory = dataDirectory
@@ -113,6 +116,7 @@ final class ProjectStore: ObservableObject {
     @discardableResult
     func createProject(name: String, prefix: String? = nil, tagline: String = "",
                        reminderListName: String? = nil, calendarName: String? = nil,
+                       noteCalendarName: String? = nil,
                        weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
                        dataDirectory: String? = nil,
                        colorName: String? = nil, iconName: String? = nil,
@@ -120,6 +124,7 @@ final class ProjectStore: ObservableObject {
         let maxOrder = projects.map(\.sortOrder).max() ?? -1
         var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
+                              noteCalendarName: noteCalendarName,
                               weekGoalCalendarName: weekGoalCalendarName, literatureListName: literatureListName,
                               dataDirectory: dataDirectory,
                               colorName: colorName, iconName: iconName,

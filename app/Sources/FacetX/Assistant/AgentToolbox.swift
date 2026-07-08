@@ -218,11 +218,20 @@ final class AgentToolbox {
     }
 
     private func fetchItems(prefixes: Set<String>) async throws -> [ProjectItem] {
-        guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
+        guard let eventKit, let settings, let projectStore else { throw ToolError.message("Service unavailable") }
+        let noteCalendarByProject: [String: String] = Dictionary(
+            uniqueKeysWithValues: projectStore.activeProjects
+                .filter { prefixes.contains($0.prefix) }
+                .compactMap { project in
+                    let calendarName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
+                    return calendarName.isEmpty ? nil : (project.prefix, calendarName)
+                }
+        )
         return await eventKit.items(
             forProjects: prefixes,
             enabledReminderLists: settings.effectiveReminderListNames,
-            enabledCalendars: settings.effectiveCalendarNames
+            enabledCalendars: settings.effectiveCalendarNames,
+            noteCalendarByProject: noteCalendarByProject
         )
     }
 
@@ -395,7 +404,7 @@ final class AgentToolbox {
               let body = input["body"] as? String else {
             throw ToolError.message("Missing 'title' or 'body'.")
         }
-        let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
+        let calName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
         guard !calName.isEmpty else {
             throw ToolError.message("No calendar configured for project \(project.name).")
         }

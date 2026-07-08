@@ -3,20 +3,21 @@ import Foundation
 public struct FacetItemMetadata: Equatable, Sendable {
     public var itemID: String
 
-    // For convenience / compatibility with callers, we keep these properties in the struct
-    // so method signatures and initialization don't require churn:
     public var paperIDs: [String]
     public var commits: [String]
     public var tags: [String]
+    public var kind: FacetKind?
 
     public init(itemID: String = UUID().uuidString,
                 paperIDs: [String] = [],
                 commits: [String] = [],
-                tags: [String] = []) {
+                tags: [String] = [],
+                kind: FacetKind? = nil) {
         self.itemID = itemID
         self.paperIDs = Self.normalizedList(paperIDs)
         self.commits = Self.normalizedList(commits)
         self.tags = FacetMetadata.normalizedTags(tags)
+        self.kind = kind
     }
 
     public static func parse(notes: String?) -> FacetItemMetadata? {
@@ -31,7 +32,8 @@ public struct FacetItemMetadata: Equatable, Sendable {
                     itemID: itemID,
                     paperIDs: [],
                     commits: [],
-                    tags: parsed.tags
+                    tags: parsed.tags,
+                    kind: parsed.fields["kind"].flatMap(FacetKind.init(rawValue:))
                 )
             }
         }
@@ -59,6 +61,12 @@ public struct FacetItemMetadata: Equatable, Sendable {
     public func removingCommit(_ id: String) -> FacetItemMetadata {
         var copy = self
         copy.commits.removeAll { $0 == id }
+        return copy
+    }
+
+    public func withKind(_ kind: FacetKind?) -> FacetItemMetadata {
+        var copy = self
+        copy.kind = kind
         return copy
     }
 

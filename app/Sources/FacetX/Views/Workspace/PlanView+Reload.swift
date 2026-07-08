@@ -33,6 +33,7 @@ extension PlanView {
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
                                      enabledCalendars: settings.effectiveCalendarNames,
+                                     noteCalendarName: settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName),
                                      eventStartDate: planEventStartDate,
                                      eventEndDate: planEventEndDate)
         let tieOrder = allItems.isEmpty ? currentManualOrder : allItems.map(\.id)

@@ -31,8 +31,6 @@ final class ItemStore {
         createTablesIfNeeded()
     }
 
-
-
     func exists(id: String) -> Bool {
         let sql = "SELECT 1 FROM items WHERE id = ? LIMIT 1"
         var stmt: OpaquePointer?
@@ -45,45 +43,6 @@ final class ItemStore {
         }
         sqlite3_finalize(stmt)
         return found
-    }
-
-    func isNote(for id: String) -> Bool {
-        let sql = "SELECT is_note FROM items WHERE id = ? LIMIT 1"
-        var stmt: OpaquePointer?
-        var value = false
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-            if sqlite3_step(stmt) == SQLITE_ROW {
-                value = sqlite3_column_int(stmt, 0) != 0
-            }
-        }
-        sqlite3_finalize(stmt)
-        return value
-    }
-
-    func setIsNote(_ isNote: Bool, for id: String) {
-        let sql = """
-        INSERT INTO items (id, is_note, created_at, updated_at, last_seen_at)
-        VALUES (?, ?, datetime('now'), datetime('now'), datetime('now'))
-        ON CONFLICT(id) DO UPDATE SET
-            is_note = excluded.is_note,
-            updated_at = datetime('now'),
-            last_seen_at = datetime('now')
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            persistenceError = databaseError("prepare save is_note")
-            return
-        }
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 2, isNote ? 1 : 0)
-        if sqlite3_step(stmt) == SQLITE_DONE {
-            persistenceError = nil
-            version += 1
-        } else {
-            persistenceError = databaseError("save is_note")
-        }
-        sqlite3_finalize(stmt)
     }
 
     func isPinned(for id: String) -> Bool {
@@ -229,7 +188,6 @@ final class ItemStore {
     struct ItemLocalState {
         var noteBody = ""
         var tags: [String] = []
-        var isNote = false
         var isPinned = false
         var isCompleted = false
         var paperIDs: [String] = []
@@ -250,7 +208,7 @@ final class ItemStore {
             let placeholders = Array(repeating: "?", count: chunk.count).joined(separator: ",")
 
             let itemsSQL = """
-            SELECT id, note_body, tags_json, is_note, pinned, completed
+            SELECT id, note_body, tags_json, pinned, completed
             FROM items WHERE id IN (\(placeholders))
             """
             var stmt: OpaquePointer?
@@ -264,9 +222,8 @@ final class ItemStore {
                     if let data = columnString(stmt, 2).data(using: .utf8) {
                         state.tags = (try? JSONDecoder().decode([String].self, from: data)) ?? []
                     }
-                    state.isNote = sqlite3_column_int(stmt, 3) != 0
-                    state.isPinned = sqlite3_column_int(stmt, 4) != 0
-                    state.isCompleted = sqlite3_column_int(stmt, 5) != 0
+                    state.isPinned = sqlite3_column_int(stmt, 3) != 0
+                    state.isCompleted = sqlite3_column_int(stmt, 4) != 0
                     result[columnString(stmt, 0)] = state
                 }
             }
@@ -535,7 +492,6 @@ final class ItemStore {
             id TEXT PRIMARY KEY,
             note_body TEXT NOT NULL DEFAULT '',
             tags_json TEXT NOT NULL DEFAULT '[]',
-            is_note INTEGER NOT NULL DEFAULT 0,
             pinned INTEGER NOT NULL DEFAULT 0,
             completed INTEGER NOT NULL DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now')),
@@ -580,7 +536,6 @@ final class ItemStore {
         }
         // Migrate older databases that predate these columns. Each ALTER fails
         // harmlessly with "duplicate column" once the column exists.
-        _ = sqlite3_exec(db, "ALTER TABLE items ADD COLUMN is_note INTEGER NOT NULL DEFAULT 0;", nil, nil, nil)
         _ = sqlite3_exec(db, "ALTER TABLE items ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;", nil, nil, nil)
         _ = sqlite3_exec(db, "ALTER TABLE items ADD COLUMN completed INTEGER NOT NULL DEFAULT 0;", nil, nil, nil)
     }

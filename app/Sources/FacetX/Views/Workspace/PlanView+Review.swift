@@ -31,7 +31,7 @@ extension PlanView {
     }
 
     func createWeeklyReviewNote(_ body: String) async -> Bool {
-        let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
+        let calName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
         guard !calName.isEmpty else { return false }
         let stableID = UUID().uuidString
         let title = L10n.pick("Weekly Review \(week.id)", "周回顾 \(week.id)")

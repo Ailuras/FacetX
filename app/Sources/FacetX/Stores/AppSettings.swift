@@ -32,6 +32,9 @@ final class AppSettings: ObservableObject {
     @Published var defaultCalendarName: String {
         didSet { settingsDidChange() }
     }
+    @Published var defaultNoteCalendarName: String {
+        didSet { settingsDidChange() }
+    }
     @Published var weekGoalCalendarName: String {
         didSet { settingsDidChange() }
     }
@@ -154,6 +157,7 @@ final class AppSettings: ObservableObject {
         self.calendarsDisabled = stored.calendarsDisabled
         self.defaultReminderListName = stored.defaultReminderListName
         self.defaultCalendarName = stored.defaultCalendarName
+        self.defaultNoteCalendarName = stored.defaultNoteCalendarName ?? ""
         self.weekGoalCalendarName = stored.weekGoalCalendarName
         self.defaultLiteratureListName = stored.defaultLiteratureListName ?? ""
         self.menuBarEnabled = stored.menuBarEnabled
@@ -230,6 +234,13 @@ final class AppSettings: ObservableObject {
                    enabledNames: enabledCalendarNames)
     }
 
+    func noteCalendarSaveTarget(projectNoteCalendarName: String?) -> String {
+        saveTarget(preferred: projectNoteCalendarName,
+                   fallback: defaultNoteCalendarName,
+                   disabled: calendarsDisabled,
+                   enabledNames: enabledCalendarNames)
+    }
+
     private func saveTarget(preferred: String?, fallback: String,
                             disabled: Bool, enabledNames: Set<String>) -> String {
         guard !disabled else { return "" }
@@ -280,6 +291,7 @@ final class AppSettings: ObservableObject {
         enabledCalendarNames = []
         defaultReminderListName = ""
         defaultCalendarName = ""
+        defaultNoteCalendarName = ""
         weekGoalCalendarName = ""
         defaultLiteratureListName = ""
     }
@@ -321,6 +333,7 @@ final class AppSettings: ObservableObject {
         if enabledCalendarNames.contains(name) { enabledCalendarNames.remove(name) }
         else { enabledCalendarNames.insert(name) }
         if !isCalendarEnabled(defaultCalendarName) { defaultCalendarName = "" }
+        if !isCalendarEnabled(defaultNoteCalendarName) { defaultNoteCalendarName = "" }
         if !isCalendarEnabled(weekGoalCalendarName) { weekGoalCalendarName = "" }
     }
 
@@ -331,6 +344,7 @@ final class AppSettings: ObservableObject {
         var calendarsDisabled: Bool
         var defaultReminderListName: String
         var defaultCalendarName: String
+        var defaultNoteCalendarName: String?
         var weekGoalCalendarName: String
         var defaultLiteratureListName: String?
         var menuBarEnabled: Bool
@@ -362,6 +376,7 @@ final class AppSettings: ObservableObject {
                                      calendarsDisabled: false,
                                      defaultReminderListName: "",
                                      defaultCalendarName: "",
+                                     defaultNoteCalendarName: nil,
                                      weekGoalCalendarName: "",
                                      defaultLiteratureListName: "",
                                      menuBarEnabled: true,
@@ -395,6 +410,7 @@ final class AppSettings: ObservableObject {
                             calendarsDisabled: calendarsDisabled,
                             defaultReminderListName: defaultReminderListName,
                             defaultCalendarName: defaultCalendarName,
+                            defaultNoteCalendarName: defaultNoteCalendarName,
                             weekGoalCalendarName: weekGoalCalendarName,
                             defaultLiteratureListName: defaultLiteratureListName,
                             menuBarEnabled: menuBarEnabled,
