@@ -19,6 +19,9 @@ struct TodayTimelinePanel: View {
 
     // MARK: – Derived
 
+    private var defaultPaperSessionMinutes: Int { 60 }
+    private var defaultNoteSessionMinutes: Int { 45 }
+
     var projectsByPrefix: [String: Project] {
         Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
     }
@@ -231,18 +234,12 @@ struct TodayTimelinePanel: View {
         let sorted = todayTimelineItems.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
             guard let date = item.date else { return nil }
             let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
-            let dur: Double
-            if let end = item.endDate {
-                dur = end.timeIntervalSince(date) / 3600.0
-            } else {
-                dur = 1.0
-            }
-            return (item, h, max(dur, 0.5))
+            return (item, h, max(timelineDurationHours(for: item), 0.5))
         }.sorted { $0.start < $1.start }
 
         var result: [PositionedTimelineItem] = sorted.map { entry in
             let y = (entry.start - startH) * Double(hourHeight)
-            let h = entry.item.kind == .reminder ? 20.0 : entry.duration * Double(hourHeight)
+            let h = entry.item.facetKind == .task ? 20.0 : entry.duration * Double(hourHeight)
             return PositionedTimelineItem(item: entry.item, yOffset: CGFloat(y), height: CGFloat(h))
         }
 
@@ -301,7 +298,7 @@ struct TodayTimelinePanel: View {
         let tint: Color = item.facetKind.color
         let cardBg = isSelected ? tint.opacity(0.16) : tint.opacity(0.12)
         let cardStroke = isSelected ? tint.opacity(0.68) : tint.opacity(0.34)
-        let isReminder = item.kind == .reminder
+        let isCompactMarker = item.facetKind == .task
 
         let gutter: CGFloat = 3
         let columnCount = max(pos.columnCount, 1)
@@ -312,7 +309,7 @@ struct TodayTimelinePanel: View {
             selectedItem = selectedItem?.id == item.id ? nil : item
         } label: {
             Group {
-                if isReminder {
+                if isCompactMarker {
                     Text(item.content)
                         .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
                         .lineLimit(1)
@@ -345,8 +342,8 @@ struct TodayTimelinePanel: View {
                     }
                 }
             }
-            .padding(.horizontal, isReminder ? 6 : 5)
-            .padding(.vertical, isReminder ? 3 : 5)
+            .padding(.horizontal, isCompactMarker ? 6 : 5)
+            .padding(.vertical, isCompactMarker ? 3 : 5)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
@@ -359,7 +356,7 @@ struct TodayTimelinePanel: View {
         }
         .buttonStyle(.plain)
         .id(item.id)
-        .frame(width: cardWidth, height: max(pos.height, isReminder ? 20 : 26), alignment: .topLeading)
+        .frame(width: cardWidth, height: max(pos.height, isCompactMarker ? 20 : 26), alignment: .topLeading)
         .offset(x: xOffset, y: pos.yOffset + (draggingItemID == item.id ? dragOffsetY : 0))
         .simultaneousGesture(
             DragGesture(minimumDistance: 6)
@@ -395,7 +392,7 @@ struct TodayTimelinePanel: View {
     }
 
     private func timeString(for item: ProjectItem, start: Date) -> String {
-        guard let end = item.endDate else {
+        guard let end = timelineEnd(for: item, start: start) else {
             let fmt = DateFormatter()
             fmt.dateFormat = "HH:mm"
             return fmt.string(from: start)
@@ -411,27 +408,48 @@ struct TodayTimelinePanel: View {
         return fmt.string(from: date)
     }
 
+    private func explicitDurationMinutes(for item: ProjectItem) -> Int? {
+        guard !item.isAllDay, let start = item.date, let end = item.endDate, end > start else {
+            return nil
+        }
+        return max(Int((end.timeIntervalSince(start) / 60).rounded()), 15)
+    }
+
+    private func defaultTimelineDurationMinutes(for item: ProjectItem) -> Int? {
+        switch item.facetKind {
+        case .task:
+            return nil
+        case .event:
+            return explicitDurationMinutes(for: item) ?? max(settings.defaultEventDurationMinutes, 15)
+        case .paper:
+            return defaultPaperSessionMinutes
+        case .note:
+            return explicitDurationMinutes(for: item) ?? defaultNoteSessionMinutes
+        }
+    }
+
+    private func timelineDurationHours(for item: ProjectItem) -> Double {
+        guard let minutes = defaultTimelineDurationMinutes(for: item) else {
+            return 0.33
+        }
+        return Double(minutes) / 60.0
+    }
+
+    private func timelineEnd(for item: ProjectItem, start: Date) -> Date? {
+        guard let minutes = defaultTimelineDurationMinutes(for: item) else { return nil }
+        return Calendar.current.date(byAdding: .minute, value: minutes, to: start)
+    }
+
     private func applyOptimisticReschedule(item: ProjectItem, newDate: Date) {
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
-        let newEndDate: Date?
-        if let origStart = item.date, let origEnd = item.endDate {
-            newEndDate = newDate.addingTimeInterval(origEnd.timeIntervalSince(origStart))
-        } else {
-            newEndDate = nil
-        }
+        let newEndDate = timelineEnd(for: item, start: newDate)
         var updated = items
         updated[idx] = item.replacingDate(newDate, endDate: newEndDate, hasTime: true)
         items = updated
     }
 
     private func rescheduleToTime(_ item: ProjectItem, newDate: Date) async {
-        let newEndDate: Date?
-        if let origStart = item.date, let origEnd = item.endDate {
-            let duration = origEnd.timeIntervalSince(origStart)
-            newEndDate = newDate.addingTimeInterval(duration)
-        } else {
-            newEndDate = nil
-        }
+        let newEndDate = timelineEnd(for: item, start: newDate)
         _ = await ek.updateItem(
             id: item.id,
             project: item.projectPrefix,
@@ -477,18 +495,7 @@ struct TodayTimelinePanel: View {
         dropPreview = nil
         guard let item = items.first(where: { $0.id == id }), !item.isCompleted else { return }
 
-        let end: Date?
-        if item.kind == .event {
-            if !item.isAllDay, let s = item.date, let e = item.endDate, e > s {
-                end = start.addingTimeInterval(e.timeIntervalSince(s))
-            } else {
-                end = Calendar.current.date(
-                    byAdding: .minute, value: settings.defaultEventDurationMinutes, to: start
-                )
-            }
-        } else {
-            end = nil
-        }
+        let end = timelineEnd(for: item, start: start)
 
         applyDroppedOptimistic(item: item, start: start, end: end)
         _ = await ek.updateItem(
