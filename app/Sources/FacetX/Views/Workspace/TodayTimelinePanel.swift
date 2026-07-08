@@ -75,9 +75,12 @@ struct TodayTimelinePanel: View {
                   ? "arrow.down.right.and.arrow.up.left"
                   : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
+                .facetHoverSurface(tint: .secondary,
+                                   fill: Color.clear,
+                                   hoverFill: Color.primary.opacity(0.055),
+                                   hoverStroke: FacetTheme.hairline)
         }
         .buttonStyle(.plain)
         .help(isFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")

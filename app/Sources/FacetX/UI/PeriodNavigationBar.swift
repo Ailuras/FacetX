@@ -88,9 +88,12 @@ struct PeriodNavigationBar<Leading: View, Accessory: View>: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
                 .frame(width: 26, height: 24)
                 .contentShape(Rectangle())
+                .facetHoverSurface(tint: .secondary,
+                                   fill: Color.clear,
+                                   hoverFill: Color.primary.opacity(0.055),
+                                   hoverStroke: FacetTheme.hairline)
         }
         .buttonStyle(.plain)
         .help(help)
@@ -100,9 +103,12 @@ struct PeriodNavigationBar<Leading: View, Accessory: View>: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
                 .frame(width: 52, height: 24)
                 .contentShape(Rectangle())
+                .facetHoverSurface(tint: .secondary,
+                                   fill: Color.clear,
+                                   hoverFill: Color.primary.opacity(0.055),
+                                   hoverStroke: FacetTheme.hairline)
         }
         .buttonStyle(.plain)
         .help(help)

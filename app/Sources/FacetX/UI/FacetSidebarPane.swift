@@ -142,9 +142,12 @@ private struct FacetSidebarHeader<Accessory: View>: View {
             Button(action: onClose) {
                 Image(systemName: "sidebar.trailing")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
+                    .facetHoverSurface(tint: .secondary,
+                                       fill: Color.clear,
+                                       hoverFill: Color.primary.opacity(0.055),
+                                       hoverStroke: FacetTheme.hairline)
             }
             .buttonStyle(.plain)
             .help(closeHelp)

@@ -70,10 +70,13 @@ struct FilterPillButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(active ? Color.accentColor : .secondary)
                 .frame(width: 26, height: 24)
-                .background(active ? Color.accentColor.opacity(0.14) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(Rectangle())
+                .facetHoverSurface(tint: active ? Color.accentColor : .secondary,
+                                   fill: active ? Color.accentColor.opacity(0.14) : Color.clear,
+                                   hoverFill: active ? Color.accentColor.opacity(0.20) : Color.primary.opacity(0.055),
+                                   stroke: active ? Color.accentColor.opacity(0.24) : Color.clear,
+                                   hoverStroke: active ? Color.accentColor.opacity(0.38) : FacetTheme.hairline)
         }
         .buttonStyle(.plain)
         .help(help)
@@ -108,11 +111,13 @@ struct ItemFilterMenuButton: View {
         } label: {
             Image(systemName: itemFilter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(itemFilter.isActive ? Color.accentColor : .secondary)
                 .frame(width: 26, height: 24)
-                .background(itemFilter.isActive ? Color.accentColor.opacity(0.14) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .contentShape(Rectangle())
+                .facetHoverSurface(tint: itemFilter.isActive ? Color.accentColor : .secondary,
+                                   fill: itemFilter.isActive ? Color.accentColor.opacity(0.14) : Color.clear,
+                                   hoverFill: itemFilter.isActive ? Color.accentColor.opacity(0.20) : Color.primary.opacity(0.055),
+                                   stroke: itemFilter.isActive ? Color.accentColor.opacity(0.24) : Color.clear,
+                                   hoverStroke: itemFilter.isActive ? Color.accentColor.opacity(0.38) : FacetTheme.hairline)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -244,9 +249,12 @@ struct ItemActionCluster<Accessory: View>: View {
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
                 .frame(width: 26, height: FacetTheme.chipHeight)
                 .contentShape(Rectangle())
+                .facetHoverSurface(tint: .secondary,
+                                   fill: Color.clear,
+                                   hoverFill: Color.primary.opacity(0.055),
+                                   hoverStroke: FacetTheme.hairline)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)

@@ -75,9 +75,15 @@ extension PlanView {
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 10, weight: .medium))
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+                    .facetHoverSurface(tint: .secondary,
+                                       fill: Color.clear,
+                                       hoverFill: Color.primary.opacity(0.055),
+                                       hoverStroke: FacetTheme.hairline,
+                                       cornerRadius: 5)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
             .help(L10n.language == "zh" ? "为 \(group.label) 添加条目" : "Add item for \(group.label)")
         }
         .padding(.vertical, 4)

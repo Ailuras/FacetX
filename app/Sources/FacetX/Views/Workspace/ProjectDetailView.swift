@@ -363,9 +363,12 @@ struct ProjectDetailView: View {
         } label: {
             Image(systemName: detailFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
+                .facetHoverSurface(tint: .secondary,
+                                   fill: Color.clear,
+                                   hoverFill: Color.primary.opacity(0.055),
+                                   hoverStroke: FacetTheme.hairline)
         }
         .buttonStyle(.plain)
         .help(detailFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")
@@ -484,11 +487,13 @@ struct ProjectDetailView: View {
         } label: {
             Image(systemName: sortOption.systemImage)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(sortOption == .manual ? .secondary : Color.accentColor)
                 .frame(width: 26, height: 24)
-                .background(sortOption == .manual ? Color.clear : Color.accentColor.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .contentShape(Rectangle())
+                .facetHoverSurface(tint: sortOption == .manual ? .secondary : Color.accentColor,
+                                   fill: sortOption == .manual ? Color.clear : Color.accentColor.opacity(0.14),
+                                   hoverFill: sortOption == .manual ? Color.primary.opacity(0.055) : Color.accentColor.opacity(0.20),
+                                   stroke: sortOption == .manual ? Color.clear : Color.accentColor.opacity(0.24),
+                                   hoverStroke: sortOption == .manual ? FacetTheme.hairline : Color.accentColor.opacity(0.38))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -733,9 +738,13 @@ struct ProjectDetailView: View {
             } label: {
                 Image(systemName: "checkmark")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.secondary)
                     .frame(width: 20, height: 20)
                     .contentShape(Rectangle())
+                    .facetHoverSurface(tint: entry.item.rowTint,
+                                       fill: Color.clear,
+                                       hoverFill: entry.item.rowTint.opacity(0.12),
+                                       hoverStroke: entry.item.rowTint.opacity(0.30),
+                                       cornerRadius: 5)
             }
             .buttonStyle(.plain)
             .help(L10n.pick("Mark complete", "标记完成"))
@@ -746,9 +755,13 @@ struct ProjectDetailView: View {
                 } label: {
                     Image(systemName: "calendar")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
                         .frame(width: 20, height: 20)
                         .contentShape(Rectangle())
+                        .facetHoverSurface(tint: entry.item.rowTint,
+                                           fill: Color.clear,
+                                           hoverFill: entry.item.rowTint.opacity(0.12),
+                                           hoverStroke: entry.item.rowTint.opacity(0.30),
+                                           cornerRadius: 5)
                 }
                 .buttonStyle(.plain)
                 .help(L10n.pick("Schedule today", "安排到今天"))

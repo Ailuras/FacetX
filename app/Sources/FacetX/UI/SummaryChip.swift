@@ -13,12 +13,14 @@ struct SummaryChip: View {
     var isActive: Bool = false
     var help: String? = nil
     var onTap: (() -> Void)? = nil
+    @State private var isHovered = false
 
     var body: some View {
         if let onTap {
             Button(action: onTap) { pill }
                 .buttonStyle(.plain)
                 .hoverCursor(.pointingHand)
+                .onHover { isHovered = $0 }
                 .help(help ?? "")
         } else {
             pill
@@ -42,8 +44,22 @@ struct SummaryChip: View {
         .padding(.horizontal, 8)
         .frame(height: FacetTheme.chipHeight)
         .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(isActive ? (tint ?? .accentColor).opacity(0.14) : FacetTheme.quietPanel))
+            .fill(summaryFill))
         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .stroke(isActive ? (tint ?? .accentColor).opacity(0.34) : FacetTheme.hairline, lineWidth: 1))
+            .stroke(summaryStroke, lineWidth: 1))
+    }
+
+    private var summaryFill: Color {
+        let color = tint ?? .accentColor
+        if isActive { return color.opacity(isHovered ? 0.18 : 0.14) }
+        if isHovered { return Color.primary.opacity(0.055) }
+        return FacetTheme.quietPanel
+    }
+
+    private var summaryStroke: Color {
+        let color = tint ?? .accentColor
+        if isActive { return color.opacity(isHovered ? 0.44 : 0.34) }
+        if isHovered { return color.opacity(0.24) }
+        return FacetTheme.hairline
     }
 }

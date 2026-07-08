@@ -137,10 +137,12 @@ extension PlanView {
         } label: {
             Image(systemName: systemImage)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
                 .frame(width: 26, height: FacetTheme.chipHeight)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(Rectangle())
+                .facetHoverSurface(tint: .secondary,
+                                   fill: Color.primary.opacity(0.04),
+                                   hoverFill: FacetKind.task.color.opacity(0.12),
+                                   hoverStroke: FacetKind.task.color.opacity(0.30))
         }
         .buttonStyle(.plain)
         .help(L10n.pick("Schedule to \(title)", "安排到\(title)"))
