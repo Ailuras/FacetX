@@ -125,7 +125,7 @@ extension PlanView {
                 selectWeek(containing: date)
                 onCreateItem(date)
             }
-            .onDrop(of: [.text], delegate: dayDropDelegate(for: date, calendar: MonthYear.calendar))
+            .onDrop(of: ItemDragHelpers.acceptedTypes, delegate: dayDropDelegate(for: date, calendar: MonthYear.calendar))
             .help(monthCellHelp(for: date, load: load))
         )
     }

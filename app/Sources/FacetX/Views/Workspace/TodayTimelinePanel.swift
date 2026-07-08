@@ -194,7 +194,7 @@ struct TodayTimelinePanel: View {
                     }
                     .frame(height: totalHeight)
                     .frame(maxWidth: .infinity)
-                    .onDrop(of: [.text], delegate: TimelineDropDelegate(
+                    .onDrop(of: ItemDragHelpers.acceptedTypes, delegate: TimelineDropDelegate(
                         startHour: startHour,
                         endHour: endHour,
                         hourHeight: hourHeight,
@@ -450,6 +450,19 @@ struct TodayTimelinePanel: View {
     /// Resolve the dragged item id off the provider, then schedule it onto
     /// today at `date`. The All list registers each row as an `NSString` id.
     private func handleTimelineDrop(provider: NSItemProvider, date: Date) {
+        if provider.hasItemConformingToTypeIdentifier(UTType.facetXProjectItem.identifier) {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.facetXProjectItem.identifier) { data, _ in
+                if let data,
+                   let mention = try? JSONDecoder().decode(AssistantItemMention.self, from: data) {
+                    Task { @MainActor in await scheduleDroppedItem(id: mention.eventKitID, at: date) }
+                }
+            }
+            return
+        }
+        loadPlainTimelineDrop(provider: provider, date: date)
+    }
+
+    private func loadPlainTimelineDrop(provider: NSItemProvider, date: Date) {
         provider.loadObject(ofClass: NSString.self) { object, _ in
             guard let id = object as? String else { return }
             Task { @MainActor in await scheduleDroppedItem(id: id, at: date) }
@@ -529,7 +542,7 @@ private struct TimelineDropDelegate: DropDelegate {
     let onCommit: (NSItemProvider, Date) -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
-        info.hasItemsConforming(to: [.text])
+        info.hasItemsConforming(to: ItemDragHelpers.acceptedTypes)
     }
 
     func dropEntered(info: DropInfo) { updatePreview(info) }
@@ -546,9 +559,18 @@ private struct TimelineDropDelegate: DropDelegate {
         // dropped as SwiftUI tears down the drag-tracking transaction, which would
         // leave the time guide stranded after a successful drop.
         DispatchQueue.main.async { onPreview(nil) }
-        guard let provider = info.itemProviders(for: [.text]).first else { return false }
+        guard let provider = itemProvider(from: info) else { return false }
         onCommit(provider, snappedDate(forY: info.location.y))
         return true
+    }
+
+    private func itemProvider(from info: DropInfo) -> NSItemProvider? {
+        for type in ItemDragHelpers.acceptedTypes {
+            if let provider = info.itemProviders(for: [type]).first {
+                return provider
+            }
+        }
+        return nil
     }
 
     private func updatePreview(_ info: DropInfo) {

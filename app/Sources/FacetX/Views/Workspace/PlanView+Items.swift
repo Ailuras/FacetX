@@ -85,7 +85,7 @@ extension PlanView {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .background(dayDropHighlight(isDropTarget, fill: 0.10))
-        .onDrop(of: [.text], delegate: dayDropDelegate(for: group.date, calendar: cal))
+        .onDrop(of: ItemDragHelpers.acceptedTypes, delegate: dayDropDelegate(for: group.date, calendar: cal))
     }
 
     @ViewBuilder
@@ -119,7 +119,7 @@ extension PlanView {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .background(dayDropHighlight(isDropTarget, fill: 0.06))
-            .onDrop(of: [.text], delegate: dayDropDelegate(for: group.date, calendar: cal))
+            .onDrop(of: ItemDragHelpers.acceptedTypes, delegate: dayDropDelegate(for: group.date, calendar: cal))
     }
 
     private func dayDropHighlight(_ active: Bool, fill: Double) -> some View {
@@ -181,7 +181,7 @@ extension PlanView {
                 itemToDelete = item
             }
         )
-        .onDrop(of: [.text], delegate: PlanItemDropDelegate(
+        .onDrop(of: ItemDragHelpers.acceptedTypes, delegate: PlanItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
             onEntered: { dragged, target in

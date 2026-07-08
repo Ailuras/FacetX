@@ -56,6 +56,8 @@ enum ItemSelectionHelpers {
 }
 
 enum ItemDragHelpers {
+    static let acceptedTypes: [UTType] = [.facetXProjectItem, .plainText, .text]
+
     static func startDrag(
         item: ProjectItem,
         items: [ProjectItem],
@@ -80,6 +82,15 @@ enum ItemDragHelpers {
         RunLoop.main.add(timer, forMode: .common)
 
         let provider = NSItemProvider(object: item.id as NSString)
+        if let data = item.id.data(using: .utf8) {
+            provider.registerDataRepresentation(
+                forTypeIdentifier: UTType.plainText.identifier,
+                visibility: .all
+            ) { completion in
+                completion(data, nil)
+                return nil
+            }
+        }
         let mention = AssistantItemMention(item: item)
         if let data = try? JSONEncoder().encode(mention) {
             provider.registerDataRepresentation(

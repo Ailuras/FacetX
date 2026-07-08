@@ -609,8 +609,7 @@ struct ProjectDetailView: View {
     }
 
     private func focusEntry(for item: ProjectItem, goalTokens: Set<String>) -> FocusQueueEntry? {
-        guard !item.isCompleted,
-              item.facetKind == .task || item.facetKind == .event else { return nil }
+        guard !item.isCompleted else { return nil }
 
         var score = 0
         var reasons: [String] = []
@@ -622,7 +621,7 @@ struct ProjectDetailView: View {
             reasons.append(L10n.pick("Pinned", "置顶"))
         }
         if item.isOverdue {
-            score += 90
+            score += 110
             reasons.append(L10n.pick("Overdue", "逾期"))
         }
         if let date = item.date {
@@ -635,8 +634,8 @@ struct ProjectDetailView: View {
                 score += 28
                 reasons.append(L10n.pick("Soon", "近期"))
             }
-        } else if item.facetKind == .task {
-            score += 16
+        } else {
+            score += 52
             reasons.append(L10n.pick("Unscheduled", "未安排"))
         }
 
@@ -939,7 +938,7 @@ struct ProjectDetailView: View {
                 itemToDelete = item
             }
         )
-        .onDrop(of: [.text], delegate: ItemDropDelegate(
+        .onDrop(of: ItemDragHelpers.acceptedTypes, delegate: ItemDropDelegate(
             item: item,
             draggedItem: $draggedItem,
             onEntered: { dragged, target in previewDropEntered(dragged: dragged, target: target) },
