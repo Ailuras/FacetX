@@ -37,6 +37,7 @@ struct ProjectDetailView: View {
     @State private var sortOption: SortOption = .manual
     @State private var itemFilter = ItemListFilter()
     @State private var noteStore = ItemStore.shared
+    @State private var showingFocusQueuePopover = false
     /// Element-type sections collapsed in the All view (header click or badge isolate).
     @State private var collapsedKinds: Set<FacetKind> = []
     /// When true the detail pane hides the middle list and fills the area.
@@ -90,10 +91,47 @@ struct ProjectDetailView: View {
         ItemQuery.counts(for: items)
     }
 
+    private enum FocusQueueBucket: CaseIterable, Hashable, Identifiable {
+        case overdue
+        case unscheduled
+        case today
+        case soon
+        case goal
+        case pinned
+        case other
+
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .overdue: return L10n.pick("Overdue", "逾期")
+            case .unscheduled: return L10n.pick("Unscheduled", "未安排")
+            case .today: return L10n.pick("Today", "今天")
+            case .soon: return L10n.pick("Soon", "近期")
+            case .goal: return L10n.pick("Goal", "目标相关")
+            case .pinned: return L10n.pick("Pinned", "置顶")
+            case .other: return L10n.pick("Next", "下一步")
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .overdue: return "clock.badge.exclamationmark"
+            case .unscheduled: return "tray"
+            case .today: return "sun.max"
+            case .soon: return "calendar"
+            case .goal: return "target"
+            case .pinned: return "pin"
+            case .other: return "scope"
+            }
+        }
+    }
+
     private struct FocusQueueEntry: Identifiable {
         let item: ProjectItem
         let score: Int
         let reasons: [String]
+        let bucket: FocusQueueBucket
 
         var id: String { item.id }
     }
@@ -599,8 +637,21 @@ struct ProjectDetailView: View {
                 case (nil, nil): return lhs.item.content < rhs.item.content
                 }
             }
-            .prefix(5)
-            .map { $0 }
+    }
+
+    private var inlineFocusQueueEntries: [FocusQueueEntry] {
+        Array(focusQueueEntries.prefix(3))
+    }
+
+    private var remainingFocusQueueEntries: [FocusQueueEntry] {
+        Array(focusQueueEntries.dropFirst(3))
+    }
+
+    private var remainingFocusQueueGroups: [(bucket: FocusQueueBucket, entries: [FocusQueueEntry])] {
+        FocusQueueBucket.allCases.compactMap { bucket in
+            let entries = remainingFocusQueueEntries.filter { $0.bucket == bucket }
+            return entries.isEmpty ? nil : (bucket, entries)
+        }
     }
 
     private var focusGoalTokens: Set<String> {
@@ -620,6 +671,9 @@ struct ProjectDetailView: View {
         var reasons: [String] = []
         let calendar = Calendar.current
         let now = Date()
+        var isToday = false
+        var isSoon = false
+        var isGoalMatched = false
 
         if item.isPinned {
             score += 100
@@ -631,11 +685,13 @@ struct ProjectDetailView: View {
         }
         if let date = item.date {
             if calendar.isDateInToday(date) {
+                isToday = true
                 score += 80
                 reasons.append(L10n.pick("Today", "今天"))
             } else if date > now,
                       let soon = calendar.date(byAdding: .day, value: 7, to: calendar.startOfDay(for: now)),
                       date < soon {
+                isSoon = true
                 score += 28
                 reasons.append(L10n.pick("Soon", "近期"))
             }
@@ -658,12 +714,28 @@ struct ProjectDetailView: View {
         }
 
         if !goalTokens.isEmpty, itemMatchesGoal(item, tokens: goalTokens) {
+            isGoalMatched = true
             score += 36
             reasons.append(L10n.pick("Goal", "目标相关"))
         }
 
         guard score > 0 else { return nil }
-        return FocusQueueEntry(item: item, score: score, reasons: Array(reasons.prefix(3)))
+        return FocusQueueEntry(
+            item: item,
+            score: score,
+            reasons: Array(reasons.prefix(3)),
+            bucket: focusBucket(for: item, isToday: isToday, isSoon: isSoon, isGoalMatched: isGoalMatched)
+        )
+    }
+
+    private func focusBucket(for item: ProjectItem, isToday: Bool, isSoon: Bool, isGoalMatched: Bool) -> FocusQueueBucket {
+        if item.isOverdue { return .overdue }
+        if item.date == nil { return .unscheduled }
+        if isToday { return .today }
+        if isSoon { return .soon }
+        if isGoalMatched { return .goal }
+        if item.isPinned { return .pinned }
+        return .other
     }
 
     private func itemMatchesGoal(_ item: ProjectItem, tokens: Set<String>) -> Bool {
@@ -687,10 +759,13 @@ struct ProjectDetailView: View {
                     .background(Color.accentColor.opacity(0.12))
                     .clipShape(Capsule())
                 Spacer()
+                if !remainingFocusQueueEntries.isEmpty {
+                    focusQueueMoreButton
+                }
             }
 
             FlowLayout(spacing: 8, lineSpacing: 8, alignment: .leading) {
-                ForEach(focusQueueEntries) { entry in
+                ForEach(inlineFocusQueueEntries) { entry in
                     focusQueueChip(entry)
                 }
             }
@@ -701,6 +776,163 @@ struct ProjectDetailView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
+    }
+
+    private var focusQueueMoreButton: some View {
+        Button {
+            showingFocusQueuePopover.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Text("+\(remainingFocusQueueEntries.count)")
+                    .font(.system(size: 10, weight: .bold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .frame(height: FacetTheme.chipHeight)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
+            .facetHoverSurface(tint: Color.accentColor,
+                               fill: Color.accentColor.opacity(0.10),
+                               hoverFill: Color.accentColor.opacity(0.16),
+                               stroke: Color.accentColor.opacity(0.20),
+                               hoverStroke: Color.accentColor.opacity(0.36))
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showingFocusQueuePopover, arrowEdge: .bottom) {
+            focusQueuePopover
+        }
+        .help(L10n.pick("Show more next actions", "显示更多下一步"))
+    }
+
+    private var focusQueuePopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Label(L10n.pick("Next Actions", "下一步"), systemImage: "scope")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Text("\(focusQueueEntries.count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(remainingFocusQueueGroups, id: \.bucket) { group in
+                        focusQueuePopoverGroup(bucket: group.bucket, entries: group.entries)
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+            .frame(maxHeight: 340)
+            .thinScrollIndicators()
+        }
+        .padding(12)
+        .frame(width: 440)
+        .background(FacetTheme.canvas)
+    }
+
+    private func focusQueuePopoverGroup(bucket: FocusQueueBucket, entries: [FocusQueueEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: bucket.systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(bucket.title)
+                    .font(.system(size: 10, weight: .semibold))
+                Text("\(entries.count)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(.secondary)
+
+            VStack(spacing: 6) {
+                ForEach(entries) { entry in
+                    focusQueuePopoverRow(entry)
+                }
+            }
+        }
+    }
+
+    private func focusQueuePopoverRow(_ entry: FocusQueueEntry) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(detailPaneAnimation) {
+                    selectedDetailItem = entry.item
+                    showingFocusQueuePopover = false
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Image(systemName: entry.item.facetKind.systemImage)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(entry.item.rowTint)
+                        Text(entry.item.content)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    HStack(spacing: 5) {
+                        ForEach(entry.reasons, id: \.self) { reason in
+                            Text(reason)
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .foregroundStyle(entry.item.rowTint)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(entry.item.rowTint.opacity(0.11))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .help(L10n.pick("Open item", "打开条目"))
+
+            focusQueueActionButton(systemImage: "checkmark",
+                                   tint: entry.item.rowTint,
+                                   help: L10n.pick("Mark complete", "标记完成")) {
+                Task { await completeFocusItem(entry.item) }
+            }
+
+            if !isToday(entry.item) {
+                focusQueueActionButton(systemImage: "calendar",
+                                       tint: entry.item.rowTint,
+                                       help: L10n.pick("Schedule today", "安排到今天")) {
+                    Task { await scheduleFocusItemToday(entry.item) }
+                }
+            }
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 8)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(entry.item.rowTint.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private func focusQueueActionButton(systemImage: String,
+                                        tint: Color,
+                                        help: String,
+                                        action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 9, weight: .semibold))
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+                .facetHoverSurface(tint: tint,
+                                   fill: Color.clear,
+                                   hoverFill: tint.opacity(0.12),
+                                   hoverStroke: tint.opacity(0.30),
+                                   cornerRadius: 5)
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     private func focusQueueChip(_ entry: FocusQueueEntry) -> some View {
