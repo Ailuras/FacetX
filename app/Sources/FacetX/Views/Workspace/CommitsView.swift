@@ -57,6 +57,7 @@ struct CommitsView: View {
     @State private var isAutosaving = false
     @State private var fileCommits: [LocalGitCommit] = []
     @State private var isLoadingFileCommits = false
+    @State private var showingHistoryPopover = false
     @StateObject private var editorController = MarkdownEditorController()
 
     @State private var hoveredDocID: String? = nil
@@ -176,10 +177,11 @@ struct CommitsView: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .semibold))
-                            .frame(width: 22, height: 22)
+                            .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
                             .contentShape(Rectangle())
-                            .facetHoverSurface(tint: .secondary, fill: .clear,
-                                               hoverFill: Color.primary.opacity(0.055),
+                            .facetHoverSurface(tint: .secondary,
+                                               fill: Color.primary.opacity(0.04),
+                                               hoverFill: Color.primary.opacity(0.07),
                                                hoverStroke: FacetTheme.hairline)
                     }
                     .buttonStyle(.plain)
@@ -328,7 +330,7 @@ struct CommitsView: View {
                 .font(.system(size: 13, weight: .semibold))
             Text(L10n.pick(
                 "Initialize the docs area to create a project-specific workspace folder inside this repository.",
-                "初始化文档以在该仓库中创建专属的规划空间。"))
+                "初始化文档以在该仓库中创建专属 of 规划空间。"))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -369,28 +371,16 @@ struct CommitsView: View {
                                     autosave(newText)
                                 }
                         } else {
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 20) {
-                                    if editorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        Text(L10n.pick("Empty document. Switch to Edit to write.",
-                                                       "空文档。请切换至编辑模式书写。"))
-                                            .font(.system(size: 13))
-                                            .foregroundStyle(.tertiary)
-                                            .frame(maxWidth: .infinity, alignment: .center)
-                                            .padding(.vertical, 80)
-                                    } else {
-                                        MarkdownPreviewWeb(text: editorText, fullWidth: true)
-                                            .frame(minHeight: 500)
-                                            .id(doc.id + "-\(editorText.hashValue)")
-                                    }
-                                    
-                                    // File commit history section embedded inside the sheet!
-                                    if !fileCommits.isEmpty {
-                                        Divider()
-                                        fileRevisionHistorySection
-                                    }
-                                }
-                                .padding(32)
+                            if editorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text(L10n.pick("Empty document. Switch to Edit to write.",
+                                               "空文档。请切换至编辑模式书写。"))
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                            } else {
+                                MarkdownPreviewWeb(text: editorText, fullWidth: true)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .id(doc.id + "-\(editorText.hashValue)")
                             }
                         }
                     }
@@ -433,8 +423,16 @@ struct CommitsView: View {
 
             // File metrics
             HStack(spacing: 8) {
-                FacetInfoBadge(text: L10n.pick("\(wordCount) words", "\(wordCount) 字"), systemImage: "text.alignleft", tint: .secondary, fill: Color.secondary.opacity(0.06))
-                FacetInfoBadge(text: fileSizeString, systemImage: "doc.circle", tint: .secondary, fill: Color.secondary.opacity(0.06))
+                FacetInfoBadge(text: L10n.pick("\(wordCount) words", "\(wordCount) 字"),
+                               systemImage: "text.alignleft",
+                               tint: .secondary,
+                               fill: Color.primary.opacity(0.04))
+                
+                // File Size Badge
+                FacetInfoBadge(text: fileSizeString,
+                               systemImage: "doc.circle",
+                               tint: .secondary,
+                               fill: Color.primary.opacity(0.04))
             }
 
             if isAutosaving {
@@ -447,19 +445,39 @@ struct CommitsView: View {
                     .foregroundStyle(.orange)
             }
 
-            // Actions
-            HStack(spacing: 4) {
+            // Actions - all styled uniformly using PlanView's chip style
+            HStack(spacing: 8) {
+                // Revision History Button (Popover)
+                Button {
+                    showingHistoryPopover = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                        .contentShape(Rectangle())
+                        .facetHoverSurface(tint: .secondary,
+                                           fill: Color.primary.opacity(0.04),
+                                           hoverFill: Color.primary.opacity(0.07),
+                                           hoverStroke: FacetTheme.hairline)
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Revision History", "版本历史"))
+                .popover(isPresented: $showingHistoryPopover, arrowEdge: .bottom) {
+                    fileHistoryPopoverContent
+                }
+
                 // Export menu button
                 Menu {
                     Button(L10n.pick("Export to Markdown", "导出为 Markdown")) { exportToMarkdown() }
                     Button(L10n.pick("Export to PDF", "导出为 PDF")) { exportToPDF() }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 11))
-                        .frame(width: 24, height: 22)
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
                         .contentShape(Rectangle())
-                        .facetHoverSurface(tint: .secondary, fill: .clear,
-                                           hoverFill: Color.primary.opacity(0.055),
+                        .facetHoverSurface(tint: .secondary,
+                                           fill: Color.primary.opacity(0.04),
+                                           hoverFill: Color.primary.opacity(0.07),
                                            hoverStroke: FacetTheme.hairline)
                 }
                 .menuStyle(.borderlessButton)
@@ -467,15 +485,17 @@ struct CommitsView: View {
                 .fixedSize()
                 .help(L10n.pick("Export Document", "导出文档"))
 
+                // Reveal in Finder button
                 Button {
                     revealSelectedDocument()
                 } label: {
                     Image(systemName: "arrow.up.forward.app")
-                        .font(.system(size: 11))
-                        .frame(width: 24, height: 22)
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
                         .contentShape(Rectangle())
-                        .facetHoverSurface(tint: .secondary, fill: .clear,
-                                           hoverFill: Color.primary.opacity(0.055),
+                        .facetHoverSurface(tint: .secondary,
+                                           fill: Color.primary.opacity(0.04),
+                                           hoverFill: Color.primary.opacity(0.07),
                                            hoverStroke: FacetTheme.hairline)
                 }
                 .buttonStyle(.plain)
@@ -487,17 +507,19 @@ struct CommitsView: View {
                         fullWidth.toggle()
                     } label: {
                         Image(systemName: fullWidth ? "arrow.right.and.line.vertical.and.arrow.left" : "arrow.left.and.line.vertical.and.arrow.right")
-                            .font(.system(size: 11))
-                            .frame(width: 24, height: 22)
+                            .font(.system(size: 11, weight: .semibold))
+                            .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
                             .contentShape(Rectangle())
-                            .facetHoverSurface(tint: .secondary, fill: .clear,
-                                               hoverFill: Color.primary.opacity(0.055),
+                            .facetHoverSurface(tint: .secondary,
+                                               fill: Color.primary.opacity(0.04),
+                                               hoverFill: Color.primary.opacity(0.07),
                                                hoverStroke: FacetTheme.hairline)
                     }
                     .buttonStyle(.plain)
                     .help(fullWidth ? L10n.pick("Constrain Width", "限制宽度") : L10n.pick("Full Width", "全宽显示"))
                 }
 
+                // Edit/Preview Picker
                 Picker("", selection: $editing) {
                     Text(L10n.pick("Preview", "预览")).tag(false)
                     Text(L10n.pick("Edit", "编辑")).tag(true)
@@ -510,6 +532,76 @@ struct CommitsView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private var fileHistoryPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.pick("Revision History", "版本历史"))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+            
+            Divider()
+            
+            if isLoadingFileCommits {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+            } else if fileCommits.isEmpty {
+                Text(L10n.pick("No revisions detected.", "暂无版本修改记录。"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+                    .padding(16)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(fileCommits.indices, id: \.self) { index in
+                            let commit = fileCommits[index]
+                            HStack(alignment: .top, spacing: 8) {
+                                Circle()
+                                    .fill(Color.purple.opacity(0.6))
+                                    .frame(width: 5, height: 5)
+                                    .padding(.top, 4)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(commit.summary)
+                                        .font(.system(size: 11.5, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                    
+                                    HStack(spacing: 6) {
+                                        Text(commit.shortSHA)
+                                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                            .foregroundStyle(Color.purple.opacity(0.8))
+                                        Text("·")
+                                            .foregroundStyle(.tertiary)
+                                        Text(commit.authorName)
+                                            .font(.system(size: 9.5))
+                                            .foregroundStyle(.secondary)
+                                        Text("·")
+                                            .foregroundStyle(.tertiary)
+                                        Text(relativeDate(commit.date))
+                                            .font(.system(size: 9.5))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            
+                            if index != fileCommits.count - 1 {
+                                Divider().padding(.leading, 28)
+                            }
+                        }
+                    }
+                }
+                .thinScrollIndicators()
+                .frame(width: 320, height: 260)
+            }
+        }
     }
 
     private var formattingToolbar: some View {
@@ -539,55 +631,6 @@ struct CommitsView: View {
         }
         .buttonStyle(.plain)
         .help(help)
-    }
-
-    private var fileRevisionHistorySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(L10n.pick("Revision History", "版本历史"), systemImage: "clock.arrow.circlepath")
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            VStack(spacing: 0) {
-                ForEach(fileCommits) { commit in
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(Color.purple.opacity(0.5))
-                            .frame(width: 6, height: 6)
-
-                        Text(commit.shortSHA)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Color.purple.opacity(0.8))
-
-                        Text(commit.summary)
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        Spacer()
-
-                        Text(commit.authorName)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-
-                        Text(relativeDate(commit.date))
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    
-                    if commit.id != fileCommits.last?.id {
-                        Divider().padding(.leading, 14)
-                    }
-                }
-            }
-            .background(Color.primary.opacity(0.02))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(FacetTheme.hairline, lineWidth: 1)
-            )
-        }
     }
 
     // MARK: - Actions & Loading
