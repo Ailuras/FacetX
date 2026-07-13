@@ -224,7 +224,7 @@ struct PlanView: View {
                 goal: goal,
                 items: weekReviewItems,
                 onCarryOpenTasks: carryOpenTasksToNextWeek,
-                onCreateWeeklyNote: createWeeklyReviewNote
+                onCreateWeeklyDocument: createWeeklyReviewDocument
             )
             .environmentObject(settings)
         }

@@ -1,5 +1,12 @@
+import AppKit
 import FacetXCore
 import SwiftUI
+
+enum WeeklyReviewDocumentResult {
+    case created
+    case openedExisting
+    case failed
+}
 
 extension PlanView {
     func carryOpenTasksToNextWeek(_ tasks: [ProjectItem]) async -> Int {
@@ -30,28 +37,29 @@ extension PlanView {
         return moved
     }
 
-    func createWeeklyReviewNote(_ body: String) async -> Bool {
-        let calName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
-        guard !calName.isEmpty else { return false }
-        let stableID = UUID().uuidString
-        let title = L10n.pick("Weekly Review \(week.id)", "周回顾 \(week.id)")
-        let eventId = await ek.createNote(
-            project: project.prefix,
-            content: title,
-            calendarName: calName,
-            startDate: week.endDate.addingTimeInterval(-1),
-            dataDirectory: settings.noteDataDirectory(for: project),
-            itemMetadata: FacetItemMetadata(itemID: stableID),
-            enabledCalendars: settings.effectiveCalendarNames
-        )
-        guard eventId != nil else { return false }
-        let saved = NoteStore.shared.save(
-            dataDirectory: settings.noteDataDirectory(for: project),
-            facetID: stableID,
-            body: body
-        )
-        await reload()
-        return saved
+    func createWeeklyReviewDocument(_ body: String) async -> WeeklyReviewDocumentResult {
+        let relativePath = ".facetx/review-\(week.id).md"
+        do {
+            let existed = RepositoryDocumentStore.exists(
+                repositoryPath: project.githubLocalPath,
+                relativePath: relativePath
+            )
+            if !existed {
+                try RepositoryDocumentStore.save(
+                    repositoryPath: project.githubLocalPath,
+                    relativePath: relativePath,
+                    body: body
+                )
+            }
+            let url = try RepositoryDocumentStore.url(
+                repositoryPath: project.githubLocalPath,
+                relativePath: relativePath
+            )
+            NSWorkspace.shared.open(url)
+            return existed ? .openedExisting : .created
+        } catch {
+            return .failed
+        }
     }
 }
 
@@ -64,13 +72,13 @@ struct PlanReviewSheet: View {
     let goal: WeekGoal?
     let items: [ProjectItem]
     let onCarryOpenTasks: ([ProjectItem]) async -> Int
-    let onCreateWeeklyNote: (String) async -> Bool
+    let onCreateWeeklyDocument: (String) async -> WeeklyReviewDocumentResult
 
     @State private var commits: [GitHubCommit] = []
     @State private var loadingCommits = false
     @State private var commitError: String?
     @State private var carrying = false
-    @State private var creatingNote = false
+    @State private var creatingDocument = false
     @State private var statusMessage: String?
 
     private var completedTasks: [ProjectItem] {
@@ -85,12 +93,20 @@ struct PlanReviewSheet: View {
         openTasks.filter(\.isOverdue)
     }
 
-    private var papers: [ProjectItem] {
-        items.filter { $0.facetKind == .paper }
+    private var paperTitles: [String] {
+        let ids = Set(items.flatMap(\.linkedPaperIDs))
+        return PaperStore.shared.papers
+            .filter { ids.contains($0.id) }
+            .map(\.title)
+            .sorted()
     }
 
-    private var notes: [ProjectItem] {
-        items.filter { $0.facetKind == .note }
+    private var documentPaths: [String] {
+        Array(Set(items.flatMap(\.linkedDocumentPaths))).sorted()
+    }
+
+    private var linkedCommitIDs: [String] {
+        Array(Set(items.flatMap(\.linkedCommits))).sorted()
     }
 
     private var weekLoad: PlanDayLoad {
@@ -220,9 +236,11 @@ struct PlanReviewSheet: View {
 
     private var resourceSection: some View {
         reviewSection(title: L10n.pick("Resources", "资源"), systemImage: "folder") {
-            reviewList(title: L10n.pick("Literature", "文献"), items: papers, empty: L10n.pick("No literature this week.", "本周暂无文献。"))
+            reviewTextList(title: L10n.pick("Literature", "文献"), values: paperTitles, empty: L10n.pick("No linked literature this week.", "本周没有关联文献。"))
             Divider().opacity(0.45)
-            reviewList(title: L10n.pick("Notes", "笔记"), items: notes, empty: L10n.pick("No notes this week.", "本周暂无笔记。"))
+            reviewTextList(title: L10n.pick("Documents", "文档"), values: documentPaths, empty: L10n.pick("No linked documents this week.", "本周没有关联文档。"))
+            Divider().opacity(0.45)
+            reviewTextList(title: L10n.pick("Attached Commits", "关联提交"), values: linkedCommitIDs, empty: L10n.pick("No attached commits this week.", "本周没有关联提交。"))
         }
     }
 
@@ -304,6 +322,28 @@ struct PlanReviewSheet: View {
         }
     }
 
+    private func reviewTextList(title: String, values: [String], empty: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("\(title) · \(values.count)")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            if values.isEmpty {
+                emptyLine(empty)
+            } else {
+                ForEach(values.prefix(6), id: \.self) { value in
+                    Text("• \(value)")
+                        .font(.system(size: 11.5))
+                        .lineLimit(1)
+                }
+                if values.count > 6 {
+                    Text(L10n.pick("+ \(values.count - 6) more", "另有 \(values.count - 6) 项"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
     private func emptyLine(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 11.5))
@@ -324,16 +364,16 @@ struct PlanReviewSheet: View {
                 Label(L10n.pick("Carry Open", "带到下周"), systemImage: "arrowshape.turn.up.right")
             }
             .controlSize(.small)
-            .disabled(openTasks.isEmpty || carrying || creatingNote)
+            .disabled(openTasks.isEmpty || carrying || creatingDocument)
 
             Button {
-                Task { await createWeeklyNote() }
+                Task { await createWeeklyDocument() }
             } label: {
-                Label(L10n.pick("Create Note", "生成周记"), systemImage: "note.text")
+                Label(L10n.pick("Create Review Document", "生成周记文档"), systemImage: "doc.text")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .disabled(creatingNote || carrying)
+            .disabled(creatingDocument || carrying || project.githubLocalPath == nil)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -346,13 +386,17 @@ struct PlanReviewSheet: View {
         statusMessage = L10n.pick("Moved \(moved) tasks to next week.", "已将 \(moved) 个任务带到下周。")
     }
 
-    private func createWeeklyNote() async {
-        creatingNote = true
-        defer { creatingNote = false }
-        let ok = await onCreateWeeklyNote(markdownBody())
-        statusMessage = ok
-            ? L10n.pick("Weekly note created.", "周记已生成。")
-            : L10n.pick("Could not create weekly note.", "无法生成周记。")
+    private func createWeeklyDocument() async {
+        creatingDocument = true
+        defer { creatingDocument = false }
+        switch await onCreateWeeklyDocument(markdownBody()) {
+        case .created:
+            statusMessage = L10n.pick("Review document created.", "周记文档已生成。")
+        case .openedExisting:
+            statusMessage = L10n.pick("Existing review document opened.", "已打开现有周记文档。")
+        case .failed:
+            statusMessage = L10n.pick("Could not create the review document.", "无法生成周记文档。")
+        }
     }
 
     private func loadCommits() async {
@@ -405,7 +449,14 @@ struct PlanReviewSheet: View {
         \(markdownItems(openTasks, empty: L10n.pick("- No open tasks.", "- 暂无未完成任务。")))
 
         ## \(L10n.pick("Resources", "资源"))
-        \(markdownItems(papers + notes, empty: L10n.pick("- No papers or notes.", "- 暂无文献或笔记。")))
+        ### \(L10n.pick("Literature", "文献"))
+        \(markdownValues(paperTitles, empty: L10n.pick("- No linked literature.", "- 无关联文献。")))
+
+        ### \(L10n.pick("Documents", "文档"))
+        \(markdownValues(documentPaths, empty: L10n.pick("- No linked documents.", "- 无关联文档。")))
+
+        ### \(L10n.pick("Attached Commits", "关联提交"))
+        \(markdownValues(linkedCommitIDs, empty: L10n.pick("- No attached commits.", "- 无关联提交。")))
 
         ## Git
         \(markdownCommits)
@@ -422,6 +473,11 @@ struct PlanReviewSheet: View {
     private func markdownItems(_ items: [ProjectItem], empty: String) -> String {
         guard !items.isEmpty else { return empty }
         return items.map { "- \($0.content)" }.joined(separator: "\n")
+    }
+
+    private func markdownValues(_ values: [String], empty: String) -> String {
+        guard !values.isEmpty else { return empty }
+        return values.map { "- \($0)" }.joined(separator: "\n")
     }
 
     private var markdownCommits: String {

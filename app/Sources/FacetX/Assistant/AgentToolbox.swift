@@ -38,7 +38,7 @@ final class AgentToolbox {
                     "include_completed": nullableProp("boolean", "Include completed tasks, or null for false."),
                  ], required: []),
             tool("get_item",
-                 "Read one exact referenced item, including its local note/body when available.",
+                 "Read one exact referenced task or event, including its local details when available.",
                  properties: [
                     "reference_id": prop("string", "Exact id from a drag reference or list_items."),
                  ], required: ["reference_id"]),
@@ -61,14 +61,44 @@ final class AgentToolbox {
                     "all_day": prop("boolean", "Whether this is an all-day event."),
                     "tags": nullableArray("string", "Tags without #, or null."),
                  ], required: ["project", "title", "start", "all_day"]),
-            tool("create_note",
-                 "Create a markdown note item. date is YYYY-MM-DD or null for today.",
+            tool("list_project_documents",
+                 "List README.md and .facetx Markdown documents in one project's local Git repository.",
                  properties: [
                     "project": prop("string", "Existing project name or prefix."),
-                    "title": prop("string", "Note title without project prefix."),
-                    "body": prop("string", "Markdown body."),
-                    "date": nullableProp("string", "Anchor date YYYY-MM-DD, or null."),
+                 ], required: ["project"]),
+            tool("read_project_document",
+                 "Read one repository document. path must be README.md or a top-level .facetx Markdown path returned by list_project_documents.",
+                 properties: [
+                    "project": prop("string", "Existing project name or prefix."),
+                    "path": prop("string", "Repository-relative document path."),
+                 ], required: ["project", "path"]),
+            tool("create_project_document",
+                 "Create a new Markdown document in a project's .facetx directory.",
+                 properties: [
+                    "project": prop("string", "Existing project name or prefix."),
+                    "title": prop("string", "Document title used to create its filename."),
+                    "body": prop("string", "Complete Markdown body."),
                  ], required: ["project", "title", "body"]),
+            tool("update_project_document",
+                 "Replace or append Markdown in an existing repository document.",
+                 properties: [
+                    "project": prop("string", "Existing project name or prefix."),
+                    "path": prop("string", "Repository-relative document path."),
+                    "body": prop("string", "Markdown content."),
+                    "mode": propEnum(["replace", "append"], "Write mode."),
+                 ], required: ["project", "path", "body", "mode"]),
+            tool("attach_document_to_item",
+                 "Attach an existing project repository document to one exact task or event.",
+                 properties: [
+                    "reference_id": prop("string", "Exact id from a drag reference or list_items."),
+                    "path": prop("string", "Repository-relative document path."),
+                 ], required: ["reference_id", "path"]),
+            tool("attach_paper_to_item",
+                 "Attach one literature paper to one exact task or event.",
+                 properties: [
+                    "reference_id": prop("string", "Exact id from a drag reference or list_items."),
+                    "paper_id": prop("string", "Paper id from list_papers."),
+                 ], required: ["reference_id", "paper_id"]),
             tool("update_item",
                  "Update an exact task/event. Null means keep the existing value. Event priority is unsupported.",
                  properties: [
@@ -86,15 +116,8 @@ final class AgentToolbox {
                     "reference_id": prop("string", "Exact id from a drag reference or list_items."),
                     "completed": prop("boolean", "Desired completion state."),
                  ], required: ["reference_id", "completed"]),
-            tool("update_note",
-                 "Replace or append markdown on one exact referenced FacetX note.",
-                 properties: [
-                    "reference_id": prop("string", "Exact id from a dragged note or list_items."),
-                    "body": prop("string", "Markdown content."),
-                    "mode": propEnum(["replace", "append"], "Write mode."),
-                 ], required: ["reference_id", "body", "mode"]),
             tool("delete_item",
-                 "Permanently delete one exact task, event, or note from EventKit. Irreversible — confirm with the user before calling.",
+                 "Permanently delete one exact task or event from EventKit. Irreversible — confirm with the user before calling.",
                  properties: [
                     "reference_id": prop("string", "Exact id from a drag reference or list_items."),
                  ], required: ["reference_id"]),
@@ -132,13 +155,6 @@ final class AgentToolbox {
                     "page_start": nullableProp("integer", "First page, or null."),
                     "page_end": nullableProp("integer", "Last page, or null."),
                  ], required: ["paper_id"]),
-            tool("save_paper_note",
-                 "Replace or append a markdown note on a paper.",
-                 properties: [
-                    "paper_id": prop("string", "Paper id from list_papers."),
-                    "note": prop("string", "Markdown note."),
-                    "replace": nullableProp("boolean", "True to replace, false/null to append."),
-                 ], required: ["paper_id", "note"]),
         ]
     }
 
@@ -158,17 +174,20 @@ final class AgentToolbox {
             case "get_item": return (try await getItem(input), false)
             case "create_task": return (try await createTask(input), false)
             case "create_event": return (try await createEvent(input), false)
-            case "create_note": return (try await createNote(input), false)
+            case "list_project_documents": return (try listProjectDocuments(input), false)
+            case "read_project_document": return (try readProjectDocument(input), false)
+            case "create_project_document": return (try createProjectDocument(input), false)
+            case "update_project_document": return (try updateProjectDocument(input), false)
+            case "attach_document_to_item": return (try await attachDocumentToItem(input), false)
+            case "attach_paper_to_item": return (try await attachPaperToItem(input), false)
             case "update_item": return (try await updateItem(input), false)
             case "set_task_completion": return (try await setTaskCompletion(input), false)
-            case "update_note": return (try await updateNote(input), false)
             case "delete_item": return (try await deleteItem(input), false)
             case "move_item": return (try await moveItem(input), false)
             case "list_week_goals": return (try listWeekGoals(input), false)
             case "set_week_goal": return (try await setWeekGoal(input), false)
             case "list_papers": return (try listPapers(input), false)
             case "read_paper": return (try readPaper(input), false)
-            case "save_paper_note": return (try savePaperNote(input), false)
             default:
                 return ("Unknown tool: \(name)", true)
             }
@@ -395,43 +414,6 @@ final class AgentToolbox {
         return jsonString(["created": true, "reference_id": stableID, "eventkit_id": created, "type": "event"])
     }
 
-    private func createNote(_ input: [String: Any]) async throws -> String {
-        guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
-        guard let project = try resolveProject(input["project"] as? String) else {
-            throw ToolError.message("Missing 'project'.")
-        }
-        guard let title = input["title"] as? String, !title.isEmpty,
-              let body = input["body"] as? String else {
-            throw ToolError.message("Missing 'title' or 'body'.")
-        }
-        let calName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
-        guard !calName.isEmpty else {
-            throw ToolError.message("No calendar configured for project \(project.name).")
-        }
-        let anchorDate = parseDateValue(input["date"] as? String)?.date
-            ?? Calendar.current.startOfDay(for: Date())
-        let stableID = UUID().uuidString
-        let eventId = await eventKit.createNote(
-            project: project.prefix, content: title,
-            calendarName: calName, startDate: anchorDate,
-            dataDirectory: settings.noteDataDirectory(for: project),
-            itemMetadata: FacetItemMetadata(itemID: stableID),
-            enabledCalendars: settings.effectiveCalendarNames
-        )
-        guard eventId != nil else { throw ToolError.message("Could not create the note anchor event.") }
-        _ = NoteStore.shared.save(
-            dataDirectory: settings.noteDataDirectory(for: project),
-            facetID: stableID,
-            body: body
-        )
-        return jsonString([
-            "created": true,
-            "reference_id": stableID,
-            "eventkit_id": eventId ?? "",
-            "type": "note",
-        ])
-    }
-
     private func resolveReference(_ raw: String?) async throws -> AssistantItemMention {
         guard let raw, !raw.isEmpty else { throw ToolError.message("Missing 'reference_id'.") }
         if let mention = referencedItems[raw] {
@@ -460,17 +442,9 @@ final class AgentToolbox {
     }
 
     private func getItem(_ input: [String: Any]) async throws -> String {
-        guard let settings else { throw ToolError.message("Service unavailable") }
         let mention = try await resolveReference(input["reference_id"] as? String)
         var object = mention.promptObject
-        if mention.isNote, let stableID = mention.stableID,
-           let project = try resolveProject(mention.projectPrefix) {
-            object["body"] = NoteStore.shared.body(
-                dataDirectory: settings.noteDataDirectory(for: project),
-                facetID: stableID
-            )
-            object["body_format"] = "markdown"
-        } else if let stableID = mention.stableID {
+        if let stableID = mention.stableID {
             let body = ItemStore.shared.body(for: stableID)
             if !body.isEmpty { object["body"] = body }
         }
@@ -529,50 +503,15 @@ final class AgentToolbox {
         ])
     }
 
-    private func updateNote(_ input: [String: Any]) async throws -> String {
-        guard let settings else { throw ToolError.message("Service unavailable") }
-        let mention = try await resolveReference(input["reference_id"] as? String)
-        guard mention.isNote, let stableID = mention.stableID else {
-            throw ToolError.message("The referenced item is not a FacetX note.")
-        }
-        guard let body = input["body"] as? String,
-              let mode = input["mode"] as? String else {
-            throw ToolError.message("Missing note body or mode.")
-        }
-        guard let project = try resolveProject(mention.projectPrefix) else {
-            throw ToolError.message("The note's project no longer exists.")
-        }
-        let existing = NoteStore.shared.body(
-            dataDirectory: settings.noteDataDirectory(for: project),
-            facetID: stableID
-        )
-        let merged = mode == "append" && !existing.isEmpty
-            ? existing + "\n\n---\n\n" + body
-            : body
-        _ = NoteStore.shared.save(
-            dataDirectory: settings.noteDataDirectory(for: project),
-            facetID: stableID,
-            body: merged
-        )
-        return jsonString([
-            "updated": true,
-            "reference_id": mention.referenceID,
-            "characters": merged.count,
-        ])
-    }
-
     // ── Delete / move ────────────────────────────────────────────────────────
 
     private func deleteItem(_ input: [String: Any]) async throws -> String {
-        guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
+        guard let eventKit else { throw ToolError.message("Service unavailable") }
         let mention = try await resolveReference(input["reference_id"] as? String)
         let deleted = await eventKit.deleteItem(id: mention.eventKitID)
         guard deleted else { throw ToolError.message("EventKit could not delete the item.") }
-        // Remove from local note / item stores too
-        if mention.isNote, let stableID = mention.stableID,
-           let project = try resolveProject(mention.projectPrefix) {
-            _ = NoteStore.shared.save(dataDirectory: settings.noteDataDirectory(for: project),
-                                      facetID: stableID, body: "")
+        if let stableID = mention.stableID {
+            ItemStore.shared.deleteLocalState(for: stableID)
         }
         referencedItems.removeValue(forKey: mention.referenceID)
         return jsonString(["deleted": true, "reference_id": mention.referenceID])
@@ -688,6 +627,126 @@ final class AgentToolbox {
         return jsonString(["set": true, "project": project.name, "week": week.id, "title": trimmedTitle])
     }
 
+    // ── Repository documents ────────────────────────────────────────────────
+
+    private func requireProject(_ input: [String: Any]) throws -> Project {
+        guard let project = try resolveProject(input["project"] as? String) else {
+            throw ToolError.message("Missing 'project'.")
+        }
+        return project
+    }
+
+    private func listProjectDocuments(_ input: [String: Any]) throws -> String {
+        let project = try requireProject(input)
+        let documents = try RepositoryDocumentStore.list(repositoryPath: project.githubLocalPath)
+        return jsonString([
+            "project": project.name,
+            "documents": documents.map {
+                ["path": $0.relativePath, "title": $0.title, "is_readme": $0.isReadme] as [String: Any]
+            },
+        ])
+    }
+
+    private func readProjectDocument(_ input: [String: Any]) throws -> String {
+        let project = try requireProject(input)
+        guard let path = input["path"] as? String else {
+            throw ToolError.message("Missing 'path'.")
+        }
+        var body = try RepositoryDocumentStore.read(
+            repositoryPath: project.githubLocalPath,
+            relativePath: path
+        )
+        if body.count > 28_000 {
+            body = String(body.prefix(28_000)) + "\n…(truncated)"
+        }
+        return jsonString(["project": project.name, "path": path, "body": body])
+    }
+
+    private func createProjectDocument(_ input: [String: Any]) throws -> String {
+        let project = try requireProject(input)
+        guard let title = input["title"] as? String,
+              !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let body = input["body"] as? String else {
+            throw ToolError.message("Missing 'title' or 'body'.")
+        }
+        let document = try RepositoryDocumentStore.create(
+            repositoryPath: project.githubLocalPath,
+            title: title,
+            body: body
+        )
+        return jsonString([
+            "created": true,
+            "project": project.name,
+            "path": document.relativePath,
+        ])
+    }
+
+    private func updateProjectDocument(_ input: [String: Any]) throws -> String {
+        let project = try requireProject(input)
+        guard let path = input["path"] as? String,
+              let body = input["body"] as? String,
+              let mode = input["mode"] as? String else {
+            throw ToolError.message("Missing 'path', 'body', or 'mode'.")
+        }
+        let existing = try RepositoryDocumentStore.read(
+            repositoryPath: project.githubLocalPath,
+            relativePath: path
+        )
+        let merged = mode == "append" && !existing.isEmpty
+            ? existing + "\n\n" + body
+            : body
+        try RepositoryDocumentStore.save(
+            repositoryPath: project.githubLocalPath,
+            relativePath: path,
+            body: merged
+        )
+        return jsonString(["updated": true, "project": project.name, "path": path, "characters": merged.count])
+    }
+
+    private func attachDocumentToItem(_ input: [String: Any]) async throws -> String {
+        let mention = try await resolveReference(input["reference_id"] as? String)
+        guard let stableID = mention.stableID else {
+            throw ToolError.message("The referenced item has no FacetX id.")
+        }
+        guard let path = input["path"] as? String else {
+            throw ToolError.message("Missing 'path'.")
+        }
+        guard let project = try resolveProject(mention.projectPrefix) else {
+            throw ToolError.message("The item's project no longer exists.")
+        }
+        guard RepositoryDocumentStore.exists(repositoryPath: project.githubLocalPath, relativePath: path) else {
+            throw ToolError.message("Document '\(path)' does not exist in project \(project.name).")
+        }
+        var paths = ItemStore.shared.documentPaths(for: stableID)
+        if !paths.contains(path) {
+            paths.append(path)
+            ItemStore.shared.setDocumentPaths(paths, for: stableID)
+        }
+        return jsonString(["attached": true, "reference_id": mention.referenceID, "path": path])
+    }
+
+    private func attachPaperToItem(_ input: [String: Any]) async throws -> String {
+        let mention = try await resolveReference(input["reference_id"] as? String)
+        guard let stableID = mention.stableID else {
+            throw ToolError.message("The referenced item has no FacetX id.")
+        }
+        guard let paperID = input["paper_id"] as? String else {
+            throw ToolError.message("Missing 'paper_id'.")
+        }
+        let paper = try findPaper(paperID)
+        var paperIDs = ItemStore.shared.paperIDs(for: stableID)
+        if !paperIDs.contains(paperID) {
+            paperIDs.append(paperID)
+            ItemStore.shared.setPaperIDs(paperIDs, for: stableID)
+        }
+        return jsonString([
+            "attached": true,
+            "reference_id": mention.referenceID,
+            "paper_id": paperID,
+            "paper_title": paper.title,
+        ])
+    }
+
     // ── Literature ───────────────────────────────────────────────────────────
 
     private func listPapers(_ input: [String: Any]) throws -> String {
@@ -766,23 +825,6 @@ final class AgentToolbox {
             text = String(text.prefix(maxChars)) + "\n…(truncated — request a narrower page range)"
         }
         return "\(header)\ntotal_pages: \(total), returned pages \(start)-\(end)\n\(text)"
-    }
-
-    private func savePaperNote(_ input: [String: Any]) throws -> String {
-        guard let id = input["paper_id"] as? String,
-              let note = input["note"] as? String, !note.isEmpty else {
-            throw ToolError.message("Missing 'paper_id' or 'note'.")
-        }
-        let paper = try findPaper(id)
-        let replace = input["replace"] as? Bool ?? false
-        let merged: String
-        if replace || paper.note.isEmpty {
-            merged = note
-        } else {
-            merged = paper.note + "\n\n---\n\n" + note
-        }
-        PaperStore.shared.setPaperNote(id: id, note: merged)
-        return "Saved note on '\(paper.title)' (\(merged.count) characters total)."
     }
 
     /// Parse an ISO-8601 week string like "2026-W22" into an ISOWeek.

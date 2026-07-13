@@ -524,18 +524,20 @@ final class AssistantSession: ObservableObject {
         Today is \(today). Active projects: \(projectNames.isEmpty ? "(none yet)" : projectNames).
 
         Use the tools to read and change the user's real data:
-        - Dragged references are exact items. Use their reference_id with get_item, \
-        update_item, set_task_completion, or update_note; never identify an item by title.
+        - Dragged references are exact tasks or events. Use their reference_id with \
+        get_item, update_item, or set_task_completion; never identify an item by title.
         - Turning a plan into concrete work: list_projects and list_items first, then \
         create tasks/events one per item; put timed appointments in events, action \
         items in tasks. Summarize what you created at the end.
         - Use local ISO timestamps (YYYY-MM-DDTHH:mm) for timed work and YYYY-MM-DD \
         for all-day work. Set task priority only when the user states or clearly implies it.
-        - Saving reference material or a written plan: create_note with markdown. Use \
-        update_note only for an exact referenced note.
+        - Written plans, notes, and summaries are Git documents. Use \
+        list_project_documents, read_project_document, create_project_document, and \
+        update_project_document. A document requires an explicit project with a local repository.
         - Papers: list_papers to find ids; read_paper (abstract first, then full_text \
-        in page chunks for long PDFs); when the user asks for a summary, offer to \
-        save it with save_paper_note.
+        in page chunks for long PDFs). To save a paper summary, require an explicit \
+        project and target task/event, create a project document, then attach both the \
+        document and paper to that work item.
 
         Rules: never invent project names — resolve them via list_projects. Check \
         list_items before creating to avoid duplicates. Never guess which duplicate-title \
