@@ -45,11 +45,11 @@ enum L10n {
         case allTags, showAllTags, colorMenu
         case tagItemsUnit, tagClickInclude, tagClickExclude, tagClickClear
         // ProjectDetailView
-        case modeAll, modePlan, modeGit
+        case modeAll, modePlan, modeGit, modeNotes
         case switchViewMode, refreshed, refresh
         case hideTodayPanel, showTodayTimeline
         case deleteItemTitle, paneReminder, paneSchedule
-        case searchCommits, searchItems
+        case searchCommits, searchNotes, searchItems
         // Plan / Today views
         case today, noItems, noItemsSearch
         case closeTodayPanel
@@ -120,6 +120,7 @@ enum L10n {
             case .modeAll:            return ("All", "全部")
             case .modePlan:           return ("Plan", "日程")
             case .modeGit:            return ("Git", "Git")
+            case .modeNotes:          return ("Notes", "笔记")
             case .switchViewMode:     return ("Switch view mode", "切换视图模式")
             case .refreshed:          return ("Refreshed", "已刷新")
             case .refresh:            return ("Refresh", "刷新")
@@ -129,6 +130,7 @@ enum L10n {
             case .paneReminder:       return ("Task", "任务")
             case .paneSchedule:       return ("Event", "事件")
             case .searchCommits:      return ("Search commits…", "搜索提交…")
+            case .searchNotes:        return ("Search notes…", "搜索笔记…")
             case .searchItems:        return ("Search items…", "搜索条目…")
 
             case .today:              return ("Today", "今天")

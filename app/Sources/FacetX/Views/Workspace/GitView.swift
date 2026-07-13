@@ -1,24 +1,41 @@
+import AppKit
 import FacetXCore
 import SwiftUI
 
-/// Git Sidebar Panel: displays the local git repository history and working changes
-/// in a native side pane, replacing the Today panel when the git view is active.
-struct GitSidebarPanel: View {
-    @EnvironmentObject var ek: EventKitService
-    @EnvironmentObject var store: ProjectStore
-    @EnvironmentObject var settings: AppSettings
+/// Repository progress workspace for one FacetX project.
+struct GitView: View {
     let project: Project
-    @Binding var isPresented: Bool
-    @Binding var isFullscreen: Bool
+    let items: [ProjectItem]
+    let searchText: String
+    let refreshTrigger: Int
 
     @State private var repoInfo: LocalGitRepositoryInfo?
     @State private var commits: [LocalGitCommit] = []
     @State private var statusEntries: [LocalGitStatusEntry] = []
     @State private var isLoadingGit = false
     @State private var expandedCommitID: String?
-    @State private var items: [ProjectItem] = []
-
     @State private var hoveredCommitID: String? = nil
+
+    private var query: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var filteredStatusEntries: [LocalGitStatusEntry] {
+        guard !query.isEmpty else { return statusEntries }
+        return statusEntries.filter { $0.path.lowercased().contains(query) }
+    }
+
+    private var filteredCommits: [LocalGitCommit] {
+        guard !query.isEmpty else { return commits }
+        return commits.filter {
+            $0.message.lowercased().contains(query)
+                || $0.authorName.lowercased().contains(query)
+                || $0.id.lowercased().contains(query)
+        }
+    }
+
+    private var openItems: [ProjectItem] { items.filter { !$0.isCompleted } }
+    private var completedItems: [ProjectItem] { items.filter(\.isCompleted) }
 
     private var repoPath: String? {
         guard let path = project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -53,49 +70,99 @@ struct GitSidebarPanel: View {
     }
 
     var body: some View {
-        FacetSidebarPane(
-            title: L10n.pick("Commit Tree", "代码历史"),
-            systemImage: "point.3.connected.trianglepath.dotted",
-            closeHelp: L10n.pick("Close panel", "关闭面板"),
-            fillWidth: isFullscreen,
-            onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } },
-            accessory: { fullscreenToggle }
-        ) {
+        Group {
             if repoURL == nil {
                 noRepoState
             } else {
-                gitContent
+                gitWorkspace
             }
         }
+        .background(FacetTheme.canvas)
         .onAppear { reload() }
         .onChange(of: project.id) { reload() }
         .onChange(of: project.githubLocalPath) { reload() }
-        .onChange(of: ek.changeToken) { reload() }
+        .onChange(of: refreshTrigger) { reload() }
     }
 
-    private var fullscreenToggle: some View {
-        Button {
-            withAnimation(FacetTheme.detailSpring) { isFullscreen.toggle() }
-        } label: {
-            Image(systemName: isFullscreen
-                  ? "arrow.down.right.and.arrow.up.left"
-                  : "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 11, weight: .medium))
+    private var gitWorkspace: some View {
+        VStack(spacing: 0) {
+            repositoryHeader
+            Divider()
+            gitContent
         }
-        .help(isFullscreen ? L10n.pick("Exit fullscreen", "退出全屏")
-                           : L10n.pick("Fullscreen", "全屏"))
+    }
+
+    private var repositoryHeader: some View {
+        HStack(spacing: 12) {
+            Image(systemName: statusEntries.isEmpty ? "checkmark.seal.fill" : "point.3.filled.connected.trianglepath.dotted")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(statusEntries.isEmpty ? Color.green : Color.orange)
+                .frame(width: 42, height: 42)
+                .background((statusEntries.isEmpty ? Color.green : Color.orange).opacity(0.11))
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(repoInfo?.fullName ?? repoURL?.lastPathComponent ?? project.name)
+                    .font(.system(size: 15, weight: .semibold))
+                HStack(spacing: 6) {
+                    Label(repoInfo?.branch ?? L10n.pick("Detached", "游离状态"), systemImage: "arrow.triangle.branch")
+                    Text("·")
+                    Text(statusEntries.isEmpty
+                         ? L10n.pick("Working tree clean", "工作区干净")
+                         : L10n.pick("\(statusEntries.count) local changes", "\(statusEntries.count) 项本地变更"))
+                }
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            summaryMetric(value: "\(openItems.count)", label: L10n.pick("Open", "未完成"), tint: .blue)
+            summaryMetric(value: "\(completedItems.count)", label: L10n.pick("Done", "已完成"), tint: .green)
+            summaryMetric(value: "\(commits.count)", label: L10n.pick("Commits", "提交"), tint: .purple)
+
+            Button {
+                if let repoURL { NSWorkspace.shared.open(repoURL) }
+            } label: {
+                Image(systemName: "arrow.up.forward.app")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                    .contentShape(Rectangle())
+                    .facetHoverSurface(tint: .secondary,
+                                       fill: Color.primary.opacity(0.04),
+                                       hoverFill: Color.primary.opacity(0.07),
+                                       hoverStroke: FacetTheme.hairline)
+            }
+            .buttonStyle(.plain)
+            .help(L10n.pick("Open Repository", "打开仓库"))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(FacetTheme.panel)
+    }
+
+    private func summaryMetric(value: String, label: String, tint: Color) -> some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(value)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(tint)
+            Text(label)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 48)
     }
 
     @ViewBuilder private var gitContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 // Working tree changes
-                if !statusEntries.isEmpty {
+                if !filteredStatusEntries.isEmpty {
                     Section {
                         VStack(spacing: 0) {
-                            ForEach(statusEntries) { entry in
+                            ForEach(filteredStatusEntries) { entry in
                                 statusRow(entry)
-                                if entry.id != statusEntries.last?.id {
+                                if entry.id != filteredStatusEntries.last?.id {
                                     Divider().padding(.leading, 38)
                                 }
                             }
@@ -110,7 +177,7 @@ struct GitSidebarPanel: View {
                         sectionHeader(
                             icon: "circle.dotted",
                             title: L10n.pick("Working Changes", "工作区变更"),
-                            count: statusEntries.count,
+                            count: filteredStatusEntries.count,
                             tint: statusEntries.contains { !$0.staged } ? .orange : .green
                         )
                     }
@@ -123,7 +190,7 @@ struct GitSidebarPanel: View {
                             .controlSize(.small)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, 32)
-                    } else if commits.isEmpty {
+                    } else if filteredCommits.isEmpty {
                         Text(L10n.pick("No commits yet.", "暂无提交记录。"))
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
@@ -131,9 +198,9 @@ struct GitSidebarPanel: View {
                             .padding(.vertical, 32)
                     } else {
                         VStack(spacing: 0) {
-                            ForEach(commits.indices, id: \.self) { index in
-                                let commit = commits[index]
-                                let isLast = index == commits.count - 1
+                            ForEach(filteredCommits.indices, id: \.self) { index in
+                                let commit = filteredCommits[index]
+                                let isLast = index == filteredCommits.count - 1
                                 commitRow(commit, isLast: isLast)
                                 if !isLast {
                                     Divider().padding(.leading, 38)
@@ -151,7 +218,7 @@ struct GitSidebarPanel: View {
                     sectionHeader(
                         icon: "clock.arrow.circlepath",
                         title: L10n.pick("Commit History", "提交历史"),
-                        count: commits.count,
+                        count: filteredCommits.count,
                         tint: .purple
                     )
                 }
@@ -411,19 +478,12 @@ struct GitSidebarPanel: View {
         }
         isLoadingGit = true
         Task {
-            let prefixes = Set([project.prefix])
-            let fetchedItems = await ek.items(
-                forProjects: prefixes,
-                enabledReminderLists: settings.effectiveReminderListNames,
-                enabledCalendars: settings.effectiveCalendarNames
-            )
             async let log = LocalGitRepository.gitLog(rootPath: rootPath)
             async let status = LocalGitRepository.gitStatus(rootPath: rootPath)
             let (c, s) = await (log, status)
             await MainActor.run {
                 commits = c
                 statusEntries = s
-                items = fetchedItems
                 isLoadingGit = false
             }
         }

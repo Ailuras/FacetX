@@ -38,6 +38,7 @@ struct ShortcutsSettingsTab: View {
                                 (L10n.pick("All", "全部"), "⌘1"),
                                 (L10n.pick("Plan", "日程"), "⌘2"),
                                 (L10n.pick("Git", "Git"), "⌘3"),
+                                (L10n.pick("Notes", "笔记"), "⌘4"),
                                 (L10n.pick("Previous Project", "上一个项目"), "⌘↑"),
                                 (L10n.pick("Next Project", "下一个项目"), "⌘↓")
                               ])

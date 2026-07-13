@@ -17,7 +17,7 @@ struct ProjectDetailView: View {
     let assistant: AssistantSession
 
     enum Mode: String, CaseIterable, Identifiable {
-        case all = "All", plan = "Plan", commits = "Git"
+        case all = "All", plan = "Plan", git = "Git", notes = "Notes"
         var id: String { rawValue }
     }
 
@@ -137,16 +137,19 @@ struct ProjectDetailView: View {
                         switch mode {
                         case .all: allItemsView
                         case .plan: PlanView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, showAssistantPanel: showAssistantPanel, assistant: assistant, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .reminder, initialDate: date) })
-                        case .commits:
-                            CommitsView(
+                        case .git:
+                            GitView(
+                                project: project,
+                                items: items,
+                                searchText: searchText,
+                                refreshTrigger: refreshTrigger
+                            )
+                        case .notes:
+                            NotesView(
                                 project: project,
                                 items: items,
                                 searchText: searchText,
                                 refreshTrigger: refreshTrigger,
-                                showTodayPanel: showTodayPanel,
-                                showAssistantPanel: showAssistantPanel,
-                                todayFullscreen: todayFullscreen,
-                                assistantFullscreen: assistantFullscreen,
                                 onItemsChanged: { await reload() }
                             )
                         }
@@ -193,20 +196,14 @@ struct ProjectDetailView: View {
                     modePicker
                 }
                 ToolbarItem(placement: .automatic) {
-                    ToolbarSearchField(text: $searchText, placeholder: mode == .commits ? L10n.t(.searchCommits) : L10n.t(.searchItems))
+                    ToolbarSearchField(text: $searchText, placeholder: searchPlaceholder)
                         .frame(width: 220, height: 24)
                 }
                 ToolbarItem(placement: .primaryAction) {
                     toolbarActions
                 }
             }
-            .task(id: project.id) {
-                settings.isGitModeActive = (mode == .commits)
-                await reload()
-            }
-            .onDisappear {
-                settings.isGitModeActive = false
-            }
+            .task(id: project.id) { await reload() }
             .onReceive(NotificationCenter.default.publisher(for: .selectItemInProjectDetail)) { notification in
                 guard let itemID = notification.userInfo?["itemID"] as? String else { return }
                 if let target = items.first(where: { $0.id == itemID }) {
@@ -234,7 +231,6 @@ struct ProjectDetailView: View {
                     selectedDetailItem = nil
                     preserveSelectionDuringReplacement = false
                 }
-                settings.isGitModeActive = (mode == .commits)
             }
             .onChange(of: tagFilter) {
                 if let item = selectedDetailItem, !visibleItems.contains(where: { $0.id == item.id }) {
@@ -312,7 +308,8 @@ struct ProjectDetailView: View {
         switch cmd {
         case .modeAll:     mode = .all
         case .modePlan:    mode = .plan
-        case .modeGit:     mode = .commits
+        case .modeGit:     mode = .git
+        case .modeNotes:   mode = .notes
         case .newItem:     beginCreate(kind: .reminder)
         case .refresh:
             refreshTrigger += 1
@@ -421,7 +418,16 @@ struct ProjectDetailView: View {
         switch mode {
         case .all:     return L10n.t(.modeAll)
         case .plan:    return L10n.t(.modePlan)
-        case .commits: return L10n.t(.modeGit)
+        case .git:     return L10n.t(.modeGit)
+        case .notes:   return L10n.t(.modeNotes)
+        }
+    }
+
+    private var searchPlaceholder: String {
+        switch mode {
+        case .git: return L10n.t(.searchCommits)
+        case .notes: return L10n.t(.searchNotes)
+        case .all, .plan: return L10n.t(.searchItems)
         }
     }
 
@@ -441,19 +447,11 @@ struct ProjectDetailView: View {
         Button {
             withAnimation(FacetTheme.detailSpring) { showTodayPanel.wrappedValue.toggle() }
         } label: {
-            if mode == .commits {
-                Image(systemName: "point.3.connected.trianglepath.dotted")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(showTodayPanel.wrappedValue ? Color.accentColor : .primary)
-            } else {
-                Image(systemName: showTodayPanel.wrappedValue ? "sun.max.fill" : "sun.max")
-                    .symbolRenderingMode(.multicolor)
-                    .font(.system(size: 13, weight: .medium))
-            }
+            Image(systemName: showTodayPanel.wrappedValue ? "sun.max.fill" : "sun.max")
+                .symbolRenderingMode(.multicolor)
+                .font(.system(size: 13, weight: .medium))
         }
-        .help(mode == .commits
-              ? (showTodayPanel.wrappedValue ? L10n.pick("Hide Commit Tree", "隐藏代码历史") : L10n.pick("Show Commit Tree", "显示代码历史"))
-              : (showTodayPanel.wrappedValue ? L10n.t(.hideTodayPanel) : L10n.t(.showTodayTimeline)))
+        .help(showTodayPanel.wrappedValue ? L10n.t(.hideTodayPanel) : L10n.t(.showTodayTimeline))
     }
 
     private var assistantButton: some View {

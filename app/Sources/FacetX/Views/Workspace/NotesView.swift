@@ -16,17 +16,11 @@ struct HeadingItem: Identifiable, Hashable {
 /// Project Documents Workspace: reads repo-root README.md and all markdown documents
 /// in the `.facetx` folder. Renders markdown with rich web preview (read-only) and
 /// provides a native markdown editor with formatting shortcuts.
-struct CommitsView: View {
-    @EnvironmentObject private var settings: AppSettings
-
+struct NotesView: View {
     let project: Project
     let items: [ProjectItem]
     let searchText: String
     let refreshTrigger: Int
-    let showTodayPanel: Binding<Bool>
-    let showAssistantPanel: Binding<Bool>
-    let todayFullscreen: Binding<Bool>
-    let assistantFullscreen: Binding<Bool>
     let onItemsChanged: () async -> Void
 
     // ── Document list & selection ─────────────────────────────────────────────

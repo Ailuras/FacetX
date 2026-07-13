@@ -119,9 +119,6 @@ final class AppSettings: ObservableObject {
     @Published var tagColors: [String: String] {
         didSet { settingsDidChange() }
     }
-    /// Transient UI state: true when the currently active project view is in git mode.
-    @Published var isGitModeActive: Bool = false
-
     @Published private(set) var changeToken = 0
     @Published private(set) var persistenceError: String?
 
