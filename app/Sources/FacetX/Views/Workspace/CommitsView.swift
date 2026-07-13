@@ -1,6 +1,7 @@
 import AppKit
 import FacetXCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Document model
 
@@ -18,6 +19,14 @@ private struct FacetXRepoDocument: Identifiable, Equatable {
             .replacingOccurrences(of: "_", with: " ")
             .capitalized
     }
+}
+
+// MARK: - Outline model
+
+struct HeadingItem: Identifiable, Hashable {
+    let id = UUID()
+    let level: Int
+    let text: String
 }
 
 // MARK: - Main view
@@ -46,9 +55,12 @@ struct CommitsView: View {
     @State private var statusMessage: String?
     @State private var editing = false
     @State private var isAutosaving = false
+    @State private var fileCommits: [LocalGitCommit] = []
+    @State private var isLoadingFileCommits = false
     @StateObject private var editorController = MarkdownEditorController()
 
     @State private var hoveredDocID: String? = nil
+    @AppStorage("docFullWidth") private var fullWidth = false
 
     // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -83,17 +95,42 @@ struct CommitsView: View {
         return documents.filter { $0.title.lowercased().contains(query) }
     }
 
+    private var headings: [HeadingItem] {
+        parseHeadings(editorText)
+    }
+
+    private var wordCount: Int {
+        editorText.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .count
+    }
+
+    private var fileSizeString: String {
+        let count = editorText.utf8.count
+        if count < 1024 { return "\(count) B" }
+        return String(format: "%.1f KB", Double(count) / 1024.0)
+    }
+
     // MARK: - Body
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left sidebar: Doc list
-            docSidebar
-                .frame(width: 260)
-                .background(FacetTheme.quietPanel)
-                .overlay(alignment: .trailing) {
-                    Rectangle().fill(FacetTheme.hairline).frame(width: 1)
+            // Left sidebar: Doc list & Outline
+            VStack(spacing: 0) {
+                docSidebar
+                    .frame(maxHeight: .infinity)
+                
+                if !headings.isEmpty {
+                    Divider()
+                    outlineSidebarSection
+                        .frame(height: 200)
                 }
+            }
+            .frame(width: 260)
+            .background(FacetTheme.quietPanel)
+            .overlay(alignment: .trailing) {
+                Rectangle().fill(FacetTheme.hairline).frame(width: 1)
+            }
 
             // Right main: Markdown render / editor
             mainDocumentArea
@@ -104,6 +141,7 @@ struct CommitsView: View {
         .onChange(of: project.id) { reload() }
         .onChange(of: project.githubLocalPath) { reload() }
         .onChange(of: refreshTrigger) { reload() }
+        .onChange(of: selectedDocumentID) { reloadFileCommits() }
         .onChange(of: searchText) {
             if let selectedDocumentID,
                !filteredDocuments.contains(where: { $0.id == selectedDocumentID }) {
@@ -231,6 +269,35 @@ struct CommitsView: View {
         }
     }
 
+    private var outlineSidebarSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.pick("Outline", "文档大纲"))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(headings) { heading in
+                        HStack(spacing: 4) {
+                            Text(String(repeating: "  ", count: heading.level - 1))
+                            Text(heading.level == 1 ? "•" : "-")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(heading.level == 1 ? Color.accentColor : .secondary)
+                            Text(heading.text)
+                                .font(.system(size: 11, weight: heading.level == 1 ? .semibold : .regular))
+                                .foregroundStyle(heading.level == 1 ? .primary : .secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
     private var noRepoState: some View {
         VStack(spacing: 12) {
             Spacer()
@@ -302,16 +369,28 @@ struct CommitsView: View {
                                     autosave(newText)
                                 }
                         } else {
-                            if editorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text(L10n.pick("Empty document. Switch to Edit to write.",
-                                               "空文档。请切换至编辑模式书写。"))
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.tertiary)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                            } else {
-                                MarkdownPreviewWeb(text: editorText, fullWidth: true)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .id(doc.id + "-\(editorText.hashValue)")
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 20) {
+                                    if editorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text(L10n.pick("Empty document. Switch to Edit to write.",
+                                                       "空文档。请切换至编辑模式书写。"))
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(.tertiary)
+                                            .frame(maxWidth: .infinity, alignment: .center)
+                                            .padding(.vertical, 80)
+                                    } else {
+                                        MarkdownPreviewWeb(text: editorText, fullWidth: true)
+                                            .frame(minHeight: 500)
+                                            .id(doc.id + "-\(editorText.hashValue)")
+                                    }
+                                    
+                                    // File commit history section embedded inside the sheet!
+                                    if !fileCommits.isEmpty {
+                                        Divider()
+                                        fileRevisionHistorySection
+                                    }
+                                }
+                                .padding(32)
                             }
                         }
                     }
@@ -322,7 +401,7 @@ struct CommitsView: View {
                             .stroke(FacetTheme.hairline, lineWidth: 1)
                     )
                     .shadow(color: Color.black.opacity(0.02), radius: 8, x: 0, y: 4)
-                    .frame(maxWidth: 850)
+                    .frame(maxWidth: fullWidth ? .infinity : 850)
                     .padding(.vertical, 16)
 
                     Spacer(minLength: 16)
@@ -352,6 +431,12 @@ struct CommitsView: View {
 
             Spacer()
 
+            // File metrics
+            HStack(spacing: 8) {
+                FacetInfoBadge(text: L10n.pick("\(wordCount) words", "\(wordCount) 字"), systemImage: "text.alignleft", tint: .secondary, fill: Color.secondary.opacity(0.06))
+                FacetInfoBadge(text: fileSizeString, systemImage: "doc.circle", tint: .secondary, fill: Color.secondary.opacity(0.06))
+            }
+
             if isAutosaving {
                 Text(L10n.pick("Saving...", "正在保存..."))
                     .font(.system(size: 10.5))
@@ -364,10 +449,12 @@ struct CommitsView: View {
 
             // Actions
             HStack(spacing: 4) {
-                Button {
-                    saveSelectedDocument()
+                // Export menu button
+                Menu {
+                    Button(L10n.pick("Export to Markdown", "导出为 Markdown")) { exportToMarkdown() }
+                    Button(L10n.pick("Export to PDF", "导出为 PDF")) { exportToPDF() }
                 } label: {
-                    Image(systemName: "square.and.arrow.down")
+                    Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 11))
                         .frame(width: 24, height: 22)
                         .contentShape(Rectangle())
@@ -375,9 +462,10 @@ struct CommitsView: View {
                                            hoverFill: Color.primary.opacity(0.055),
                                            hoverStroke: FacetTheme.hairline)
                 }
-                .buttonStyle(.plain)
-                .help(L10n.pick("Save Document", "保存文档"))
-                .disabled(!hasUnsavedChanges)
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(L10n.pick("Export Document", "导出文档"))
 
                 Button {
                     revealSelectedDocument()
@@ -392,6 +480,23 @@ struct CommitsView: View {
                 }
                 .buttonStyle(.plain)
                 .help(L10n.pick("Reveal in Finder", "在 Finder 中显示"))
+
+                // Full width toggle (preview only)
+                if !editing {
+                    Button {
+                        fullWidth.toggle()
+                    } label: {
+                        Image(systemName: fullWidth ? "arrow.right.and.line.vertical.and.arrow.left" : "arrow.left.and.line.vertical.and.arrow.right")
+                            .font(.system(size: 11))
+                            .frame(width: 24, height: 22)
+                            .contentShape(Rectangle())
+                            .facetHoverSurface(tint: .secondary, fill: .clear,
+                                               hoverFill: Color.primary.opacity(0.055),
+                                               hoverStroke: FacetTheme.hairline)
+                    }
+                    .buttonStyle(.plain)
+                    .help(fullWidth ? L10n.pick("Constrain Width", "限制宽度") : L10n.pick("Full Width", "全宽显示"))
+                }
 
                 Picker("", selection: $editing) {
                     Text(L10n.pick("Preview", "预览")).tag(false)
@@ -434,6 +539,55 @@ struct CommitsView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+    }
+
+    private var fileRevisionHistorySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(L10n.pick("Revision History", "版本历史"), systemImage: "clock.arrow.circlepath")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 0) {
+                ForEach(fileCommits) { commit in
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.purple.opacity(0.5))
+                            .frame(width: 6, height: 6)
+
+                        Text(commit.shortSHA)
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Color.purple.opacity(0.8))
+
+                        Text(commit.summary)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Text(commit.authorName)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+
+                        Text(relativeDate(commit.date))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    
+                    if commit.id != fileCommits.last?.id {
+                        Divider().padding(.leading, 14)
+                    }
+                }
+            }
+            .background(Color.primary.opacity(0.02))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(FacetTheme.hairline, lineWidth: 1)
+            )
+        }
     }
 
     // MARK: - Actions & Loading
@@ -502,6 +656,24 @@ struct CommitsView: View {
         selectedDocumentID = document.id
         editorText = (try? String(contentsOf: document.url, encoding: .utf8)) ?? ""
         savedText = editorText
+    }
+
+    private func reloadFileCommits() {
+        guard let rootPath = repoPath.flatMap({ ($0 as NSString).expandingTildeInPath }),
+              let doc = selectedDocument else {
+            fileCommits = []
+            return
+        }
+
+        let relativePath = doc.url.path.replacingOccurrences(of: rootPath + "/", with: "")
+        isLoadingFileCommits = true
+        Task {
+            let commits = await LocalGitRepository.gitLogForFile(rootPath: rootPath, filePath: relativePath)
+            await MainActor.run {
+                self.fileCommits = commits
+                self.isLoadingFileCommits = false
+            }
+        }
     }
 
     private func initializeDocs() {
@@ -577,11 +749,67 @@ struct CommitsView: View {
         }
     }
 
+    // MARK: - Exporting
+
+    private func exportToMarkdown() {
+        guard let doc = selectedDocument else { return }
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        savePanel.nameFieldStringValue = doc.title + ".md"
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                do {
+                    try editorText.write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    print("Failed to save markdown: \(error)")
+                }
+            }
+        }
+    }
+
+    private func exportToPDF() {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.pdf]
+        savePanel.nameFieldStringValue = (selectedDocument?.title ?? "Document") + ".pdf"
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                let exporter = NotePDFExporter()
+                exporter.export(text: editorText) { result in
+                    switch result {
+                    case .success(let data):
+                        do {
+                            try data.write(to: url, options: .atomic)
+                        } catch {
+                            print("Failed to write PDF: \(error)")
+                        }
+                    case .failure(let error):
+                        print("Failed to export PDF: \(error)")
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func relativeDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func parseHeadings(_ content: String) -> [HeadingItem] {
+        let lines = content.components(separatedBy: .newlines)
+        return lines.compactMap { line -> HeadingItem? in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("# ") {
+                return HeadingItem(level: 1, text: String(trimmed.dropFirst(2)))
+            } else if trimmed.hasPrefix("## ") {
+                return HeadingItem(level: 2, text: String(trimmed.dropFirst(3)))
+            } else if trimmed.hasPrefix("### ") {
+                return HeadingItem(level: 3, text: String(trimmed.dropFirst(4)))
+            }
+            return nil
+        }
     }
 }

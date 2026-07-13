@@ -124,6 +124,42 @@ enum LocalGitRepository {
             }
     }
 
+    /// Fetch the most recent commits that modified a specific file.
+    static func gitLogForFile(rootPath: String, filePath: String, limit: Int = 10) async -> [LocalGitCommit] {
+        let sep = "---FACETX-SEP---"
+        let fmt = "%H\u{1f}%B\u{1f}%an\u{1f}%aI\u{1f}%D"
+        let args = ["log", "--follow", "--format=\(fmt)\(sep)", "-\(limit)", "--", filePath]
+        guard let raw = await run("git", args: args, cwd: rootPath) else { return [] }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        return raw
+            .components(separatedBy: sep)
+            .compactMap { block -> LocalGitCommit? in
+                let fields = block.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .components(separatedBy: "\u{1f}")
+                guard fields.count >= 4 else { return nil }
+                let sha  = fields[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !sha.isEmpty else { return nil }
+                let msg  = fields[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                let auth = fields[2].trimmingCharacters(in: .whitespacesAndNewlines)
+                let dateStr = fields[3].trimmingCharacters(in: .whitespacesAndNewlines)
+                let refs = fields.count >= 5
+                    ? fields[4].trimmingCharacters(in: .whitespacesAndNewlines)
+                    : ""
+                let date = iso.date(from: dateStr) ?? Date.distantPast
+                let shortRefs = refs
+                    .components(separatedBy: ", ")
+                    .map { r in
+                        r.hasPrefix("refs/heads/") ? String(r.dropFirst("refs/heads/".count))
+                            : r.hasPrefix("refs/remotes/") ? String(r.dropFirst("refs/remotes/".count))
+                            : r
+                    }
+                    .joined(separator: ", ")
+                return LocalGitCommit(id: sha, message: msg, authorName: auth,
+                                     date: date, refs: shortRefs)
+            }
+    }
+
     // ── git status ───────────────────────────────────────────────────────────
 
     /// Fetch the working-tree and index status.
