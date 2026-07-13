@@ -11,6 +11,91 @@ struct HeadingItem: Identifiable, Hashable {
     let text: String
 }
 
+private struct DocumentNameSheet: View {
+    @State private var title: String
+    let isRenaming: Bool
+    let onCancel: () -> Void
+    let onSave: (String) -> Void
+    @FocusState private var titleFocused: Bool
+
+    init(title: String,
+         isRenaming: Bool,
+         onCancel: @escaping () -> Void,
+         onSave: @escaping (String) -> Void) {
+        _title = State(initialValue: title)
+        self.isRenaming = isRenaming
+        self.onCancel = onCancel
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: isRenaming ? "pencil.line" : "doc.badge.plus")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 38, height: 38)
+                    .background(Color.accentColor.opacity(0.11))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isRenaming
+                         ? L10n.pick("Rename Note", "重命名笔记")
+                         : L10n.pick("New Note", "新建笔记"))
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(L10n.pick("Stored as Markdown in .facetx", "以 Markdown 格式存储在 .facetx 中"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            TextField(L10n.pick("Note title", "笔记标题"), text: $title)
+                .textFieldStyle(.roundedBorder)
+                .focused($titleFocused)
+                .onSubmit { save() }
+
+            HStack {
+                Spacer()
+                Button(L10n.t(.cancel), action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button(isRenaming ? L10n.pick("Rename", "重命名") : L10n.pick("Create", "创建")) {
+                    save()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
+        .onAppear { titleFocused = true }
+    }
+
+    private func save() {
+        let value = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        onSave(value)
+    }
+}
+
+private enum NoteEditorMode: String, CaseIterable, Identifiable {
+    case read
+    case write
+    case split
+
+    var id: String { rawValue }
+}
+
+private enum DocumentNamingAction: Identifiable {
+    case create
+    case rename(RepositoryDocument)
+
+    var id: String {
+        switch self {
+        case .create: return "create"
+        case .rename(let document): return "rename-\(document.id)"
+        }
+    }
+}
+
 // MARK: - Main view
 
 /// Project Documents Workspace: reads repo-root README.md and all markdown documents
@@ -25,21 +110,27 @@ struct NotesView: View {
 
     // ── Document list & selection ─────────────────────────────────────────────
     @State private var documents: [RepositoryDocument] = []
+    @State private var documentContentIndex: [String: String] = [:]
     @State private var selectedDocumentID: RepositoryDocument.ID?
     @State private var editorText = ""
     @State private var savedText = ""
     @State private var statusMessage: String?
-    @State private var editing = false
+    @State private var editorMode: NoteEditorMode = .read
     @State private var isAutosaving = false
+    @State private var autosaveTask: Task<Void, Never>?
     @State private var fileCommits: [LocalGitCommit] = []
     @State private var isLoadingFileCommits = false
     @State private var showingHistoryPopover = false
     @State private var showingAttachmentPopover = false
     @State private var attachmentVersion = 0
+    @State private var namingAction: DocumentNamingAction?
+    @State private var documentToDelete: RepositoryDocument?
     @StateObject private var editorController = MarkdownEditorController()
 
     @State private var hoveredDocID: String? = nil
     @AppStorage("docFullWidth") private var fullWidth = false
+    @AppStorage("notesNavigatorVisible") private var navigatorVisible = true
+    @AppStorage("notesInspectorVisible") private var inspectorVisible = true
 
     // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -71,7 +162,11 @@ struct NotesView: View {
 
     private var filteredDocuments: [RepositoryDocument] {
         guard !query.isEmpty else { return documents }
-        return documents.filter { $0.title.lowercased().contains(query) }
+        return documents.filter {
+            $0.title.lowercased().contains(query)
+                || $0.relativePath.lowercased().contains(query)
+                || documentContentIndex[$0.id]?.lowercased().contains(query) == true
+        }
     }
 
     private var headings: [HeadingItem] {
@@ -90,33 +185,74 @@ struct NotesView: View {
         return String(format: "%.1f KB", Double(count) / 1024.0)
     }
 
+    private var lineCount: Int {
+        max(editorText.components(separatedBy: .newlines).count, 1)
+    }
+
+    private var linkedWorkItems: [ProjectItem] {
+        guard let path = selectedDocument?.relativePath else { return [] }
+        return items.filter { item in
+            item.facetID.map { ItemStore.shared.documentPaths(for: $0).contains(path) } ?? false
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left sidebar: Doc list & Outline
-            VStack(spacing: 0) {
+            if navigatorVisible {
                 docSidebar
                     .frame(maxHeight: .infinity)
-                
-                if !headings.isEmpty {
-                    Divider()
-                    outlineSidebarSection
-                        .frame(height: 200)
-                }
-            }
-            .frame(width: 260)
-            .background(FacetTheme.quietPanel)
-            .overlay(alignment: .trailing) {
-                Rectangle().fill(FacetTheme.hairline).frame(width: 1)
+                    .frame(width: 248)
+                    .background(FacetTheme.quietPanel)
+                    .overlay(alignment: .trailing) {
+                        Rectangle().fill(FacetTheme.hairline).frame(width: 1)
+                    }
             }
 
-            // Right main: Markdown render / editor
             mainDocumentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if inspectorVisible, selectedDocument != nil {
+                noteInspector
+                    .frame(width: 224)
+                    .background(FacetTheme.quietPanel)
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(FacetTheme.hairline).frame(width: 1)
+                    }
+            }
         }
         .background(FacetTheme.canvas)
+        .sheet(item: $namingAction) { action in
+            DocumentNameSheet(
+                title: {
+                    switch action {
+                    case .create: return ""
+                    case .rename(let document): return document.title
+                    }
+                }(),
+                isRenaming: {
+                    if case .rename = action { return true }
+                    return false
+                }(),
+                onCancel: { namingAction = nil },
+                onSave: { title in completeNaming(action, title: title) }
+            )
+        }
+        .alert(L10n.pick("Delete note?", "删除笔记？"), isPresented: .init(
+            get: { documentToDelete != nil },
+            set: { if !$0 { documentToDelete = nil } }
+        )) {
+            Button(L10n.t(.cancel), role: .cancel) { documentToDelete = nil }
+            Button(L10n.t(.delete), role: .destructive) { deleteSelectedDocument() }
+        } message: {
+            Text(documentToDelete?.title ?? "")
+        }
         .onAppear { reload() }
+        .onDisappear {
+            autosaveTask?.cancel()
+            if hasUnsavedChanges { saveSelectedDocument() }
+        }
         .onChange(of: project.id) { reload() }
         .onChange(of: project.githubLocalPath) { reload() }
         .onChange(of: refreshTrigger) { reload() }
@@ -135,7 +271,7 @@ struct NotesView: View {
         VStack(spacing: 0) {
             // Header
             HStack(spacing: 8) {
-                Text(L10n.pick("Project Docs", "项目文档"))
+                Text(L10n.pick("Notes", "笔记"))
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.primary)
 
@@ -151,7 +287,7 @@ struct NotesView: View {
 
                 if repoURL != nil {
                     Button {
-                        createDocument()
+                        namingAction = .create
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .semibold))
@@ -163,7 +299,7 @@ struct NotesView: View {
                                                hoverStroke: FacetTheme.hairline)
                     }
                     .buttonStyle(.plain)
-                    .help(L10n.pick("New Document", "新建文档"))
+                    .help(L10n.pick("New Note", "新建笔记"))
                     .disabled(docsURL == nil)
                 }
             }
@@ -186,6 +322,20 @@ struct NotesView: View {
                                 docRowCard(doc)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button(L10n.pick("Reveal in Finder", "在 Finder 中显示")) {
+                                    NSWorkspace.shared.activateFileViewerSelecting([doc.url])
+                                }
+                                if !doc.isReadme {
+                                    Button(L10n.pick("Rename", "重命名")) {
+                                        namingAction = .rename(doc)
+                                    }
+                                    Divider()
+                                    Button(L10n.t(.delete), role: .destructive) {
+                                        documentToDelete = doc
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, 10)
@@ -193,6 +343,23 @@ struct NotesView: View {
                 }
                 .thinScrollIndicators()
             }
+
+            Divider()
+            HStack {
+                Label(".facetx", systemImage: "folder")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button { revealDocsFolder() } label: {
+                    Image(systemName: "arrow.up.forward.app")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Reveal Notes Folder", "显示笔记目录"))
+                .disabled(docsURL == nil)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
         }
     }
 
@@ -249,33 +416,113 @@ struct NotesView: View {
         }
     }
 
-    private var outlineSidebarSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(L10n.pick("Outline", "文档大纲"))
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(headings) { heading in
-                        HStack(spacing: 4) {
-                            Text(String(repeating: "  ", count: heading.level - 1))
-                            Text(heading.level == 1 ? "•" : "-")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(heading.level == 1 ? Color.accentColor : .secondary)
-                            Text(heading.text)
-                                .font(.system(size: 11, weight: heading.level == 1 ? .semibold : .regular))
-                                .foregroundStyle(heading.level == 1 ? .primary : .secondary)
-                                .lineLimit(1)
+    private var noteInspector: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                inspectorSection(L10n.pick("Outline", "文档大纲"), systemImage: "list.bullet.indent") {
+                    if headings.isEmpty {
+                        Text(L10n.pick("Add headings to build an outline.", "添加标题以生成大纲。"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 3) {
+                            ForEach(headings) { heading in
+                                Button {
+                                    if editorMode == .read { editorMode = .write }
+                                    DispatchQueue.main.async {
+                                        editorController.reveal(heading: heading.text)
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(heading.level == 1 ? Color.accentColor : Color.secondary.opacity(0.45))
+                                            .frame(width: heading.level == 1 ? 5 : 3, height: heading.level == 1 ? 5 : 3)
+                                        Text(heading.text)
+                                            .font(.system(size: 10.5, weight: heading.level == 1 ? .semibold : .regular))
+                                            .foregroundStyle(heading.level == 1 ? .primary : .secondary)
+                                            .lineLimit(2)
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(.leading, CGFloat(max(heading.level - 1, 0)) * 10)
+                                    .padding(.vertical, 4)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                        .padding(.horizontal, 16)
                     }
                 }
-                .padding(.vertical, 4)
+
+                inspectorSection(L10n.pick("Linked Work Items", "关联工作项"), systemImage: "link") {
+                    if linkedWorkItems.isEmpty {
+                        Text(L10n.pick("This note is not attached yet.", "这篇笔记尚未关联工作项。"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 5) {
+                            ForEach(linkedWorkItems) { item in
+                                Button {
+                                    NotificationCenter.default.post(
+                                        name: .selectItemInProjectDetail,
+                                        object: nil,
+                                        userInfo: ["itemID": item.id]
+                                    )
+                                } label: {
+                                    HStack(spacing: 7) {
+                                        Image(systemName: item.kind.systemImage)
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(item.kind.color)
+                                        Text(item.content)
+                                            .font(.system(size: 10.5, weight: .medium))
+                                            .lineLimit(2)
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(8)
+                                    .background(Color.primary.opacity(0.035))
+                                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+
+                inspectorSection(L10n.pick("Document", "文档"), systemImage: "info.circle") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        inspectorMetadata(L10n.pick("Words", "字数"), value: "\(wordCount)")
+                        inspectorMetadata(L10n.pick("Lines", "行数"), value: "\(lineCount)")
+                        inspectorMetadata(L10n.pick("Size", "大小"), value: fileSizeString)
+                        if let modified = selectedDocument?.modifiedAt {
+                            inspectorMetadata(L10n.pick("Modified", "修改"), value: relativeDate(modified))
+                        }
+                    }
+                }
             }
+            .padding(14)
         }
+        .thinScrollIndicators()
+        .id(attachmentVersion)
+    }
+
+    private func inspectorSection<Content: View>(_ title: String,
+                                                 systemImage: String,
+                                                 @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 10.5, weight: .bold))
+                .foregroundStyle(.secondary)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func inspectorMetadata(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).foregroundStyle(.primary)
+        }
+        .font(.system(size: 10.5))
     }
 
     private var noRepoState: some View {
@@ -304,11 +551,11 @@ struct NotesView: View {
             Image(systemName: "doc.text")
                 .font(.system(size: 26))
                 .foregroundStyle(.secondary)
-            Text(L10n.pick("No Documents Yet", "暂无规划文档"))
+            Text(L10n.pick("No Notes Yet", "暂无笔记"))
                 .font(.system(size: 13, weight: .semibold))
             Text(L10n.pick(
-                "Initialize the docs area to create a project-specific workspace folder inside this repository.",
-                "初始化文档以在该仓库中创建专属 of 规划空间。"))
+                "Initialize the notes area inside this repository.",
+                "在该仓库中初始化笔记空间。"))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -330,51 +577,35 @@ struct NotesView: View {
     @ViewBuilder private var mainDocumentArea: some View {
         if let doc = selectedDocument {
             VStack(spacing: 0) {
-                // Top control bar
                 docControlBar(doc)
-
                 Divider()
 
-                // Centered sheet layout for readability
-                HStack(spacing: 0) {
-                    Spacer(minLength: 16)
+                if editorMode != .read {
+                    formattingToolbar
+                    Divider()
+                }
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        if editing {
-                            formattingToolbar
-                            Divider()
-                            MarkdownEditor(text: $editorText, controller: editorController)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .onChange(of: editorText) { _, newText in
-                                    autosave(newText)
-                                }
-                        } else {
-                            if editorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text(L10n.pick("Empty document. Switch to Edit to write.",
-                                               "空文档。请切换至编辑模式书写。"))
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.tertiary)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                            } else {
-                                MarkdownPreviewWeb(text: editorText, fullWidth: true)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .id(doc.id + "-\(editorText.hashValue)")
+                Group {
+                    switch editorMode {
+                    case .read:
+                        centeredPreview(doc)
+                    case .write:
+                        centeredEditor
+                    case .split:
+                        HSplitView {
+                            labeledPane(L10n.pick("Markdown", "Markdown"), systemImage: "chevron.left.forwardslash.chevron.right") {
+                                editorPane
+                            }
+                            labeledPane(L10n.pick("Preview", "预览"), systemImage: "eye") {
+                                previewPane(doc)
                             }
                         }
                     }
-                    .background(FacetTheme.panel)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(FacetTheme.hairline, lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.02), radius: 8, x: 0, y: 4)
-                    .frame(maxWidth: fullWidth ? .infinity : 850)
-                    .padding(.vertical, 16)
-
-                    Spacer(minLength: 16)
                 }
-                .background(FacetTheme.canvas)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                Divider()
+                documentStatusBar(doc)
             }
         } else {
             ContentUnavailableView(
@@ -384,6 +615,77 @@ struct NotesView: View {
                                             "选择根目录 README 或新建一个文档以开始。"))
             )
         }
+    }
+
+    private func centeredPreview(_ doc: RepositoryDocument) -> some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 18)
+            previewPane(doc)
+                .background(FacetTheme.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.025), radius: 10, x: 0, y: 4)
+                .frame(maxWidth: fullWidth ? .infinity : 900)
+                .padding(.vertical, 18)
+            Spacer(minLength: 18)
+        }
+        .background(FacetTheme.canvas)
+    }
+
+    private var centeredEditor: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 18)
+            editorPane
+                .background(FacetTheme.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(FacetTheme.hairline, lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.025), radius: 10, x: 0, y: 4)
+                .frame(maxWidth: fullWidth ? .infinity : 900)
+                .padding(.vertical, 18)
+            Spacer(minLength: 18)
+        }
+        .background(FacetTheme.canvas)
+    }
+
+    private var editorPane: some View {
+        MarkdownEditor(text: $editorText, controller: editorController)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onChange(of: editorText) { _, newText in autosave(newText) }
+    }
+
+    @ViewBuilder
+    private func previewPane(_ doc: RepositoryDocument) -> some View {
+        if editorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            ContentUnavailableView(
+                L10n.pick("Empty Note", "空白笔记"),
+                systemImage: "square.and.pencil",
+                description: Text(L10n.pick("Switch to Write to begin.", "切换到写作模式开始记录。"))
+            )
+        } else {
+            MarkdownPreviewWeb(text: editorText, fullWidth: true)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .id(doc.id + "-\(editorText.hashValue)")
+        }
+    }
+
+    private func labeledPane<Content: View>(_ title: String,
+                                            systemImage: String,
+                                            @ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(FacetTheme.quietPanel)
+            Divider()
+            content()
+        }
+        .background(FacetTheme.panel)
+        .frame(minWidth: 280, maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func docControlBar(_ doc: RepositoryDocument) -> some View {
@@ -399,32 +701,21 @@ struct NotesView: View {
 
             Spacer()
 
-            // File metrics
             HStack(spacing: 8) {
-                FacetInfoBadge(text: L10n.pick("\(wordCount) words", "\(wordCount) 字"),
-                               systemImage: "text.alignleft",
-                               tint: .secondary,
-                               fill: Color.primary.opacity(0.04))
-                
-                // File Size Badge
-                FacetInfoBadge(text: fileSizeString,
-                               systemImage: "doc.circle",
-                               tint: .secondary,
-                               fill: Color.primary.opacity(0.04))
-            }
+                Button { navigatorVisible.toggle() } label: {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                        .contentShape(Rectangle())
+                        .facetHoverSurface(tint: navigatorVisible ? Color.accentColor : .secondary,
+                                           fill: navigatorVisible ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.04),
+                                           hoverFill: Color.primary.opacity(0.07),
+                                           hoverStroke: FacetTheme.hairline)
+                }
+                .buttonStyle(.plain)
+                .help(navigatorVisible ? L10n.pick("Hide Navigator", "隐藏导航栏")
+                                       : L10n.pick("Show Navigator", "显示导航栏"))
 
-            if isAutosaving {
-                Text(L10n.pick("Saving...", "正在保存..."))
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
-            } else if hasUnsavedChanges {
-                Text(L10n.pick("Unsaved", "有未保存更改"))
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.orange)
-            }
-
-            // Actions - all styled uniformly using PlanView's chip style
-            HStack(spacing: 8) {
                 Button {
                     showingAttachmentPopover = true
                 } label: {
@@ -497,8 +788,7 @@ struct NotesView: View {
                 .buttonStyle(.plain)
                 .help(L10n.pick("Reveal in Finder", "在 Finder 中显示"))
 
-                // Full width toggle (preview only)
-                if !editing {
+                if editorMode != .split {
                     Button {
                         fullWidth.toggle()
                     } label: {
@@ -515,19 +805,73 @@ struct NotesView: View {
                     .help(fullWidth ? L10n.pick("Constrain Width", "限制宽度") : L10n.pick("Full Width", "全宽显示"))
                 }
 
-                // Edit/Preview Picker
-                Picker("", selection: $editing) {
-                    Text(L10n.pick("Preview", "预览")).tag(false)
-                    Text(L10n.pick("Edit", "编辑")).tag(true)
+                Picker("", selection: $editorMode) {
+                    Text(L10n.pick("Read", "阅读")).tag(NoteEditorMode.read)
+                    Text(L10n.pick("Write", "写作")).tag(NoteEditorMode.write)
+                    Text(L10n.pick("Split", "对照")).tag(NoteEditorMode.split)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .controlSize(.small)
                 .fixedSize()
+
+                Button { inspectorVisible.toggle() } label: {
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                        .contentShape(Rectangle())
+                        .facetHoverSurface(tint: inspectorVisible ? Color.accentColor : .secondary,
+                                           fill: inspectorVisible ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.04),
+                                           hoverFill: Color.primary.opacity(0.07),
+                                           hoverStroke: FacetTheme.hairline)
+                }
+                .buttonStyle(.plain)
+                .help(inspectorVisible ? L10n.pick("Hide Inspector", "隐藏检查器")
+                                       : L10n.pick("Show Inspector", "显示检查器"))
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private func documentStatusBar(_ doc: RepositoryDocument) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text(doc.relativePath)
+                .font(.system(size: 9.5, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer()
+
+            Text(L10n.pick("\(lineCount) lines", "\(lineCount) 行"))
+            Text("·")
+            Text(L10n.pick("\(wordCount) words", "\(wordCount) 字"))
+            Text("·")
+            Text(fileSizeString)
+
+            Divider().frame(height: 12)
+
+            if let statusMessage {
+                Label(statusMessage, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            } else if isAutosaving {
+                Label(L10n.pick("Saving", "正在保存"), systemImage: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.secondary)
+            } else if hasUnsavedChanges {
+                Label(L10n.pick("Unsaved", "未保存"), systemImage: "circle.fill")
+                    .foregroundStyle(.orange)
+            } else {
+                Label(L10n.pick("Saved", "已保存"), systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
+        }
+        .font(.system(size: 9.5, weight: .medium))
+        .padding(.horizontal, 14)
+        .frame(height: 28)
+        .background(FacetTheme.quietPanel)
     }
 
     private var fileHistoryPopoverContent: some View {
@@ -653,20 +997,44 @@ struct NotesView: View {
     }
 
     private var formattingToolbar: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 3) {
+            toolbarButton("arrow.uturn.backward", help: L10n.pick("Undo", "撤销")) { editorController.undo() }
+            toolbarButton("arrow.uturn.forward", help: L10n.pick("Redo", "重做")) { editorController.redo() }
+            Divider().frame(height: 15)
             toolbarButton("bold", help: "Bold ⌘B") { editorController.bold() }
             toolbarButton("italic", help: "Italic ⌘I") { editorController.italic() }
-            toolbarButton("chevron.left.forwardslash.chevron.right", help: L10n.pick("Code", "代码")) { editorController.code() }
-            Divider().frame(height: 14)
-            toolbarButton("number", help: L10n.pick("Heading", "标题")) { editorController.heading() }
-            toolbarButton("list.bullet", help: L10n.pick("List", "列表")) { editorController.bulletList() }
-            toolbarButton("text.quote", help: L10n.pick("Quote", "引用")) { editorController.quote() }
+            toolbarButton("strikethrough", help: L10n.pick("Strikethrough", "删除线")) { editorController.strikethrough() }
+            toolbarButton("chevron.left.forwardslash.chevron.right", help: L10n.pick("Inline Code", "行内代码")) { editorController.code() }
             toolbarButton("link", help: "Link ⌘K") { editorController.link() }
+            Divider().frame(height: 15)
+            Menu {
+                ForEach(1...4, id: \.self) { level in
+                    Button("H\(level)") { editorController.heading(level: level) }
+                }
+            } label: {
+                Image(systemName: "textformat.size")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 22)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(L10n.pick("Heading", "标题"))
+            toolbarButton("list.bullet", help: L10n.pick("Bullet List", "项目列表")) { editorController.bulletList() }
+            toolbarButton("list.number", help: L10n.pick("Numbered List", "编号列表")) { editorController.numberedList() }
+            toolbarButton("checklist", help: L10n.pick("Task List", "任务列表")) { editorController.taskList() }
+            toolbarButton("text.quote", help: L10n.pick("Quote", "引用")) { editorController.quote() }
+            toolbarButton("curlybraces.square", help: L10n.pick("Code Block", "代码块")) { editorController.codeBlock() }
+            toolbarButton("minus", help: L10n.pick("Divider", "分隔线")) { editorController.horizontalRule() }
             Spacer()
+            Text(L10n.pick("Markdown · UTF-8", "Markdown · UTF-8"))
+                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(FacetTheme.quietPanel.opacity(0.5))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(FacetTheme.quietPanel)
     }
 
     private func toolbarButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
@@ -678,6 +1046,10 @@ struct NotesView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .facetHoverSurface(tint: .secondary,
+                           fill: Color.clear,
+                           hoverFill: Color.primary.opacity(0.055),
+                           hoverStroke: FacetTheme.hairline)
         .help(help)
     }
 
@@ -687,6 +1059,12 @@ struct NotesView: View {
         let result = (try? RepositoryDocumentStore.list(repositoryPath: repoPath)) ?? []
 
         self.documents = result
+        self.documentContentIndex = Dictionary(uniqueKeysWithValues: result.map { document in
+            (document.id, (try? RepositoryDocumentStore.read(
+                repositoryPath: repoPath,
+                relativePath: document.relativePath
+            )) ?? "")
+        })
 
         // Selection auto-routing
         if selectedDocumentID == nil {
@@ -715,6 +1093,7 @@ struct NotesView: View {
     }
 
     private func selectDocument(_ document: RepositoryDocument) {
+        autosaveTask?.cancel()
         if hasUnsavedChanges { saveSelectedDocument() }
         selectedDocumentID = document.id
         editorText = (try? RepositoryDocumentStore.read(
@@ -722,6 +1101,7 @@ struct NotesView: View {
             relativePath: document.relativePath
         )) ?? ""
         savedText = editorText
+        statusMessage = nil
     }
 
     private func reloadFileCommits() {
@@ -752,37 +1132,94 @@ struct NotesView: View {
         }
     }
 
-    private func createDocument() {
+    private func completeNaming(_ action: DocumentNamingAction, title: String) {
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
         do {
-            let document = try RepositoryDocumentStore.create(
+            let document: RepositoryDocument
+            switch action {
+            case .create:
+                document = try RepositoryDocumentStore.create(
+                    repositoryPath: repoPath,
+                    title: normalized
+                )
+            case .rename(let existing):
+                if selectedDocumentID == existing.id, hasUnsavedChanges { saveSelectedDocument() }
+                document = try RepositoryDocumentStore.rename(
+                    repositoryPath: repoPath,
+                    relativePath: existing.relativePath,
+                    title: normalized
+                )
+                for item in items {
+                    guard let facetID = item.facetID else { continue }
+                    let paths = ItemStore.shared.documentPaths(for: facetID)
+                    guard paths.contains(existing.relativePath) else { continue }
+                    ItemStore.shared.setDocumentPaths(
+                        paths.map { $0 == existing.relativePath ? document.relativePath : $0 },
+                        for: facetID
+                    )
+                }
+                Task { await onItemsChanged() }
+            }
+            namingAction = nil
+            reload()
+            if let refreshed = documents.first(where: { $0.id == document.id }) {
+                selectDocument(refreshed)
+            }
+            editorMode = .write
+        } catch {
+            statusMessage = error.localizedDescription
+        }
+    }
+
+    private func deleteSelectedDocument() {
+        guard let document = documentToDelete else { return }
+        documentToDelete = nil
+        do {
+            if selectedDocumentID == document.id {
+                autosaveTask?.cancel()
+                selectedDocumentID = nil
+                editorText = ""
+                savedText = ""
+            }
+            try RepositoryDocumentStore.delete(
                 repositoryPath: repoPath,
-                title: L10n.pick("New Document", "新文档")
+                relativePath: document.relativePath
             )
             reload()
-            if let doc = documents.first(where: { $0.id == document.id }) {
-                selectDocument(doc)
-            }
         } catch {
-            statusMessage = L10n.pick("Could not create document", "无法创建文档")
+            statusMessage = error.localizedDescription
         }
     }
 
     private func autosave(_ text: String) {
         guard let selectedDocument else { return }
+        autosaveTask?.cancel()
         isAutosaving = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            // Only save if the text hasn't changed since this autosave was triggered
-            guard editorText == text else { return }
+        statusMessage = nil
+        let path = selectedDocument.relativePath
+        autosaveTask = Task { @MainActor in
             do {
+                try await Task.sleep(for: .milliseconds(700))
+                try Task.checkCancellation()
+                guard editorText == text, selectedDocumentID == path else {
+                    isAutosaving = false
+                    return
+                }
                 try RepositoryDocumentStore.save(
                     repositoryPath: repoPath,
-                    relativePath: selectedDocument.relativePath,
+                    relativePath: path,
                     body: editorText
                 )
                 savedText = editorText
+                documentContentIndex[path] = editorText
                 isAutosaving = false
+                reloadFileCommits()
+            } catch is CancellationError {
+                return
             } catch {
                 isAutosaving = false
+                statusMessage = error.localizedDescription
             }
         }
     }
@@ -796,6 +1233,9 @@ struct NotesView: View {
                 body: editorText
             )
             savedText = editorText
+            documentContentIndex[selectedDocument.id] = editorText
+            isAutosaving = false
+            statusMessage = nil
             reload()
         } catch {
             statusMessage = L10n.pick("Could not save document", "无法保存文档")
@@ -865,14 +1305,12 @@ struct NotesView: View {
         let lines = content.components(separatedBy: .newlines)
         return lines.compactMap { line -> HeadingItem? in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("# ") {
-                return HeadingItem(level: 1, text: String(trimmed.dropFirst(2)))
-            } else if trimmed.hasPrefix("## ") {
-                return HeadingItem(level: 2, text: String(trimmed.dropFirst(3)))
-            } else if trimmed.hasPrefix("### ") {
-                return HeadingItem(level: 3, text: String(trimmed.dropFirst(4)))
-            }
-            return nil
+            let markerCount = trimmed.prefix(while: { $0 == "#" }).count
+            guard (1...6).contains(markerCount),
+                  trimmed.dropFirst(markerCount).first == " " else { return nil }
+            let text = trimmed.dropFirst(markerCount + 1)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : HeadingItem(level: markerCount, text: text)
         }
     }
 }

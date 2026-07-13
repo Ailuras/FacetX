@@ -32,6 +32,31 @@ struct FacetXDataChecks {
         let listed = try RepositoryDocumentStore.list(repositoryPath: root.path).map(\.relativePath)
         check(Set(listed) == Set(["README.md", ".facetx/weekly-plan.md"]),
               "listing should include only supported documents: \(listed)")
+        let renamed = try RepositoryDocumentStore.rename(
+            repositoryPath: root.path,
+            relativePath: created.relativePath,
+            title: "Research Roadmap"
+        )
+        check(renamed.relativePath == ".facetx/research-roadmap.md", "rename should stay inside .facetx")
+        check(!RepositoryDocumentStore.exists(repositoryPath: root.path, relativePath: created.relativePath),
+              "rename should remove the old document path")
+        let renamedBody = try RepositoryDocumentStore.read(repositoryPath: root.path, relativePath: renamed.relativePath)
+        check(renamedBody == "updated",
+              "rename should preserve document content")
+        let restored = try RepositoryDocumentStore.rename(
+            repositoryPath: root.path,
+            relativePath: renamed.relativePath,
+            title: "Weekly Plan"
+        )
+        check(restored.relativePath == created.relativePath, "rename should support restoring the original name")
+        let disposable = try RepositoryDocumentStore.create(repositoryPath: root.path, title: "Disposable")
+        try RepositoryDocumentStore.delete(repositoryPath: root.path, relativePath: disposable.relativePath)
+        check(!RepositoryDocumentStore.exists(repositoryPath: root.path, relativePath: disposable.relativePath),
+              "delete should remove a .facetx document")
+        do {
+            try RepositoryDocumentStore.delete(repositoryPath: root.path, relativePath: "README.md")
+            fatalError("README deletion must be rejected")
+        } catch RepositoryDocumentStore.StoreError.protectedDocument {}
         check(!RepositoryDocumentStore.isValid(relativePath: "/tmp/outside.md"), "absolute paths must be rejected")
         check(!RepositoryDocumentStore.isValid(relativePath: ".facetx/../outside.md"), "parent traversal must be rejected")
         check(!RepositoryDocumentStore.isValid(relativePath: "docs/outside.md"), "writes outside .facetx must be rejected")

@@ -8,6 +8,20 @@ Task and event items are the primary work atoms. Projects group them by prefix;
 literature, commits, and repository documents attach to an item rather than to the
 project.
 
+## Project Workspaces
+
+Each project exposes four focused workspace modes:
+
+- **All** manages Todo and Event work items.
+- **Plan** schedules and reviews those work items.
+- **Git** summarizes the bound repository's branch, working changes, commits,
+  and commit-to-item progress.
+- **Notes** reads and edits `README.md` plus top-level `.facetx/*.md` documents.
+
+Notes are repository documents, not work items. The Notes workspace provides
+read, write, and split Markdown modes while attachments continue to use
+`item_documents` under the stable Todo/Event `item-id`.
+
 ## Core Contract
 
 An item belongs to a project when its title starts with `ProjectName:`.

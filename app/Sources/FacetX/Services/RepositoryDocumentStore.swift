@@ -21,11 +21,15 @@ enum RepositoryDocumentStore {
     enum StoreError: LocalizedError {
         case missingRepository
         case invalidPath
+        case protectedDocument
+        case documentExists
 
         var errorDescription: String? {
             switch self {
             case .missingRepository: return "The project has no local Git repository."
             case .invalidPath: return "Documents must be README.md or a top-level Markdown file in .facetx."
+            case .protectedDocument: return "README.md cannot be renamed or deleted from FacetX."
+            case .documentExists: return "A document with that name already exists."
             }
         }
     }
@@ -93,6 +97,29 @@ enum RepositoryDocumentStore {
         let content = body.isEmpty ? "# \(title.trimmingCharacters(in: .whitespacesAndNewlines))\n\n" : body
         try save(repositoryPath: repositoryPath, relativePath: relativePath, body: content)
         return document(relativePath: relativePath, root: root)
+    }
+
+    static func rename(repositoryPath: String?, relativePath: String, title: String) throws -> RepositoryDocument {
+        guard relativePath != "README.md" else { throw StoreError.protectedDocument }
+        let source = try url(repositoryPath: repositoryPath, relativePath: relativePath)
+        let root = try repositoryURL(path: repositoryPath)
+        let name = slug(title)
+        guard !name.isEmpty else { throw StoreError.invalidPath }
+        let destinationPath = ".facetx/\(name).md"
+        let destination = try url(repositoryPath: repositoryPath, relativePath: destinationPath)
+        guard source.standardizedFileURL != destination.standardizedFileURL else {
+            return document(relativePath: relativePath, root: root)
+        }
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            throw StoreError.documentExists
+        }
+        try FileManager.default.moveItem(at: source, to: destination)
+        return document(relativePath: destinationPath, root: root)
+    }
+
+    static func delete(repositoryPath: String?, relativePath: String) throws {
+        guard relativePath != "README.md" else { throw StoreError.protectedDocument }
+        try FileManager.default.removeItem(at: url(repositoryPath: repositoryPath, relativePath: relativePath))
     }
 
     static func exists(repositoryPath: String?, relativePath: String) -> Bool {

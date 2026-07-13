@@ -11,9 +11,28 @@ final class MarkdownEditorController: ObservableObject {
     func bold() { wrap("**", "**") }
     func italic() { wrap("*", "*") }
     func code() { wrap("`", "`") }
-    func heading() { prefixLine("## ") }
+    func heading(level: Int = 2) { prefixLine(String(repeating: "#", count: min(max(level, 1), 6)) + " ") }
     func bulletList() { prefixLine("- ") }
+    func numberedList() { prefixLine("1. ") }
+    func taskList() { prefixLine("- [ ] ") }
     func quote() { prefixLine("> ") }
+    func strikethrough() { wrap("~~", "~~") }
+    func codeBlock() { wrap("```\n", "\n```") }
+    func horizontalRule() { replaceSelection(with: "\n---\n") }
+    func undo() { textView?.undoManager?.undo() }
+    func redo() { textView?.undoManager?.redo() }
+
+    func reveal(heading: String) {
+        guard let tv = textView else { return }
+        let source = tv.string as NSString
+        let patterns = (1...6).map { String(repeating: "#", count: $0) + " " + heading }
+        guard let range = patterns.lazy
+            .map({ source.range(of: $0) })
+            .first(where: { $0.location != NSNotFound }) else { return }
+        tv.setSelectedRange(NSRange(location: range.location, length: 0))
+        tv.scrollRangeToVisible(range)
+        tv.window?.makeFirstResponder(tv)
+    }
 
     func link() {
         guard let tv = textView else { return }
@@ -116,7 +135,7 @@ struct MarkdownEditor: NSViewRepresentable {
         formatting.isAutomaticTextReplacementEnabled = false
         formatting.font = editorFont
         formatting.textColor = NSColor.labelColor
-        formatting.textContainerInset = NSSize(width: 6, height: 8)
+        formatting.textContainerInset = NSSize(width: 28, height: 24)
         formatting.drawsBackground = false
         formatting.minSize = NSSize(width: 0, height: 0)
         formatting.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
