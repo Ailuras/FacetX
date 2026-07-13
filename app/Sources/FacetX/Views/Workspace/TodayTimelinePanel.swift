@@ -6,6 +6,7 @@ struct TodayTimelinePanel: View {
     @EnvironmentObject var ek: EventKitService
     @EnvironmentObject var store: ProjectStore
     @EnvironmentObject var settings: AppSettings
+    @EnvironmentObject var focus: FocusService
     @Binding var isPresented: Bool
     @Binding var isFullscreen: Bool
 
@@ -45,14 +46,36 @@ struct TodayTimelinePanel: View {
             onClose: { withAnimation(FacetTheme.detailSpring) { isPresented = false } },
             accessory: { todayFullscreenToggle }
         ) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    compactTimelineView
-                        .hideScrollIndicators()
+            VStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        compactTimelineView
+                            .hideScrollIndicators()
+                    }
+                    .scrollIndicators(.hidden)
+                    .onAppear {
+                        scrollToCurrentHour(proxy: proxy)
+                    }
                 }
-                .scrollIndicators(.hidden)
-                .onAppear {
-                    scrollToCurrentHour(proxy: proxy)
+
+                // Today focus summary — shown below the timeline when the user
+                // has logged at least one minute of focus time today.
+                if focus.todaySeconds >= 60 {
+                    Divider()
+                    HStack(spacing: 5) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.pink)
+                        Text(L10n.pick(
+                            "Focused \(FocusService.format(seconds: focus.todaySeconds)) today",
+                            "今日専注 \(FocusService.format(seconds: focus.todaySeconds))"))
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(FacetTheme.canvas)
                 }
             }
         }

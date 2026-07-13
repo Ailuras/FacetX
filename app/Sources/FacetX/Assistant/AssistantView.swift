@@ -14,6 +14,8 @@ struct AssistantView: View {
     @State private var isLoadingModels = false
     @State private var editingEntryID: UUID?
     @State private var editDraft = ""
+    /// Tool-call entry IDs whose details are currently expanded.
+    @State private var expandedToolEntries: Set<UUID> = []
     @FocusState private var inputFocused: Bool
     @FocusState private var editFocused: Bool
 
@@ -113,30 +115,73 @@ struct AssistantView: View {
             AssistantReasoningView(text: entry.text)
 
         case .tool(let name):
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.purple)
-                    Text(name)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.purple)
+            VStack(alignment: .leading, spacing: 4) {
+                // Header row — always visible, click to expand/collapse.
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        if expandedToolEntries.contains(entry.id) {
+                            expandedToolEntries.remove(entry.id)
+                        } else {
+                            expandedToolEntries.insert(entry.id)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "wrench.and.screwdriver.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.purple)
+                        Text(name)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.purple)
+                        Spacer(minLength: 0)
+                        Image(systemName: expandedToolEntries.contains(entry.id)
+                              ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.purple.opacity(0.6))
+                    }
                 }
-                if !entry.text.isEmpty {
+                .buttonStyle(.plain)
+                // Expanded detail.
+                if expandedToolEntries.contains(entry.id), !entry.text.isEmpty {
+                    Text(entry.text)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(Color.purple.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                } else if !entry.text.isEmpty {
                     Text(entry.text)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .error:
-            Label(entry.text, systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 11.5))
-                .foregroundStyle(.red)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 6) {
+                Label(entry.text, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // Retry button — only show when the session is idle so
+                // tapping it while a run is already in flight is impossible.
+                if !session.isBusy {
+                    Button {
+                        session.retryLastUserMessage()
+                    } label: {
+                        Label(L10n.pick("Retry", "重试"),
+                              systemImage: "arrow.clockwise")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -312,6 +357,18 @@ struct AssistantView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSend)
+
+                    if session.isBusy {
+                        // Stop button — tap to cancel the running agent loop.
+                        Button { session.cancel() } label: {
+                            Image(systemName: "stop.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Color.red.opacity(0.75))
+                        }
+                        .buttonStyle(.plain)
+                        .help(L10n.pick("Stop generation", "停止生成"))
+                        .transition(.scale.combined(with: .opacity))
+                    }
                 }
             }
             .padding(12)
@@ -400,6 +457,23 @@ struct AssistantView: View {
             .fixedSize()
             .disabled(!llmSettings.assistantThinkingEnabled)
             .help(L10n.pick("Reasoning effort", "思考强度"))
+
+            // Token usage pill — only visible after the first message.
+            if session.totalInputTokens > 0 {
+                Divider().frame(height: 16)
+                let totalK = Double(session.totalInputTokens) / 1000.0
+                let pillColor: Color = totalK > 110 ? .red : (totalK > 60 ? .orange : .secondary)
+                HStack(spacing: 3) {
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 8, weight: .bold))
+                    Text(String(format: "%.1fk", totalK))
+                }
+                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                .foregroundStyle(pillColor)
+                .help(L10n.pick(
+                    "\(session.totalInputTokens) input tokens · \(session.totalOutputTokens) output tokens",
+                    "已消耗 \(session.totalInputTokens) 输入 token，\(session.totalOutputTokens) 输出 token"))
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)

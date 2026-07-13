@@ -7,6 +7,7 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var keyboard: KeyboardActionRouter
+    @EnvironmentObject private var focus: FocusService
     let project: Project
     let showTodayPanel: Binding<Bool>
     let showAssistantPanel: Binding<Bool>
@@ -1121,7 +1122,32 @@ struct ProjectDetailView: View {
             kindChip(.event, value: itemCounts.eventCount)
             kindChip(.paper, value: itemCounts.paperCount)
             kindChip(.note, value: itemCounts.noteCount)
+
+            // Focus summary: total seconds focused on items in this project.
+            let focusSec = projectFocusTotalSeconds
+            if focusSec >= 60 {
+                let focusLabel = FocusService.format(seconds: focusSec)
+                FacetInfoBadge(
+                    text: focusLabel,
+                    systemImage: "timer",
+                    tint: .pink,
+                    fill: Color.pink.opacity(0.10)
+                )
+                .help(L10n.pick(
+                    "Total focus time on this project: \(focusLabel)",
+                    "该项目累计专注时间：\(focusLabel)"))
+            }
         }
+    }
+
+    /// Sum of all tracked focus seconds for items that belong to this project
+    /// (matched by projectPrefix stored in FocusService.totalsByTarget).
+    private var projectFocusTotalSeconds: Int {
+        let projectTargetIDs = Set(items.map(\.focusTargetID))
+        return focus.totalsByTarget
+            .filter { projectTargetIDs.contains($0.key) }
+            .values
+            .reduce(0) { $0 + $1.seconds }
     }
 
     private func kindChip(_ kind: FacetKind, value: Int) -> some View {

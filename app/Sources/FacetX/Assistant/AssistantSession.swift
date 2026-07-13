@@ -104,6 +104,8 @@ final class AssistantSession: ObservableObject {
     private var configured = false
     private let conversationStore = AssistantConversationStore()
     private var conversationCreatedAt = Date()
+    /// The running agent loop task; cancelled by `cancel()`.
+    private var loopTask: Task<Void, Never>?
 
     private static let maxLoopIterations = 12
 
@@ -217,11 +219,46 @@ final class AssistantSession: ObservableObject {
         pendingSelection = nil
         persistCurrentConversation()
         isBusy = true
-        Task {
+        loopTask = Task {
             await runLoop(userText: prompt)
             isBusy = false
+            loopTask = nil
             persistCurrentConversation()
         }
+    }
+
+    /// Cancel the running agent loop immediately.
+    func cancel() {
+        loopTask?.cancel()
+        loopTask = nil
+        isBusy = false
+        entries.append(AssistantEntry(
+            role: .error,
+            text: L10n.pick("Stopped.", "已中断。")))
+        persistCurrentConversation()
+    }
+
+    /// Re-send the last user message, discarding everything after it.
+    func retryLastUserMessage() {
+        guard !isBusy,
+              let lastUserIndex = entries.lastIndex(where: { if case .user = $0.role { return true }; return false })
+        else { return }
+        let entry = entries[lastUserIndex]
+        let text = entry.text
+        let mentions = entry.mentions
+        // Count how many user turns precede this one so we can cut apiMessages.
+        let userOrdinal = entries[..<lastUserIndex]
+            .reduce(0) { count, e in if case .user = e.role { return count + 1 }; return count }
+        entries.removeSubrange(lastUserIndex...)
+        var seenUsers = 0
+        var cut = apiMessages.count
+        for (index, message) in apiMessages.enumerated() where (message["role"] as? String) == "user" {
+            if seenUsers == userOrdinal { cut = index; break }
+            seenUsers += 1
+        }
+        apiMessages.removeSubrange(cut...)
+        injectedPaperID = nil
+        send(text, mentions: mentions)
     }
 
     /// Rewind the conversation to a past user turn, replace its text, and run
