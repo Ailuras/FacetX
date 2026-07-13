@@ -123,6 +123,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     tags: item.tags,
                     paperIDs: item.linkedPaperIDs,
                     commits: item.linkedCommits,
+                    documentPaths: item.linkedDocumentPaths,
                     isNote: item.isNote || isCalendarNote
                 )
                 guard let facetID = classified.facetID, let state = states[facetID] else { return classified }
@@ -131,6 +132,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     tags: state.tags,
                     paperIDs: state.paperIDs,
                     commits: state.commits,
+                    documentPaths: state.documentPaths,
                     isNote: classified.isNote
                 )
                 // Reminders carry native EventKit completion; events/notes have

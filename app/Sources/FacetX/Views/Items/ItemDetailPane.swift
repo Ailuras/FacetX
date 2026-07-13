@@ -37,6 +37,7 @@ struct ItemDetailPane: View {
     @State private var savedNoteSignature = ""
     @State private var didEdit = false
     @State private var itemMetadata = FacetItemMetadata()
+    @State private var documentPaths: [String] = []
 
     private let labelWidth: CGFloat = 76
     private let scheduleBoxHorizontalPadding: CGFloat = 8
@@ -228,13 +229,106 @@ struct ItemDetailPane: View {
     private var resourcesCard: some View {
         FacetDetailSection(title: L10n.pick("Linked Resources", "关联资源"), systemImage: "link.badge.plus") {
             VStack(alignment: .leading, spacing: 10) {
+                linkedDocumentsSection
                 if !itemMetadata.paperIDs.isEmpty {
                     linkedPapersSection
-                } else {
+                }
+                if !itemMetadata.commits.isEmpty {
                     linkedCommitsSection
                 }
             }
             .padding(10)
+        }
+    }
+
+    // MARK: - Documents section
+
+    private var linkedDocumentsSection: some View {
+        let available = (try? RepositoryDocumentStore.list(repositoryPath: project.githubLocalPath)) ?? []
+        let linkedPaths: [String] = documentPaths
+        return VStack(alignment: .leading, spacing: 7) {
+            resourceHeader(
+                title: L10n.pick("Documents", "文档"),
+                count: documentPaths.count,
+                systemImage: "doc.text"
+            ) {
+                Menu {
+                    if project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                        Text(L10n.pick("Bind a local repository first.", "请先绑定本地仓库。"))
+                    } else if available.isEmpty {
+                        Text(L10n.pick("No repository documents.", "仓库中暂无文档。"))
+                    } else {
+                        ForEach(available) { document in
+                            Button {
+                                var updated = documentPaths
+                                if updated.contains(document.relativePath) {
+                                    updated.removeAll { $0 == document.relativePath }
+                                } else {
+                                    updated.append(document.relativePath)
+                                }
+                                updateDocumentPaths(updated)
+                            } label: {
+                                Label(document.title,
+                                      systemImage: documentPaths.contains(document.relativePath) ? "checkmark" : "doc.text")
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .disabled(project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+                .help(L10n.pick("Attach Document", "关联文档"))
+            }
+
+            if documentPaths.isEmpty {
+                emptyResourceText(L10n.pick("No linked documents.", "暂无关联文档。"))
+            } else {
+                ForEach(linkedPaths, id: \.self) { (path: String) in
+                    let exists = RepositoryDocumentStore.exists(repositoryPath: project.githubLocalPath, relativePath: path)
+                    HStack(spacing: 8) {
+                        Image(systemName: exists ? "doc.text" : "exclamationmark.triangle")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(exists ? Color.accentColor : .orange)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1)
+                            Text(exists ? path : L10n.pick("Missing · \(path)", "文件缺失 · \(path)"))
+                                .font(.system(size: 9))
+                                .foregroundStyle(exists ? Color.secondary : Color.orange)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        if exists, let url = try? RepositoryDocumentStore.url(
+                            repositoryPath: project.githubLocalPath,
+                            relativePath: path
+                        ) {
+                            Button { NSWorkspace.shared.open(url) } label: {
+                                Image(systemName: "arrow.up.right")
+                            }
+                            .buttonStyle(.plain)
+                            .help(L10n.pick("Open Document", "打开文档"))
+                        }
+                        Button(role: .destructive) {
+                            updateDocumentPaths(documentPaths.filter { $0 != path })
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help(L10n.pick("Unlink Document", "取消文档关联"))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(FacetTheme.quietPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+            }
         }
     }
 
@@ -303,18 +397,16 @@ struct ItemDetailPane: View {
 
             Spacer(minLength: 8)
 
-            if item.linkedPaperIDs.isEmpty {
-                Button(role: .destructive) {
-                    onRemove()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .disabled(saving)
-                .help(L10n.pick("Unlink paper", "取消文献关联"))
+            Button(role: .destructive) {
+                onRemove()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(saving)
+            .help(L10n.pick("Unlink paper", "取消文献关联"))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -668,6 +760,7 @@ struct ItemDetailPane: View {
         content = item.content
         itemMetadata = item.facetItemMetadata()
         let stableID = item.facetID ?? itemMetadata.itemID
+        documentPaths = noteStore.documentPaths(for: stableID)
         notes = noteStore.body(for: stableID)
         savedNoteSignature = notes
         tagsText = item.tags.joined(separator: ", ")
@@ -948,12 +1041,30 @@ struct ItemDetailPane: View {
         }
     }
 
+    private func updateDocumentPaths(_ paths: [String]) {
+        let stableID = item.facetID ?? itemMetadata.itemID
+        let normalized = Array(Set(paths.filter(RepositoryDocumentStore.isValid(relativePath:)))).sorted()
+        noteStore.setDocumentPaths(normalized, for: stableID)
+        documentPaths = normalized
+        if item.facetID == nil {
+            Task {
+                let ok = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: stableID))
+                if ok { onUpdate(item.id) }
+            }
+        } else {
+            onUpdate(item.id)
+        }
+    }
+
     private func deleteItem() {
         saving = true
         Task {
             let ok = await ek.deleteItem(id: item.id)
             saving = false
             if ok {
+                if let facetID = item.facetID {
+                    noteStore.deleteLocalState(for: facetID)
+                }
                 onUpdate(nil)
                 onClose()
             } else {

@@ -192,6 +192,7 @@ final class ItemStore {
         var isCompleted = false
         var paperIDs: [String] = []
         var commits: [String] = []
+        var documentPaths: [String] = []
     }
 
     /// Batched read of local state for many items at once — three `IN (…)`
@@ -232,6 +233,7 @@ final class ItemStore {
             let linkQueries = [
                 ("SELECT item_id, paper_id FROM item_papers WHERE item_id IN (\(placeholders))", \ItemLocalState.paperIDs),
                 ("SELECT item_id, commit_id FROM item_commits WHERE item_id IN (\(placeholders))", \ItemLocalState.commits),
+                ("SELECT item_id, document_path FROM item_documents WHERE item_id IN (\(placeholders))", \ItemLocalState.documentPaths),
             ]
             for (sql, keyPath) in linkQueries {
                 var linkStmt: OpaquePointer?
@@ -322,6 +324,72 @@ final class ItemStore {
             }
         }
         sqlite3_finalize(insertStmt)
+        version += 1
+    }
+
+    func documentPaths(for id: String) -> [String] {
+        let sql = "SELECT document_path FROM item_documents WHERE item_id = ? ORDER BY document_path"
+        var stmt: OpaquePointer?
+        var results: [String] = []
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                results.append(columnString(stmt, 0))
+            }
+        }
+        sqlite3_finalize(stmt)
+        return results
+    }
+
+    func setDocumentPaths(_ paths: [String], for id: String) {
+        replaceLinks(
+            table: "item_documents",
+            valueColumn: "document_path",
+            values: Array(Set(paths)).sorted(),
+            for: id
+        )
+    }
+
+    func deleteLocalState(for id: String) {
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        for table in ["item_papers", "item_commits", "item_documents"] {
+            var stmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, "DELETE FROM \(table) WHERE item_id = ?", -1, &stmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+                sqlite3_step(stmt)
+            }
+            sqlite3_finalize(stmt)
+        }
+        var itemStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, "DELETE FROM items WHERE id = ?", -1, &itemStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(itemStmt, 1, id, -1, SQLITE_TRANSIENT)
+            sqlite3_step(itemStmt)
+        }
+        sqlite3_finalize(itemStmt)
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+        version += 1
+    }
+
+    private func replaceLinks(table: String, valueColumn: String, values: [String], for id: String) {
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        var deleteStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, "DELETE FROM \(table) WHERE item_id = ?", -1, &deleteStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(deleteStmt, 1, id, -1, SQLITE_TRANSIENT)
+            sqlite3_step(deleteStmt)
+        }
+        sqlite3_finalize(deleteStmt)
+
+        var insertStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, "INSERT OR IGNORE INTO \(table) (item_id, \(valueColumn)) VALUES (?, ?)", -1, &insertStmt, nil) == SQLITE_OK {
+            for value in values {
+                sqlite3_bind_text(insertStmt, 1, id, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(insertStmt, 2, value, -1, SQLITE_TRANSIENT)
+                sqlite3_step(insertStmt)
+                sqlite3_reset(insertStmt)
+            }
+        }
+        sqlite3_finalize(insertStmt)
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
         version += 1
     }
 
@@ -511,6 +579,12 @@ final class ItemStore {
             PRIMARY KEY (item_id, commit_id)
         );
 
+        CREATE TABLE IF NOT EXISTS item_documents (
+            item_id TEXT,
+            document_path TEXT,
+            PRIMARY KEY (item_id, document_path)
+        );
+
         CREATE TABLE IF NOT EXISTS focus_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target_id TEXT NOT NULL,
@@ -528,6 +602,8 @@ final class ItemStore {
         CREATE INDEX IF NOT EXISTS idx_item_commits_item ON item_commits(item_id);
         CREATE INDEX IF NOT EXISTS idx_item_papers_paper ON item_papers(paper_id);
         CREATE INDEX IF NOT EXISTS idx_item_commits_commit ON item_commits(commit_id);
+        CREATE INDEX IF NOT EXISTS idx_item_documents_item ON item_documents(item_id);
+        CREATE INDEX IF NOT EXISTS idx_item_documents_path ON item_documents(document_path);
         """
         var errorMsg: UnsafeMutablePointer<Int8>?
         if sqlite3_exec(db, schema, nil, nil, &errorMsg) != SQLITE_OK {

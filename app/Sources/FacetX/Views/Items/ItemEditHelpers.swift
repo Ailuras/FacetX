@@ -200,7 +200,10 @@ enum ItemActionHelpers {
     }
 
     static func deleteItem(_ item: ProjectItem, ek: EventKitService) async {
-        _ = await ek.deleteItem(id: item.id)
+        guard await ek.deleteItem(id: item.id) else { return }
+        if let facetID = item.facetID {
+            await MainActor.run { ItemStore.shared.deleteLocalState(for: facetID) }
+        }
     }
 
     // MARK: Rescheduling

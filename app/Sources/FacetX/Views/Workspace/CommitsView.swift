@@ -3,24 +3,6 @@ import FacetXCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-// MARK: - Document model
-
-private struct FacetXRepoDocument: Identifiable, Equatable {
-    let url: URL
-    let modifiedAt: Date?
-    let isReadme: Bool
-
-    var id: String { url.path }
-
-    var title: String {
-        if isReadme { return "README" }
-        return url.deletingPathExtension().lastPathComponent
-            .replacingOccurrences(of: "-", with: " ")
-            .replacingOccurrences(of: "_", with: " ")
-            .capitalized
-    }
-}
-
 // MARK: - Outline model
 
 struct HeadingItem: Identifiable, Hashable {
@@ -48,8 +30,8 @@ struct CommitsView: View {
     let onItemsChanged: () async -> Void
 
     // ── Document list & selection ─────────────────────────────────────────────
-    @State private var documents: [FacetXRepoDocument] = []
-    @State private var selectedDocumentID: FacetXRepoDocument.ID?
+    @State private var documents: [RepositoryDocument] = []
+    @State private var selectedDocumentID: RepositoryDocument.ID?
     @State private var editorText = ""
     @State private var savedText = ""
     @State private var statusMessage: String?
@@ -58,6 +40,8 @@ struct CommitsView: View {
     @State private var fileCommits: [LocalGitCommit] = []
     @State private var isLoadingFileCommits = false
     @State private var showingHistoryPopover = false
+    @State private var showingAttachmentPopover = false
+    @State private var attachmentVersion = 0
     @StateObject private var editorController = MarkdownEditorController()
 
     @State private var hoveredDocID: String? = nil
@@ -83,7 +67,7 @@ struct CommitsView: View {
         repoURL?.appendingPathComponent(".facetx", isDirectory: true)
     }
 
-    private var selectedDocument: FacetXRepoDocument? {
+    private var selectedDocument: RepositoryDocument? {
         documents.first { $0.id == selectedDocumentID }
     }
 
@@ -91,7 +75,7 @@ struct CommitsView: View {
         selectedDocument != nil && editorText != savedText
     }
 
-    private var filteredDocuments: [FacetXRepoDocument] {
+    private var filteredDocuments: [RepositoryDocument] {
         guard !query.isEmpty else { return documents }
         return documents.filter { $0.title.lowercased().contains(query) }
     }
@@ -218,7 +202,7 @@ struct CommitsView: View {
         }
     }
 
-    private func docRowCard(_ doc: FacetXRepoDocument) -> some View {
+    private func docRowCard(_ doc: RepositoryDocument) -> some View {
         let isSelected = selectedDocumentID == doc.id
         let isHovered = hoveredDocID == doc.id
 
@@ -408,7 +392,7 @@ struct CommitsView: View {
         }
     }
 
-    private func docControlBar(_ doc: FacetXRepoDocument) -> some View {
+    private func docControlBar(_ doc: RepositoryDocument) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(doc.title)
@@ -447,6 +431,24 @@ struct CommitsView: View {
 
             // Actions - all styled uniformly using PlanView's chip style
             HStack(spacing: 8) {
+                Button {
+                    showingAttachmentPopover = true
+                } label: {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                        .contentShape(Rectangle())
+                        .facetHoverSurface(tint: .secondary,
+                                           fill: Color.primary.opacity(0.04),
+                                           hoverFill: Color.primary.opacity(0.07),
+                                           hoverStroke: FacetTheme.hairline)
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Attach to Work Item", "关联到工作项"))
+                .popover(isPresented: $showingAttachmentPopover, arrowEdge: .bottom) {
+                    documentAttachmentPopover(doc)
+                }
+
                 // Revision History Button (Popover)
                 Button {
                     showingHistoryPopover = true
@@ -604,6 +606,58 @@ struct CommitsView: View {
         }
     }
 
+    private func documentAttachmentPopover(_ document: RepositoryDocument) -> some View {
+        let workItems = items.filter { $0.facetKind == .task || $0.facetKind == .event }
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.pick("Attach to Work Item", "关联到工作项"))
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            Divider()
+            if workItems.isEmpty {
+                Text(L10n.pick("No tasks or events in this project.", "该项目暂无任务或事件。"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(14)
+            } else {
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(workItems) { item in
+                            let paths = item.facetID.map { ItemStore.shared.documentPaths(for: $0) } ?? []
+                            let linked = paths.contains(document.relativePath)
+                            Button {
+                                guard let facetID = item.facetID else { return }
+                                var updated = paths
+                                if linked { updated.removeAll { $0 == document.relativePath } }
+                                else { updated.append(document.relativePath) }
+                                ItemStore.shared.setDocumentPaths(updated, for: facetID)
+                                attachmentVersion += 1
+                                Task { await onItemsChanged() }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: item.kind == .reminder ? "checkmark.circle" : "calendar")
+                                        .foregroundStyle(item.kind == .reminder ? .green : .blue)
+                                    Text(item.content)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    if linked { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+                                }
+                                .font(.system(size: 11.5))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                .frame(width: 320, height: min(CGFloat(workItems.count) * 34 + 12, 280))
+            }
+        }
+        .id(attachmentVersion)
+    }
+
     private var formattingToolbar: some View {
         HStack(spacing: 2) {
             toolbarButton("bold", help: "Bold ⌘B") { editorController.bold() }
@@ -636,38 +690,7 @@ struct CommitsView: View {
     // MARK: - Actions & Loading
 
     private func reload() {
-        var result: [FacetXRepoDocument] = []
-
-        // 1. README.md
-        if let repoURL {
-            let readmeURL = repoURL.appendingPathComponent("README.md")
-            if FileManager.default.fileExists(atPath: readmeURL.path) {
-                let values = try? readmeURL.resourceValues(forKeys: [.contentModificationDateKey])
-                result.append(FacetXRepoDocument(
-                    url: readmeURL,
-                    modifiedAt: values?.contentModificationDate,
-                    isReadme: true
-                ))
-            }
-        }
-
-        // 2. .facetx documents
-        if let docsURL,
-           let urls = try? FileManager.default.contentsOfDirectory(
-               at: docsURL,
-               includingPropertiesForKeys: [.contentModificationDateKey],
-               options: [.skipsHiddenFiles]) {
-            let facetxDocs = urls
-                .filter { $0.pathExtension.lowercased() == "md" }
-                .map { url -> FacetXRepoDocument in
-                    let values = try? url.resourceValues(forKeys: [.contentModificationDateKey])
-                    return FacetXRepoDocument(url: url,
-                                              modifiedAt: values?.contentModificationDate,
-                                              isReadme: false)
-                }
-                .sorted { ($0.modifiedAt ?? .distantPast) > ($1.modifiedAt ?? .distantPast) }
-            result.append(contentsOf: facetxDocs)
-        }
+        let result = (try? RepositoryDocumentStore.list(repositoryPath: repoPath)) ?? []
 
         self.documents = result
 
@@ -686,7 +709,10 @@ struct CommitsView: View {
             }
         } else if let selectedDoc = result.first(where: { $0.id == selectedDocumentID }) {
             // Re-read file content if it changed on disk
-            let currentContent = (try? String(contentsOf: selectedDoc.url, encoding: .utf8)) ?? ""
+            let currentContent = (try? RepositoryDocumentStore.read(
+                repositoryPath: repoPath,
+                relativePath: selectedDoc.relativePath
+            )) ?? ""
             if currentContent != editorText && !hasUnsavedChanges {
                 editorText = currentContent
                 savedText = currentContent
@@ -694,10 +720,13 @@ struct CommitsView: View {
         }
     }
 
-    private func selectDocument(_ document: FacetXRepoDocument) {
+    private func selectDocument(_ document: RepositoryDocument) {
         if hasUnsavedChanges { saveSelectedDocument() }
         selectedDocumentID = document.id
-        editorText = (try? String(contentsOf: document.url, encoding: .utf8)) ?? ""
+        editorText = (try? RepositoryDocumentStore.read(
+            repositoryPath: repoPath,
+            relativePath: document.relativePath
+        )) ?? ""
         savedText = editorText
     }
 
@@ -708,7 +737,7 @@ struct CommitsView: View {
             return
         }
 
-        let relativePath = doc.url.path.replacingOccurrences(of: rootPath + "/", with: "")
+        let relativePath = doc.relativePath
         isLoadingFileCommits = true
         Task {
             let commits = await LocalGitRepository.gitLogForFile(rootPath: rootPath, filePath: relativePath)
@@ -730,14 +759,13 @@ struct CommitsView: View {
     }
 
     private func createDocument() {
-        guard let docsURL else { return }
         do {
-            try FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
-            let url = uniqueDocumentURL(in: docsURL)
-            let title = url.deletingPathExtension().lastPathComponent
-            try "# \(title.capitalized)\n\n".write(to: url, atomically: true, encoding: .utf8)
+            let document = try RepositoryDocumentStore.create(
+                repositoryPath: repoPath,
+                title: L10n.pick("New Document", "新文档")
+            )
             reload()
-            if let doc = documents.first(where: { $0.url == url }) {
+            if let doc = documents.first(where: { $0.id == document.id }) {
                 selectDocument(doc)
             }
         } catch {
@@ -752,7 +780,11 @@ struct CommitsView: View {
             // Only save if the text hasn't changed since this autosave was triggered
             guard editorText == text else { return }
             do {
-                try editorText.write(to: selectedDocument.url, atomically: true, encoding: .utf8)
+                try RepositoryDocumentStore.save(
+                    repositoryPath: repoPath,
+                    relativePath: selectedDocument.relativePath,
+                    body: editorText
+                )
                 savedText = editorText
                 isAutosaving = false
             } catch {
@@ -764,7 +796,11 @@ struct CommitsView: View {
     private func saveSelectedDocument() {
         guard let selectedDocument else { return }
         do {
-            try editorText.write(to: selectedDocument.url, atomically: true, encoding: .utf8)
+            try RepositoryDocumentStore.save(
+                repositoryPath: repoPath,
+                relativePath: selectedDocument.relativePath,
+                body: editorText
+            )
             savedText = editorText
             reload()
         } catch {
@@ -780,16 +816,6 @@ struct CommitsView: View {
     private func revealSelectedDocument() {
         guard let selectedDocument else { return }
         NSWorkspace.shared.activateFileViewerSelecting([selectedDocument.url])
-    }
-
-    private func uniqueDocumentURL(in directory: URL) -> URL {
-        var index = 1
-        while true {
-            let filename = index == 1 ? "new-doc.md" : "new-doc-\(index).md"
-            let url = directory.appendingPathComponent(filename)
-            if !FileManager.default.fileExists(atPath: url.path) { return url }
-            index += 1
-        }
     }
 
     // MARK: - Exporting

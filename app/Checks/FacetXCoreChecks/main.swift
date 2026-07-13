@@ -152,13 +152,14 @@ check(searchItem.matches(searchQuery: "review"), "matches should search notes")
 check(searchItem.matches(searchQuery: "deep"), "matches should search tags")
 check(searchItem.matches(searchQuery: "build"), "matches should search container name")
 check(!searchItem.matches(searchQuery: "missing"), "non-matching query should not match")
-let searchItemMetadata = ProjectItem(id: "meta", kind: .event, rawTitle: "Regulus: Paper",
-                                     projectPrefix: "Regulus", content: "Paper", containerName: "Calendar",
-                                     isCompleted: false, date: nil, notes: nil, tags: ["Reading"],
-                                     priority: 0, url: nil,
-                                     facetID: "stable-item",
-                                     linkedPaperIDs: ["paper-1"], linkedCommits: ["owner/repo@abc"])
-    .facetItemMetadata()
+let resourceItem = ProjectItem(id: "meta", kind: .event, rawTitle: "Regulus: Paper",
+                               projectPrefix: "Regulus", content: "Paper", containerName: "Calendar",
+                               isCompleted: false, date: nil, notes: nil, tags: ["Reading"],
+                               priority: 0, url: nil,
+                               facetID: "stable-item",
+                               linkedPaperIDs: ["paper-1"], linkedCommits: ["owner/repo@abc"],
+                               linkedDocumentPaths: [".facetx/plan.md"])
+let searchItemMetadata = resourceItem.facetItemMetadata()
 check(searchItemMetadata.itemID == "stable-item", "item metadata helper should preserve item id")
 check(searchItemMetadata.paperIDs == ["paper-1"], "item metadata helper should preserve papers")
 check(searchItemMetadata.commits == ["owner/repo@abc"], "item metadata helper should preserve commits")
@@ -168,6 +169,8 @@ let replacedSearchItem = searchItem.replacingDate(replacementDate)
 check(replacedSearchItem.date == replacementDate, "replacingDate should update the item date")
 check(replacedSearchItem.id == searchItem.id && replacedSearchItem.content == searchItem.content,
       "replacingDate should preserve item identity and content")
+check(resourceItem.replacingDate(replacementDate).linkedDocumentPaths == [".facetx/plan.md"],
+      "item copies should preserve linked documents")
 let timedSearchItem = searchItem.replacingDate(replacementDate, hasTime: true)
 check(timedSearchItem.hasTime, "replacingDate should allow marking a date as timed")
 check(timedSearchItem.replacingDate(replacementDate).hasTime,
