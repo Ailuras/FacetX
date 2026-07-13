@@ -48,6 +48,8 @@ struct CommitsView: View {
     @State private var isAutosaving = false
     @StateObject private var editorController = MarkdownEditorController()
 
+    @State private var hoveredDocID: String? = nil
+
     // ── Derived ───────────────────────────────────────────────────────────────
 
     private var query: String {
@@ -87,7 +89,7 @@ struct CommitsView: View {
         HStack(spacing: 0) {
             // Left sidebar: Doc list
             docSidebar
-                .frame(width: 250)
+                .frame(width: 260)
                 .background(FacetTheme.quietPanel)
                 .overlay(alignment: .trailing) {
                     Rectangle().fill(FacetTheme.hairline).frame(width: 1)
@@ -123,7 +125,7 @@ struct CommitsView: View {
                 Text("\(filteredDocuments.count)")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 5)
+                    .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.accentColor.opacity(0.12))
                     .clipShape(Capsule())
@@ -157,78 +159,121 @@ struct CommitsView: View {
             } else if documents.isEmpty {
                 emptyDocsState
             } else {
-                List(selection: $selectedDocumentID) {
-                    ForEach(filteredDocuments) { doc in
-                        docRow(doc)
-                            .tag(doc.id)
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(filteredDocuments) { doc in
+                            Button {
+                                selectDocument(doc)
+                            } label: {
+                                docRowCard(doc)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
                 }
-                .listStyle(.sidebar)
-                .scrollContentBackground(.hidden)
+                .thinScrollIndicators()
             }
         }
     }
 
-    private func docRow(_ doc: FacetXRepoDocument) -> some View {
-        HStack(spacing: 8) {
+    private func docRowCard(_ doc: FacetXRepoDocument) -> some View {
+        let isSelected = selectedDocumentID == doc.id
+        let isHovered = hoveredDocID == doc.id
+
+        return HStack(spacing: 10) {
             Image(systemName: doc.isReadme ? "doc.richtext" : "doc.text")
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(.system(size: 12.5, weight: .semibold))
                 .foregroundStyle(doc.isReadme ? Color.orange : Color.accentColor)
-                .frame(width: 18)
+                .frame(width: 24, height: 24)
+                .background((doc.isReadme ? Color.orange : Color.accentColor).opacity(isSelected ? 0.20 : 0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
-            Text(doc.title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(doc.title)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                    .lineLimit(1)
 
-            Spacer()
+                if let modified = doc.modifiedAt {
+                    Text(relativeDate(modified))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 4)
 
             if doc.isReadme {
                 Text("README")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.orange)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.orange.opacity(0.10))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Color.orange.opacity(0.12))
                     .clipShape(Capsule())
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected ? FacetTheme.softAccent : (isHovered ? Color.primary.opacity(0.04) : .clear))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.3) : (isHovered ? FacetTheme.hairline : .clear), lineWidth: 1)
+        )
         .contentShape(Rectangle())
+        .onHover { hovering in
+            hoveredDocID = hovering ? doc.id : nil
+        }
     }
 
     private var noRepoState: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
+            Spacer()
             Image(systemName: "folder.badge.questionmark")
-                .font(.system(size: 24))
+                .font(.system(size: 26))
                 .foregroundStyle(.secondary)
-            Text(L10n.pick("No Repo Bound", "未绑定仓库"))
-                .font(.system(size: 12, weight: .semibold))
+            Text(L10n.pick("No Repository Bound", "未绑定仓库"))
+                .font(.system(size: 13, weight: .semibold))
             Text(L10n.pick(
-                "Please select a local repository path in settings.",
+                "Please configure a local Git repository path in project settings.",
                 "请在项目编辑中选择一个本地 Git 仓库路径。"))
-                .font(.system(size: 10.5))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 24)
+            Spacer()
         }
         .frame(maxHeight: .infinity)
     }
 
     private var emptyDocsState: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
+            Spacer()
             Image(systemName: "doc.text")
-                .font(.system(size: 24))
+                .font(.system(size: 26))
                 .foregroundStyle(.secondary)
-            Text(L10n.pick("No Documents", "无文档"))
-                .font(.system(size: 12, weight: .semibold))
+            Text(L10n.pick("No Documents Yet", "暂无规划文档"))
+                .font(.system(size: 13, weight: .semibold))
+            Text(L10n.pick(
+                "Initialize the docs area to create a project-specific workspace folder inside this repository.",
+                "初始化文档以在该仓库中创建专属的规划空间。"))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
             Button {
                 initializeDocs()
             } label: {
-                Label(L10n.pick("Initialize .facetx", "初始化文档"), systemImage: "folder.badge.plus")
+                Label(L10n.pick("Initialize Docs", "初始化文档"), systemImage: "folder.badge.plus")
                     .font(.system(size: 11, weight: .medium))
             }
             .controlSize(.small)
+            Spacer()
         }
         .frame(maxHeight: .infinity)
     }
@@ -243,28 +288,46 @@ struct CommitsView: View {
 
                 Divider()
 
-                // Editor / Preview content
-                if editing {
-                    formattingToolbar
-                    Divider()
-                    MarkdownEditor(text: $editorText, controller: editorController)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .onChange(of: editorText) { _, newText in
-                            autosave(newText)
+                // Centered sheet layout for readability
+                HStack(spacing: 0) {
+                    Spacer(minLength: 16)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        if editing {
+                            formattingToolbar
+                            Divider()
+                            MarkdownEditor(text: $editorText, controller: editorController)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .onChange(of: editorText) { _, newText in
+                                    autosave(newText)
+                                }
+                        } else {
+                            if editorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text(L10n.pick("Empty document. Switch to Edit to write.",
+                                               "空文档。请切换至编辑模式书写。"))
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                            } else {
+                                MarkdownPreviewWeb(text: editorText, fullWidth: true)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .id(doc.id + "-\(editorText.hashValue)")
+                            }
                         }
-                } else {
-                    if editorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(L10n.pick("Empty document. Switch to Edit to write.",
-                                       "空文档。请切换至编辑模式书写。"))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    } else {
-                        MarkdownPreviewWeb(text: editorText, fullWidth: true)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .id(doc.id + "-\(editorText.hashValue)") // Force web redraw on doc switch/update
                     }
+                    .background(FacetTheme.panel)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 8, x: 0, y: 4)
+                    .frame(maxWidth: 850)
+                    .padding(.vertical, 16)
+
+                    Spacer(minLength: 16)
                 }
+                .background(FacetTheme.canvas)
             }
         } else {
             ContentUnavailableView(
@@ -512,5 +575,13 @@ struct CommitsView: View {
             if !FileManager.default.fileExists(atPath: url.path) { return url }
             index += 1
         }
+    }
+
+    // MARK: - Helpers
+
+    private func relativeDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
