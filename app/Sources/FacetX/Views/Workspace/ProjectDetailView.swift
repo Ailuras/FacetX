@@ -211,7 +211,13 @@ struct ProjectDetailView: View {
                     toolbarActions
                 }
             }
-            .task(id: project.id) { await reload() }
+            .task(id: project.id) {
+                settings.isGitModeActive = (mode == .commits)
+                await reload()
+            }
+            .onDisappear {
+                settings.isGitModeActive = false
+            }
             .onReceive(NotificationCenter.default.publisher(for: .selectItemInProjectDetail)) { notification in
                 guard let itemID = notification.userInfo?["itemID"] as? String else { return }
                 if let target = items.first(where: { $0.id == itemID }) {
@@ -239,6 +245,7 @@ struct ProjectDetailView: View {
                     selectedDetailItem = nil
                     preserveSelectionDuringReplacement = false
                 }
+                settings.isGitModeActive = (mode == .commits)
             }
             .onChange(of: tagFilter) {
                 if let item = selectedDetailItem, !visibleItems.contains(where: { $0.id == item.id }) {
@@ -451,11 +458,19 @@ struct ProjectDetailView: View {
         Button {
             withAnimation(FacetTheme.detailSpring) { showTodayPanel.wrappedValue.toggle() }
         } label: {
-            Image(systemName: showTodayPanel.wrappedValue ? "sun.max.fill" : "sun.max")
-                .symbolRenderingMode(.multicolor)
-                .font(.system(size: 13, weight: .medium))
+            if mode == .commits {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(showTodayPanel.wrappedValue ? Color.accentColor : .primary)
+            } else {
+                Image(systemName: showTodayPanel.wrappedValue ? "sun.max.fill" : "sun.max")
+                    .symbolRenderingMode(.multicolor)
+                    .font(.system(size: 13, weight: .medium))
+            }
         }
-        .help(showTodayPanel.wrappedValue ? L10n.t(.hideTodayPanel) : L10n.t(.showTodayTimeline))
+        .help(mode == .commits
+              ? (showTodayPanel.wrappedValue ? L10n.pick("Hide Commit Tree", "隐藏代码历史") : L10n.pick("Show Commit Tree", "显示代码历史"))
+              : (showTodayPanel.wrappedValue ? L10n.t(.hideTodayPanel) : L10n.t(.showTodayTimeline)))
     }
 
     private var assistantButton: some View {

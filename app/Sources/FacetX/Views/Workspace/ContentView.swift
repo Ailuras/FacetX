@@ -171,11 +171,22 @@ struct ContentView: View {
                         )
                         .transition(FacetSidebarStyle.transition)
                     } else if showTodayPanel {
-                        TodayTimelinePanel(
-                            isPresented: $showTodayPanel,
-                            isFullscreen: $todayFullscreen
-                        )
-                        .transition(FacetSidebarStyle.transition)
+                        if settings.isGitModeActive,
+                           case .project(let id) = selection,
+                           let project = store.activeProjects.first(where: { $0.id == id }) {
+                            GitSidebarPanel(
+                                project: project,
+                                isPresented: $showTodayPanel,
+                                isFullscreen: $todayFullscreen
+                            )
+                            .transition(FacetSidebarStyle.transition)
+                        } else {
+                            TodayTimelinePanel(
+                                isPresented: $showTodayPanel,
+                                isFullscreen: $todayFullscreen
+                            )
+                            .transition(FacetSidebarStyle.transition)
+                        }
                     }
                 }
                 .animation(FacetTheme.detailSpring, value: showTodayPanel)
