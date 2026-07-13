@@ -6,7 +6,7 @@ struct ItemDetailPane: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var toast: ToastController
-    @State private var noteStore = ItemStore.shared
+    @State private var itemStore = ItemStore.shared
     @State private var paperStore = PaperStore.shared
 
     let item: ProjectItem
@@ -18,7 +18,7 @@ struct ItemDetailPane: View {
 
     @State private var kind: ProjectItem.Kind
     @State private var content = ""
-    @State private var notes = ""
+    @State private var details = ""
     @State private var tagsText = ""
     @State private var priority = 0
     @State private var useDate = false
@@ -32,12 +32,19 @@ struct ItemDetailPane: View {
     @State private var saving = false
     @State private var loadingFields = false
     @State private var autoSaveTask: Task<Void, Never>? = nil
-    @State private var noteAutoSaveTask: Task<Void, Never>? = nil
+    @State private var detailsAutoSaveTask: Task<Void, Never>? = nil
     @State private var savedEditSignature = ""
-    @State private var savedNoteSignature = ""
+    @State private var savedDetailsSignature = ""
     @State private var didEdit = false
-    @State private var itemMetadata = FacetItemMetadata()
+    @State private var itemReference = FacetItemReference()
+    @State private var paperIDs: [String] = []
+    @State private var commits: [String] = []
     @State private var documentPaths: [String] = []
+    @State private var showingPaperPicker = false
+    @State private var paperSearchText = ""
+    @State private var showingCommitPicker = false
+    @State private var commitSearchText = ""
+    @State private var commitCandidates: [LocalGitCommit] = []
 
     private let labelWidth: CGFloat = 76
     private let scheduleBoxHorizontalPadding: CGFloat = 8
@@ -84,7 +91,7 @@ struct ItemDetailPane: View {
                 linkCard
                 tagsCard
                 resourcesCard
-                notesCard
+                detailsCard
             }
 
             Divider()
@@ -97,7 +104,7 @@ struct ItemDetailPane: View {
             loadFields()
         }
         .onChange(of: content) { scheduleAutosave() }
-        .onChange(of: notes) { scheduleNoteAutosave() }
+        .onChange(of: details) { scheduleDetailsAutosave() }
         .onChange(of: tagsText) { scheduleAutosave() }
         .onChange(of: priority) { scheduleAutosave() }
         .onChange(of: useDate) { handleUseDateChanged() }
@@ -109,8 +116,8 @@ struct ItemDetailPane: View {
         .onChange(of: isAllDay) { handleAllDayChanged() }
         .onDisappear {
             autoSaveTask?.cancel()
-            noteAutoSaveTask?.cancel()
-            saveLocalNoteIfNeeded()
+            detailsAutoSaveTask?.cancel()
+            saveLocalDetailsIfNeeded()
             if hasChanges {
                 saveChanges()
             }
@@ -230,12 +237,8 @@ struct ItemDetailPane: View {
         FacetDetailSection(title: L10n.pick("Linked Resources", "关联资源"), systemImage: "link.badge.plus") {
             VStack(alignment: .leading, spacing: 10) {
                 linkedDocumentsSection
-                if !itemMetadata.paperIDs.isEmpty {
-                    linkedPapersSection
-                }
-                if !itemMetadata.commits.isEmpty {
-                    linkedCommitsSection
-                }
+                linkedPapersSection
+                linkedCommitsSection
             }
             .padding(10)
         }
@@ -338,16 +341,66 @@ struct ItemDetailPane: View {
         VStack(alignment: .leading, spacing: 7) {
             resourceHeader(
                 title: L10n.pick("Literature", "文献"),
-                count: itemMetadata.paperIDs.count,
+                count: paperIDs.count,
                 systemImage: "books.vertical"
             ) {
-                EmptyView()
+                Button {
+                    showingPaperPicker.toggle()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingPaperPicker) { paperPicker }
+                .help(L10n.pick("Attach Literature", "关联文献"))
             }
-            ForEach(itemMetadata.paperIDs, id: \.self) { paperID in
+            if paperIDs.isEmpty {
+                emptyResourceText(L10n.pick("No linked literature.", "暂无关联文献。"))
+            }
+            ForEach(paperIDs, id: \.self) { paperID in
                 paperResourceRow(paperID: paperID) {
-                    updateItemMetadata(itemMetadata.removingPaper(paperID))
+                    updatePaperIDs(paperIDs.filter { $0 != paperID })
                 }
             }
+        }
+    }
+
+    private var paperPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField(L10n.pick("Search literature", "搜索文献"), text: $paperSearchText)
+                .textFieldStyle(.roundedBorder)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(availablePapers.prefix(80), id: \.id) { paper in
+                        Button {
+                            updatePaperIDs(paperIDs + [paper.id])
+                            showingPaperPicker = false
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(paper.title).lineLimit(2)
+                                Text(paper.authors.prefix(2).joined(separator: ", "))
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(6)
+                        .background(FacetTheme.quietPanel)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .frame(width: 320, height: 340)
+    }
+
+    private var availablePapers: [Paper] {
+        let query = paperSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return paperStore.papers.filter { paper in
+            !paperIDs.contains(paper.id)
+                && (query.isEmpty || paper.searchText.contains(query))
         }
     }
 
@@ -420,21 +473,74 @@ struct ItemDetailPane: View {
         VStack(alignment: .leading, spacing: 7) {
             resourceHeader(
                 title: L10n.pick("Commits", "提交"),
-                count: itemMetadata.commits.count,
+                count: commits.count,
                 systemImage: "curlybraces"
             ) {
-                EmptyView()
+                Button {
+                    showingCommitPicker.toggle()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .disabled(project.githubLocalPath?.isEmpty != false)
+                .popover(isPresented: $showingCommitPicker) { commitPicker }
+                .help(L10n.pick("Attach Commit", "关联提交"))
             }
 
-            if itemMetadata.commits.isEmpty {
+            if commits.isEmpty {
                 emptyResourceText(L10n.pick("No linked commits.", "暂无关联提交。"))
             } else {
-                ForEach(itemMetadata.commits, id: \.self) { commit in
+                ForEach(commits, id: \.self) { commit in
                     commitResourceRow(commitString: commit) {
-                        updateItemMetadata(itemMetadata.removingCommit(commit))
+                        updateCommits(commits.filter { $0 != commit })
                     }
                 }
             }
+        }
+    }
+
+    private var commitPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField(L10n.pick("Search commits", "搜索提交"), text: $commitSearchText)
+                .textFieldStyle(.roundedBorder)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(availableCommits.prefix(80)) { commit in
+                        Button {
+                            let repo = project.githubRepo ?? "local"
+                            updateCommits(commits + ["\(repo)@\(commit.id)"])
+                            showingCommitPicker = false
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text(commit.shortSHA)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                Text(commit.summary).lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(6)
+                        .background(FacetTheme.quietPanel)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .frame(width: 340, height: 340)
+    }
+
+    private var availableCommits: [LocalGitCommit] {
+        let query = commitSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return commitCandidates.filter { commit in
+            let repo = project.githubRepo ?? "local"
+            return !commits.contains("\(repo)@\(commit.id)")
+                && (query.isEmpty
+                    || commit.summary.lowercased().contains(query)
+                    || commit.id.lowercased().contains(query)
+                    || commit.authorName.lowercased().contains(query))
         }
     }
 
@@ -535,12 +641,12 @@ struct ItemDetailPane: View {
             .padding(.vertical, 2)
     }
 
-    private var notesCard: some View {
-        FacetDetailSection(title: L10n.pick("Notes", "备注"), systemImage: "doc.text") {
+    private var detailsCard: some View {
+        FacetDetailSection(title: L10n.pick("Details", "说明"), systemImage: "doc.text") {
             VStack(alignment: .leading, spacing: 8) {
                 ZStack(alignment: .topLeading) {
-                    if notes.isEmpty {
-                        Text(L10n.pick("Add notes and details here...", "在此添加备注和详情…"))
+                    if details.isEmpty {
+                        Text(L10n.pick("Add details here...", "在此添加说明…"))
                             .font(.system(size: 12))
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 10)
@@ -548,7 +654,7 @@ struct ItemDetailPane: View {
                             .allowsHitTesting(false)
                     }
 
-                    TextEditor(text: $notes)
+                    TextEditor(text: $details)
                         .font(.system(size: 12))
                         .scrollContentBackground(.hidden)
                         .scrollIndicators(.hidden)
@@ -758,11 +864,18 @@ struct ItemDetailPane: View {
 
         kind = item.kind
         content = item.content
-        itemMetadata = item.facetItemMetadata()
-        let stableID = item.facetID ?? itemMetadata.itemID
-        documentPaths = noteStore.documentPaths(for: stableID)
-        notes = noteStore.body(for: stableID)
-        savedNoteSignature = notes
+        itemReference = item.facetItemReference()
+        let stableID = item.facetID ?? itemReference.itemID
+        documentPaths = itemStore.documentPaths(for: stableID)
+        paperIDs = itemStore.paperIDs(for: stableID)
+        commits = itemStore.commits(for: stableID)
+        if let repo = LocalGitRepository.inspect(path: project.githubLocalPath ?? "") {
+            Task { commitCandidates = await LocalGitRepository.gitLog(rootPath: repo.rootPath) }
+        } else {
+            commitCandidates = []
+        }
+        details = itemStore.body(for: stableID)
+        savedDetailsSignature = details
         tagsText = item.tags.joined(separator: ", ")
         priority = item.priority
         containerName = item.containerName
@@ -852,28 +965,28 @@ struct ItemDetailPane: View {
         }
     }
 
-    private func scheduleNoteAutosave() {
+    private func scheduleDetailsAutosave() {
         guard !loadingFields else { return }
-        noteAutoSaveTask?.cancel()
-        guard notes != savedNoteSignature else { return }
+        detailsAutoSaveTask?.cancel()
+        guard details != savedDetailsSignature else { return }
 
-        noteAutoSaveTask = Task {
+        detailsAutoSaveTask = Task {
             try? await Task.sleep(nanoseconds: 450_000_000)
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                saveLocalNoteIfNeeded()
+                saveLocalDetailsIfNeeded()
             }
         }
     }
 
-    private func saveLocalNoteIfNeeded() {
-        guard notes != savedNoteSignature else { return }
-        let stableID = item.facetID ?? itemMetadata.itemID
-        noteStore.save(id: stableID, body: notes)
-        savedNoteSignature = notes
+    private func saveLocalDetailsIfNeeded() {
+        guard details != savedDetailsSignature else { return }
+        let stableID = item.facetID ?? itemReference.itemID
+        itemStore.save(id: stableID, body: details)
+        savedDetailsSignature = details
         if item.facetID == nil {
             Task {
-                _ = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: stableID))
+                _ = await ek.rewriteItemReference(id: item.id, reference: FacetItemReference(itemID: stableID))
                 onUpdate(item.id)
             }
         }
@@ -1013,42 +1126,40 @@ struct ItemDetailPane: View {
         }
     }
 
-    private func updateItemMetadata(_ metadata: FacetItemMetadata) {
-        saveLocalNoteIfNeeded()
-        var updated = metadata
-        updated.tags = FacetMetadata.tags(from: tagsText)
-        saving = true
+    private func updatePaperIDs(_ values: [String]) {
+        let stableID = item.facetID ?? itemReference.itemID
+        itemStore.setPaperIDs(values, for: stableID)
+        paperIDs = values
+        persistReferenceIfNeeded(stableID)
+    }
+
+    private func updateCommits(_ values: [String]) {
+        let stableID = item.facetID ?? itemReference.itemID
+        itemStore.setCommits(values, for: stableID)
+        commits = values
+        persistReferenceIfNeeded(stableID)
+    }
+
+    private func persistReferenceIfNeeded(_ stableID: String) {
+        guard item.facetID == nil else {
+            onUpdate(item.id)
+            return
+        }
         Task {
-            let stableID = item.facetID ?? updated.itemID
-            ItemStore.shared.saveAll(
-                id: stableID,
-                body: notes,
-                tags: updated.tags,
-                paperIDs: updated.paperIDs,
-                commits: updated.commits
-            )
-            var ok = true
-            if item.facetID == nil {
-                ok = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: stableID))
-            }
-            saving = false
-            if ok {
-                itemMetadata = updated
-                onUpdate(item.id)
-            } else {
-                toast.show(L10n.pick("Failed to update links", "更新关联失败"), type: .error)
-            }
+            let ok = await ek.rewriteItemReference(id: item.id, reference: FacetItemReference(itemID: stableID))
+            if ok { onUpdate(item.id) }
+            else { toast.show(L10n.pick("Failed to update links", "更新关联失败"), type: .error) }
         }
     }
 
     private func updateDocumentPaths(_ paths: [String]) {
-        let stableID = item.facetID ?? itemMetadata.itemID
+        let stableID = item.facetID ?? itemReference.itemID
         let normalized = Array(Set(paths.filter(RepositoryDocumentStore.isValid(relativePath:)))).sorted()
-        noteStore.setDocumentPaths(normalized, for: stableID)
+        itemStore.setDocumentPaths(normalized, for: stableID)
         documentPaths = normalized
         if item.facetID == nil {
             Task {
-                let ok = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: stableID))
+                let ok = await ek.rewriteItemReference(id: item.id, reference: FacetItemReference(itemID: stableID))
                 if ok { onUpdate(item.id) }
             }
         } else {
@@ -1062,9 +1173,7 @@ struct ItemDetailPane: View {
             let ok = await ek.deleteItem(id: item.id)
             saving = false
             if ok {
-                if let facetID = item.facetID {
-                    noteStore.deleteLocalState(for: facetID)
-                }
+                itemStore.deleteLocalState(for: item.facetID ?? item.id)
                 onUpdate(nil)
                 onClose()
             } else {
@@ -1078,7 +1187,7 @@ struct ItemDetailPane: View {
         guard newKind != item.kind else { return }
         saving = true
         onReplacementStart()
-        saveLocalNoteIfNeeded()
+        saveLocalDetailsIfNeeded()
         Task {
             let newId: String?
             if item.kind == .reminder {
@@ -1088,7 +1197,7 @@ struct ItemDetailPane: View {
                     project: project.prefix,
                     content: item.content,
                     tags: item.tags,
-                    itemMetadata: itemMetadata,
+                    itemReference: itemReference,
                     dueDate: item.date,
                     durationMinutes: settings.defaultEventDurationMinutes,
                     calendarName: calName.isEmpty ? settings.defaultCalendarName : calName,
@@ -1101,7 +1210,7 @@ struct ItemDetailPane: View {
                     project: project.prefix,
                     content: item.content,
                     tags: item.tags,
-                    itemMetadata: itemMetadata,
+                    itemReference: itemReference,
                     priority: item.priority,
                     startDate: item.date,
                     hasTime: item.hasTime,

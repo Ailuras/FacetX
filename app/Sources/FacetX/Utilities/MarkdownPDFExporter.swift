@@ -1,10 +1,10 @@
 import WebKit
 
-class NotePDFExporter: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+class MarkdownPDFExporter: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     private var webView: WKWebView?
     private var text: String = ""
     private var completion: ((Result<Data, Error>) -> Void)?
-    private var keepAlive: NotePDFExporter?
+    private var keepAlive: MarkdownPDFExporter?
 
     func export(text: String, completion: @escaping (Result<Data, Error>) -> Void) {
         self.text = text
@@ -21,10 +21,10 @@ class NotePDFExporter: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         webView.navigationDelegate = self
         self.webView = webView
 
-        if let indexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "NotePreview") {
+        if let indexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "MarkdownPreview") {
             webView.loadFileURL(indexURL, allowingReadAccessTo: indexURL.deletingLastPathComponent())
         } else {
-            cleanup(result: .failure(NSError(domain: "PDFExporter", code: 404, userInfo: [NSLocalizedDescriptionKey: "NotePreview template not found"])))
+            cleanup(result: .failure(NSError(domain: "PDFExporter", code: 404, userInfo: [NSLocalizedDescriptionKey: "MarkdownPreview template not found"])))
         }
     }
 

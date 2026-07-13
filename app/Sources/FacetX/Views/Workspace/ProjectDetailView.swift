@@ -37,10 +37,10 @@ struct ProjectDetailView: View {
     @State private var refreshTrigger = 0
     @State private var sortOption: SortOption = .manual
     @State private var itemFilter = ItemListFilter()
-    @State private var noteStore = ItemStore.shared
+    @State private var itemStore = ItemStore.shared
     @State private var showingFocusQueuePopover = false
     /// Element-type sections collapsed in the All view (header click or badge isolate).
-    @State private var collapsedKinds: Set<FacetKind> = []
+    @State private var collapsedKinds: Set<ProjectItem.Kind> = []
     /// When true the detail pane hides the middle list and fills the area.
     @State private var detailFullscreen = false
 
@@ -73,19 +73,11 @@ struct ProjectDetailView: View {
     }
 
     private var taskItems: [ProjectItem] {
-        pinnedFirst(visibleItems.filter { $0.facetKind == .task })
+        pinnedFirst(visibleItems.filter { $0.kind == .reminder })
     }
 
     private var scheduleItems: [ProjectItem] {
-        pinnedFirst(visibleItems.filter { $0.facetKind == .event })
-    }
-
-    private var literatureItems: [ProjectItem] {
-        pinnedFirst(visibleItems.filter { $0.facetKind == .paper })
-    }
-
-    private var noteItems: [ProjectItem] {
-        pinnedFirst(visibleItems.filter { $0.facetKind == .note })
+        pinnedFirst(visibleItems.filter { $0.kind == .event })
     }
 
     private var itemCounts: ItemCounts {
@@ -144,7 +136,7 @@ struct ProjectDetailView: View {
                     Group {
                         switch mode {
                         case .all: allItemsView
-                        case .plan: PlanView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, showAssistantPanel: showAssistantPanel, assistant: assistant, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .task, initialDate: date) })
+                        case .plan: PlanView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, showAssistantPanel: showAssistantPanel, assistant: assistant, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .reminder, initialDate: date) })
                         case .commits:
                             CommitsView(
                                 project: project,
@@ -183,9 +175,6 @@ struct ProjectDetailView: View {
             Button(L10n.t(.cancel), role: .cancel) { itemToDelete = nil }
             Button(L10n.t(.delete), role: .destructive) {
                 if let item = itemToDelete {
-                    if item.facetKind == .note, let facetID = item.facetID {
-                        NoteStore.shared.delete(dataDirectory: settings.noteDataDirectory(for: project), facetID: facetID)
-                    }
                     Task { await ItemActionHelpers.deleteItem(item, ek: ek); await reload() }
                 }
                 itemToDelete = nil
@@ -324,7 +313,7 @@ struct ProjectDetailView: View {
         case .modeAll:     mode = .all
         case .modePlan:    mode = .plan
         case .modeGit:     mode = .commits
-        case .newItem:     beginCreate(kind: .task)
+        case .newItem:     beginCreate(kind: .reminder)
         case .refresh:
             refreshTrigger += 1
             toast.show(L10n.t(.refreshed), type: .success, duration: 1.5)
@@ -360,8 +349,8 @@ struct ProjectDetailView: View {
 
     private func detailPane(for selectedItem: ProjectItem) -> some View {
         FacetSidebarPane(
-            title: selectedItem.facetKind.singularTitle,
-            systemImage: selectedItem.facetKind.systemImage,
+            title: selectedItem.kind.singularTitle,
+            systemImage: selectedItem.kind.systemImage,
             fillWidth: detailFullscreen,
             onClose: {
                 withAnimation(detailPaneAnimation) {
@@ -371,11 +360,6 @@ struct ProjectDetailView: View {
             },
             accessory: { fullscreenToggle }
         ) {
-            if selectedItem.facetKind == .note {
-                NoteDetailPane(item: selectedItem, project: project) {
-                    withAnimation(detailPaneAnimation) { selectedDetailItem = nil }
-                }
-            } else {
             ItemDetailPane(item: selectedItem,
                            project: project,
                            focusTitleOnAppear: selectedItem.id == focusTitleItemID,
@@ -393,7 +377,6 @@ struct ProjectDetailView: View {
                     await reload(selecting: selectionID, endingReplacement: selectionID != nil)
                 }
             })
-            }
         }
     }
 
@@ -516,7 +499,7 @@ struct ProjectDetailView: View {
             showCompleted: $showCompleted,
             showOverdue: $showOverdue,
             animation: listAnimation,
-            onAdd: { beginCreate(kind: .task) },
+            onAdd: { beginCreate(kind: .reminder) },
             onCreateKind: { kind in beginCreate(kind: kind) }
         ) {
             sortPill
@@ -628,10 +611,8 @@ struct ProjectDetailView: View {
                 emptyAllItemsView
             } else {
                 List {
-                    itemKindSection(kind: .task, items: taskItems)
+                    itemKindSection(kind: .reminder, items: taskItems)
                     itemKindSection(kind: .event, items: scheduleItems)
-                    itemKindSection(kind: .paper, items: literatureItems)
-                    itemKindSection(kind: .note, items: noteItems)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -883,7 +864,7 @@ struct ProjectDetailView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
-                        Image(systemName: entry.item.facetKind.systemImage)
+                        Image(systemName: entry.item.kind.systemImage)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(entry.item.rowTint)
                         Text(entry.item.content)
@@ -960,7 +941,7 @@ struct ProjectDetailView: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: entry.item.facetKind.systemImage)
+                    Image(systemName: entry.item.kind.systemImage)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(entry.item.rowTint)
                     Text(entry.item.content)
@@ -1037,7 +1018,7 @@ struct ProjectDetailView: View {
                              : L10n.pick("Completed items hidden", "已隐藏完成的条目")
     }
 
-    @ViewBuilder private func itemKindSection(kind: FacetKind, items: [ProjectItem]) -> some View {
+    @ViewBuilder private func itemKindSection(kind: ProjectItem.Kind, items: [ProjectItem]) -> some View {
         if !items.isEmpty {
             let collapsed = collapsedKinds.contains(kind)
             itemKindHeader(kind: kind, count: items.count, collapsed: collapsed)
@@ -1061,7 +1042,7 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func itemKindHeader(kind: FacetKind, count: Int, collapsed: Bool) -> some View {
+    private func itemKindHeader(kind: ProjectItem.Kind, count: Int, collapsed: Bool) -> some View {
         HStack(spacing: 7) {
             Image(systemName: "chevron.right")
                 .font(.system(size: 9, weight: .bold))
@@ -1084,23 +1065,22 @@ struct ProjectDetailView: View {
         .foregroundStyle(.primary.opacity(0.86))
     }
 
-    private func toggleCollapse(_ kind: FacetKind) {
+    private func toggleCollapse(_ kind: ProjectItem.Kind) {
         if collapsedKinds.contains(kind) { collapsedKinds.remove(kind) }
         else { collapsedKinds.insert(kind) }
     }
 
-    /// All four element types, in display order.
-    private var orderedKinds: [FacetKind] { [.task, .event, .paper, .note] }
+    private var orderedKinds: [ProjectItem.Kind] { [.reminder, .event] }
 
     /// True when `kind` is the only present (non-empty) section left expanded.
-    private func isIsolated(_ kind: FacetKind) -> Bool {
+    private func isIsolated(_ kind: ProjectItem.Kind) -> Bool {
         let present = orderedKinds.filter { sectionCount($0) > 0 }
         let expanded = present.filter { !collapsedKinds.contains($0) }
         return expanded == [kind]
     }
 
     /// Collapse every other section so only `kind` shows; clicking again restores all.
-    private func toggleIsolate(_ kind: FacetKind) {
+    private func toggleIsolate(_ kind: ProjectItem.Kind) {
         if isIsolated(kind) {
             collapsedKinds = []
         } else {
@@ -1108,12 +1088,10 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func sectionCount(_ kind: FacetKind) -> Int {
+    private func sectionCount(_ kind: ProjectItem.Kind) -> Int {
         switch kind {
-        case .task:  return itemCounts.taskOpenCount + itemCounts.taskCompletedCount
+        case .reminder: return itemCounts.taskOpenCount + itemCounts.taskCompletedCount
         case .event: return itemCounts.eventCount
-        case .paper: return itemCounts.paperCount
-        case .note:  return itemCounts.noteCount
         }
     }
 
@@ -1133,10 +1111,8 @@ struct ProjectDetailView: View {
                         isActive: collapsedKinds.isEmpty,
                         help: L10n.pick("Show all sections", "展开全部分区"),
                         onTap: { withAnimation(listAnimation) { collapsedKinds = [] } })
-            kindChip(.task, value: itemCounts.taskOpenCount)
+            kindChip(.reminder, value: itemCounts.taskOpenCount)
             kindChip(.event, value: itemCounts.eventCount)
-            kindChip(.paper, value: itemCounts.paperCount)
-            kindChip(.note, value: itemCounts.noteCount)
 
             // Focus summary: total seconds focused on items in this project.
             let focusSec = projectFocusTotalSeconds
@@ -1165,7 +1141,7 @@ struct ProjectDetailView: View {
             .reduce(0) { $0 + $1.seconds }
     }
 
-    private func kindChip(_ kind: FacetKind, value: Int) -> some View {
+    private func kindChip(_ kind: ProjectItem.Kind, value: Int) -> some View {
         SummaryChip(value: value,
                     label: kind.title,
                     systemImage: kind.systemImage,
@@ -1223,7 +1199,7 @@ struct ProjectDetailView: View {
     private func previewDropEntered(dragged: ProjectItem, target: ProjectItem) {
         if dragged.kind == target.kind {
             moveItem(from: dragged, to: target)
-        } else if dragged.linkedPaperIDs.isEmpty && !dragged.isNote && !target.isNote {
+        } else {
             previewKindChange(dragged: dragged, target: target)
         }
     }
@@ -1264,15 +1240,7 @@ struct ProjectDetailView: View {
     }
 
     private func persistKindChange(original: ProjectItem, current: ProjectItem, snapshot: [ProjectItem]?) {
-        guard original.linkedPaperIDs.isEmpty && !original.isNote else {
-            if let snapshot {
-                withAnimation(listAnimation) { items = snapshot }
-            }
-            dragSnapshot = nil
-            draggedItem = nil
-            return
-        }
-        let metadata = original.facetItemMetadata()
+        let metadata = original.facetItemReference()
         Task {
             let newId: String?
             if original.kind == .reminder {
@@ -1282,7 +1250,7 @@ struct ProjectDetailView: View {
                     project: project.prefix,
                     content: original.content,
                     tags: original.tags,
-                    itemMetadata: metadata,
+                    itemReference: metadata,
                     dueDate: original.date,
                     durationMinutes: settings.defaultEventDurationMinutes,
                     calendarName: calName.isEmpty ? settings.defaultCalendarName : calName,
@@ -1295,7 +1263,7 @@ struct ProjectDetailView: View {
                     project: project.prefix,
                     content: original.content,
                     tags: original.tags,
-                    itemMetadata: metadata,
+                    itemReference: metadata,
                     priority: original.priority,
                     startDate: original.date,
                     hasTime: original.hasTime,
@@ -1326,8 +1294,7 @@ struct ProjectDetailView: View {
         loading = items.isEmpty
         let fetched = await ek.items(forProject: project.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
-                                     enabledCalendars: settings.effectiveCalendarNames,
-                                     noteCalendarName: settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName))
+                                     enabledCalendars: settings.effectiveCalendarNames)
         store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
         let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
         let selectedId = selectionID ?? selectedDetailItem?.id
@@ -1361,12 +1328,10 @@ struct ProjectDetailView: View {
         loading = false
     }
 
-    private func beginCreate(kind: FacetKind, initialDate: Date? = nil) {
+    private func beginCreate(kind: ProjectItem.Kind, initialDate: Date? = nil) {
         switch kind {
-        case .task:  createTask(initialDate: initialDate)
+        case .reminder: createTask(initialDate: initialDate)
         case .event: createEventItem(initialDate: initialDate)
-        case .note:  createNoteItem(initialDate: initialDate)
-        case .paper: break // papers are added only from the literature view
         }
     }
 
@@ -1411,31 +1376,6 @@ struct ProjectDetailView: View {
                 enabledCalendars: settings.effectiveCalendarNames
             ) else {
                 toast.show(L10n.pick("Could not create item", "无法创建条目"), type: .error)
-                return
-            }
-            refreshTrigger += 1
-            await reload(selecting: id, focusTitle: true)
-        }
-    }
-
-    private func createNoteItem(initialDate: Date?) {
-        let dataDirectory = settings.noteDataDirectory(for: project)
-        let calName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
-        guard !calName.isEmpty else {
-            toast.show(L10n.pick("Choose a calendar first", "请先选择一个日历"), type: .error)
-            return
-        }
-        Task {
-            let start = initialDate ?? Date()
-            guard let id = await ek.createNote(
-                project: project.prefix,
-                content: L10n.pick("New Note", "新笔记"),
-                calendarName: calName,
-                startDate: start,
-                dataDirectory: dataDirectory,
-                enabledCalendars: settings.effectiveCalendarNames
-            ) else {
-                toast.show(L10n.pick("Could not create note", "无法创建笔记"), type: .error)
                 return
             }
             refreshTrigger += 1

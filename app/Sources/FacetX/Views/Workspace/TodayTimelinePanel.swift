@@ -121,17 +121,10 @@ struct TodayTimelinePanel: View {
     private func reload() async {
         let projects = store.activeProjects
         let prefixes = Set(projects.map(\.prefix))
-        let noteCalendarByProject: [String: String] = Dictionary(
-            uniqueKeysWithValues: projects.compactMap { project in
-                let calendarName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
-                return calendarName.isEmpty ? nil : (project.prefix, calendarName)
-            }
-        )
         let fetched = await ek.items(
             forProjects: prefixes,
             enabledReminderLists: settings.effectiveReminderListNames,
-            enabledCalendars: settings.effectiveCalendarNames,
-            noteCalendarByProject: noteCalendarByProject
+            enabledCalendars: settings.effectiveCalendarNames
         )
         items = fetched
     }
@@ -261,17 +254,15 @@ struct TodayTimelinePanel: View {
         let sorted = todayTimelineItems.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
             guard let date = item.date else { return nil }
             let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
-            return (item, h, max(FacetSessionDuration.hours(
+            return (item, h, max(WorkItemSessionDuration.hours(
                 for: item,
-                eventDefaultMinutes: settings.defaultEventDurationMinutes,
-                paperDefaultMinutes: settings.defaultPaperSessionMinutes,
-                noteDefaultMinutes: settings.defaultNoteSessionMinutes
+                eventDefaultMinutes: settings.defaultEventDurationMinutes
             ), 0.5))
         }.sorted { $0.start < $1.start }
 
         var result: [PositionedTimelineItem] = sorted.map { entry in
             let y = (entry.start - startH) * Double(hourHeight)
-            let h = entry.item.facetKind == .task ? 20.0 : entry.duration * Double(hourHeight)
+            let h = entry.item.kind == .reminder ? 20.0 : entry.duration * Double(hourHeight)
             return PositionedTimelineItem(item: entry.item, yOffset: CGFloat(y), height: CGFloat(h))
         }
 
@@ -327,10 +318,10 @@ struct TodayTimelinePanel: View {
         let item = pos.item
         let isSelected = item.id == selectedItem?.id
         let project = projectsByPrefix[item.projectPrefix]
-        let tint: Color = item.facetKind.color
+        let tint: Color = item.kind.color
         let cardBg = isSelected ? tint.opacity(0.16) : tint.opacity(0.12)
         let cardStroke = isSelected ? tint.opacity(0.68) : tint.opacity(0.34)
-        let isCompactMarker = item.facetKind == .task
+        let isCompactMarker = item.kind == .reminder
 
         let gutter: CGFloat = 3
         let columnCount = max(pos.columnCount, 1)
@@ -350,7 +341,7 @@ struct TodayTimelinePanel: View {
                 } else {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Image(systemName: item.facetKind.systemImage)
+                            Image(systemName: item.kind.systemImage)
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(tint)
 
@@ -445,12 +436,10 @@ struct TodayTimelinePanel: View {
     }
 
     private func timelineEnd(for item: ProjectItem, start: Date) -> Date? {
-        FacetSessionDuration.endDate(
+        WorkItemSessionDuration.endDate(
             for: item,
             start: start,
             eventDefaultMinutes: settings.defaultEventDurationMinutes,
-            paperDefaultMinutes: settings.defaultPaperSessionMinutes,
-            noteDefaultMinutes: settings.defaultNoteSessionMinutes,
             treatsAllDayEventsAsTimed: true
         )
     }

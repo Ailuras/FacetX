@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NewProjectView: View {
     let draft: ProjectDraft
-    let onCreate: (String, String?, String, String?, String?, String?, String?, String?, String, String, String?, String?) -> Void
+    let onCreate: (String, String?, String, String?, String?, String?, String, String, String?, String?) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
@@ -10,16 +10,14 @@ struct NewProjectView: View {
     @State private var tagline: String
     @State private var reminderListName: String
     @State private var calendarName: String
-    @State private var noteCalendarName: String
     @State private var weekGoalCalendarName: String
-    @State private var literatureListName: String
     @State private var githubRepo: String
     @State private var githubLocalPath: String
     @State private var colorName: String
     @State private var iconName: String
 
     init(draft: ProjectDraft,
-         onCreate: @escaping (String, String?, String, String?, String?, String?, String?, String?, String, String, String?, String?) -> Void,
+         onCreate: @escaping (String, String?, String, String?, String?, String?, String, String, String?, String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.draft = draft
         self.onCreate = onCreate
@@ -29,9 +27,7 @@ struct NewProjectView: View {
         _tagline = State(initialValue: draft.tagline)
         _reminderListName = State(initialValue: draft.reminderListName)
         _calendarName = State(initialValue: draft.calendarName)
-        _noteCalendarName = State(initialValue: draft.noteCalendarName)
         _weekGoalCalendarName = State(initialValue: draft.weekGoalCalendarName)
-        _literatureListName = State(initialValue: draft.literatureListName)
         _githubRepo = State(initialValue: draft.githubRepo)
         _githubLocalPath = State(initialValue: draft.githubLocalPath)
         _colorName = State(initialValue: draft.colorName)
@@ -67,7 +63,7 @@ struct NewProjectView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(trimmedName.isEmpty || !hasDistinctItemSaveLocations)
+                    .disabled(trimmedName.isEmpty || !hasSaveLocations)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
@@ -94,15 +90,9 @@ struct NewProjectView: View {
 
     private var saveLocationsCard: some View {
         ProjectEditorCard(title: L10n.pick("Save Locations", "保存位置"), systemImage: "tray.and.arrow.down") {
-            ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: draft.reminderLists.filter { $0 != literatureListName })
-            ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: draft.calendars.filter { $0 != noteCalendarName })
-            ProjectEditorPicker(title: L10n.pick("Note Calendar", "笔记日历"), selection: $noteCalendarName, options: draft.calendars.filter { $0 != calendarName })
+            ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: draft.reminderLists)
+            ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: draft.calendars)
             ProjectEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: draft.calendars)
-            ProjectEditorPicker(title: L10n.pick("Paper List", "文献列表"), selection: $literatureListName, options: draft.reminderLists.filter { $0 != reminderListName })
-            if !hasDistinctItemSaveLocations {
-                ProjectEditorWarning(L10n.pick("Tasks, events, papers and notes need separate default save targets.",
-                                               "任务、事件、文献和笔记需要使用互不相同的默认保存位置。"))
-            }
         }
     }
 
@@ -128,13 +118,9 @@ struct NewProjectView: View {
         trimmedName.first.map { String($0).uppercased() } ?? "F"
     }
 
-    private var hasDistinctItemSaveLocations: Bool {
+    private var hasSaveLocations: Bool {
         !reminderListName.isEmpty
             && !calendarName.isEmpty
-            && !noteCalendarName.isEmpty
-            && !literatureListName.isEmpty
-            && reminderListName != literatureListName
-            && calendarName != noteCalendarName
     }
 
     private func create() {
@@ -144,9 +130,7 @@ struct NewProjectView: View {
         onCreate(trimmedName, prefix, tagline.trimmingCharacters(in: .whitespaces),
                  reminderListName.isEmpty ? nil : reminderListName,
                  calendarName.isEmpty ? nil : calendarName,
-                 noteCalendarName.isEmpty ? nil : noteCalendarName,
                  weekGoalCalendarName.isEmpty ? nil : weekGoalCalendarName,
-                 literatureListName.isEmpty ? nil : literatureListName,
                  colorName,
                  iconName,
                  repo.isEmpty ? nil : repo,

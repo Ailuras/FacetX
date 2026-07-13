@@ -48,7 +48,7 @@ cp Resources/FacetXMenuBarTemplate.png "$APP/Contents/Resources/FacetXMenuBarTem
 cp Resources/FacetXMenuBarTemplate@2x.png "$APP/Contents/Resources/FacetXMenuBarTemplate@2x.png"
 # Prebuilt read-only note preview bundle (see web/note-editor). Vendored so the
 # Swift build needs no Node toolchain; rebuild with `npm --prefix web/note-editor run build`.
-cp -R Resources/NotePreview "$APP/Contents/Resources/NotePreview"
+cp -R Resources/MarkdownPreview "$APP/Contents/Resources/MarkdownPreview"
 
 echo "[3/4] codesign (with entitlements)"
 codesign --force --sign "$SIGN_IDENTITY" \

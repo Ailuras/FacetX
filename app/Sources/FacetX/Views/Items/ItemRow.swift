@@ -83,11 +83,6 @@ struct ItemRow: View {
     let onInlineCommit: (() -> Void)?
     let onInlineCancel: (() -> Void)?
 
-    let inlineEditingNotesText: Binding<String>?
-    let isInlineEditingNotes: Bool
-    let onInlineNotesCommit: (() -> Void)?
-    let onInlineNotesCancel: (() -> Void)?
-    let onStartNotesEdit: () -> Void
 
     @State private var hovered = false
 
@@ -102,12 +97,7 @@ struct ItemRow: View {
          inlineEditingText: Binding<String>? = nil,
          isInlineEditing: Bool = false,
          onInlineCommit: (() -> Void)? = nil,
-         onInlineCancel: (() -> Void)? = nil,
-         inlineEditingNotesText: Binding<String>? = nil,
-         isInlineEditingNotes: Bool = false,
-         onInlineNotesCommit: (() -> Void)? = nil,
-         onInlineNotesCancel: (() -> Void)? = nil,
-         onStartNotesEdit: @escaping () -> Void = {}) {
+         onInlineCancel: (() -> Void)? = nil) {
         self.item = item
         self.isSelected = isSelected
         self.projectBadge = projectBadge
@@ -120,11 +110,6 @@ struct ItemRow: View {
         self.isInlineEditing = isInlineEditing
         self.onInlineCommit = onInlineCommit
         self.onInlineCancel = onInlineCancel
-        self.inlineEditingNotesText = inlineEditingNotesText
-        self.isInlineEditingNotes = isInlineEditingNotes
-        self.onInlineNotesCommit = onInlineNotesCommit
-        self.onInlineNotesCancel = onInlineNotesCancel
-        self.onStartNotesEdit = onStartNotesEdit
     }
 
     private var priorityColor: Color {
@@ -204,18 +189,15 @@ struct ItemRow: View {
                     }
 
                     if item.isCompleted {
-                        // Unified completion marker for every kind: a filled check
-                        // tinted by the element's identity color (task green, event
-                        // blue, paper red, note yellow) — "a similar color" rather
-                        // than overriding the kind's color.
+                        // Completion keeps the work item's native kind color.
                         Button { onToggle(false) } label: {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(item.facetKind.color)
+                                .foregroundStyle(item.kind.color)
                         }
                         .buttonStyle(.plain)
                         .help(L10n.pick("Mark incomplete", "标记为未完成"))
-                    } else if item.facetKind == .task {
+                    } else if item.kind == .reminder {
                         Button { onToggle(true) } label: {
                             Image(systemName: "circle")
                                 .font(.system(size: 16, weight: .medium))
@@ -224,9 +206,9 @@ struct ItemRow: View {
                         .buttonStyle(.plain)
                         .help(L10n.pick("Mark complete", "标记为完成"))
                     } else {
-                        Image(systemName: item.facetKind.systemImage)
+                        Image(systemName: item.kind.systemImage)
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(item.facetKind.color)
+                            .foregroundStyle(item.kind.color)
                     }
 
                     if isInlineEditing, let inlineEditingText {

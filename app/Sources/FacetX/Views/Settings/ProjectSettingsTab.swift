@@ -266,28 +266,18 @@ struct ProjectSettingsTab: View {
 
     private var defaultSaveTargetsCard: some View {
         SettingsCard(title: L10n.pick("Default Lists & Calendars", "默认列表与日历"), systemImage: "tray.and.arrow.down",
-                     subtitle: L10n.pick("Where new tasks, events, papers, notes and week goals are saved.",
-                                         "新建任务、事件、文献、笔记与周目标的保存位置。")) {
+                     subtitle: L10n.pick("Where new tasks, events, and week goals are saved.",
+                                         "新建任务、事件与周目标的保存位置。")) {
             VStack(spacing: 0) {
                 defaultPickerRow(title: L10n.pick("Task List", "任务列表"),
                                  systemImage: "checklist",
                                  selection: $settings.defaultReminderListName,
-                                 values: enabledReminderNames.filter { $0 != settings.defaultLiteratureListName })
+                                 values: enabledReminderNames)
                 compactDivider
                 defaultPickerRow(title: L10n.pick("Item Calendar", "条目日历"),
                                  systemImage: "calendar",
                                  selection: $settings.defaultCalendarName,
-                                 values: enabledCalendarNames.filter { $0 != settings.defaultNoteCalendarName })
-                compactDivider
-                defaultPickerRow(title: L10n.pick("Note Calendar", "笔记日历"),
-                                 systemImage: "note.text",
-                                 selection: $settings.defaultNoteCalendarName,
-                                 values: enabledCalendarNames.filter { $0 != settings.defaultCalendarName })
-                compactDivider
-                defaultPickerRow(title: L10n.pick("Paper List", "文献列表"),
-                                 systemImage: "books.vertical",
-                                 selection: $settings.defaultLiteratureListName,
-                                 values: enabledReminderNames.filter { $0 != settings.defaultReminderListName })
+                                 values: enabledCalendarNames)
                 compactDivider
                 defaultPickerRow(title: L10n.pick("Week Goal Calendar", "周目标日历"),
                                  systemImage: "target",
@@ -303,11 +293,6 @@ struct ProjectSettingsTab: View {
                     .stroke(FacetTheme.hairline, lineWidth: 1)
             )
 
-            if enabledReminderNames.count < 2 || enabledCalendarNames.count < 2 {
-                settingsNote(L10n.pick("Use at least two reminder lists and two calendars to keep the four item defaults separate.",
-                                       "至少启用两个提醒事项列表和两个日历，才能让四类条目的默认位置互不相同。"),
-                             systemImage: "exclamationmark.triangle")
-            }
         }
     }
 
@@ -321,18 +306,6 @@ struct ProjectSettingsTab: View {
                                   subtitle: L10n.pick("Default block size for new calendar events.",
                                                      "新建日历事件的默认时间块。"),
                                   selection: $settings.defaultEventDurationMinutes)
-                compactDivider
-                durationPickerRow(title: L10n.pick("Paper Reading", "文献阅读"),
-                                  systemImage: "books.vertical",
-                                  subtitle: L10n.pick("Default timeline block for scheduled papers.",
-                                                     "文献安排到时间线后的默认时间块。"),
-                                  selection: $settings.defaultPaperSessionMinutes)
-                compactDivider
-                durationPickerRow(title: L10n.pick("Note Session", "笔记整理"),
-                                  systemImage: "note.text",
-                                  subtitle: L10n.pick("Default timeline block for scheduled notes.",
-                                                     "笔记安排到时间线后的默认时间块。"),
-                                  selection: $settings.defaultNoteSessionMinutes)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 2)
@@ -652,36 +625,16 @@ struct ProjectSettingsTab: View {
             || !enabledCalendarNames.contains(settings.defaultCalendarName) {
             settings.defaultCalendarName = enabledCalendarNames.first ?? ""
         }
-        if settings.defaultNoteCalendarName.isEmpty
-            || !enabledCalendarNames.contains(settings.defaultNoteCalendarName)
-            || settings.defaultNoteCalendarName == settings.defaultCalendarName {
-            settings.defaultNoteCalendarName = enabledCalendarNames.first { $0 != settings.defaultCalendarName } ?? ""
-        }
         if settings.weekGoalCalendarName.isEmpty
             || !enabledCalendarNames.contains(settings.weekGoalCalendarName) {
             settings.weekGoalCalendarName = settings.defaultCalendarName.isEmpty
                 ? (enabledCalendarNames.first ?? "")
                 : settings.defaultCalendarName
         }
-        if settings.defaultLiteratureListName.isEmpty
-            || !enabledReminderNames.contains(settings.defaultLiteratureListName)
-            || settings.defaultLiteratureListName == settings.defaultReminderListName {
-            settings.defaultLiteratureListName = enabledReminderNames.first { $0 != settings.defaultReminderListName } ?? ""
-        }
         if settings.defaultEventDurationMinutes < 5 {
             settings.defaultEventDurationMinutes = 5
         } else if settings.defaultEventDurationMinutes > 1440 {
             settings.defaultEventDurationMinutes = 1440
-        }
-        if settings.defaultPaperSessionMinutes < 5 {
-            settings.defaultPaperSessionMinutes = 5
-        } else if settings.defaultPaperSessionMinutes > 1440 {
-            settings.defaultPaperSessionMinutes = 1440
-        }
-        if settings.defaultNoteSessionMinutes < 5 {
-            settings.defaultNoteSessionMinutes = 5
-        } else if settings.defaultNoteSessionMinutes > 1440 {
-            settings.defaultNoteSessionMinutes = 1440
         }
     }
 

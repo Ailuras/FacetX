@@ -27,7 +27,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let linkedPaperIDs: [String]
     public let linkedCommits: [String]
     public let linkedDocumentPaths: [String]
-    public let isNote: Bool        // true when this event anchors a local markdown note
     public let isPinned: Bool      // user-set pin; floats the item to the top of its section
 
     public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
@@ -38,7 +37,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
                  facetID: String? = nil,
                  linkedPaperIDs: [String] = [], linkedCommits: [String] = [],
                  linkedDocumentPaths: [String] = [],
-                 isNote: Bool = false, isPinned: Bool = false) {
+                 isPinned: Bool = false) {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
@@ -58,7 +57,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.linkedPaperIDs = linkedPaperIDs
         self.linkedCommits = linkedCommits
         self.linkedDocumentPaths = linkedDocumentPaths
-        self.isNote = isNote
         self.isPinned = isPinned
     }
 
@@ -100,7 +98,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             linkedPaperIDs: linkedPaperIDs,
             linkedCommits: linkedCommits,
             linkedDocumentPaths: linkedDocumentPaths,
-            isNote: isNote,
             isPinned: isPinned
         )
     }
@@ -126,7 +123,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             linkedPaperIDs: linkedPaperIDs,
             linkedCommits: linkedCommits,
             linkedDocumentPaths: linkedDocumentPaths,
-            isNote: isNote,
             isPinned: isPinned
         )
     }
@@ -152,7 +148,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             linkedPaperIDs: linkedPaperIDs,
             linkedCommits: linkedCommits,
             linkedDocumentPaths: linkedDocumentPaths,
-            isNote: isNote,
             isPinned: isPinned
         )
     }
@@ -180,22 +175,15 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             linkedPaperIDs: linkedPaperIDs,
             linkedCommits: linkedCommits,
             linkedDocumentPaths: linkedDocumentPaths,
-            isNote: isNote,
             isPinned: isPinned
         )
     }
 
-    public func facetItemMetadata() -> FacetItemMetadata {
-        FacetItemMetadata(
-            itemID: facetID ?? UUID().uuidString,
-            paperIDs: linkedPaperIDs,
-            commits: linkedCommits,
-            tags: tags,
-            kind: isNote ? .note : nil
-        )
+    public func facetItemReference() -> FacetItemReference {
+        FacetItemReference(itemID: facetID ?? UUID().uuidString)
     }
 
-    public func withMergedMetadata(notes: String?, tags: [String], paperIDs: [String], commits: [String], documentPaths: [String] = [], isNote: Bool? = nil) -> ProjectItem {
+    public func withMergedMetadata(notes: String?, tags: [String], paperIDs: [String], commits: [String], documentPaths: [String] = []) -> ProjectItem {
         ProjectItem(
             id: id,
             kind: kind,
@@ -216,7 +204,6 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
             linkedPaperIDs: paperIDs,
             linkedCommits: commits,
             linkedDocumentPaths: documentPaths,
-            isNote: isNote ?? self.isNote,
             isPinned: isPinned
         )
     }

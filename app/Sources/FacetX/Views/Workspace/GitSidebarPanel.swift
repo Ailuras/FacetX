@@ -336,9 +336,9 @@ struct GitSidebarPanel: View {
                             
                             ForEach(linked, id: \.id) { item in
                                 HStack(spacing: 6) {
-                                    Image(systemName: item.facetKind.systemImage)
+                                    Image(systemName: item.kind.systemImage)
                                         .font(.system(size: 9.5))
-                                        .foregroundStyle(item.facetKind.color)
+                                        .foregroundStyle(item.kind.color)
                                     Text(item.content)
                                         .font(.system(size: 11))
                                         .foregroundStyle(.primary)
@@ -415,8 +415,7 @@ struct GitSidebarPanel: View {
             let fetchedItems = await ek.items(
                 forProjects: prefixes,
                 enabledReminderLists: settings.effectiveReminderListNames,
-                enabledCalendars: settings.effectiveCalendarNames,
-                noteCalendarByProject: [:]
+                enabledCalendars: settings.effectiveCalendarNames
             )
             async let log = LocalGitRepository.gitLog(rootPath: rootPath)
             async let status = LocalGitRepository.gitStatus(rootPath: rootPath)

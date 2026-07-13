@@ -4,18 +4,18 @@ import Foundation
 import UserNotifications
 
 enum FocusTargetKind: String {
-    case task, event, note, paper
+    case task, event
 }
 
 /// What is being focused on. `id` is the stable focus key: the item's facetID
 /// when present (survives reminder/event conversion), otherwise the EventKit
-/// identifier; papers use "paper:<id>".
+/// identifier.
 struct FocusTarget: Equatable {
     let id: String
     let title: String
     let kind: FocusTargetKind
     /// Shown next to the countdown in the menu bar and widget — the project
-    /// name for items, the library/topic label for papers.
+    /// name for the work item.
     let projectLabel: String
     /// Recorded with the session for future per-project statistics.
     let projectPrefix: String
@@ -212,23 +212,11 @@ extension ProjectItem {
     var focusTargetID: String { facetID ?? id }
 
     func focusTarget(projectName: String) -> FocusTarget {
-        let kind: FocusTargetKind = isNote ? .note : (self.kind == .reminder ? .task : .event)
+        let kind: FocusTargetKind = self.kind == .reminder ? .task : .event
         return FocusTarget(id: focusTargetID,
                            title: content,
                            kind: kind,
                            projectLabel: projectName,
                            projectPrefix: projectPrefix)
-    }
-}
-
-extension Paper {
-    var focusTargetID: String { "paper:\(id)" }
-
-    func focusTarget(topicLabel: String) -> FocusTarget {
-        FocusTarget(id: focusTargetID,
-                    title: title,
-                    kind: .paper,
-                    projectLabel: topicLabel,
-                    projectPrefix: "")
     }
 }

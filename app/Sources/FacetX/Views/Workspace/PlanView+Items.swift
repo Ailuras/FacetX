@@ -52,9 +52,7 @@ extension PlanView {
         let isDropTarget = dropTargetDate.map { cal.isDate($0, inSameDayAs: group.date) } ?? false
         let load = PlanDayLoad.measure(
             group.items,
-            eventDefaultMinutes: settings.defaultEventDurationMinutes,
-            paperDefaultMinutes: settings.defaultPaperSessionMinutes,
-            noteDefaultMinutes: settings.defaultNoteSessionMinutes
+            eventDefaultMinutes: settings.defaultEventDurationMinutes
         )
 
         return HStack(spacing: 6) {

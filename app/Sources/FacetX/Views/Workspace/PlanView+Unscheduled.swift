@@ -5,7 +5,7 @@ extension PlanView {
     var unscheduledScopedItems: [ProjectItem] {
         var result = allItems.filter { item in
             item.kind == .reminder
-                && item.facetKind == .task
+                && item.kind == .reminder
                 && item.date == nil
                 && !item.isCompleted
         }
@@ -33,7 +33,7 @@ extension PlanView {
             .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(FacetKind.task.color.opacity(0.18), lineWidth: 1)
+                    .stroke(ProjectItem.Kind.reminder.color.opacity(0.18), lineWidth: 1)
             )
         }
     }
@@ -61,10 +61,10 @@ extension PlanView {
 
             Text("\(unscheduledScopedItems.count)")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(FacetKind.task.color)
+                .foregroundStyle(ProjectItem.Kind.reminder.color)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(FacetKind.task.color.opacity(0.12))
+                .background(ProjectItem.Kind.reminder.color.opacity(0.12))
                 .clipShape(Capsule())
 
             Spacer(minLength: 0)
@@ -141,8 +141,8 @@ extension PlanView {
                 .contentShape(Rectangle())
                 .facetHoverSurface(tint: .secondary,
                                    fill: Color.primary.opacity(0.04),
-                                   hoverFill: FacetKind.task.color.opacity(0.12),
-                                   hoverStroke: FacetKind.task.color.opacity(0.30))
+                                   hoverFill: ProjectItem.Kind.reminder.color.opacity(0.12),
+                                   hoverStroke: ProjectItem.Kind.reminder.color.opacity(0.30))
         }
         .buttonStyle(.plain)
         .help(L10n.pick("Schedule to \(title)", "安排到\(title)"))

@@ -60,7 +60,6 @@ final class Paper: Identifiable {
     var recommendedAt: Date?
     var recommendationReason: String
     var tags: [String]     { didSet { _searchText = nil } }
-    var note: String       { didSet { _searchText = nil } }
     var abstractZh: String
     var referencedWorkIDs: [String]
     var relatedWorkIDs: [String]
@@ -70,7 +69,7 @@ final class Paper: Identifiable {
     private var _searchText: String?
     var searchText: String {
         if let cached = _searchText { return cached }
-        let blob = ([title, abstract, venue, venueAbbr, note] + authors + tags)
+        let blob = ([title, abstract, venue, venueAbbr] + authors + tags)
             .joined(separator: " ")
             .lowercased()
         _searchText = blob
@@ -99,8 +98,7 @@ final class Paper: Identifiable {
         status: PaperStatus = .pending,
         isRecommended: Bool = false, recommendedAt: Date? = nil,
         recommendationReason: String = "",
-        tags: [String] = [],
-        note: String = "", abstractZh: String = "",
+        tags: [String] = [], abstractZh: String = "",
         referencedWorkIDs: [String] = [], relatedWorkIDs: [String] = [],
         statusChangedAt: Date? = nil, addedAt: Date? = nil
     ) {
@@ -126,7 +124,6 @@ final class Paper: Identifiable {
         self.recommendedAt = recommendedAt
         self.recommendationReason = recommendationReason
         self.tags = tags
-        self.note = note
         self.abstractZh = abstractZh
         self.referencedWorkIDs = referencedWorkIDs
         self.relatedWorkIDs = relatedWorkIDs

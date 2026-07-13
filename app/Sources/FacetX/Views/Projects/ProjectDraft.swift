@@ -7,9 +7,7 @@ struct ProjectDraft: Identifiable {
     var tagline = ""
     var reminderListName: String
     var calendarName: String
-    var noteCalendarName: String
     var weekGoalCalendarName: String
-    var literatureListName: String
     var githubRepo: String = ""
     var githubLocalPath: String = ""
     var colorName: String = ProjectAppearance.defaultColorName

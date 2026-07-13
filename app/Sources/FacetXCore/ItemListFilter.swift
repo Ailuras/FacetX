@@ -4,23 +4,17 @@ public enum ItemKindScope: String, CaseIterable, Identifiable, Sendable {
     case all = "All"
     case tasks = "Tasks"
     case events = "Events"
-    case papers = "Papers"
-    case notes = "Notes"
 
     public var id: String { rawValue }
 
-    public func matches(_ facetKind: FacetKind) -> Bool {
+    public func matches(_ kind: ProjectItem.Kind) -> Bool {
         switch self {
         case .all:
             return true
         case .tasks:
-            return facetKind == .task
+            return kind == .reminder
         case .events:
-            return facetKind == .event
-        case .papers:
-            return facetKind == .paper
-        case .notes:
-            return facetKind == .note
+            return kind == .event
         }
     }
 }
@@ -62,6 +56,6 @@ public struct ItemListFilter: Equatable, Sendable {
     }
 
     public func matches(_ item: ProjectItem, now: Date = Date(), calendar: Calendar = .current) -> Bool {
-        kindScope.matches(item.facetKind) && dateScope.matches(item.date, now: now, calendar: calendar)
+        kindScope.matches(item.kind) && dateScope.matches(item.date, now: now, calendar: calendar)
     }
 }

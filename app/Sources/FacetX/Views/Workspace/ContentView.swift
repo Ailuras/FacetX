@@ -309,12 +309,10 @@ struct ContentView: View {
                 Text("“\(projectToDelete?.name ?? "")” \(L10n.t(.deleteProjectMessage))")
             }
             .sheet(item: $draftProject) { draft in
-                NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, noteCalendar, goalCalendar, literatureList, colorName, iconName, githubRepo, githubLocalPath in
+                NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, colorName, iconName, githubRepo, githubLocalPath in
                     let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
                                                   reminderListName: reminderList, calendarName: calendar,
-                                                  noteCalendarName: noteCalendar,
                                                   weekGoalCalendarName: goalCalendar,
-                                                  literatureListName: literatureList,
                                                   colorName: colorName,
                                                   iconName: iconName,
                                                   githubRepo: githubRepo,
@@ -433,9 +431,7 @@ struct ContentView: View {
             prefix: suggestion,
             reminderListName: defaultName(settings.defaultReminderListName, in: reminderLists),
             calendarName: defaultName(settings.defaultCalendarName, in: calendars),
-            noteCalendarName: defaultName(settings.defaultNoteCalendarName, in: calendars),
             weekGoalCalendarName: defaultName(settings.weekGoalCalendarName, in: calendars),
-            literatureListName: defaultName(settings.defaultLiteratureListName, in: reminderLists),
             githubLocalPath: "",
             reminderLists: reminderLists,
             calendars: calendars
@@ -445,12 +441,6 @@ struct ContentView: View {
     private func deleteTopic(_ topic: TrackPref) {
         Task {
             let deletedPaperIDs = litStore.paperIdsSolelyInTopic(topic.name)
-            _ = await PaperLinkCleanup.removePaperIDs(
-                deletedPaperIDs,
-                projectStore: store,
-                appSettings: settings,
-                ek: ek
-            )
             litStore.purgeTopicPapers(topic.name, deletingSolePaperIDs: deletedPaperIDs)
             litMeta.deleteTopic(id: topic.id)
             if case .topic(let id) = selection, id == topic.id {

@@ -62,7 +62,6 @@ extension PlanView {
     private var aiUnscheduledTasks: [ProjectItem] {
         allItems.filter { item in
             item.kind == .reminder
-                && item.facetKind == .task
                 && item.date == nil
                 && !item.isCompleted
         }
@@ -82,9 +81,7 @@ extension PlanView {
             let load = PlanDayLoad.measure(
                 activeItems,
                 calendar: calendar,
-                eventDefaultMinutes: settings.defaultEventDurationMinutes,
-                paperDefaultMinutes: settings.defaultPaperSessionMinutes,
-                noteDefaultMinutes: settings.defaultNoteSessionMinutes
+                eventDefaultMinutes: settings.defaultEventDurationMinutes
             )
             return [
                 "date": isoDate(date),
@@ -102,7 +99,7 @@ extension PlanView {
     private func aiItemObject(_ item: ProjectItem) -> [String: Any] {
         let mention = AssistantItemMention(item: item)
         var object = mention.promptObject
-        object["facet_kind"] = item.facetKind.rawValue
+        object["work_item_kind"] = mention.kind
         object["pinned"] = item.isPinned
         object["overdue"] = item.isOverdue
         return object

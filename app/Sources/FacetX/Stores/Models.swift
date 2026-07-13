@@ -14,9 +14,7 @@ struct Project: Identifiable, Codable, Hashable {
     /// Where new project reminders/events are saved by default.
     var reminderListName: String?
     var calendarName: String?
-    var noteCalendarName: String?
     var weekGoalCalendarName: String?
-    var literatureListName: String?
     var archived: Bool = false
     var weekGoals: [WeekGoal] = []
     var itemOrder: [String] = []
@@ -30,8 +28,7 @@ struct Project: Identifiable, Codable, Hashable {
 
     init(name: String, prefix: String? = nil, tagline: String = "",
          reminderListName: String? = nil, calendarName: String? = nil,
-         noteCalendarName: String? = nil,
-         weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
+         weekGoalCalendarName: String? = nil,
          colorName: String? = nil, iconName: String? = nil,
          githubRepo: String? = nil,
          githubLocalPath: String? = nil) {
@@ -40,9 +37,7 @@ struct Project: Identifiable, Codable, Hashable {
         self.tagline = tagline
         self.reminderListName = reminderListName
         self.calendarName = calendarName
-        self.noteCalendarName = noteCalendarName
         self.weekGoalCalendarName = weekGoalCalendarName
-        self.literatureListName = literatureListName
         self.colorName = colorName
         self.iconName = iconName
         self.githubRepo = githubRepo
@@ -101,16 +96,14 @@ final class ProjectStore: ObservableObject {
     @discardableResult
     func createProject(name: String, prefix: String? = nil, tagline: String = "",
                        reminderListName: String? = nil, calendarName: String? = nil,
-                       noteCalendarName: String? = nil,
-                       weekGoalCalendarName: String? = nil, literatureListName: String? = nil,
+                       weekGoalCalendarName: String? = nil,
                        colorName: String? = nil, iconName: String? = nil,
                        githubRepo: String? = nil,
                        githubLocalPath: String? = nil) -> Project.ID {
         let maxOrder = projects.map(\.sortOrder).max() ?? -1
         var project = Project(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
-                              noteCalendarName: noteCalendarName,
-                              weekGoalCalendarName: weekGoalCalendarName, literatureListName: literatureListName,
+                              weekGoalCalendarName: weekGoalCalendarName,
                               colorName: colorName, iconName: iconName,
                               githubRepo: githubRepo,
                               githubLocalPath: githubLocalPath)

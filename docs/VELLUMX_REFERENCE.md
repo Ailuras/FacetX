@@ -18,7 +18,7 @@ the parts that are still useful for FacetX after reviewing the vendored
   stable path was small toolbar icons, native search placement, and minimal
   layout constraints.
 - Current-only storage cleanup should delete schema migrations and disposable
-  test data together. FacetX now follows this for literature and item note
+  test data together. FacetX follows this for literature and work-item detail
   stores.
 
 ## Still Worth Borrowing

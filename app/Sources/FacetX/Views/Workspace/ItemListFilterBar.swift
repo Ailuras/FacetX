@@ -92,8 +92,6 @@ struct ItemFilterMenuButton: View {
                 kindButton(.all)
                 kindButton(.tasks)
                 kindButton(.events)
-                kindButton(.papers)
-                kindButton(.notes)
             }
             Section(L10n.pick("Date", "日期")) {
                 dateButton(.all)
@@ -131,8 +129,6 @@ struct ItemFilterMenuButton: View {
         case .all:    return L10n.pick("All", "全部")
         case .tasks:  return L10n.pick("Tasks", "任务")
         case .events: return L10n.pick("Events", "事件")
-        case .papers: return L10n.pick("Literature", "文献")
-        case .notes:  return L10n.pick("Notes", "笔记")
         }
     }
 
@@ -182,9 +178,7 @@ struct ItemActionCluster<Accessory: View>: View {
     let onAdd: () -> Void
     /// When set, the "+" becomes a menu letting the user pick what to create.
     /// `nil` keeps the plain add button (used by Plan, which adds by date).
-    var onCreateKind: ((FacetKind) -> Void)?
-    /// Whether the "New Note" option is selectable (needs a project data folder).
-    var canCreateNote: Bool = true
+    var onCreateKind: ((ProjectItem.Kind) -> Void)?
     private let accessory: Accessory
 
     init(
@@ -193,8 +187,7 @@ struct ItemActionCluster<Accessory: View>: View {
         showOverdue: Binding<Bool>? = nil,
         animation: Animation = FacetTheme.listSpring,
         onAdd: @escaping () -> Void,
-        onCreateKind: ((FacetKind) -> Void)? = nil,
-        canCreateNote: Bool = true,
+        onCreateKind: ((ProjectItem.Kind) -> Void)? = nil,
         @ViewBuilder accessory: () -> Accessory
     ) {
         self._itemFilter = itemFilter
@@ -203,7 +196,6 @@ struct ItemActionCluster<Accessory: View>: View {
         self.animation = animation
         self.onAdd = onAdd
         self.onCreateKind = onCreateKind
-        self.canCreateNote = canCreateNote
         self.accessory = accessory()
     }
 
@@ -240,12 +232,10 @@ struct ItemActionCluster<Accessory: View>: View {
         .pillGroupContainer()
     }
 
-    private func createMenu(_ onCreateKind: @escaping (FacetKind) -> Void) -> some View {
+    private func createMenu(_ onCreateKind: @escaping (ProjectItem.Kind) -> Void) -> some View {
         Menu {
-            Button { onCreateKind(.task) } label: { Label(FacetKind.task.singularTitle, systemImage: FacetKind.task.systemImage) }
-            Button { onCreateKind(.event) } label: { Label(FacetKind.event.singularTitle, systemImage: FacetKind.event.systemImage) }
-            Button { onCreateKind(.note) } label: { Label(FacetKind.note.singularTitle, systemImage: FacetKind.note.systemImage) }
-                .disabled(!canCreateNote)
+            Button { onCreateKind(.reminder) } label: { Label(ProjectItem.Kind.reminder.singularTitle, systemImage: ProjectItem.Kind.reminder.systemImage) }
+            Button { onCreateKind(.event) } label: { Label(ProjectItem.Kind.event.singularTitle, systemImage: ProjectItem.Kind.event.systemImage) }
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .semibold))

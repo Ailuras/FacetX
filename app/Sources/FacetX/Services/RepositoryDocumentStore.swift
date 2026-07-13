@@ -54,7 +54,11 @@ enum RepositoryDocumentStore {
             options: [.skipsHiddenFiles]
         ) {
             documents.append(contentsOf: urls
-                .filter { $0.pathExtension.lowercased() == "md" && $0.deletingLastPathComponent() == docsURL }
+                .filter {
+                    $0.pathExtension.lowercased() == "md"
+                        && $0.deletingLastPathComponent().standardizedFileURL.path
+                            == docsURL.standardizedFileURL.path
+                }
                 .map { document(relativePath: ".facetx/\($0.lastPathComponent)", root: root) }
                 .sorted { ($0.modifiedAt ?? .distantPast) > ($1.modifiedAt ?? .distantPast) })
         }
@@ -100,8 +104,15 @@ enum RepositoryDocumentStore {
         guard isValid(relativePath: relativePath) else { throw StoreError.invalidPath }
         let root = try repositoryURL(path: repositoryPath)
         let target = root.appendingPathComponent(relativePath).standardizedFileURL
-        guard target.path == root.appendingPathComponent(relativePath).standardizedFileURL.path,
-              target.path.hasPrefix(root.path + "/") else {
+        let resolvedRoot = root.resolvingSymlinksInPath().standardizedFileURL
+        let resolvedParent = target.deletingLastPathComponent()
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        let resolvedTarget = target.resolvingSymlinksInPath().standardizedFileURL
+        guard target.path.hasPrefix(root.path + "/"),
+              resolvedParent.path == resolvedRoot.path
+                || resolvedParent.path.hasPrefix(resolvedRoot.path + "/"),
+              resolvedTarget.path.hasPrefix(resolvedRoot.path + "/") else {
             throw StoreError.invalidPath
         }
         return target

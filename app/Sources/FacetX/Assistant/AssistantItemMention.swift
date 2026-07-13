@@ -22,13 +22,11 @@ struct AssistantItemMention: Codable, Hashable, Identifiable, Sendable {
     let isCompleted: Bool
     let priority: Int
     let tags: [String]
-    let isNote: Bool
 
     var id: String { referenceID }
     var referenceID: String { stableID ?? "eventkit:\(eventKitID)" }
 
     var systemImage: String {
-        if isNote { return "note.text" }
         return kind == "task" ? "checkmark.circle" : "calendar"
     }
 
@@ -46,14 +44,13 @@ struct AssistantItemMention: Codable, Hashable, Identifiable, Sendable {
         isCompleted = item.isCompleted
         priority = item.priority
         tags = item.tags
-        isNote = item.isNote
     }
 
     var promptObject: [String: Any] {
         let formatter = ISO8601DateFormatter()
         var object: [String: Any] = [
             "reference_id": referenceID,
-            "type": isNote ? "note" : kind,
+            "type": kind,
             "project": projectPrefix,
             "title": title,
             "container": containerName,

@@ -1,13 +1,9 @@
-import AppKit
 import SwiftUI
 
 struct GeneralSettingsTab: View {
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var eventKit: EventKitService
     @State private var metadata = MetadataStore.shared
-    @State private var rebuildingIndex = false
-    @State private var resultMessage: String? = nil
 
     private var activeTopics: [TrackPref] {
         metadata.topics.filter { !$0.archived }
@@ -134,38 +130,10 @@ struct GeneralSettingsTab: View {
                             .truncationMode(.middle)
                             .textSelection(.enabled)
                     }
-                    SettingsDivider()
-                    SettingsRow(title: L10n.pick("Notes Folder", "笔记文件夹"), systemImage: "note.text") {
-                        HStack(spacing: 6) {
-                            Text(settings.effectiveNotesRootDirectory)
-                                .font(SettingsUI.secondaryFont)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .frame(maxWidth: 280, alignment: .trailing)
-                                .textSelection(.enabled)
-                            if !settings.defaultNotesDirectory.isEmpty {
-                                Button {
-                                    settings.defaultNotesDirectory = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help(L10n.pick("Use default location", "使用默认位置"))
-                            }
-                            Button(L10n.pick("Choose...", "选择...")) {
-                                chooseNotesFolder()
-                            }
-                            .controlSize(.small)
-                        }
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            indexCard
         }
     }
 
@@ -173,67 +141,4 @@ struct GeneralSettingsTab: View {
         store.persistenceError ?? settings.persistenceError
     }
 
-    private func chooseNotesFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = L10n.pick("Choose", "选择")
-        panel.directoryURL = URL(fileURLWithPath: settings.effectiveNotesRootDirectory)
-        if panel.runModal() == .OK, let url = panel.url {
-            settings.defaultNotesDirectory = url.path
-        }
-    }
-
-    // MARK: - Index Reconstruction
-
-    private var indexCard: some View {
-        SettingsCard(title: L10n.pick("Index Reconstruction", "重建索引"),
-                     systemImage: "arrow.triangle.2.circlepath",
-                     subtitle: L10n.pick(
-                        "Scans all project items, migrates legacy metadata blocks to the local database, and writes a clean ID into each EventKit note.",
-                        "扫描所有项目条目，将旧元数据块迁移到本地数据库，并将每条 EventKit 笔记改写为约定的 ID。"
-                     )) {
-            HStack {
-                if rebuildingIndex {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(L10n.pick("Rebuilding…", "重建中…"))
-                        .font(SettingsUI.secondaryFont)
-                        .foregroundStyle(.secondary)
-                } else if let msg = resultMessage {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text(msg)
-                        .font(SettingsUI.secondaryFont)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Button(L10n.pick("Rebuild Index", "重建索引")) {
-                        runReconstructIndex()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-                Spacer()
-            }
-        }
-    }
-
-    private func runReconstructIndex() {
-        rebuildingIndex = true
-        resultMessage = nil
-        Task {
-            let prefixes = Set(store.projects.map(\.prefix))
-            let count = await eventKit.reconstructNotesIndex(
-                prefixes: prefixes,
-                enabledReminderLists: settings.effectiveReminderListNames,
-                enabledCalendars: settings.effectiveCalendarNames
-            )
-            await MainActor.run {
-                rebuildingIndex = false
-                resultMessage = L10n.pick("Done! Migrated \(count) items.", "完成！已迁移 \(count) 个条目。")
-            }
-        }
-    }
 }

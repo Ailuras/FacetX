@@ -5,7 +5,7 @@ and Reminders without owning item content. EventKit remains the source of truth;
 FacetX persists only project metadata that EventKit cannot represent.
 
 Task and event items are the primary work atoms. Projects group them by prefix;
-papers, commits, and long-form work notes attach to an item rather than to the
+literature, commits, and repository documents attach to an item rather than to the
 project.
 
 ## Core Contract
@@ -66,21 +66,20 @@ WeekGoal
 
 JSON writes are atomic and use `[.prettyPrinted, .sortedKeys]`.
 
-Item work notes:
+Local work-item state:
 
 ```text
 item-notes.db
-  item_notes
-    id
-    body
-    created_at
-    updated_at
+  items(id, note_body, tags_json, is_completed, is_pinned)
+  item_papers(item_id, paper_id)
+  item_commits(item_id, commit_id)
+  item_documents(item_id, document_path)
 ```
 
 Reminder and calendar notes hold only a stable `item-id` (UUID) for normal project items.
-The user-facing note body, tags, and relationship links (linked papers and commits) live in the local `ItemStore` SQLite database under the `item-id` key.
+The user-facing details, tags, and resource relationships live in the local `ItemStore` SQLite database under the `item-id` key.
 
-Canonical item metadata in EventKit notes:
+Canonical item identity in EventKit notes:
 
 ```text
 stable-facetx-item-uuid
@@ -89,18 +88,18 @@ stable-facetx-item-uuid
 The `item-id` is the stable FacetX identity for the task/event. It is preserved
 when a reminder is converted to a calendar event or vice versa. The EventKit
 `calendarItemIdentifier` can change after conversion or sync, so durable links
-must use metadata carried inside the item notes, not the EventKit identifier
+must use the UUID carried inside the item notes, not the EventKit identifier
 alone.
 
-FacetX maintains relationship link tables and metadata tables inside a local SQLite database (`item-notes.db` managed by `ItemStore`):
+FacetX maintains relationship and work-item detail tables inside a local SQLite database (`item-notes.db` managed by `ItemStore`):
 - `items` maps `id` to `note_body` and `tags_json`.
 - `item_papers` maps `item_id` to `paper_id`.
 - `item_commits` maps `item_id` to `commit_id`.
+- `item_documents` maps `item_id` to `README.md` or a top-level `.facetx/*.md` path.
 
 This avoids polluting EventKit notes with serialized CSV arrays of relationships (commits, literature papers) and makes filtering, querying, and relationship cleanups robust.
 
 Current items write stable UUID references when they are created or first edited.
-FacetX provides an Index Reconstruction utility under settings to rebuild and migrate legacy metadata formats into local SQLite.
 
 ## EventKit Concurrency
 

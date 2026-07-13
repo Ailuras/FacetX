@@ -340,9 +340,9 @@ struct DesktopWidgetView: View {
                 .help(item.isCompleted ? L10n.pick("Mark as open", "标记为未完成")
                                        : L10n.pick("Mark as done", "标记为完成"))
             } else {
-                Image(systemName: item.facetKind.systemImage)
+                Image(systemName: item.kind.systemImage)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(item.facetKind.color)
+                    .foregroundStyle(item.kind.color)
                     .frame(width: 15)
             }
 

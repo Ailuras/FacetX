@@ -174,7 +174,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
     func isApplicable(to item: ProjectItem) -> Bool {
         switch self {
         case .none: return false
-        case .convert: return item.linkedPaperIDs.isEmpty && !item.isNote
+        case .convert: return true
         default: return true
         }
     }
@@ -201,9 +201,7 @@ enum ItemActionHelpers {
 
     static func deleteItem(_ item: ProjectItem, ek: EventKitService) async {
         guard await ek.deleteItem(id: item.id) else { return }
-        if let facetID = item.facetID {
-            await MainActor.run { ItemStore.shared.deleteLocalState(for: facetID) }
-        }
+        await MainActor.run { ItemStore.shared.deleteLocalState(for: item.facetID ?? item.id) }
     }
 
     // MARK: Rescheduling

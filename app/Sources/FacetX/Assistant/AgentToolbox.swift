@@ -237,20 +237,11 @@ final class AgentToolbox {
     }
 
     private func fetchItems(prefixes: Set<String>) async throws -> [ProjectItem] {
-        guard let eventKit, let settings, let projectStore else { throw ToolError.message("Service unavailable") }
-        let noteCalendarByProject: [String: String] = Dictionary(
-            uniqueKeysWithValues: projectStore.activeProjects
-                .filter { prefixes.contains($0.prefix) }
-                .compactMap { project in
-                    let calendarName = settings.noteCalendarSaveTarget(projectNoteCalendarName: project.noteCalendarName)
-                    return calendarName.isEmpty ? nil : (project.prefix, calendarName)
-                }
-        )
+        guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
         return await eventKit.items(
             forProjects: prefixes,
             enabledReminderLists: settings.effectiveReminderListNames,
-            enabledCalendars: settings.effectiveCalendarNames,
-            noteCalendarByProject: noteCalendarByProject
+            enabledCalendars: settings.effectiveCalendarNames
         )
     }
 
@@ -368,7 +359,7 @@ final class AgentToolbox {
             project: project.prefix, content: title,
             listName: listName, dueDate: due?.date, dueIncludesTime: due?.hasTime ?? false,
             tags: tags,
-            itemMetadata: FacetItemMetadata(itemID: stableID),
+            itemReference: FacetItemReference(itemID: stableID),
             priority: priority,
             enabledLists: settings.effectiveReminderListNames
         )
@@ -405,7 +396,7 @@ final class AgentToolbox {
             calendarName: calName, startDate: start.date,
             durationMinutes: duration,
             tags: tags,
-            itemMetadata: FacetItemMetadata(itemID: stableID),
+            itemReference: FacetItemReference(itemID: stableID),
             isAllDay: allDay,
             endDate: end,
             enabledCalendars: settings.effectiveCalendarNames
@@ -510,9 +501,7 @@ final class AgentToolbox {
         let mention = try await resolveReference(input["reference_id"] as? String)
         let deleted = await eventKit.deleteItem(id: mention.eventKitID)
         guard deleted else { throw ToolError.message("EventKit could not delete the item.") }
-        if let stableID = mention.stableID {
-            ItemStore.shared.deleteLocalState(for: stableID)
-        }
+        ItemStore.shared.deleteLocalState(for: mention.stableID ?? mention.eventKitID)
         referencedItems.removeValue(forKey: mention.referenceID)
         return jsonString(["deleted": true, "reference_id": mention.referenceID])
     }

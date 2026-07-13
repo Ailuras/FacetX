@@ -83,9 +83,7 @@ extension PlanView {
         let load = PlanDayLoad.measure(
             items,
             calendar: MonthYear.calendar,
-            eventDefaultMinutes: settings.defaultEventDurationMinutes,
-            paperDefaultMinutes: settings.defaultPaperSessionMinutes,
-            noteDefaultMinutes: settings.defaultNoteSessionMinutes
+            eventDefaultMinutes: settings.defaultEventDurationMinutes
         )
         let isCurrentWeek = week.contains(date)
         let isToday = MonthYear.calendar.isDateInToday(date)
@@ -106,10 +104,8 @@ extension PlanView {
                 }
 
                 HStack(spacing: 3) {
-                    monthKindDot(count: items.filter { $0.facetKind == .event }.count, color: FacetKind.event.color)
-                    monthKindDot(count: items.filter { $0.facetKind == .task }.count, color: FacetKind.task.color)
-                    monthKindDot(count: items.filter { $0.facetKind == .paper }.count, color: FacetKind.paper.color)
-                    monthKindDot(count: items.filter { $0.facetKind == .note }.count, color: FacetKind.note.color)
+                    monthKindDot(count: items.filter { $0.kind == .event }.count, color: ProjectItem.Kind.event.color)
+                    monthKindDot(count: items.filter { $0.kind == .reminder }.count, color: ProjectItem.Kind.reminder.color)
                     Spacer(minLength: 0)
                 }
                 .frame(height: 6)

@@ -607,7 +607,7 @@ struct CommitsView: View {
     }
 
     private func documentAttachmentPopover(_ document: RepositoryDocument) -> some View {
-        let workItems = items.filter { $0.facetKind == .task || $0.facetKind == .event }
+        let workItems = items.filter { $0.kind == .reminder || $0.kind == .event }
         return VStack(alignment: .leading, spacing: 0) {
             Text(L10n.pick("Attach to Work Item", "关联到工作项"))
                 .font(.system(size: 12, weight: .semibold))
@@ -842,7 +842,7 @@ struct CommitsView: View {
         savePanel.nameFieldStringValue = (selectedDocument?.title ?? "Document") + ".pdf"
         savePanel.begin { response in
             if response == .OK, let url = savePanel.url {
-                let exporter = NotePDFExporter()
+                let exporter = MarkdownPDFExporter()
                 exporter.export(text: editorText) { result in
                     switch result {
                     case .success(let data):

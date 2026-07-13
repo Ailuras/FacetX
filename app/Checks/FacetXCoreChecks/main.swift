@@ -60,23 +60,15 @@ check(FacetMetadata.compose(userNotes: "  ", metadata: FacetMetadata()) == nil,
 check(FacetMetadata.tags(from: "#deep, waiting\nship") == ["deep", "waiting", "ship"],
       "tag parser should accept hashes, commas, and newlines")
 
-let itemMetadata = FacetItemMetadata(
-    itemID: "12345678-ABCD-EF01-2345-6789ABCDEF01",
-    paperIDs: ["https://openalex.org/W1", "doi:10.1/a,b"],
-    commits: ["owner/repo@abcdef", "owner/repo@abcdef"],
-    tags: ["read"]
-)
-let itemNotesRepresentation = itemMetadata.itemID
-let parsedItemMetadata = FacetItemMetadata.parse(notes: itemNotesRepresentation)
-check(parsedItemMetadata?.itemID == "12345678-ABCD-EF01-2345-6789ABCDEF01", "item metadata should preserve stable item id")
+let itemReference = FacetItemReference(itemID: "12345678-ABCD-EF01-2345-6789ABCDEF01")
+let itemReferenceRepresentation = itemReference.itemID
+let parsedItemReference = FacetItemReference.parse(notes: itemReferenceRepresentation)
+check(parsedItemReference?.itemID == "12345678-ABCD-EF01-2345-6789ABCDEF01", "item metadata should preserve stable item id")
 
-let legacyNotes = "FacetX-Metadata-Begin\nfacetx-kind: item-v1\nitem-id: legacy-id-123\nnote-id: legacy-note-456\nFacetX-Metadata-End"
-let parsedLegacy = FacetItemMetadata.parse(notes: legacyNotes)
-check(parsedLegacy?.itemID == "legacy-id-123", "legacy metadata block parsing should extract item ID")
-let noteKindNotes = "FacetX-Metadata-Begin\nitem-id: note-id-123\nkind: note\nFacetX-Metadata-End"
-let parsedNoteKind = FacetItemMetadata.parse(notes: noteKindNotes)
-check(parsedNoteKind?.itemID == "note-id-123", "note metadata should preserve item ID")
-check(parsedNoteKind?.kind == .note, "note metadata should preserve facet kind")
+check(FacetItemReference.parse(notes: "not-a-uuid") == nil,
+      "item identity should reject non-UUID metadata")
+check(FacetItemReference.parse(notes: "FacetX-Metadata-Begin\nitem-id: legacy\nFacetX-Metadata-End") == nil,
+      "item identity should reject legacy metadata blocks")
 let june = MonthYear(year: 2026, month: 6)
 guard let juneStart = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)),
       let juneEnd = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 23)),
@@ -156,14 +148,24 @@ let resourceItem = ProjectItem(id: "meta", kind: .event, rawTitle: "Regulus: Pap
                                projectPrefix: "Regulus", content: "Paper", containerName: "Calendar",
                                isCompleted: false, date: nil, notes: nil, tags: ["Reading"],
                                priority: 0, url: nil,
-                               facetID: "stable-item",
+                               facetID: "12345678-ABCD-EF01-2345-6789ABCDEF01",
                                linkedPaperIDs: ["paper-1"], linkedCommits: ["owner/repo@abc"],
                                linkedDocumentPaths: [".facetx/plan.md"])
-let searchItemMetadata = resourceItem.facetItemMetadata()
-check(searchItemMetadata.itemID == "stable-item", "item metadata helper should preserve item id")
-check(searchItemMetadata.paperIDs == ["paper-1"], "item metadata helper should preserve papers")
-check(searchItemMetadata.commits == ["owner/repo@abc"], "item metadata helper should preserve commits")
-check(searchItemMetadata.tags == ["Reading"], "item metadata helper should preserve tags")
+let searchItemMetadata = resourceItem.facetItemReference()
+check(searchItemMetadata.itemID == "12345678-ABCD-EF01-2345-6789ABCDEF01", "item reference helper should preserve item id")
+check(resourceItem.kind == .event, "resource attachments must not change an event's kind")
+check(resourceItem.linkedPaperIDs == ["paper-1"]
+      && resourceItem.linkedCommits == ["owner/repo@abc"]
+      && resourceItem.linkedDocumentPaths == [".facetx/plan.md"],
+      "paper, commit, and document attachments should coexist")
+let hydratedResourceItem = resourceItem.withMergedMetadata(
+    notes: "details",
+    tags: ["Reading"],
+    paperIDs: ["paper-1", "paper-2"],
+    commits: ["owner/repo@abc"],
+    documentPaths: [".facetx/plan.md"]
+)
+check(hydratedResourceItem.kind == .event, "hydrating resources must preserve work-item kind")
 let replacementDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 4))!
 let replacedSearchItem = searchItem.replacingDate(replacementDate)
 check(replacedSearchItem.date == replacementDate, "replacingDate should update the item date")

@@ -82,14 +82,12 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func items(forProject project: String,
                enabledReminderLists: Set<String>? = nil,
                enabledCalendars: Set<String>? = nil,
-               noteCalendarName: String? = nil,
                eventStartDate: Date? = nil,
                eventEndDate: Date? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
         await items(forProjects: [project],
                     enabledReminderLists: enabledReminderLists,
                     enabledCalendars: enabledCalendars,
-                    noteCalendarByProject: noteCalendarName.nonEmpty.map { [project: $0] } ?? [:],
                     eventStartDate: eventStartDate,
                     eventEndDate: eventEndDate,
                     eventWindowDays: eventWindowDays)
@@ -100,7 +98,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func items(forProjects prefixes: Set<String>,
                enabledReminderLists: Set<String>? = nil,
                enabledCalendars: Set<String>? = nil,
-               noteCalendarByProject: [String: String] = [:],
                eventStartDate: Date? = nil,
                eventEndDate: Date? = nil,
                eventWindowDays: Int = 120) async -> [ProjectItem] {
@@ -116,28 +113,16 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             let store = ItemStore.shared
             let states = store.localState(forIDs: rawItems.compactMap(\.facetID))
             return rawItems.map { item in
-                let noteCalendarName = noteCalendarByProject[item.projectPrefix]
-                let isCalendarNote = item.kind == .event && noteCalendarName == item.containerName
-                let classified = item.withMergedMetadata(
-                    notes: item.notes,
-                    tags: item.tags,
-                    paperIDs: item.linkedPaperIDs,
-                    commits: item.linkedCommits,
-                    documentPaths: item.linkedDocumentPaths,
-                    isNote: item.isNote || isCalendarNote
-                )
-                guard let facetID = classified.facetID, let state = states[facetID] else { return classified }
-                let merged = classified.withMergedMetadata(
+                guard let facetID = item.facetID, let state = states[facetID] else { return item }
+                let merged = item.withMergedMetadata(
                     notes: state.noteBody.isEmpty ? nil : state.noteBody,
                     tags: state.tags,
                     paperIDs: state.paperIDs,
                     commits: state.commits,
-                    documentPaths: state.documentPaths,
-                    isNote: classified.isNote
+                    documentPaths: state.documentPaths
                 )
-                // Reminders carry native EventKit completion; events/notes have
-                // none, so their completion lives in the local store alongside
-                // the pin flag (which applies to every kind).
+                // Reminders carry native EventKit completion; events have none,
+                // so their completion lives in the local store with the pin flag.
                 let completed = item.kind == .reminder ? merged.isCompleted : state.isCompleted
                 return merged.applyingLocalState(isPinned: state.isPinned, isCompleted: completed)
             }
@@ -211,7 +196,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                              enabledCalendars: Set<String>? = nil) async -> [ProjectItem] {
         let allItems = await items(forProjects: prefixes,
                                    enabledReminderLists: enabledReminderLists,
-                                   enabledCalendars: enabledCalendars)
+                                   enabledCalendars: enabledCalendars,
+                                   eventStartDate: Self.paperLinkScanStartDate,
+                                   eventEndDate: Self.paperLinkScanEndDate)
         return allItems.filter { !$0.linkedPaperIDs.isEmpty }
     }
 
@@ -249,7 +236,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     let title = r.title ?? ""
                     guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: r.notes)
                     else { return nil }
-                    let itemMetadata = FacetItemMetadata.parse(notes: r.notes)
+                    let itemReference = FacetItemReference.parse(notes: r.notes)
                     return ProjectItem(
                         id: r.calendarItemIdentifier,
                         kind: .reminder,
@@ -266,7 +253,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                         hasTime: Self.hasReminderTime(r.dueDateComponents),
                         isAllDay: false,
                         endDate: nil,
-                        facetID: itemMetadata?.itemID,
+                        facetID: itemReference?.itemID,
                         linkedPaperIDs: [],
                         linkedCommits: []
                     )
@@ -300,7 +287,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             let title = e.title ?? ""
             guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: e.notes)
             else { return nil }
-            let itemMetadata = FacetItemMetadata.parse(notes: e.notes)
+            let itemReference = FacetItemReference.parse(notes: e.notes)
             return ProjectItem(
                 id: e.calendarItemIdentifier,
                 kind: .event,
@@ -317,10 +304,9 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                 hasTime: !e.isAllDay,
                 isAllDay: e.isAllDay,
                 endDate: e.endDate,
-                facetID: itemMetadata?.itemID,
+                facetID: itemReference?.itemID,
                 linkedPaperIDs: [],
-                linkedCommits: [],
-                isNote: itemMetadata?.kind == .note
+                linkedCommits: []
             )
         }
     }
@@ -388,7 +374,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     func createReminder(project: String, content: String,
                         listName: String, dueDate: Date?, dueIncludesTime: Bool,
                         tags: [String] = [],
-                        itemMetadata: FacetItemMetadata? = nil,
+                        itemReference: FacetItemReference? = nil,
                         priority: Int = 0, url: URL? = nil,
                         enabledLists: Set<String>? = nil) async -> String? {
         let lists = filtered(store.calendars(for: .reminder), by: enabledLists)
@@ -397,7 +383,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         let r = EKReminder(eventStore: store)
         r.title = ProjectPrefix.makeTitle(project: project, content: content)
         r.calendar = list
-        r.notes = composeItemNotes(tags: tags, itemMetadata: itemMetadata)
+        let itemID = composeItemNotes(itemReference: itemReference)
+        r.notes = itemID
         r.priority = priority
         r.url = url
         if let due = dueDate {
@@ -405,6 +392,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
         do {
             try store.save(r, commit: true)
+            await ensureLocalState(itemID: itemID, tags: tags)
             return r.calendarItemIdentifier
         } catch {
             return nil
@@ -418,7 +406,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                      calendarName: String, startDate: Date,
                      durationMinutes: Int = 60,
                      tags: [String] = [],
-                     itemMetadata: FacetItemMetadata? = nil,
+                     itemReference: FacetItemReference? = nil,
                      url: URL? = nil,
                      isAllDay: Bool = false,
                      endDate: Date? = nil,
@@ -429,7 +417,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         let e = EKEvent(eventStore: store)
         e.title = ProjectPrefix.makeTitle(project: project, content: content)
         e.calendar = cal
-        e.notes = composeItemNotes(tags: tags, itemMetadata: itemMetadata)
+        let itemID = composeItemNotes(itemReference: itemReference)
+        e.notes = itemID
         e.url = url
         e.isAllDay = isAllDay
         if isAllDay {
@@ -447,63 +436,25 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
         do {
             try store.save(e, span: .thisEvent, commit: true)
+            await ensureLocalState(itemID: itemID, tags: tags)
             return e.calendarItemIdentifier
         } catch {
             return nil
         }
     }
 
-    /// Create a note: an all-day calendar event anchor flagged as a note, with
-    /// an empty markdown file seeded in the project's data folder. Returns the
-    /// anchor event identifier on success.
-    @discardableResult
-    func createNote(project: String, content: String,
-                    calendarName: String, startDate: Date,
-                    dataDirectory: String?,
-                    itemMetadata: FacetItemMetadata? = nil,
-                    enabledCalendars: Set<String>? = nil) async -> String? {
-        let metadata = (itemMetadata ?? FacetItemMetadata(itemID: UUID().uuidString)).withKind(.note)
-        let eventId = await createEvent(
-            project: project,
-            content: content,
-            calendarName: calendarName,
-            startDate: startDate,
-            itemMetadata: metadata,
-            isAllDay: true,
-            enabledCalendars: enabledCalendars
-        )
-        guard eventId != nil else { return nil }
-        await MainActor.run {
-            if let dataDirectory, !dataDirectory.isEmpty {
-                NoteStore.shared.save(dataDirectory: dataDirectory, facetID: metadata.itemID, body: "")
-            }
-        }
-        return eventId
-    }
-
     // ── Conversion helpers ───────────────────────────────────────────────────
 
-    private func composeItemNotes(tags: [String], itemMetadata: FacetItemMetadata? = nil) -> String? {
-        let stableID = itemMetadata?.itemID ?? UUID().uuidString
-        let papers = itemMetadata?.paperIDs ?? []
-        let cms = itemMetadata?.commits ?? []
-        let tgs = tags.isEmpty ? (itemMetadata?.tags ?? []) : tags
+    private func composeItemNotes(itemReference: FacetItemReference? = nil) -> String {
+        itemReference?.itemID ?? UUID().uuidString
+    }
 
-        Task {
-            await MainActor.run {
-                if !ItemStore.shared.exists(id: stableID) {
-                    ItemStore.shared.saveAll(id: stableID, body: "", tags: tgs, paperIDs: papers, commits: cms)
-                }
+    private func ensureLocalState(itemID: String, tags: [String]) async {
+        await MainActor.run {
+            if !ItemStore.shared.exists(id: itemID) {
+                ItemStore.shared.saveAll(id: itemID, body: "", tags: tags, paperIDs: [], commits: [])
             }
         }
-        if let kind = itemMetadata?.kind {
-            let metadata = FacetMetadata(tags: tgs, fields: [
-                "item-id": stableID,
-                "kind": kind.rawValue
-            ])
-            return FacetMetadata.compose(userNotes: "", metadata: metadata)
-        }
-        return stableID
     }
 
     /// Delete a reminder and create a calendar event with the same content.
@@ -514,7 +465,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         project: String,
         content: String,
         tags: [String],
-        itemMetadata: FacetItemMetadata? = nil,
+        itemReference: FacetItemReference? = nil,
         dueDate: Date?,
         durationMinutes: Int,
         calendarName: String,
@@ -528,7 +479,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             startDate: startDate,
             durationMinutes: max(durationMinutes, 15),
             tags: tags,
-            itemMetadata: itemMetadata,
+            itemReference: itemReference,
             enabledCalendars: enabledCalendars
         )
         guard let createdId else { return nil }
@@ -543,7 +494,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         project: String,
         content: String,
         tags: [String],
-        itemMetadata: FacetItemMetadata? = nil,
+        itemReference: FacetItemReference? = nil,
         priority: Int,
         startDate: Date?,
         hasTime: Bool,
@@ -557,7 +508,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             dueDate: startDate,
             dueIncludesTime: hasTime,
             tags: tags,
-            itemMetadata: itemMetadata,
+            itemReference: itemReference,
             priority: priority,
             enabledLists: enabledLists
         )
@@ -701,7 +652,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         let newTitle = ProjectPrefix.makeTitle(project: project, content: content)
         item.title = newTitle
 
-        let facetID = FacetItemMetadata.parse(notes: item.notes)?.itemID ?? UUID().uuidString
+        let facetID = FacetItemReference.parse(notes: item.notes)?.itemID ?? UUID().uuidString
         item.notes = facetID
 
         if let tags {
@@ -760,10 +711,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return false
     }
 
-    /// Replace a task/event notes field with canonical FacetX item metadata.
-    func rewriteItemMetadata(id: String, metadata itemMetadata: FacetItemMetadata) async -> Bool {
+    /// Replace a task/event notes field with its canonical FacetX UUID.
+    func rewriteItemReference(id: String, reference: FacetItemReference) async -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
-        item.notes = composeItemNotes(tags: itemMetadata.tags, itemMetadata: itemMetadata)
+        item.notes = reference.itemID
 
         do {
             if let reminder = item as? EKReminder {
@@ -778,141 +729,6 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         } catch {
             return false
         }
-    }
-
-    /// Reconstructs the notes index: scans all project items, extracts legacy metadata
-    /// or plain notes, stores note text/tags/papers/commits in the local SQLite ItemStore,
-    /// and sets the EventKit notes field to contain ONLY the stable item ID (UUID).
-    func reconstructNotesIndex(
-        prefixes: Set<String>,
-        enabledReminderLists: Set<String>?,
-        enabledCalendars: Set<String>?
-    ) async -> Int {
-        let lists = filtered(store.calendars(for: .reminder), by: enabledReminderLists)
-        let cals = filtered(store.calendars(for: .event), by: enabledCalendars)
-
-        var migratedCount = 0
-
-        // 1. Process Reminders
-        if !lists.isEmpty {
-            let pred = store.predicateForReminders(in: lists)
-            let remMigrated = await withCheckedContinuation { cont in
-                store.fetchReminders(matching: pred) { reminders in
-                    var count = 0
-                    for r in reminders ?? [] {
-                        let title = r.title ?? ""
-                        guard case let .item(prefix, _) = FacetAssociation.classify(title: title, notes: r.notes),
-                              prefixes.contains(prefix) else { continue }
-
-                        let notesStr = r.notes ?? ""
-                        let trimmed = notesStr.trimmingCharacters(in: .whitespacesAndNewlines)
-
-                        if UUID(uuidString: trimmed) != nil {
-                            continue
-                        }
-
-                        let itemID = UUID().uuidString
-
-                        if notesStr.contains("FacetX-Metadata-Begin") {
-                            let legacyMeta = FacetMetadata.parse(notes: notesStr)
-                            let legacyItemMeta = FacetItemMetadata.parse(notes: notesStr)
-                            let stableID = legacyItemMeta?.itemID ?? itemID
-                            let noteBody = legacyMeta.userNotes
-                            let tags = legacyMeta.tags
-
-                            let legacyFull = self.legacyMetadataForRebuild(notesStr)
-                            let papers = legacyFull.papers
-                            let commits = legacyFull.commits
-
-                            Task { @MainActor in
-                                ItemStore.shared.saveAll(id: stableID, body: noteBody, tags: tags, paperIDs: papers, commits: commits)
-                            }
-                            r.notes = stableID
-                            try? self.store.save(r, commit: true)
-                            count += 1
-                        } else {
-                            let noteBody = notesStr
-                            Task { @MainActor in
-                                ItemStore.shared.saveAll(id: itemID, body: noteBody, tags: [], paperIDs: [], commits: [])
-                            }
-                            r.notes = itemID
-                            try? self.store.save(r, commit: true)
-                            count += 1
-                        }
-                    }
-                    cont.resume(returning: count)
-                }
-            }
-            migratedCount += remMigrated
-        }
-
-        // 2. Process Events
-        if !cals.isEmpty {
-            let now = Date()
-            let start = Calendar.current.date(byAdding: .year, value: -1, to: now)!
-            let end = Calendar.current.date(byAdding: .year, value: 1, to: now)!
-            let pred = store.predicateForEvents(withStart: start, end: end, calendars: cals)
-            let events = store.events(matching: pred)
-
-            for e in events {
-                let title = e.title ?? ""
-                guard case let .item(prefix, _) = FacetAssociation.classify(title: title, notes: e.notes),
-                      prefixes.contains(prefix) else { continue }
-
-                let notesStr = e.notes ?? ""
-                let trimmed = notesStr.trimmingCharacters(in: .whitespacesAndNewlines)
-
-                if UUID(uuidString: trimmed) != nil {
-                    continue
-                }
-
-                let itemID = UUID().uuidString
-                var noteBody = ""
-                var tags: [String] = []
-                var papers: [String] = []
-                var commits: [String] = []
-
-                if notesStr.contains("FacetX-Metadata-Begin") {
-                    let legacyMeta = FacetMetadata.parse(notes: notesStr)
-                    let legacyItemMeta = FacetItemMetadata.parse(notes: notesStr)
-                    let stableID = legacyItemMeta?.itemID ?? itemID
-                    noteBody = legacyMeta.userNotes
-                    tags = legacyMeta.tags
-
-                    let legacyFull = legacyMetadataForRebuild(notesStr)
-                    papers = legacyFull.papers
-                    commits = legacyFull.commits
-
-                    await MainActor.run {
-                        ItemStore.shared.saveAll(id: stableID, body: noteBody, tags: tags, paperIDs: papers, commits: commits)
-                    }
-                    e.notes = stableID
-                    try? store.save(e, span: .thisEvent, commit: true)
-                    migratedCount += 1
-                } else {
-                    noteBody = notesStr
-                    await MainActor.run {
-                        ItemStore.shared.saveAll(id: itemID, body: noteBody, tags: [], paperIDs: [], commits: [])
-                    }
-                    e.notes = itemID
-                    try? store.save(e, span: .thisEvent, commit: true)
-                    migratedCount += 1
-                }
-            }
-        }
-
-        return migratedCount
-    }
-
-    private func legacyMetadataForRebuild(_ notes: String) -> (papers: [String], commits: [String]) {
-        let meta = FacetMetadata.parse(notes: notes)
-        let papersStr = meta.fields["papers"] ?? ""
-        let commitsStr = meta.fields["commits"] ?? ""
-
-        let papers = papersStr.split(separator: ",").map { String($0).removingPercentEncoding ?? String($0) }.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        let commits = commitsStr.split(separator: ",").map { String($0).removingPercentEncoding ?? String($0) }.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-
-        return (papers, commits)
     }
 
     private static func hasReminderTime(_ components: DateComponents?) -> Bool {

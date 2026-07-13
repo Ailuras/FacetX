@@ -1,39 +1,29 @@
 import FacetXCore
 import Foundation
 
-enum FacetSessionDuration {
+enum WorkItemSessionDuration {
     static func defaultMinutes(
         for item: ProjectItem,
         eventDefaultMinutes: Int,
-        paperDefaultMinutes: Int,
-        noteDefaultMinutes: Int,
         treatsAllDayEventsAsTimed: Bool = false
     ) -> Int? {
-        switch item.facetKind {
-        case .task:
+        switch item.kind {
+        case .reminder:
             return nil
         case .event:
             guard treatsAllDayEventsAsTimed || !item.isAllDay else { return nil }
             return explicitMinutes(for: item) ?? max(eventDefaultMinutes, 15)
-        case .paper:
-            return max(paperDefaultMinutes, 15)
-        case .note:
-            return explicitMinutes(for: item) ?? max(noteDefaultMinutes, 15)
         }
     }
 
     static func hours(
         for item: ProjectItem,
         eventDefaultMinutes: Int,
-        paperDefaultMinutes: Int,
-        noteDefaultMinutes: Int,
         treatsAllDayEventsAsTimed: Bool = false
     ) -> Double {
         guard let minutes = defaultMinutes(
             for: item,
             eventDefaultMinutes: eventDefaultMinutes,
-            paperDefaultMinutes: paperDefaultMinutes,
-            noteDefaultMinutes: noteDefaultMinutes,
             treatsAllDayEventsAsTimed: treatsAllDayEventsAsTimed
         ) else {
             return 0.33
@@ -45,16 +35,12 @@ enum FacetSessionDuration {
         for item: ProjectItem,
         start: Date,
         eventDefaultMinutes: Int,
-        paperDefaultMinutes: Int,
-        noteDefaultMinutes: Int,
         treatsAllDayEventsAsTimed: Bool = false,
         calendar: Calendar = .current
     ) -> Date? {
         guard let minutes = defaultMinutes(
             for: item,
             eventDefaultMinutes: eventDefaultMinutes,
-            paperDefaultMinutes: paperDefaultMinutes,
-            noteDefaultMinutes: noteDefaultMinutes,
             treatsAllDayEventsAsTimed: treatsAllDayEventsAsTimed
         ) else {
             return nil

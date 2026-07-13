@@ -90,22 +90,18 @@ struct PlanDayLoad {
     static func measure(
         _ items: [ProjectItem],
         calendar: Calendar = .current,
-        eventDefaultMinutes: Int = 60,
-        paperDefaultMinutes: Int = 60,
-        noteDefaultMinutes: Int = 45
+        eventDefaultMinutes: Int = 60
     ) -> PlanDayLoad {
         let activeItems = items.filter { !$0.isCompleted }
-        let taskCount = activeItems.filter { $0.facetKind == .task }.count
+        let taskCount = activeItems.filter { $0.kind == .reminder }.count
         let highPriorityCount = activeItems.filter { item in
-            item.facetKind == .task && (1...4).contains(item.priority)
+            item.kind == .reminder && (1...4).contains(item.priority)
         }.count
         let timedMinutes = activeItems.reduce(0) { total, item in
             guard item.date != nil,
-                  let minutes = FacetSessionDuration.defaultMinutes(
+                  let minutes = WorkItemSessionDuration.defaultMinutes(
                     for: item,
-                    eventDefaultMinutes: eventDefaultMinutes,
-                    paperDefaultMinutes: paperDefaultMinutes,
-                    noteDefaultMinutes: noteDefaultMinutes
+                    eventDefaultMinutes: eventDefaultMinutes
                   ) else { return total }
             return total + minutes
         }

@@ -5,8 +5,6 @@ import SwiftUI
 struct ItemInlineEditState {
     var titleID: String?
     var titleText = ""
-    var notesID: String?
-    var notesText = ""
 
     mutating func startTitleEdit(for item: ProjectItem) {
         titleText = item.content
@@ -17,9 +15,6 @@ struct ItemInlineEditState {
         titleID = nil
     }
 
-    mutating func cancelNotesEdit() {
-        notesID = nil
-    }
 }
 
 struct StandardItemRow: View {
@@ -27,7 +22,6 @@ struct StandardItemRow: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: ProjectStore
     @EnvironmentObject private var focus: FocusService
-    @State private var noteStore = ItemStore.shared
 
     let item: ProjectItem
     let projectPrefix: String
@@ -62,18 +56,7 @@ struct StandardItemRow: View {
             inlineEditingText: $inlineEdit.titleText,
             isInlineEditing: item.id == inlineEdit.titleID,
             onInlineCommit: commitTitleEdit,
-            onInlineCancel: {
-                inlineEdit.cancelTitleEdit()
-            },
-            inlineEditingNotesText: $inlineEdit.notesText,
-            isInlineEditingNotes: item.id == inlineEdit.notesID,
-            onInlineNotesCommit: commitNotesEdit,
-            onInlineNotesCancel: {
-                inlineEdit.cancelNotesEdit()
-            },
-            onStartNotesEdit: {
-                startNotesEdit()
-            }
+            onInlineCancel: { inlineEdit.cancelTitleEdit() }
         )
         .swipeActions(edge: .leading, allowsFullSwipe: !leadingAction.isDestructive) {
             swipeButton(leadingAction)
@@ -233,7 +216,7 @@ struct StandardItemRow: View {
 
     private func convertItemType() {
         let proj = store.activeProjects.first { $0.prefix == projectPrefix }
-        let metadata = item.facetItemMetadata()
+        let metadata = item.facetItemReference()
         Task {
             let newId: String?
             if item.kind == .reminder {
@@ -243,7 +226,7 @@ struct StandardItemRow: View {
                     project: item.projectPrefix,
                     content: item.content,
                     tags: item.tags,
-                    itemMetadata: metadata,
+                    itemReference: metadata,
                     dueDate: item.date,
                     durationMinutes: settings.defaultEventDurationMinutes,
                     calendarName: calName.isEmpty ? settings.defaultCalendarName : calName
@@ -255,7 +238,7 @@ struct StandardItemRow: View {
                     project: item.projectPrefix,
                     content: item.content,
                     tags: item.tags,
-                    itemMetadata: metadata,
+                    itemReference: metadata,
                     priority: item.priority,
                     startDate: item.date,
                     hasTime: item.hasTime,
@@ -298,27 +281,4 @@ struct StandardItemRow: View {
         }
     }
 
-    private func commitNotesEdit() {
-        Task {
-            guard inlineEdit.notesID == item.id else { return }
-            let facetID = item.facetID ?? UUID().uuidString
-            noteStore.save(id: facetID, body: inlineEdit.notesText.trimmingCharacters(in: .whitespacesAndNewlines))
-            if item.facetID == nil {
-                _ = await ek.rewriteItemMetadata(id: item.id, metadata: FacetItemMetadata(itemID: facetID))
-            }
-            await MainActor.run {
-                inlineEdit.notesID = nil
-            }
-            await onReload()
-        }
-    }
-
-    private func startNotesEdit() {
-        if let facetID = item.facetID {
-            inlineEdit.notesText = noteStore.body(for: facetID)
-        } else {
-            inlineEdit.notesText = ""
-        }
-        inlineEdit.notesID = item.id
-    }
 }

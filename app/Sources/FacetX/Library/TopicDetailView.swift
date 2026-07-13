@@ -21,9 +21,9 @@ struct TopicDetailView: View {
     @EnvironmentObject private var projectStore: ProjectStore
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var focus: FocusService
 
     @State private var paperLinks: [String: Set<String>] = [:]
+    @State private var workItemsByProject: [String: [ProjectItem]] = [:]
     @State private var searchText = ""
     @State private var selectedPaper: Paper?
     @State private var sortKey: SortKey = .score
@@ -1004,21 +1004,41 @@ struct TopicDetailView: View {
     /// straight from a right-click on the row.
     @ViewBuilder
     private func paperContextMenu(for paper: Paper) -> some View {
-        let linkedPrefixes = paperLinks[paper.id] ?? []
-        let availableProjects = projectStore.activeProjects.filter { !linkedPrefixes.contains($0.prefix) }
-
-        if !availableProjects.isEmpty {
-            Menu {
-                ForEach(availableProjects) { project in
-                    Button(project.name) {
-                        addPaperToProject(paper, project: project)
+        Menu {
+            ForEach(projectStore.activeProjects) { project in
+                Menu(project.name) {
+                    let workItems = workItemsByProject[project.prefix] ?? []
+                    if workItems.isEmpty {
+                        Text(L10n.pick("No work items", "暂无工作项"))
+                    } else {
+                        ForEach(workItems) { item in
+                            Button {
+                                attachPaper(paper, to: item)
+                            } label: {
+                                Label(item.content, systemImage: item.kind.systemImage)
+                            }
+                        }
                     }
                 }
-            } label: {
-                Label(L10n.pick("Add to Project", "添加到项目"), systemImage: "folder.badge.plus")
             }
-            Divider()
+        } label: {
+            Label(L10n.pick("Attach to Existing Todo/Event", "关联到现有任务/事件"), systemImage: "link.badge.plus")
         }
+        Menu {
+            ForEach(projectStore.activeProjects) { project in
+                Button(project.name) { createReadingTask(for: paper, project: project) }
+            }
+        } label: {
+            Label(L10n.pick("Create Reading Todo and Attach", "创建阅读任务并关联"), systemImage: "checklist")
+        }
+        Menu {
+            ForEach(projectStore.activeProjects) { project in
+                Button(project.name) { createReadingEvent(for: paper, project: project) }
+            }
+        } label: {
+            Label(L10n.pick("Schedule Reading Event and Attach", "安排阅读事件并关联"), systemImage: "calendar.badge.plus")
+        }
+        Divider()
 
         Button {
             store.setPaperStatus(id: paper.id,
@@ -1026,23 +1046,6 @@ struct TopicDetailView: View {
         } label: {
             Label(paper.status == .starred ? L10n.pick("Unstar", "取消收藏") : L10n.pick("Star", "收藏"),
                   systemImage: paper.status == .starred ? "star.slash" : "star")
-        }
-
-        if focus.isFocusing(paper.focusTargetID) {
-            Button {
-                focus.finish()
-            } label: {
-                Label(L10n.pick("End Focus", "结束专注"), systemImage: "timer")
-            }
-        } else {
-            Button {
-                focus.start(target: paper.focusTarget(topicLabel: topic.name),
-                            minutes: appSettings.focusDurationMinutes)
-            } label: {
-                Label(L10n.pick("Start Focus (\(appSettings.focusDurationMinutes) min)",
-                                "开始专注（\(appSettings.focusDurationMinutes) 分钟）"),
-                      systemImage: "timer")
-            }
         }
 
         Menu {
@@ -1734,48 +1737,77 @@ struct TopicDetailView: View {
         }
     }
 
-    private func addPaperToProject(_ paper: Paper, project: Project) {
-        let listName: String
-        if let projList = project.literatureListName, !projList.isEmpty {
-            listName = projList
-        } else if !appSettings.defaultLiteratureListName.isEmpty {
-            listName = appSettings.defaultLiteratureListName
-        } else if !appSettings.defaultReminderListName.isEmpty {
-            listName = appSettings.defaultReminderListName
-        } else {
-            toast.show(L10n.pick("No paper list configured. Please set a default or project paper list.", "未配置文献列表，请在设置或项目属性中指定。"), type: .warning)
+    private func attachPaper(_ paper: Paper, to item: ProjectItem) {
+        Task {
+            let stableID = item.facetID ?? UUID().uuidString
+            if item.facetID == nil {
+                guard await ek.rewriteItemReference(
+                    id: item.id,
+                    reference: FacetItemReference(itemID: stableID)
+                ) else {
+                    toast.show(L10n.pick("Could not identify the work item", "无法写入工作项标识"), type: .error)
+                    return
+                }
+            }
+            var ids = ItemStore.shared.paperIDs(for: stableID)
+            if !ids.contains(paper.id) { ids.append(paper.id) }
+            ItemStore.shared.setPaperIDs(ids, for: stableID)
+            toast.show(L10n.pick("Paper attached to “\(item.content)”", "文献已关联到“\(item.content)”"), type: .success)
+            loadPaperLinks()
+        }
+    }
+
+    private func createReadingTask(for paper: Paper, project: Project) {
+        let listName = appSettings.reminderSaveTarget(projectListName: project.reminderListName)
+        guard !listName.isEmpty else {
+            toast.show(L10n.pick("Choose a reminder list first", "请先选择提醒事项列表"), type: .warning)
             return
         }
-
-        let paperUrl = URL(string: paper.landingPageUrl)
-
-        let reminderMetadata = FacetItemMetadata(
-            itemID: UUID().uuidString,
-            paperIDs: [paper.id],
-            commits: [],
-            tags: []
-        )
-
+        let stableID = UUID().uuidString
         Task {
-            let reminderId = await ek.createReminder(
+            guard await ek.createReminder(
                 project: project.prefix,
-                content: paper.title,
+                content: L10n.pick("Read: \(paper.title)", "阅读：\(paper.title)"),
                 listName: listName,
                 dueDate: nil,
                 dueIncludesTime: false,
-                itemMetadata: reminderMetadata,
-                url: paperUrl,
+                itemReference: FacetItemReference(itemID: stableID),
+                url: URL(string: paper.landingPageUrl),
                 enabledLists: appSettings.effectiveReminderListNames
-            )
-
-            if reminderId != nil {
-                toast.show(L10n.pick("Added paper to project “\(project.name)”", "已将文献添加到项目“\(project.name)”"), type: .success, duration: 2)
-                await MainActor.run {
-                    loadPaperLinks()
-                }
-            } else {
-                toast.show(L10n.pick("Failed to add paper", "添加文献失败"), type: .error)
+            ) != nil else {
+                toast.show(L10n.pick("Could not create reading task", "无法创建阅读任务"), type: .error)
+                return
             }
+            ItemStore.shared.setPaperIDs([paper.id], for: stableID)
+            toast.show(L10n.pick("Reading task created and attached", "阅读任务已创建并关联"), type: .success)
+            loadPaperLinks()
+        }
+    }
+
+    private func createReadingEvent(for paper: Paper, project: Project) {
+        let calendarName = appSettings.calendarSaveTarget(projectCalendarName: project.calendarName)
+        guard !calendarName.isEmpty else {
+            toast.show(L10n.pick("Choose a calendar first", "请先选择日历"), type: .warning)
+            return
+        }
+        let stableID = UUID().uuidString
+        Task {
+            guard await ek.createEvent(
+                project: project.prefix,
+                content: L10n.pick("Read: \(paper.title)", "阅读：\(paper.title)"),
+                calendarName: calendarName,
+                startDate: FacetDateDefaults.nextWholeHour(),
+                durationMinutes: paper.abstractReadingMinutes.map { max($0, 30) } ?? appSettings.defaultEventDurationMinutes,
+                itemReference: FacetItemReference(itemID: stableID),
+                url: URL(string: paper.landingPageUrl),
+                enabledCalendars: appSettings.effectiveCalendarNames
+            ) != nil else {
+                toast.show(L10n.pick("Could not create reading event", "无法创建阅读事件"), type: .error)
+                return
+            }
+            ItemStore.shared.setPaperIDs([paper.id], for: stableID)
+            toast.show(L10n.pick("Reading event created and attached", "阅读事件已创建并关联"), type: .success)
+            loadPaperLinks()
         }
     }
 
@@ -1783,22 +1815,14 @@ struct TopicDetailView: View {
         if selectedPaper?.id == paper.id {
             withAnimation(detailPaneAnimation) { selectedPaper = nil }
         }
-        Task {
-            _ = await PaperLinkCleanup.removePaperIDs(
-                [paper.id],
-                projectStore: projectStore,
-                appSettings: appSettings,
-                ek: ek
-            )
-            store.deletePapers(ids: [paper.id])
-            toast.show(L10n.pick("Paper deleted", "已删除文献"), type: .success, duration: 2)
-        }
+        store.deletePapers(ids: [paper.id])
+        toast.show(L10n.pick("Paper deleted", "已删除文献"), type: .success, duration: 2)
     }
 
     private func loadPaperLinks() {
         Task {
             let prefixes = Set(projectStore.activeProjects.map(\.prefix))
-            let allItems = await ek.itemsLinkedToPapers(
+            let allItems = await ek.items(
                 forProjects: prefixes,
                 enabledReminderLists: appSettings.effectiveReminderListNames,
                 enabledCalendars: appSettings.effectiveCalendarNames
@@ -1810,6 +1834,7 @@ struct TopicDetailView: View {
                 }
             }
             self.paperLinks = map
+            self.workItemsByProject = Dictionary(grouping: allItems, by: \.projectPrefix)
         }
     }
 }

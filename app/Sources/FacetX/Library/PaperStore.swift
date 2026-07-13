@@ -146,11 +146,6 @@ class PaperStore {
             recommendation_reason TEXT
         );
 
-        CREATE TABLE IF NOT EXISTS paper_notes (
-            paper_id TEXT PRIMARY KEY,
-            note TEXT NOT NULL DEFAULT ''
-        );
-
         CREATE TABLE IF NOT EXISTS paper_tags (
             paper_id TEXT NOT NULL,
             tag TEXT NOT NULL,
@@ -257,14 +252,13 @@ class PaperStore {
                         ORDER BY lower(tag), tag
                     )
                  ), ''), '') as tags,
-                COALESCE(pn.note, '') as note, COALESCE(pt.abstract_zh, '') as abstract_zh,
+                COALESCE(pt.abstract_zh, '') as abstract_zh,
                 ps.status_changed_at, p.added_at,
                 f.pdf_path, f.pdf_status
          FROM papers p
         LEFT JOIN paper_cache pc ON p.id = pc.paper_id
         LEFT JOIN paper_states ps ON p.id = ps.paper_id
         LEFT JOIN paper_recommendations pr ON p.id = pr.paper_id
-        LEFT JOIN paper_notes pn ON p.id = pn.paper_id
         LEFT JOIN paper_translations pt ON p.id = pt.paper_id
         LEFT JOIN paper_pdfs f ON p.id = f.paper_id
         """
@@ -308,12 +302,11 @@ class PaperStore {
             let recommendedAt = recommendedAtRaw.flatMap(Self.parseSQLiteDate)
             let recommendationReason = columnString(stmt, 17)
             let tags = Self.splitCSV(columnString(stmt, 18))
-            let note = columnString(stmt, 19)
-            let abstractZh = columnString(stmt, 20)
-            let statusChangedAt = columnOptionalString(stmt, 21).flatMap(Self.parseSQLiteDate)
-            let addedAt = columnOptionalString(stmt, 22).flatMap(Self.parseSQLiteDate)
-            let pdfLocalPath = columnOptionalString(stmt, 23)
-            let pdfStatus = columnOptionalString(stmt, 24)
+            let abstractZh = columnString(stmt, 19)
+            let statusChangedAt = columnOptionalString(stmt, 20).flatMap(Self.parseSQLiteDate)
+            let addedAt = columnOptionalString(stmt, 21).flatMap(Self.parseSQLiteDate)
+            let pdfLocalPath = columnOptionalString(stmt, 22)
+            let pdfStatus = columnOptionalString(stmt, 23)
 
             var pubYear: Int? = nil
             if pubDate.count >= 4 {
@@ -343,7 +336,6 @@ class PaperStore {
                 recommendedAt: recommendedAt,
                 recommendationReason: recommendationReason,
                 tags: tags,
-                note: note,
                 abstractZh: abstractZh,
                 referencedWorkIDs: openAlexRelations.references[id] ?? [],
                 relatedWorkIDs: openAlexRelations.related[id] ?? [],
@@ -683,28 +675,6 @@ class PaperStore {
         }
     }
 
-    func setPaperNote(id: String, note: String) {
-        let sql = """
-        INSERT INTO paper_notes (paper_id, note)
-        VALUES (?, ?)
-        ON CONFLICT(paper_id) DO UPDATE SET
-            note = excluded.note
-        """
-
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 2, note, -1, SQLITE_TRANSIENT)
-            if sqlite3_step(stmt) == SQLITE_DONE {
-                if let idx = papers.firstIndex(where: { $0.id == id }) {
-                    papers[idx].note = note
-                }
-                paperVersion += 1
-            }
-            sqlite3_finalize(stmt)
-        }
-    }
-
     var allTags: [String] {
         Array(Set(papers.flatMap(\.tags))).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
@@ -910,12 +880,12 @@ class PaperStore {
             ("paper_pdfs", "paper_id"),
             ("paper_translations", "paper_id"),
             ("paper_tags", "paper_id"),
-            ("paper_notes", "paper_id"),
             ("paper_recommendations", "paper_id"),
             ("paper_states", "paper_id"),
             ("paper_cache", "paper_id"),
             ("papers", "id"),
         ]
+        ItemStore.shared.removePaperReferences(paperIDs: ids)
         let placeholders = ids.map { _ in "?" }.joined(separator: ",")
         sqlite3_exec(db, "BEGIN IMMEDIATE TRANSACTION", nil, nil, nil)
         var succeeded = true

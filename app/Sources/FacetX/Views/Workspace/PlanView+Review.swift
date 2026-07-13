@@ -12,7 +12,7 @@ extension PlanView {
     func carryOpenTasksToNextWeek(_ tasks: [ProjectItem]) async -> Int {
         let calendar = Calendar.current
         var moved = 0
-        for item in tasks where item.facetKind == .task && !item.isCompleted {
+        for item in tasks where item.kind == .reminder && !item.isCompleted {
             let base = item.date ?? week.startDate
             guard let nextDate = calendar.date(byAdding: .day, value: 7, to: base) else { continue }
             let newStart = ItemActionHelpers.startDate(for: item, toDay: nextDate, calendar: calendar)
@@ -82,11 +82,11 @@ struct PlanReviewSheet: View {
     @State private var statusMessage: String?
 
     private var completedTasks: [ProjectItem] {
-        items.filter { $0.facetKind == .task && $0.isCompleted }
+        items.filter { $0.kind == .reminder && $0.isCompleted }
     }
 
     private var openTasks: [ProjectItem] {
-        items.filter { $0.facetKind == .task && !$0.isCompleted }
+        items.filter { $0.kind == .reminder && !$0.isCompleted }
     }
 
     private var overdueTasks: [ProjectItem] {
@@ -112,9 +112,7 @@ struct PlanReviewSheet: View {
     private var weekLoad: PlanDayLoad {
         PlanDayLoad.measure(
             items,
-            eventDefaultMinutes: settings.defaultEventDurationMinutes,
-            paperDefaultMinutes: settings.defaultPaperSessionMinutes,
-            noteDefaultMinutes: settings.defaultNoteSessionMinutes
+            eventDefaultMinutes: settings.defaultEventDurationMinutes
         )
     }
 
@@ -227,7 +225,7 @@ struct PlanReviewSheet: View {
     }
 
     private var taskSection: some View {
-        reviewSection(title: L10n.pick("Tasks", "任务"), systemImage: FacetKind.task.systemImage) {
+        reviewSection(title: L10n.pick("Tasks", "任务"), systemImage: ProjectItem.Kind.reminder.systemImage) {
             reviewList(title: L10n.pick("Completed", "已完成"), items: completedTasks, empty: L10n.pick("No completed tasks.", "暂无已完成任务。"))
             Divider().opacity(0.45)
             reviewList(title: L10n.pick("Still Open", "仍未完成"), items: openTasks, empty: L10n.pick("No open tasks.", "暂无未完成任务。"))
@@ -304,9 +302,9 @@ struct PlanReviewSheet: View {
             } else {
                 ForEach(items.prefix(6)) { item in
                     HStack(spacing: 6) {
-                        Image(systemName: item.facetKind.systemImage)
+                        Image(systemName: item.kind.systemImage)
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(item.facetKind.color)
+                            .foregroundStyle(item.kind.color)
                         Text(item.content)
                             .font(.system(size: 11.5))
                             .lineLimit(1)

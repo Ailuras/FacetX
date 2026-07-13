@@ -266,8 +266,8 @@ struct AssistantView: View {
                 suggestionButton(L10n.pick("What's on my plate this week?", "我这周都有什么安排？"))
                 suggestionButton(L10n.pick("Here's my plan — turn it into tasks and events: …",
                                            "这是我的计划，帮我整理成具体的任务和日程：…"))
-                suggestionButton(L10n.pick("Summarize the paper 《…》 and save it as a note.",
-                                           "帮我总结文献《…》，并把总结保存为笔记。"))
+                suggestionButton(L10n.pick("Summarize the paper 《…》 into a project document and attach it to a work item.",
+                                           "将文献《…》总结为项目文档，并关联到一个工作项。"))
             }
             Spacer()
         }
@@ -710,7 +710,7 @@ private struct UserEntryView<EditorContent: View, MentionContent: View>: View {
 }
 
 
-/// same markdown-it + KaTeX bundle used for note previews, sized to fit its
+/// same markdown-it + KaTeX bundle used for document previews, sized to fit its
 /// content instead of scrolling internally like a full-page preview.
 private struct AssistantMarkdownText: View {
     let text: String

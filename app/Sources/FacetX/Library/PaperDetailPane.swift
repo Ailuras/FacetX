@@ -3,7 +3,7 @@ import SwiftUI
 
 struct PaperDetailPane: View {
     let inputPaper: Paper
-    /// `Paper` is a class, so in-place edits (status/tags/note) don't change the
+    /// `Paper` is a class, so in-place edits (status/tags) don't change the
     /// `papers` array and won't re-render this pane on their own. The parent
     /// passes the store's `paperVersion` here so each edit gives the view a new
     /// value to diff on, forcing a re-render that reads the updated fields.
@@ -14,10 +14,8 @@ struct PaperDetailPane: View {
     @EnvironmentObject private var toast: ToastController
     @EnvironmentObject private var projectStore: ProjectStore
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var focus: FocusService
-    @State private var noteStore = ItemStore.shared
+    @State private var itemStore = ItemStore.shared
     @State private var associatedItems: [ProjectItem] = []
-    @State private var noteText: String = ""
     @State private var isTranslating = false
     @State private var isFetchingPdf = false
     @State private var showTranslation = false
@@ -36,19 +34,13 @@ struct PaperDetailPane: View {
             abstractSection
             detailsSection
             associatedItemsSection
-            notesSection
             pdfSection
             citeSection
         }
         .onAppear {
-            noteText = paper.note
             loadAssociatedItems()
         }
-        .onChange(of: paper.note) { _, new in
-            if noteText != new { noteText = new }
-        }
         .onChange(of: paper.id) { _, _ in
-            noteText = paper.note
             showTranslation = false
             loadAssociatedItems()
         }
@@ -107,16 +99,6 @@ struct PaperDetailPane: View {
                         fill: Color.secondary.opacity(0.08)
                     )
                 }
-                if let totals = focus.totalsByTarget[paper.focusTargetID], totals.seconds >= 60 {
-                    FacetInfoBadge(
-                        text: FocusService.format(seconds: totals.seconds),
-                        systemImage: "timer",
-                        tint: .pink,
-                        fill: Color.pink.opacity(0.10)
-                    )
-                    .help(L10n.pick("Focused \(totals.sessions) times",
-                                    "累计专注 \(totals.sessions) 次"))
-                }
             }
 
             HStack(spacing: 14) {
@@ -133,27 +115,6 @@ struct PaperDetailPane: View {
                     .foregroundStyle(Color.accentColor)
                 }
 
-                if focus.isFocusing(paper.focusTargetID) {
-                    Button {
-                        focus.finish()
-                    } label: {
-                        Label("\(L10n.pick("End Focus", "结束专注")) · \(FocusService.clock(seconds: focus.remainingSeconds))",
-                              systemImage: "timer")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.pink)
-                } else {
-                    Button {
-                        focus.start(target: paper.focusTarget(topicLabel: L10n.pick("Library", "文献")),
-                                    minutes: appSettings.focusDurationMinutes)
-                    } label: {
-                        Label(L10n.pick("Start Focus", "开始专注"), systemImage: "timer")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.pink)
-                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -296,23 +257,6 @@ struct PaperDetailPane: View {
                 }
             }
             .padding(10)
-        }
-    }
-
-    // MARK: - Notes
-
-    private var notesSection: some View {
-        FacetDetailSection(title: L10n.pick("Notes", "笔记"), systemImage: "note.text") {
-            TextEditor(text: $noteText)
-                .font(.system(size: 12))
-                .frame(minHeight: 80)
-                .scrollContentBackground(.hidden)
-                .scrollIndicators(.hidden)
-                .hideTextEditorScroller()
-                .padding(6)
-                .onChange(of: noteText) { _, new in
-                    store.setPaperNote(id: paper.id, note: new)
-                }
         }
     }
 
@@ -523,18 +467,15 @@ struct PaperDetailPane: View {
                             .help(L10n.pick("View in Project", "在项目中查看"))
                             .hoverCursor(.pointingHand)
 
-                            let isPaperAnchor = item.facetKind == .paper
-                            if !isPaperAnchor {
-                                Button(role: .destructive) {
-                                    removeLink(from: item)
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 9, weight: .bold))
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(.secondary)
-                                .help(L10n.pick("Unlink", "取消关联"))
+                            Button(role: .destructive) {
+                                removeLink(from: item)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .bold))
                             }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help(L10n.pick("Unlink", "取消关联"))
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)

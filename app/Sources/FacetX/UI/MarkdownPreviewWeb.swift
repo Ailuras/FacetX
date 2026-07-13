@@ -2,12 +2,12 @@ import SwiftUI
 import WebKit
 
 /// A read-only markdown preview rendered by markdown-it + KaTeX in a `WKWebView`.
-/// The prebuilt web bundle lives in `Resources/NotePreview` (built from
+/// The prebuilt web bundle lives in `Resources/MarkdownPreview` (built from
 /// `web/note-editor`). The view is display-only: editing happens in the native
 /// `MarkdownEditor`; this just re-renders whenever `text` changes.
 ///
 /// `variant` selects the bundle's CSS: `"note"` is the full-page preview used
-/// by `NoteDetailPane`; `"chat"` is a padding-free style meant to be dropped
+/// by document previews; `"chat"` is a padding-free style meant to be dropped
 /// into a native chat bubble. When `onHeightChange` is set, the page reports
 /// its rendered content height so the SwiftUI side can size the bubble to fit
 /// instead of relying on the WebView's own (disabled) scrolling.
@@ -69,7 +69,7 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
     }
 
     private static var bundleURL: URL? {
-        Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "NotePreview")
+        Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "MarkdownPreview")
     }
 
     final class Coordinator: NSObject, WKScriptMessageHandler {

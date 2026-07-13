@@ -290,6 +290,19 @@ final class ItemStore {
         version += 1
     }
 
+    func removePaperReferences(paperIDs: [String]) {
+        guard !paperIDs.isEmpty else { return }
+        let placeholders = paperIDs.map { _ in "?" }.joined(separator: ",")
+        let sql = "DELETE FROM item_papers WHERE paper_id IN (\(placeholders))"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        for (index, paperID) in paperIDs.enumerated() {
+            sqlite3_bind_text(stmt, Int32(index + 1), paperID, -1, SQLITE_TRANSIENT)
+        }
+        if sqlite3_step(stmt) == SQLITE_DONE { version += 1 }
+    }
+
     func commits(for id: String) -> [String] {
         let sql = "SELECT commit_id FROM item_commits WHERE item_id = ?"
         var stmt: OpaquePointer?
@@ -366,6 +379,12 @@ final class ItemStore {
             sqlite3_step(itemStmt)
         }
         sqlite3_finalize(itemStmt)
+        var focusStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, "DELETE FROM focus_sessions WHERE target_id = ?", -1, &focusStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(focusStmt, 1, id, -1, SQLITE_TRANSIENT)
+            sqlite3_step(focusStmt)
+        }
+        sqlite3_finalize(focusStmt)
         sqlite3_exec(db, "COMMIT", nil, nil, nil)
         version += 1
     }
@@ -552,9 +571,6 @@ final class ItemStore {
     }
 
     private func createTablesIfNeeded() {
-        // Drop the old structure table if it exists
-        _ = sqlite3_exec(db, "DROP TABLE IF EXISTS item_notes;", nil, nil, nil)
-
         let schema = """
         CREATE TABLE IF NOT EXISTS items (
             id TEXT PRIMARY KEY,
@@ -610,10 +626,6 @@ final class ItemStore {
             persistenceError = errorMsg.map { String(cString: $0) } ?? "Could not create tables."
             sqlite3_free(errorMsg)
         }
-        // Migrate older databases that predate these columns. Each ALTER fails
-        // harmlessly with "duplicate column" once the column exists.
-        _ = sqlite3_exec(db, "ALTER TABLE items ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;", nil, nil, nil)
-        _ = sqlite3_exec(db, "ALTER TABLE items ADD COLUMN completed INTEGER NOT NULL DEFAULT 0;", nil, nil, nil)
     }
 
     private func columnString(_ stmt: OpaquePointer?, _ index: Int32) -> String {
