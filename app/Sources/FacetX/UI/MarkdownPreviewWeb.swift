@@ -46,6 +46,7 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         let webView = PassThroughWebView(frame: .zero, configuration: config)
         webView.shouldPassThroughScroll = (onHeightChange != nil)
         webView.setValue(false, forKey: "drawsBackground") // blend with the native pane
+        webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
 
         if let index = Self.bundleURL {
@@ -72,7 +73,7 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
         Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "MarkdownPreview")
     }
 
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         weak var webView: WKWebView?
         var isReady = false
         var pendingText = ""
@@ -101,6 +102,14 @@ struct MarkdownPreviewWeb: NSViewRepresentable {
             default:
                 break
             }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            isReady = true
+            renderedText = nil
+            applyTheme()
+            applyFullWidth()
+            render()
         }
 
         /// Push the current markdown to the renderer if it changed.
