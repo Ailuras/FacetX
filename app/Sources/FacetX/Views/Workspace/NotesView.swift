@@ -232,12 +232,13 @@ struct NotesView: View {
 
             mainDocumentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if inspectorVisible {
+                noteDetailSidebar
+            }
         }
         .background(FacetTheme.canvas)
-        .inspector(isPresented: $inspectorVisible) {
-            noteInspector
-                .inspectorColumnWidth(min: 250, ideal: 290, max: 360)
-        }
+        .animation(FacetTheme.detailSpring, value: inspectorVisible)
         .sheet(item: $namingAction) { action in
             DocumentNameSheet(
                 title: {
@@ -434,38 +435,25 @@ struct NotesView: View {
         }
     }
 
-    private var noteInspector: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Label(L10n.pick("Document Inspector", "文档检查器"), systemImage: "sidebar.right")
-                    .font(.system(size: 12, weight: .semibold))
-                Spacer()
-                Button {
-                    withAnimation(FacetTheme.detailSpring) { inspectorVisible = false }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+    private var noteDetailSidebar: some View {
+        FacetSidebarPane(
+            title: L10n.pick("Note Details", "笔记详情"),
+            systemImage: "doc.text",
+            closeHelp: L10n.pick("Hide Note Details", "隐藏笔记详情"),
+            onClose: {
+                withAnimation(FacetTheme.detailSpring) { inspectorVisible = false }
+            },
+            accessory: {
+                Picker("", selection: $inspectorTab) {
+                    Text(L10n.pick("Outline", "大纲")).tag(NoteInspectorTab.outline)
+                    Text(L10n.pick("History", "历史")).tag(NoteInspectorTab.history)
                 }
-                .buttonStyle(.plain)
-                .help(L10n.pick("Hide Inspector", "隐藏检查器"))
+                .pickerStyle(.segmented)
+                .controlSize(.small)
+                .labelsHidden()
+                .frame(width: 108)
             }
-            .padding(.horizontal, 14)
-            .frame(height: 42)
-            .background(FacetTheme.canvas)
-
-            Picker("", selection: $inspectorTab) {
-                Text(L10n.pick("Outline", "大纲")).tag(NoteInspectorTab.outline)
-                Text(L10n.pick("History", "历史")).tag(NoteInspectorTab.history)
-            }
-            .pickerStyle(.segmented)
-            .controlSize(.small)
-            .labelsHidden()
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
-
-            Divider()
-
+        ) {
             if inspectorTab == .outline {
                 ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -557,7 +545,6 @@ struct NotesView: View {
                 revisionHistoryInspector
             }
         }
-        .background(FacetTheme.canvas)
     }
 
     private var revisionHistoryInspector: some View {
@@ -970,7 +957,7 @@ struct NotesView: View {
                         active: inspectorTab == .history && inspectorVisible
                     ) {
                         inspectorTab = .history
-                        inspectorVisible = true
+                        withAnimation(FacetTheme.detailSpring) { inspectorVisible = true }
                         reloadFileCommits()
                     }
                 }
@@ -1023,11 +1010,11 @@ struct NotesView: View {
                 WorkspaceActionGroup {
                     WorkspaceActionButton(
                         systemName: "sidebar.right",
-                        help: inspectorVisible ? L10n.pick("Hide Inspector", "隐藏检查器")
-                                               : L10n.pick("Show Inspector", "显示检查器"),
+                        help: inspectorVisible ? L10n.pick("Hide Note Details", "隐藏笔记详情")
+                                               : L10n.pick("Show Note Details", "显示笔记详情"),
                         active: inspectorVisible
                     ) {
-                        inspectorVisible.toggle()
+                        withAnimation(FacetTheme.detailSpring) { inspectorVisible.toggle() }
                     }
                 }
             }

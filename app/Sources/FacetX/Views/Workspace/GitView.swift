@@ -113,14 +113,22 @@ struct GitView: View {
     }
 
     var body: some View {
-        Group {
-            if repoURL == nil {
-                noRepoState
-            } else {
-                gitWorkspace
+        HStack(spacing: 0) {
+            Group {
+                if repoURL == nil {
+                    noRepoState
+                } else {
+                    gitWorkspace
+                }
+            }
+            .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+
+            if inspectorVisible {
+                gitDetailSidebar
             }
         }
         .background(FacetTheme.canvas)
+        .animation(FacetTheme.detailSpring, value: inspectorVisible)
         .task(id: project.id) { await refreshRepository() }
         .onChange(of: project.githubLocalPath) { Task { await refreshRepository() } }
         .onChange(of: refreshTrigger) { Task { await refreshRepository() } }
@@ -133,10 +141,6 @@ struct GitView: View {
                     clearDiff()
                 }
             }
-        }
-        .inspector(isPresented: $inspectorVisible) {
-            gitInspector
-                .inspectorColumnWidth(min: 240, ideal: 280, max: 340)
         }
         .sheet(isPresented: $showingBranchSheet) {
             BranchNameSheet(
@@ -280,8 +284,8 @@ struct GitView: View {
                     }
                     headerButton("sidebar.right",
                                  help: inspectorVisible
-                                    ? L10n.pick("Hide Inspector", "隐藏检查器")
-                                    : L10n.pick("Show Inspector", "显示检查器"),
+                                    ? L10n.pick("Hide Details", "隐藏详情")
+                                    : L10n.pick("Show Details", "显示详情"),
                                  active: inspectorVisible) {
                         withAnimation(FacetTheme.detailSpring) { inspectorVisible.toggle() }
                     }
@@ -639,31 +643,17 @@ struct GitView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private var gitInspector: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Label(section == .changes ? L10n.pick("Change Details", "变更详情")
-                                           : L10n.pick("Commit Details", "提交详情"),
-                      systemImage: section == .changes ? "doc.text.magnifyingglass"
-                                                        : "point.3.connected.trianglepath.dotted")
-                    .font(.system(size: 12, weight: .semibold))
-                Spacer()
-                Button {
-                    withAnimation(FacetTheme.detailSpring) { inspectorVisible = false }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.pick("Hide Inspector", "隐藏检查器"))
+    private var gitDetailSidebar: some View {
+        FacetSidebarPane(
+            title: section == .changes ? L10n.pick("Change Details", "变更详情")
+                                          : L10n.pick("Commit Details", "提交详情"),
+            systemImage: section == .changes ? "doc.text.magnifyingglass"
+                                               : "point.3.connected.trianglepath.dotted",
+            closeHelp: L10n.pick("Hide Details", "隐藏详情"),
+            onClose: {
+                withAnimation(FacetTheme.detailSpring) { inspectorVisible = false }
             }
-            .padding(.horizontal, 14)
-            .frame(height: 42)
-            .background(FacetTheme.canvas)
-
-            Divider()
-
+        ) {
             Group {
                 switch section {
                 case .changes: changeInspector
@@ -672,7 +662,6 @@ struct GitView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(FacetTheme.canvas)
     }
 
     private var historyList: some View {
