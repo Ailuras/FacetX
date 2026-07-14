@@ -64,29 +64,41 @@ struct GitActivityHeatmap: View {
                 let availableWidth = max(proxy.size.width - labelWidth - 8, 0)
                 let calculated = (availableWidth - CGFloat(columnCount - 1) * cellSpacing) / CGFloat(columnCount)
                 let cellSize = max(7, min(12, calculated))
+                let gridWidth = CGFloat(columnCount) * cellSize + CGFloat(columnCount - 1) * cellSpacing
+                let groupWidth = labelWidth + 8 + gridWidth
 
-                HStack(alignment: .top, spacing: 8) {
-                    weekdayLabels(cellSize: cellSize)
-                        .frame(width: labelWidth)
+                VStack(spacing: 5) {
+                    HStack(spacing: 8) {
+                        Color.clear.frame(width: labelWidth, height: 14)
+                        monthAxis(cellSize: cellSize, gridWidth: gridWidth)
+                    }
 
-                    HStack(alignment: .top, spacing: cellSpacing) {
-                        ForEach(0..<columnCount, id: \.self) { weekOffset in
-                            weekColumn(offset: weekOffset, cellSize: cellSize)
+                    HStack(alignment: .top, spacing: 8) {
+                        weekdayLabels(cellSize: cellSize)
+                            .frame(width: labelWidth)
+
+                        HStack(alignment: .top, spacing: cellSpacing) {
+                            ForEach(0..<columnCount, id: \.self) { weekOffset in
+                                weekColumn(offset: weekOffset, cellSize: cellSize)
+                            }
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(width: groupWidth)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .frame(height: 7 * 15 + 17)
+            .frame(height: 121)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 11)
-        .background(FacetTheme.panel)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
     }
 
     private func weekdayLabels(cellSize: CGFloat) -> some View {
         VStack(alignment: .trailing, spacing: cellSpacing) {
-            Color.clear.frame(height: 14)
             ForEach(0..<7, id: \.self) { row in
                 Text(weekdayLabel(row))
                     .font(.system(size: 8.5))
@@ -99,16 +111,37 @@ struct GitActivityHeatmap: View {
     private func weekColumn(offset: Int, cellSize: CGFloat) -> some View {
         let start = calendar.date(byAdding: .weekOfYear, value: offset, to: firstWeekStart) ?? firstWeekStart
         return VStack(spacing: cellSpacing) {
-            Text(monthLabel(for: start, offset: offset))
-                .font(.system(size: 8.5, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: cellSize, height: 14, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-
             ForEach(0..<7, id: \.self) { dayOffset in
                 let date = calendar.date(byAdding: .day, value: dayOffset, to: start) ?? start
                 dayCell(date: date, size: cellSize)
             }
+        }
+    }
+
+    private func monthAxis(cellSize: CGFloat, gridWidth: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(monthOffsets, id: \.self) { offset in
+                let start = calendar.date(byAdding: .weekOfYear, value: offset, to: firstWeekStart) ?? firstWeekStart
+                Text(monthLabel(for: start))
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 42, height: 14, alignment: .leading)
+                    .offset(x: CGFloat(offset) * (cellSize + cellSpacing))
+            }
+        }
+        .frame(width: gridWidth, height: 14, alignment: .leading)
+        .clipped()
+        .allowsHitTesting(false)
+    }
+
+    private var monthOffsets: [Int] {
+        (0..<columnCount).filter { offset in
+            guard offset > 0,
+                  let start = calendar.date(byAdding: .weekOfYear, value: offset, to: firstWeekStart),
+                  let previous = calendar.date(byAdding: .weekOfYear, value: offset - 1, to: firstWeekStart) else {
+                return offset == 0
+            }
+            return calendar.component(.month, from: start) != calendar.component(.month, from: previous)
         }
     }
 
@@ -158,11 +191,7 @@ struct GitActivityHeatmap: View {
         }
     }
 
-    private func monthLabel(for weekStart: Date, offset: Int) -> String {
-        let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: weekStart)
-        let month = calendar.component(.month, from: weekStart)
-        let previousMonth = previous.map { calendar.component(.month, from: $0) }
-        guard offset == 0 || month != previousMonth else { return "" }
+    private func monthLabel(for weekStart: Date) -> String {
         return weekStart.formatted(.dateTime.month(.abbreviated))
     }
 

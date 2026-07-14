@@ -140,15 +140,11 @@ struct GitView: View {
     private var gitWorkspace: some View {
         VStack(spacing: 0) {
             repositoryHeader
-            Divider()
             GitActivityHeatmap(
                 activity: activityDays,
                 selectedDate: selectedActivityDate,
                 onSelect: selectActivityDate
             )
-            Divider()
-            sectionBar
-            Divider()
             Group {
                 switch section {
                 case .changes: changesWorkspace
@@ -188,6 +184,42 @@ struct GitView: View {
 
             branchMenu
 
+            Picker("", selection: $section) {
+                Text(L10n.pick("Changes \(statusEntries.count)", "变更 \(statusEntries.count)"))
+                    .tag(WorkspaceSection.changes)
+                Text(L10n.pick("History", "历史"))
+                    .tag(WorkspaceSection.history)
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .labelsHidden()
+            .fixedSize()
+
+            if !query.isEmpty {
+                Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.accentColor)
+                    .help(L10n.pick("Filtering results", "正在筛选结果"))
+            }
+
+            if let selectedActivityDate {
+                HStack(spacing: 5) {
+                    Image(systemName: "calendar")
+                    Text(selectedActivityDate.formatted(date: .abbreviated, time: .omitted))
+                    Text("· \(commits.count)")
+                    Button {
+                        clearActivityDate()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(L10n.pick("Clear date filter", "清除日期筛选"))
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+            }
+
             if branchState.ahead > 0 {
                 syncBadge(icon: "arrow.up", value: branchState.ahead, tint: .blue,
                           help: L10n.pick("Commits ahead of upstream", "领先上游的提交"))
@@ -215,13 +247,20 @@ struct GitView: View {
             headerButton("arrow.down.circle", help: L10n.pick("Pull (fast-forward only)", "拉取（仅快进）"),
                          disabled: !statusEntries.isEmpty || branchState.upstream == nil) { pull() }
             headerButton("arrow.up.circle", help: L10n.pick("Push", "推送")) { push() }
+            headerButton("arrow.clockwise", help: L10n.pick("Refresh", "刷新"),
+                         disabled: isLoadingRepository) {
+                Task { await refreshRepository() }
+            }
             headerButton("arrow.up.forward.app", help: L10n.pick("Open Repository", "打开仓库")) {
                 if let repoURL { NSWorkspace.shared.open(repoURL) }
             }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 11)
-        .background(FacetTheme.panel)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
     }
 
     private var branchMenu: some View {
@@ -285,60 +324,6 @@ struct GitView: View {
         .buttonStyle(.plain)
         .disabled(disabled || isPerformingOperation)
         .help(help)
-    }
-
-    private var sectionBar: some View {
-        HStack(spacing: 12) {
-            Picker("", selection: $section) {
-                Text(L10n.pick("Changes \(statusEntries.count)", "变更 \(statusEntries.count)"))
-                    .tag(WorkspaceSection.changes)
-                Text(L10n.pick("History", "历史"))
-                    .tag(WorkspaceSection.history)
-            }
-            .pickerStyle(.segmented)
-            .controlSize(.small)
-            .labelsHidden()
-            .fixedSize()
-
-            if !query.isEmpty {
-                Label(L10n.pick("Filtering results", "正在筛选结果"), systemImage: "line.3.horizontal.decrease.circle.fill")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
-            }
-
-            if let selectedActivityDate {
-                HStack(spacing: 5) {
-                    Image(systemName: "calendar")
-                    Text(selectedActivityDate.formatted(date: .abbreviated, time: .omitted))
-                    Text("·")
-                    Text(L10n.pick("\(commits.count) commits", "\(commits.count) 次提交"))
-                    Button {
-                        clearActivityDate()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(L10n.pick("Clear date filter", "清除日期筛选"))
-                }
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(Color.accentColor)
-            }
-
-            Spacer()
-
-            Button {
-                Task { await refreshRepository() }
-            } label: {
-                Label(L10n.pick("Refresh", "刷新"), systemImage: "arrow.clockwise")
-                    .font(.system(size: 10.5, weight: .medium))
-            }
-            .buttonStyle(.plain)
-            .disabled(isLoadingRepository)
-        }
-        .padding(.horizontal, 16)
-        .frame(height: 36)
-        .background(FacetTheme.quietPanel)
     }
 
     // MARK: - Changes

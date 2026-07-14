@@ -578,7 +578,6 @@ struct NotesView: View {
         if let doc = selectedDocument {
             VStack(spacing: 0) {
                 docControlBar(doc)
-                Divider()
 
                 if editorMode != .read {
                     formattingToolbar
@@ -831,7 +830,11 @@ struct NotesView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .frame(minHeight: 54)
+        .background(FacetTheme.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
+        }
     }
 
     private func documentStatusBar(_ doc: RepositoryDocument) -> some View {
