@@ -30,6 +30,8 @@ struct GitView: View {
         localBranches: []
     )
     @State private var commits: [LocalGitCommit] = []
+    @State private var activityDays: [LocalGitActivityDay] = []
+    @State private var selectedActivityDate: Date?
     @State private var statusEntries: [LocalGitStatusEntry] = []
     @State private var selectedChangeID: String?
     @State private var selectedCommitID: String?
@@ -131,6 +133,12 @@ struct GitView: View {
     private var gitWorkspace: some View {
         VStack(spacing: 0) {
             repositoryHeader
+            Divider()
+            GitActivityHeatmap(
+                activity: activityDays,
+                selectedDate: selectedActivityDate,
+                onSelect: selectActivityDate
+            )
             Divider()
             sectionBar
             Divider()
@@ -289,6 +297,25 @@ struct GitView: View {
                 Label(L10n.pick("Filtering results", "正在筛选结果"), systemImage: "line.3.horizontal.decrease.circle.fill")
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(Color.accentColor)
+            }
+
+            if let selectedActivityDate {
+                HStack(spacing: 5) {
+                    Image(systemName: "calendar")
+                    Text(selectedActivityDate.formatted(date: .abbreviated, time: .omitted))
+                    Text("·")
+                    Text(L10n.pick("\(commits.count) commits", "\(commits.count) 次提交"))
+                    Button {
+                        clearActivityDate()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(L10n.pick("Clear date filter", "清除日期筛选"))
+                }
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(Color.accentColor)
             }
 
             Spacer()
@@ -609,9 +636,11 @@ struct GitView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if filteredCommits.isEmpty {
                 ContentUnavailableView(
-                    L10n.pick("No Commits", "暂无提交"),
+                    selectedActivityDate == nil
+                        ? L10n.pick("No Commits", "暂无提交")
+                        : L10n.pick("No Commits This Day", "当天没有提交"),
                     systemImage: "clock.arrow.circlepath",
-                    description: Text(L10n.pick("No commits match the current filter.", "没有提交符合当前筛选。"))
+                    description: Text(historyEmptyDescription)
                 )
             } else {
                 ScrollView {
@@ -926,16 +955,28 @@ struct GitView: View {
         repoInfo = repoPath.flatMap(LocalGitRepository.inspect(path:))
         guard let rootPath else {
             commits = []
+            activityDays = []
             statusEntries = []
             diffText = ""
             return
         }
         isLoadingRepository = true
-        async let history = LocalGitRepository.gitLog(rootPath: rootPath)
+        let range = selectedActivityDate.flatMap(activityDayRange)
+        async let history = LocalGitRepository.gitLog(
+            rootPath: rootPath,
+            limit: range == nil ? 60 : 0,
+            since: range?.start,
+            until: range?.end
+        )
+        async let activity = LocalGitRepository.activity(
+            rootPath: rootPath,
+            since: Calendar.autoupdatingCurrent.date(byAdding: .weekOfYear, value: -53, to: Date()) ?? Date()
+        )
         async let status = LocalGitRepository.gitStatus(rootPath: rootPath)
         async let branches = LocalGitRepository.branchState(rootPath: rootPath)
-        let (newCommits, newStatus, newBranchState) = await (history, status, branches)
+        let (newCommits, newActivity, newStatus, newBranchState) = await (history, activity, status, branches)
         commits = newCommits
+        activityDays = newActivity
         statusEntries = newStatus
         branchState = newBranchState
         repoInfo = LocalGitRepository.inspect(path: rootPath)
@@ -949,6 +990,33 @@ struct GitView: View {
         }
         if section == .changes { await loadChangeDiff() }
         else { await loadCommitDiff() }
+    }
+
+    @MainActor
+    private func selectActivityDate(_ date: Date) {
+        selectedActivityDate = Calendar.autoupdatingCurrent.startOfDay(for: date)
+        section = .history
+        Task { await refreshRepository() }
+    }
+
+    private func clearActivityDate() {
+        selectedActivityDate = nil
+        Task { await refreshRepository() }
+    }
+
+    private func activityDayRange(_ date: Date) -> (start: Date, end: Date)? {
+        let calendar = Calendar.autoupdatingCurrent
+        let start = calendar.startOfDay(for: date)
+        guard let nextDay = calendar.date(byAdding: .day, value: 1, to: start) else { return nil }
+        return (start, nextDay.addingTimeInterval(-1))
+    }
+
+    private var historyEmptyDescription: String {
+        if let selectedActivityDate {
+            let date = selectedActivityDate.formatted(date: .long, time: .omitted)
+            return L10n.pick("There were no commits on \(date).", "\(date)没有提交记录。")
+        }
+        return L10n.pick("No commits match the current filter.", "没有提交符合当前筛选。")
     }
 
     private func selectChange(_ entry: LocalGitStatusEntry) {

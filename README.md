@@ -22,8 +22,8 @@ Current release: **v1.0 release**.
   the main window.
 - Tags, manual ordering, completed-item filters, and project appearance metadata
   keep active work scannable.
-- GitHub integration links projects to repositories and surfaces recent commit
-  activity.
+- The Git workspace provides a yearly activity heatmap, staged and unstaged
+  changes, diffs, commits, branch and remote actions, and Todo/Event backlinks.
 - Settings control source containers, save defaults, integrations, general
   behavior, and keyboard shortcuts.
 

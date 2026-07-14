@@ -14,8 +14,11 @@ Each project exposes four focused workspace modes:
 
 - **All** manages Todo and Event work items.
 - **Plan** schedules and reviews those work items.
-- **Git** summarizes the bound repository's branch, working changes, commits,
-  and commit-to-item progress.
+- **Git** is an actionable repository workspace. It separates staged and
+  unstaged changes, renders file and commit diffs, creates commits, performs
+  safe remote synchronization, manages branches, and attaches commits to Todo
+  or Event items. A 53-week activity heatmap at the top filters History to an
+  exact day when selected.
 - **Notes** reads and edits `README.md` plus top-level `.facetx/*.md` documents.
 
 Notes are repository documents, not work items. The Notes workspace provides
