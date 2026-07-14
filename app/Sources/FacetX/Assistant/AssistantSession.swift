@@ -100,7 +100,7 @@ final class AssistantSession: ObservableObject {
 
     private var apiMessages: [[String: Any]] = []
     private var toolbox: AgentToolbox?
-    private weak var projectStore: ProjectStore?
+    private weak var workStore: WorkStore?
     private var configured = false
     private let conversationStore = AssistantConversationStore()
     private var conversationCreatedAt = Date()
@@ -116,11 +116,11 @@ final class AssistantSession: ObservableObject {
         }
     }
 
-    func configure(eventKit: EventKitService, store: ProjectStore, settings: AppSettings) {
+    func configure(eventKit: EventKitService, store: WorkStore, settings: AppSettings) {
         guard !configured else { return }
         configured = true
-        self.projectStore = store
-        self.toolbox = AgentToolbox(eventKit: eventKit, projectStore: store, settings: settings)
+        self.workStore = store
+        self.toolbox = AgentToolbox(eventKit: eventKit, workStore: store, settings: settings)
         registerVisibleReferences()
     }
 
@@ -494,7 +494,7 @@ final class AssistantSession: ObservableObject {
 
     /// Short human-readable line shown under a tool-call chip.
     private func toolSummary(_ name: String, _ input: [String: Any]) -> String {
-        let interesting = ["project", "target_project", "title", "query", "scope",
+        let interesting = ["work", "target_work", "title", "query", "scope",
                            "reference_id", "paper_id", "start", "due_at", "mode", "week"]
         let parts = interesting.compactMap { key -> String? in
             guard let value = input[key] else { return nil }
@@ -510,36 +510,36 @@ final class AssistantSession: ObservableObject {
         fmt.dateFormat = "yyyy-MM-dd (EEEE)"
         fmt.locale = Locale(identifier: "en_US")
         let today = fmt.string(from: Date())
-        let projectNames = projectStore?.activeProjects.map(\.name).joined(separator: ", ") ?? ""
+        let workNames = workStore?.activeWorks.map(\.name).joined(separator: ", ") ?? ""
         let language = L10n.language == "zh"
             ? "Respond in Chinese (中文) unless the user writes in another language."
             : "Respond in the user's language."
 
         return """
         You are the built-in assistant of FacetX, a macOS app that organizes Apple \
-        Calendar and Reminders items into projects (an item belongs to a project when \
-        its title starts with "ProjectPrefix: ") and manages an academic literature \
+        Calendar and Reminders items into works (an item belongs to a work when \
+        its title starts with "WorkPrefix: ") and manages an academic literature \
         library with local PDFs.
 
-        Today is \(today). Active projects: \(projectNames.isEmpty ? "(none yet)" : projectNames).
+        Today is \(today). Active works: \(workNames.isEmpty ? "(none yet)" : workNames).
 
         Use the tools to read and change the user's real data:
         - Dragged references are exact tasks or events. Use their reference_id with \
         get_item, update_item, or set_task_completion; never identify an item by title.
-        - Turning a plan into concrete work: list_projects and list_items first, then \
+        - Turning a plan into concrete work: list_works and list_items first, then \
         create tasks/events one per item; put timed appointments in events, action \
         items in tasks. Summarize what you created at the end.
         - Use local ISO timestamps (YYYY-MM-DDTHH:mm) for timed work and YYYY-MM-DD \
         for all-day work. Set task priority only when the user states or clearly implies it.
         - Written plans, notes, and summaries are Git documents. Use \
-        list_project_documents, read_project_document, create_project_document, and \
-        update_project_document. A document requires an explicit project with a local repository.
+        list_work_documents, read_work_document, create_work_document, and \
+        update_work_document. A document requires an explicit work with a local repository.
         - Papers: list_papers to find ids; read_paper (abstract first, then full_text \
         in page chunks for long PDFs). To save a paper summary, require an explicit \
-        project and target task/event, create a project document, then attach both the \
+        work and target task/event, create a work document, then attach both the \
         document and paper to that work item.
 
-        Rules: never invent project names — resolve them via list_projects. Check \
+        Rules: never invent work names — resolve them via list_works. Check \
         list_items before creating to avoid duplicates. Never guess which duplicate-title \
         item the user means; ask them to drag it in. Ask before bulk changes. Dates you \
         pass to tools are in the user's local timezone. Keep answers concise and lead \

@@ -18,7 +18,7 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
     private weak var widgetController: DesktopWidgetController?
     private weak var focus: FocusService?
 
-    func configure(eventKit: EventKitService, store: ProjectStore, settings: AppSettings,
+    func configure(eventKit: EventKitService, store: WorkStore, settings: AppSettings,
                    model: WidgetDataModel, widgetController: DesktopWidgetController,
                    focus: FocusService) {
         guard !configured else { return }
@@ -53,7 +53,7 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
 
     private func setVisible(_ visible: Bool,
                             eventKit: EventKitService,
-                            store: ProjectStore,
+                            store: WorkStore,
                             settings: AppSettings) {
         if visible {
             install(eventKit: eventKit, store: store, settings: settings)
@@ -67,7 +67,7 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
         }
     }
 
-    private func install(eventKit: EventKitService, store: ProjectStore, settings: AppSettings) {
+    private func install(eventKit: EventKitService, store: WorkStore, settings: AppSettings) {
         if statusItem != nil { return }
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -98,13 +98,13 @@ final class MenuBarController: NSObject, ObservableObject, NSPopoverDelegate {
     }
 
     /// The title next to the icon: during a focus session it becomes
-    /// "Project · 24:59" (the countdown the user asked to see in the bar);
+    /// "Work · 24:59" (the countdown the user asked to see in the bar);
     /// otherwise it shows how much is left today, hidden at zero.
     private func updateBadge() {
         guard let button = statusItem?.button, let model else { return }
         if let focus, let session = focus.session {
-            let label = session.target.projectLabel.isEmpty
-                ? session.target.title : session.target.projectLabel
+            let label = session.target.workLabel.isEmpty
+                ? session.target.title : session.target.workLabel
             let time = session.isPaused
                 ? L10n.pick("paused", "已暂停")
                 : FocusService.clock(seconds: focus.remainingSeconds)

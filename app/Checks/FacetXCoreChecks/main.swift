@@ -5,17 +5,17 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() { fatalError(message) }
 }
 
-check(ProjectPrefix.projectName(of: "Regulus: fix bug") == "Regulus",
+check(WorkPrefix.workName(of: "Regulus: fix bug") == "Regulus",
       "ASCII colon prefix should parse")
-check(ProjectPrefix.projectName(of: "Regulus：fix bug") == "Regulus",
+check(WorkPrefix.workName(of: "Regulus：fix bug") == "Regulus",
       "Fullwidth colon prefix should parse")
-check(ProjectPrefix.projectName(of: "Regulus: first\nOther: second") == "Regulus",
+check(WorkPrefix.workName(of: "Regulus: first\nOther: second") == "Regulus",
       "Prefix parser should only inspect first line")
-check(ProjectPrefix.contentBody(of: "Regulus： fix bug") == "fix bug",
+check(WorkPrefix.contentBody(of: "Regulus： fix bug") == "fix bug",
       "contentBody should strip colon-tolerant prefix")
-check(ProjectPrefix.contentBody(of: "plain title\nRegulus: second") == "plain title\nRegulus: second",
+check(WorkPrefix.contentBody(of: "plain title\nRegulus: second") == "plain title\nRegulus: second",
       "contentBody should not strip a prefix from later lines")
-check(ProjectPrefix.makeTitle(project: "Regulus", content: "fix bug") == "Regulus: fix bug",
+check(WorkPrefix.makeTitle(work: "Regulus", content: "fix bug") == "Regulus: fix bug",
       "makeTitle should write ASCII colon")
 
 let week = ISOWeek(year: 2026, week: 22)
@@ -32,12 +32,12 @@ check(!week.contains(nextMonday), "ISO week should exclude next Monday")
 check(ISOWeek(year: 2026, week: 22).shifted(by: 1).id == "2026-W23",
       "shifted week should preserve ISO identity")
 
-let goalTitle = WeekGoalEvent.makeTitle(project: "Regulus", title: "Ship beta")
+let goalTitle = WeekGoalEvent.makeTitle(work: "Regulus", title: "Ship beta")
 check(goalTitle == "Regulus: Ship beta", "week goal title should stay human-readable")
-let goalNotes = WeekGoalEvent.makeNotes(body: "Focus on polish", project: "Regulus", weekID: week.id)
+let goalNotes = WeekGoalEvent.makeNotes(body: "Focus on polish", work: "Regulus", weekID: week.id)
 check(WeekGoalEvent.body(fromNotes: goalNotes) == "Focus on polish",
       "week goal notes body should hide metadata")
-check(WeekGoalEvent.hasGoalMetadata(goalNotes, project: "Regulus", weekID: week.id),
+check(WeekGoalEvent.hasGoalMetadata(goalNotes, work: "Regulus", weekID: week.id),
       "week goal notes should include identity metadata")
 
 // ── FacetMetadata ────────────────────────────────────────────────────────────
@@ -87,9 +87,9 @@ check(MonthYear(year: 2026, month: 12).shifted(by: 1).id == "2027-01",
 // ── ItemArrangement ──────────────────────────────────────────────────────────
 
 func makeItem(_ id: String, zone: String = "Inbox", done: Bool = false,
-              month: Int = 5, day: Int? = nil) -> ProjectItem {
+              month: Int = 5, day: Int? = nil) -> WorkItem {
     let date = day.flatMap { calendar.date(from: DateComponents(year: 2026, month: month, day: $0)) }
-    return ProjectItem(id: id, kind: .reminder, rawTitle: id, projectPrefix: "Test", content: id,
+    return WorkItem(id: id, kind: .reminder, rawTitle: id, workPrefix: "Test", content: id,
                         containerName: zone, isCompleted: done, date: date,
                         notes: nil, priority: 0, url: nil)
 }
@@ -132,10 +132,10 @@ let monthItems = ItemArrangement.inMonth(
 check(monthItems.map(\.id) == ["jun1", "jun2"],
       "inMonth should filter to the month and sort by date")
 
-// ── ProjectItem.matches ──────────────────────────────────────────────────────
+// ── WorkItem.matches ──────────────────────────────────────────────────────
 
-let searchItem = ProjectItem(id: "s", kind: .reminder, rawTitle: "Regulus: Ship beta",
-                              projectPrefix: "Regulus", content: "Ship beta", containerName: "Build",
+let searchItem = WorkItem(id: "s", kind: .reminder, rawTitle: "Regulus: Ship beta",
+                              workPrefix: "Regulus", content: "Ship beta", containerName: "Build",
                               isCompleted: false, date: nil, notes: "needs review", tags: ["Deep"], priority: 0, url: nil)
 check(searchItem.matches(searchQuery: ""), "empty query should match everything")
 check(searchItem.matches(searchQuery: "  "), "whitespace query should match everything")
@@ -144,8 +144,8 @@ check(searchItem.matches(searchQuery: "review"), "matches should search notes")
 check(searchItem.matches(searchQuery: "deep"), "matches should search tags")
 check(searchItem.matches(searchQuery: "build"), "matches should search container name")
 check(!searchItem.matches(searchQuery: "missing"), "non-matching query should not match")
-let resourceItem = ProjectItem(id: "meta", kind: .event, rawTitle: "Regulus: Paper",
-                               projectPrefix: "Regulus", content: "Paper", containerName: "Calendar",
+let resourceItem = WorkItem(id: "meta", kind: .event, rawTitle: "Regulus: Paper",
+                               workPrefix: "Regulus", content: "Paper", containerName: "Calendar",
                                isCompleted: false, date: nil, notes: nil, tags: ["Reading"],
                                priority: 0, url: nil,
                                facetID: "12345678-ABCD-EF01-2345-6789ABCDEF01",
@@ -180,15 +180,15 @@ check(timedSearchItem.replacingDate(replacementDate).hasTime,
 
 // ── ItemQuery ────────────────────────────────────────────────────────────────
 
-let queryEvent = ProjectItem(id: "event", kind: .event, rawTitle: "Regulus: Demo",
-                             projectPrefix: "Regulus", content: "Demo", containerName: "Calendar",
+let queryEvent = WorkItem(id: "event", kind: .event, rawTitle: "Regulus: Demo",
+                             workPrefix: "Regulus", content: "Demo", containerName: "Calendar",
                              isCompleted: false, date: nil, notes: nil, priority: 0, url: nil)
-let queryDone = ProjectItem(id: "done", kind: .reminder, rawTitle: "Regulus: Done",
-                            projectPrefix: "Regulus", content: "Done", containerName: "Build",
+let queryDone = WorkItem(id: "done", kind: .reminder, rawTitle: "Regulus: Done",
+                            workPrefix: "Regulus", content: "Done", containerName: "Build",
                             isCompleted: true, date: nil, notes: "archived", tags: ["Done"],
                             priority: 0, url: nil)
-let queryOpen = ProjectItem(id: "open", kind: .reminder, rawTitle: "Nova: Ship",
-                            projectPrefix: "Nova", content: "Ship", containerName: "Inbox",
+let queryOpen = WorkItem(id: "open", kind: .reminder, rawTitle: "Nova: Ship",
+                            workPrefix: "Nova", content: "Ship", containerName: "Inbox",
                             isCompleted: false, date: nil, notes: "needs review", tags: ["Deep"],
                             priority: 0, url: nil)
 
@@ -211,17 +211,17 @@ check(ItemQuery.completedVisibility(queryItems, showCompleted: true).map(\.id) =
 
 let now = Date()
 let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(86_400)
-let todayOpen = ProjectItem(id: "today-open", kind: .reminder, rawTitle: "Regulus: Today",
-                            projectPrefix: "Regulus", content: "Today", containerName: "Inbox",
+let todayOpen = WorkItem(id: "today-open", kind: .reminder, rawTitle: "Regulus: Today",
+                            workPrefix: "Regulus", content: "Today", containerName: "Inbox",
                             isCompleted: false, date: now, notes: nil, priority: 0, url: nil)
-let todayDone = ProjectItem(id: "today-done", kind: .reminder, rawTitle: "Regulus: Done Today",
-                            projectPrefix: "Regulus", content: "Done Today", containerName: "Inbox",
+let todayDone = WorkItem(id: "today-done", kind: .reminder, rawTitle: "Regulus: Done Today",
+                            workPrefix: "Regulus", content: "Done Today", containerName: "Inbox",
                             isCompleted: true, date: now, notes: nil, priority: 0, url: nil)
-let todayEvent = ProjectItem(id: "today-event", kind: .event, rawTitle: "Nova: Demo",
-                             projectPrefix: "Nova", content: "Demo", containerName: "Calendar",
+let todayEvent = WorkItem(id: "today-event", kind: .event, rawTitle: "Nova: Demo",
+                             workPrefix: "Nova", content: "Demo", containerName: "Calendar",
                              isCompleted: false, date: now, notes: nil, priority: 0, url: nil)
-let tomorrowOpen = ProjectItem(id: "tomorrow-open", kind: .reminder, rawTitle: "Regulus: Tomorrow",
-                               projectPrefix: "Regulus", content: "Tomorrow", containerName: "Inbox",
+let tomorrowOpen = WorkItem(id: "tomorrow-open", kind: .reminder, rawTitle: "Regulus: Tomorrow",
+                               workPrefix: "Regulus", content: "Tomorrow", containerName: "Inbox",
                                isCompleted: false, date: tomorrow, notes: nil, priority: 0, url: nil)
 check(ItemQuery.todayItems([todayOpen, todayDone, todayEvent, tomorrowOpen]).map(\.id) == ["today-open", "today-event"],
       "todayItems should include today's dated items and exclude completed reminders by default")
@@ -232,17 +232,17 @@ let filterNow = calendar.date(from: DateComponents(year: 2026, month: 6, day: 8,
 let filterToday = calendar.date(from: DateComponents(year: 2026, month: 6, day: 8, hour: 18))!
 let filterNextWeek = calendar.date(from: DateComponents(year: 2026, month: 6, day: 14, hour: 9))!
 let filterAfterWeek = calendar.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 9))!
-let filterTask = ProjectItem(id: "filter-task", kind: .reminder, rawTitle: "Regulus: Task",
-                             projectPrefix: "Regulus", content: "Task", containerName: "Inbox",
+let filterTask = WorkItem(id: "filter-task", kind: .reminder, rawTitle: "Regulus: Task",
+                             workPrefix: "Regulus", content: "Task", containerName: "Inbox",
                              isCompleted: false, date: filterToday, notes: nil, priority: 0, url: nil)
-let filterEvent = ProjectItem(id: "filter-event", kind: .event, rawTitle: "Regulus: Event",
-                              projectPrefix: "Regulus", content: "Event", containerName: "Calendar",
+let filterEvent = WorkItem(id: "filter-event", kind: .event, rawTitle: "Regulus: Event",
+                              workPrefix: "Regulus", content: "Event", containerName: "Calendar",
                               isCompleted: false, date: filterNextWeek, notes: nil, priority: 0, url: nil)
-let filterLater = ProjectItem(id: "filter-later", kind: .reminder, rawTitle: "Regulus: Later",
-                              projectPrefix: "Regulus", content: "Later", containerName: "Inbox",
+let filterLater = WorkItem(id: "filter-later", kind: .reminder, rawTitle: "Regulus: Later",
+                              workPrefix: "Regulus", content: "Later", containerName: "Inbox",
                               isCompleted: false, date: filterAfterWeek, notes: nil, priority: 0, url: nil)
-let filterUndated = ProjectItem(id: "filter-undated", kind: .reminder, rawTitle: "Regulus: Undated",
-                                projectPrefix: "Regulus", content: "Undated", containerName: "Inbox",
+let filterUndated = WorkItem(id: "filter-undated", kind: .reminder, rawTitle: "Regulus: Undated",
+                                workPrefix: "Regulus", content: "Undated", containerName: "Inbox",
                                 isCompleted: false, date: nil, notes: nil, priority: 0, url: nil)
 let filterItems = [filterTask, filterEvent, filterLater, filterUndated]
 check(ItemQuery.filtered(filterItems, by: ItemListFilter(kindScope: .tasks), now: filterNow, calendar: calendar).map(\.id) == ["filter-task", "filter-later", "filter-undated"],
@@ -258,16 +258,16 @@ let counts = ItemQuery.counts(for: queryItems)
 check(counts.taskOpenCount == 1, "counts should include open tasks")
 check(counts.taskCompletedCount == 1, "counts should include completed tasks")
 check(counts.eventCount == 1, "counts should include events")
-check(ItemQuery.projectPrefixCount(for: [todayOpen, todayEvent, tomorrowOpen]) == 2,
-      "projectPrefixCount should count distinct project prefixes")
+check(ItemQuery.workPrefixCount(for: [todayOpen, todayEvent, tomorrowOpen]) == 2,
+      "workPrefixCount should count distinct work prefixes")
 
 // ── FacetAssociation ─────────────────────────────────────────────────────────
 
-check(FacetAssociation.classify(title: "Regulus: fix bug") == .item(projectPrefix: "Regulus", content: "fix bug"),
+check(FacetAssociation.classify(title: "Regulus: fix bug") == .item(workPrefix: "Regulus", content: "fix bug"),
       "classify should return item for regular title")
-check(FacetAssociation.classify(title: "Regulus: Ship beta", notes: goalNotes) == .weekGoal(projectPrefix: "Regulus", title: "Ship beta"),
+check(FacetAssociation.classify(title: "Regulus: Ship beta", notes: goalNotes) == .weekGoal(workPrefix: "Regulus", title: "Ship beta"),
       "classify should return weekGoal for goal metadata")
-check(FacetAssociation.classify(title: "Regulus: Ship beta") == .item(projectPrefix: "Regulus", content: "Ship beta"),
+check(FacetAssociation.classify(title: "Regulus: Ship beta") == .item(workPrefix: "Regulus", content: "Ship beta"),
       "classify should treat a goal-looking title as a regular item without metadata")
 check(FacetAssociation.classify(title: "plain title") == .none,
       "classify should return none for unassociated title")
@@ -276,16 +276,16 @@ check(FacetAssociation.classify(title: "plain title\nRegulus: fix bug") == .none
 
 // ── ItemArrangement.sorted + ItemQuery.filteredByTag/Kind ───────────────────
 
-let highTodo = ProjectItem(id: "high", kind: .reminder, rawTitle: "P: a",
-                           projectPrefix: "P", content: "Apple", containerName: "x",
+let highTodo = WorkItem(id: "high", kind: .reminder, rawTitle: "P: a",
+                           workPrefix: "P", content: "Apple", containerName: "x",
                            isCompleted: false, date: tomorrow, notes: nil, tags: ["alpha"],
                            priority: 1, url: nil)
-let medTodo = ProjectItem(id: "med", kind: .reminder, rawTitle: "P: b",
-                          projectPrefix: "P", content: "banana", containerName: "x",
+let medTodo = WorkItem(id: "med", kind: .reminder, rawTitle: "P: b",
+                          workPrefix: "P", content: "banana", containerName: "x",
                           isCompleted: false, date: now, notes: nil, tags: ["alpha", "beta"],
                           priority: 5, url: nil)
-let noPriEvent = ProjectItem(id: "evt", kind: .event, rawTitle: "P: c",
-                             projectPrefix: "P", content: "Cherry", containerName: "x",
+let noPriEvent = WorkItem(id: "evt", kind: .event, rawTitle: "P: c",
+                             workPrefix: "P", content: "Cherry", containerName: "x",
                              isCompleted: false, date: now, notes: nil, tags: ["beta"],
                              priority: 0, url: nil)
 let mixed = [medTodo, noPriEvent, highTodo]

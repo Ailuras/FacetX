@@ -8,22 +8,22 @@ import SwiftUI
 struct DesktopWidgetView: View {
     @ObservedObject var controller: DesktopWidgetController
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var store: WorkStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: WidgetDataModel
     @EnvironmentObject private var focus: FocusService
 
     @State private var quickText = ""
-    @State private var quickProjectID: Project.ID?
+    @State private var quickWorkID: Work.ID?
     @State private var quickAddError = false
     @State private var hoveredRowID: String?
 
-    private var projectsByPrefix: [String: Project] {
-        Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
+    private var worksByPrefix: [String: Work] {
+        Dictionary(store.activeWorks.map { ($0.prefix, $0) }) { first, _ in first }
     }
 
-    private var quickProject: Project? {
-        store.activeProjects.first { $0.id == quickProjectID } ?? store.activeProjects.first
+    private var quickWork: Work? {
+        store.activeWorks.first { $0.id == quickWorkID } ?? store.activeWorks.first
     }
 
     var body: some View {
@@ -122,7 +122,7 @@ struct DesktopWidgetView: View {
                     Text(session.target.title)
                         .font(.system(size: 11.5, weight: .semibold))
                         .lineLimit(1)
-                    Text(session.target.projectLabel)
+                    Text(session.target.workLabel)
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                     Text(session.isPaused
@@ -276,8 +276,8 @@ struct DesktopWidgetView: View {
                          tint: .orange,
                          detail: model.todayItems.isEmpty ? "" : "\(model.todayItems.count)")
 
-            if store.activeProjects.isEmpty {
-                emptyHint(L10n.pick("No projects yet. Open FacetX and create one.",
+            if store.activeWorks.isEmpty {
+                emptyHint(L10n.pick("No works yet. Open FacetX and create one.",
                                     "暂无项目。打开 FacetX 创建一个。"))
             } else if model.todayItems.isEmpty {
                 emptyHint(L10n.pick("Nothing scheduled today.", "今天没有安排，享受专注时光。"))
@@ -302,13 +302,13 @@ struct DesktopWidgetView: View {
             ForEach(model.currentWeekGoals, id: \.goal.id) { entry in
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Circle()
-                        .fill(ProjectAppearance.color(for: entry.project.colorName))
+                        .fill(WorkAppearance.color(for: entry.work.colorName))
                         .frame(width: 7, height: 7)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(entry.goal.title)
                             .font(.system(size: 11, weight: .medium))
                             .lineLimit(2)
-                        Text(entry.project.name)
+                        Text(entry.work.name)
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
                     }
@@ -324,7 +324,7 @@ struct DesktopWidgetView: View {
 
     private enum RowDateStyle { case time, overdue }
 
-    private func itemRow(_ item: ProjectItem, dateStyle: RowDateStyle) -> some View {
+    private func itemRow(_ item: WorkItem, dateStyle: RowDateStyle) -> some View {
         HStack(alignment: .center, spacing: 7) {
             if item.kind == .reminder {
                 Button {
@@ -352,8 +352,8 @@ struct DesktopWidgetView: View {
                     .strikethrough(item.isCompleted, color: .secondary)
                     .foregroundStyle(item.isCompleted ? Color.secondary : Color.primary)
                     .lineLimit(1)
-                if let project = projectsByPrefix[item.projectPrefix] {
-                    Text(project.name)
+                if let work = worksByPrefix[item.workPrefix] {
+                    Text(work.name)
                         .font(.system(size: 8.5))
                         .foregroundStyle(.tertiary)
                 }
@@ -368,8 +368,8 @@ struct DesktopWidgetView: View {
                     .help(L10n.pick("Focusing now", "正在专注"))
             } else if hoveredRowID == item.id, !item.isCompleted {
                 Button {
-                    let projectName = projectsByPrefix[item.projectPrefix]?.name ?? item.projectPrefix
-                    focus.start(target: item.focusTarget(projectName: projectName),
+                    let workName = worksByPrefix[item.workPrefix]?.name ?? item.workPrefix
+                    focus.start(target: item.focusTarget(workName: workName),
                                 minutes: settings.focusDurationMinutes)
                 } label: {
                     Image(systemName: "play.circle.fill")
@@ -391,7 +391,7 @@ struct DesktopWidgetView: View {
         }
     }
 
-    private func dateLabel(_ item: ProjectItem, style: RowDateStyle) -> String {
+    private func dateLabel(_ item: WorkItem, style: RowDateStyle) -> String {
         guard let date = item.date else { return "" }
         switch style {
         case .overdue:
@@ -416,22 +416,22 @@ struct DesktopWidgetView: View {
     private var quickAddBar: some View {
         HStack(spacing: 6) {
             Menu {
-                ForEach(store.activeProjects) { project in
-                    Button(project.name) { quickProjectID = project.id }
+                ForEach(store.activeWorks) { work in
+                    Button(work.name) { quickWorkID = work.id }
                 }
             } label: {
                 HStack(spacing: 3) {
                     Circle()
-                        .fill(ProjectAppearance.color(for: quickProject?.colorName))
+                        .fill(WorkAppearance.color(for: quickWork?.colorName))
                         .frame(width: 6, height: 6)
-                    Text(quickProject?.name ?? L10n.pick("Project", "项目"))
+                    Text(quickWork?.name ?? L10n.pick("Work", "项目"))
                         .font(.system(size: 10, weight: .medium))
                         .lineLimit(1)
                 }
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .disabled(store.activeProjects.isEmpty)
+            .disabled(store.activeWorks.isEmpty)
 
             Rectangle()
                 .fill(Color.secondary.opacity(0.25))
@@ -454,19 +454,19 @@ struct DesktopWidgetView: View {
     }
 
     private func quickAdd() {
-        guard let project = quickProject else { return }
+        guard let work = quickWork else { return }
         let content = quickText.trimmingCharacters(in: .whitespaces)
         guard !content.isEmpty else { return }
         quickAddError = false
 
         Task {
-            let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
+            let listName = settings.reminderSaveTarget(workListName: work.reminderListName)
             guard !listName.isEmpty else {
                 quickAddError = true
                 return
             }
             let created = await ek.createReminder(
-                project: project.prefix, content: content,
+                work: work.prefix, content: content,
                 listName: listName,
                 dueDate: Calendar.current.startOfDay(for: Date()),
                 dueIncludesTime: false,

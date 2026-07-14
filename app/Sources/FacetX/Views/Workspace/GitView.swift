@@ -7,8 +7,8 @@ struct GitView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var toast: ToastController
 
-    let project: Project
-    let items: [ProjectItem]
+    let work: Work
+    let items: [WorkItem]
     let searchText: String
     let refreshTrigger: Int
     let onItemsChanged: () async -> Void
@@ -59,7 +59,7 @@ struct GitView: View {
     }
 
     private var repoPath: String? {
-        guard let path = project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let path = work.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines),
               !path.isEmpty else { return nil }
         return path
     }
@@ -71,7 +71,7 @@ struct GitView: View {
     private var rootPath: String? { repoInfo?.rootPath }
 
     private var repoKey: String? {
-        repoInfo?.fullName ?? project.githubRepo ?? repoURL?.lastPathComponent
+        repoInfo?.fullName ?? work.githubRepo ?? repoURL?.lastPathComponent
     }
 
     private var filteredStatusEntries: [LocalGitStatusEntry] {
@@ -104,7 +104,7 @@ struct GitView: View {
         commits.first { $0.id == selectedCommitID }
     }
 
-    private var workItems: [ProjectItem] {
+    private var workItems: [WorkItem] {
         items.filter { $0.kind == .reminder || $0.kind == .event }
     }
 
@@ -129,8 +129,8 @@ struct GitView: View {
         }
         .background(FacetTheme.canvas)
         .animation(FacetTheme.detailSpring, value: inspectorVisible)
-        .task(id: project.id) { await refreshRepository() }
-        .onChange(of: project.githubLocalPath) { Task { await refreshRepository() } }
+        .task(id: work.id) { await refreshRepository() }
+        .onChange(of: work.githubLocalPath) { Task { await refreshRepository() } }
         .onChange(of: refreshTrigger) { Task { await refreshRepository() } }
         .onChange(of: section) {
             Task {
@@ -182,7 +182,7 @@ struct GitView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(repoInfo?.fullName ?? repoURL?.lastPathComponent ?? project.name)
+                Text(repoInfo?.fullName ?? repoURL?.lastPathComponent ?? work.name)
                     .font(.system(size: 14, weight: .semibold))
                 HStack(spacing: 6) {
                     Text(statusEntries.isEmpty
@@ -842,7 +842,7 @@ struct GitView: View {
                                     ForEach(linked) { item in
                                         Button {
                                             NotificationCenter.default.post(
-                                                name: .selectItemInProjectDetail,
+                                                name: .selectItemInWorkDetail,
                                                 object: nil,
                                                 userInfo: ["itemID": item.id]
                                             )
@@ -896,7 +896,7 @@ struct GitView: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
 
-                            if let url = commit.htmlURL(repoFullName: repoInfo?.fullName ?? project.githubRepo) {
+                            if let url = commit.htmlURL(repoFullName: repoInfo?.fullName ?? work.githubRepo) {
                                 Button {
                                     NSWorkspace.shared.open(url)
                                 } label: {
@@ -989,8 +989,8 @@ struct GitView: View {
     }
 
     private func workItemPicker(title: String,
-                                isSelected: @escaping (ProjectItem) -> Bool,
-                                toggle: @escaping (ProjectItem) -> Void) -> some View {
+                                isSelected: @escaping (WorkItem) -> Bool,
+                                toggle: @escaping (WorkItem) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
@@ -998,7 +998,7 @@ struct GitView: View {
                 .padding(.vertical, 10)
             Divider()
             if workItems.isEmpty {
-                Text(L10n.pick("No tasks or events in this project.", "该项目暂无任务或事件。"))
+                Text(L10n.pick("No tasks or events in this work.", "该项目暂无任务或事件。"))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .padding(14)
@@ -1304,7 +1304,7 @@ struct GitView: View {
 
     private func createTodo(from commit: LocalGitCommit) {
         guard let reference = commitReference(commit) else { return }
-        let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
+        let listName = settings.reminderSaveTarget(workListName: work.reminderListName)
         guard !listName.isEmpty else {
             toast.show(L10n.pick("Choose a reminder list first", "请先选择提醒事项列表"), type: .warning)
             return
@@ -1312,7 +1312,7 @@ struct GitView: View {
         let stableID = UUID().uuidString
         Task {
             guard await ek.createReminder(
-                project: project.prefix,
+                work: work.prefix,
                 content: L10n.pick("Follow up: \(commit.summary)", "跟进：\(commit.summary)"),
                 listName: listName,
                 dueDate: nil,
@@ -1334,7 +1334,7 @@ struct GitView: View {
         return "\(repoKey)@\(commit.id)"
     }
 
-    private func linkedItems(for commit: LocalGitCommit) -> [ProjectItem] {
+    private func linkedItems(for commit: LocalGitCommit) -> [WorkItem] {
         guard let reference = commitReference(commit) else { return [] }
         return workItems.filter { item in
             item.facetID.map { ItemStore.shared.commits(for: $0).contains(reference) } ?? false
@@ -1387,7 +1387,7 @@ struct GitView: View {
             L10n.pick("No Repository Bound", "未绑定仓库"),
             systemImage: "folder.badge.questionmark",
             description: Text(L10n.pick(
-                "Select a local Git repository in project settings.",
+                "Select a local Git repository in work settings.",
                 "请在项目编辑中选择一个本地 Git 仓库。"))
         )
     }

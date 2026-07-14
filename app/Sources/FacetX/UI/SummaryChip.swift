@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A small "<count> <label>" pill used in the project and Today headers.
+/// A small "<count> <label>" pill used in the work and Today headers.
 ///
 /// Optionally clickable: when `onTap` is set the chip behaves as a button with a
 /// pointing-hand cursor, and `isActive` fills it in `tint` to mark the current

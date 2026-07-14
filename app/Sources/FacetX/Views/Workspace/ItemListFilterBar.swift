@@ -165,7 +165,7 @@ struct ItemActionCluster<Accessory: View>: View {
     let onAdd: () -> Void
     /// When set, the "+" becomes a menu letting the user pick what to create.
     /// `nil` keeps the plain add button (used by Plan, which adds by date).
-    var onCreateKind: ((ProjectItem.Kind) -> Void)?
+    var onCreateKind: ((WorkItem.Kind) -> Void)?
     private let accessory: Accessory
 
     init(
@@ -174,7 +174,7 @@ struct ItemActionCluster<Accessory: View>: View {
         showOverdue: Binding<Bool>? = nil,
         animation: Animation = FacetTheme.listSpring,
         onAdd: @escaping () -> Void,
-        onCreateKind: ((ProjectItem.Kind) -> Void)? = nil,
+        onCreateKind: ((WorkItem.Kind) -> Void)? = nil,
         @ViewBuilder accessory: () -> Accessory
     ) {
         self._itemFilter = itemFilter
@@ -212,23 +212,23 @@ struct ItemActionCluster<Accessory: View>: View {
                 createMenu(onCreateKind)
             } else {
                 FilterPillButton(systemName: "plus",
-                                 help: L10n.pick("Add an item to this project", "向该项目添加条目"),
+                                 help: L10n.pick("Add an item to this work", "向该项目添加条目"),
                                  action: onAdd)
             }
         }
     }
 
-    private func createMenu(_ onCreateKind: @escaping (ProjectItem.Kind) -> Void) -> some View {
+    private func createMenu(_ onCreateKind: @escaping (WorkItem.Kind) -> Void) -> some View {
         Menu {
-            Button { onCreateKind(.reminder) } label: { Label(ProjectItem.Kind.reminder.singularTitle, systemImage: ProjectItem.Kind.reminder.systemImage) }
-            Button { onCreateKind(.event) } label: { Label(ProjectItem.Kind.event.singularTitle, systemImage: ProjectItem.Kind.event.systemImage) }
+            Button { onCreateKind(.reminder) } label: { Label(WorkItem.Kind.reminder.singularTitle, systemImage: WorkItem.Kind.reminder.systemImage) }
+            Button { onCreateKind(.event) } label: { Label(WorkItem.Kind.event.singularTitle, systemImage: WorkItem.Kind.event.systemImage) }
         } label: {
             WorkspaceActionIcon(systemName: "plus")
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help(L10n.pick("Add an item to this project", "向该项目添加条目"))
+        .help(L10n.pick("Add an item to this work", "向该项目添加条目"))
     }
 }
 

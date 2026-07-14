@@ -94,8 +94,8 @@ extension PlanView {
             SummaryChip(
                 value: weekBaseItems.filter { $0.kind == .reminder }.count,
                 label: L10n.pick("Tasks", "任务"),
-                systemImage: ProjectItem.Kind.reminder.systemImage,
-                tint: ProjectItem.Kind.reminder.color,
+                systemImage: WorkItem.Kind.reminder.systemImage,
+                tint: WorkItem.Kind.reminder.color,
                 isActive: itemFilter.kindScope == .tasks,
                 help: L10n.pick("Show only tasks", "仅显示任务"),
                 onTap: {
@@ -107,8 +107,8 @@ extension PlanView {
             SummaryChip(
                 value: weekBaseItems.filter { $0.kind == .event }.count,
                 label: L10n.pick("Events", "事件"),
-                systemImage: ProjectItem.Kind.event.systemImage,
-                tint: ProjectItem.Kind.event.color,
+                systemImage: WorkItem.Kind.event.systemImage,
+                tint: WorkItem.Kind.event.color,
                 isActive: itemFilter.kindScope == .events,
                 help: L10n.pick("Show only events", "仅显示事件"),
                 onTap: {

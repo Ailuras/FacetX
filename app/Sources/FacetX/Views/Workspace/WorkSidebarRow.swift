@@ -77,24 +77,24 @@ struct SidebarDragPreview: View {
 
 // MARK: - Concrete rows
 
-struct ProjectSidebarRow: View {
-    let project: Project
+struct WorkSidebarRow: View {
+    let work: Work
 
     var body: some View {
         WorkspaceSidebarRow(
-            title: project.name,
-            subtitle: project.tagline.isEmpty ? project.prefix : project.tagline,
-            badge: .symbol(project.appearanceIconName),
-            tint: project.appearanceColor
+            title: work.name,
+            subtitle: work.tagline.isEmpty ? work.prefix : work.tagline,
+            badge: .symbol(work.appearanceIconName),
+            tint: work.appearanceColor
         )
     }
 
     var dragPreview: some View {
         SidebarDragPreview(
-            title: project.name,
-            subtitle: project.tagline.isEmpty ? project.prefix : project.tagline,
-            badge: .symbol(project.appearanceIconName),
-            tint: project.appearanceColor
+            title: work.name,
+            subtitle: work.tagline.isEmpty ? work.prefix : work.tagline,
+            badge: .symbol(work.appearanceIconName),
+            tint: work.appearanceColor
         )
     }
 }

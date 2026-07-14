@@ -7,9 +7,9 @@ struct PaperRow: View {
     /// `Paper` is a class; passing the store's version gives the row a value to
     /// diff on so in-place status/badge edits re-render it. (See PaperDetailPane.)
     var version: Int = 0
-    /// Project prefixes this paper has been linked to (passed from the parent
+    /// Work prefixes this paper has been linked to (passed from the parent
     /// view which holds the `paperLinks` map). Shows a folder corner badge with jump arrow.
-    var linkedProjectPrefixes: Set<String> = []
+    var linkedWorkPrefixes: Set<String> = []
     var onPdfBadgeTap: (() -> Void)? = nil
 
     @State private var hovered = false
@@ -20,7 +20,7 @@ struct PaperRow: View {
     }
 
     private var badgeCount: Int {
-        (linkedProjectPrefixes.isEmpty ? 0 : 1) + (hasLocalPDF ? 1 : 0)
+        (linkedWorkPrefixes.isEmpty ? 0 : 1) + (hasLocalPDF ? 1 : 0)
     }
 
     /// Extra trailing padding on the title text so it doesn't slide under the
@@ -66,11 +66,11 @@ struct PaperRow: View {
                 }
             }
 
-            // Corner badges: project link (yellow folder) and/or local PDF (green doc).
+            // Corner badges: work link (yellow folder) and/or local PDF (green doc).
             // Placed in an HStack so they sit side-by-side in the topTrailing corner.
             HStack(spacing: 3) {
-                if !linkedProjectPrefixes.isEmpty {
-                    projectCornerBadge
+                if !linkedWorkPrefixes.isEmpty {
+                    workCornerBadge
                 }
                 if hasLocalPDF {
                     pdfCornerBadge
@@ -108,7 +108,7 @@ struct PaperRow: View {
         }
     }
 
-    private var projectCornerBadge: some View {
+    private var workCornerBadge: some View {
         Image(systemName: "folder.fill")
             .font(.system(size: 8, weight: .bold))
             .foregroundStyle(.yellow)

@@ -126,10 +126,10 @@ extension PlanView {
                     return
                 }
             }
-            store.setWeekGoal(projectID: project.id, weekId: currentWeek.id, title: "", body: "")
+            store.setWeekGoal(workID: work.id, weekId: currentWeek.id, title: "", body: "")
         } else {
             let eventId = await ek.createOrUpdateGoalEvent(
-                project: project.prefix,
+                work: work.prefix,
                 title: trimmed,
                 body: goalBody,
                 week: currentWeek,
@@ -142,7 +142,7 @@ extension PlanView {
                 return
             }
             store.setWeekGoal(
-                projectID: project.id,
+                workID: work.id,
                 weekId: currentWeek.id,
                 title: goalTitle,
                 body: goalBody,
@@ -155,9 +155,9 @@ extension PlanView {
     }
 
     var goalCalendarName: String? {
-        if let name = project.weekGoalCalendarName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
+        if let name = work.weekGoalCalendarName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
         if !settings.weekGoalCalendarName.isEmpty { return settings.weekGoalCalendarName }
         if !settings.defaultCalendarName.isEmpty { return settings.defaultCalendarName }
-        return project.calendarName.nonEmpty
+        return work.calendarName.nonEmpty
     }
 }

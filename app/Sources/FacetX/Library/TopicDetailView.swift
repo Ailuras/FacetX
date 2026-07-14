@@ -18,12 +18,12 @@ struct TopicDetailView: View {
     @State private var metadata = MetadataStore.shared
     @State private var settings = LibrarySettings.shared
     @EnvironmentObject private var toast: ToastController
-    @EnvironmentObject private var projectStore: ProjectStore
+    @EnvironmentObject private var workStore: WorkStore
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var ek: EventKitService
 
     @State private var paperLinks: [String: Set<String>] = [:]
-    @State private var workItemsByProject: [String: [ProjectItem]] = [:]
+    @State private var workItemsByWork: [String: [WorkItem]] = [:]
     @State private var searchText = ""
     @State private var selectedPaper: Paper?
     @State private var sortKey: SortKey = .score
@@ -69,7 +69,7 @@ struct TopicDetailView: View {
     enum ViewMode: Hashable { case library, reading, onlineSearch, dashboard }
 
     /// The collapsible sections of the paper list. Clicking a header toggles
-    /// membership in `collapsedSections`, mirroring the project All view.
+    /// membership in `collapsedSections`, mirroring the work All view.
     enum ListSection: Hashable { case recommended, papers }
 
     enum Mode: String, CaseIterable, Identifiable {
@@ -114,7 +114,7 @@ struct TopicDetailView: View {
         return tokens.allSatisfy { paper.searchText.contains($0) }
     }
 
-    /// Search text plus the sidebar tag filter (shared with projects).
+    /// Search text plus the sidebar tag filter (shared with works).
     private func matchesFilters(_ paper: Paper) -> Bool {
         matchesSearch(paper) && tagFilter.matches(tags: paper.tags)
     }
@@ -947,7 +947,7 @@ struct TopicDetailView: View {
                 ForEach(papers) { paper in
                     PaperRow(paper: paper, isSelected: selectedPaper?.id == paper.id,
                              metadata: metadata, version: store.paperVersion,
-                             linkedProjectPrefixes: paperLinks[paper.id] ?? [],
+                             linkedWorkPrefixes: paperLinks[paper.id] ?? [],
                              onPdfBadgeTap: {
                                  readingPaperID = paper.id
                                  viewMode = .reading
@@ -1005,9 +1005,9 @@ struct TopicDetailView: View {
     @ViewBuilder
     private func paperContextMenu(for paper: Paper) -> some View {
         Menu {
-            ForEach(projectStore.activeProjects) { project in
-                Menu(project.name) {
-                    let workItems = workItemsByProject[project.prefix] ?? []
+            ForEach(workStore.activeWorks) { work in
+                Menu(work.name) {
+                    let workItems = workItemsByWork[work.prefix] ?? []
                     if workItems.isEmpty {
                         Text(L10n.pick("No work items", "暂无工作项"))
                     } else {
@@ -1025,15 +1025,15 @@ struct TopicDetailView: View {
             Label(L10n.pick("Attach to Existing Todo/Event", "关联到现有任务/事件"), systemImage: "link.badge.plus")
         }
         Menu {
-            ForEach(projectStore.activeProjects) { project in
-                Button(project.name) { createReadingTask(for: paper, project: project) }
+            ForEach(workStore.activeWorks) { work in
+                Button(work.name) { createReadingTask(for: paper, work: work) }
             }
         } label: {
             Label(L10n.pick("Create Reading Todo and Attach", "创建阅读任务并关联"), systemImage: "checklist")
         }
         Menu {
-            ForEach(projectStore.activeProjects) { project in
-                Button(project.name) { createReadingEvent(for: paper, project: project) }
+            ForEach(workStore.activeWorks) { work in
+                Button(work.name) { createReadingEvent(for: paper, work: work) }
             }
         } label: {
             Label(L10n.pick("Schedule Reading Event and Attach", "安排阅读事件并关联"), systemImage: "calendar.badge.plus")
@@ -1231,7 +1231,7 @@ struct TopicDetailView: View {
     /// Clickable count badges that replace the old segmented mode picker: the
     /// "All" chip clears the status filter, and each status chip isolates papers
     /// of that status (clicking the active one returns to All). Mirrors the
-    /// project All view's summary cluster.
+    /// work All view's summary cluster.
     private var modeCluster: some View {
         HStack(spacing: 6) {
             SummaryChip(value: papersForTopic.count,
@@ -1737,7 +1737,7 @@ struct TopicDetailView: View {
         }
     }
 
-    private func attachPaper(_ paper: Paper, to item: ProjectItem) {
+    private func attachPaper(_ paper: Paper, to item: WorkItem) {
         Task {
             let stableID = item.facetID ?? UUID().uuidString
             if item.facetID == nil {
@@ -1757,8 +1757,8 @@ struct TopicDetailView: View {
         }
     }
 
-    private func createReadingTask(for paper: Paper, project: Project) {
-        let listName = appSettings.reminderSaveTarget(projectListName: project.reminderListName)
+    private func createReadingTask(for paper: Paper, work: Work) {
+        let listName = appSettings.reminderSaveTarget(workListName: work.reminderListName)
         guard !listName.isEmpty else {
             toast.show(L10n.pick("Choose a reminder list first", "请先选择提醒事项列表"), type: .warning)
             return
@@ -1766,7 +1766,7 @@ struct TopicDetailView: View {
         let stableID = UUID().uuidString
         Task {
             guard await ek.createReminder(
-                project: project.prefix,
+                work: work.prefix,
                 content: L10n.pick("Read: \(paper.title)", "阅读：\(paper.title)"),
                 listName: listName,
                 dueDate: nil,
@@ -1784,8 +1784,8 @@ struct TopicDetailView: View {
         }
     }
 
-    private func createReadingEvent(for paper: Paper, project: Project) {
-        let calendarName = appSettings.calendarSaveTarget(projectCalendarName: project.calendarName)
+    private func createReadingEvent(for paper: Paper, work: Work) {
+        let calendarName = appSettings.calendarSaveTarget(workCalendarName: work.calendarName)
         guard !calendarName.isEmpty else {
             toast.show(L10n.pick("Choose a calendar first", "请先选择日历"), type: .warning)
             return
@@ -1793,7 +1793,7 @@ struct TopicDetailView: View {
         let stableID = UUID().uuidString
         Task {
             guard await ek.createEvent(
-                project: project.prefix,
+                work: work.prefix,
                 content: L10n.pick("Read: \(paper.title)", "阅读：\(paper.title)"),
                 calendarName: calendarName,
                 startDate: FacetDateDefaults.nextWholeHour(),
@@ -1821,20 +1821,20 @@ struct TopicDetailView: View {
 
     private func loadPaperLinks() {
         Task {
-            let prefixes = Set(projectStore.activeProjects.map(\.prefix))
+            let prefixes = Set(workStore.activeWorks.map(\.prefix))
             let allItems = await ek.items(
-                forProjects: prefixes,
+                forWorks: prefixes,
                 enabledReminderLists: appSettings.effectiveReminderListNames,
                 enabledCalendars: appSettings.effectiveCalendarNames
             )
             var map: [String: Set<String>] = [:]
             for item in allItems {
                 for paperId in item.linkedPaperIDs {
-                    map[paperId, default: []].insert(item.projectPrefix)
+                    map[paperId, default: []].insert(item.workPrefix)
                 }
             }
             self.paperLinks = map
-            self.workItemsByProject = Dictionary(grouping: allItems, by: \.projectPrefix)
+            self.workItemsByWork = Dictionary(grouping: allItems, by: \.workPrefix)
         }
     }
 }

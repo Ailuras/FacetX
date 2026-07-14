@@ -9,14 +9,14 @@ struct ItemDetailPane: View {
     @State private var itemStore = ItemStore.shared
     @State private var paperStore = PaperStore.shared
 
-    let item: ProjectItem
-    let project: Project
+    let item: WorkItem
+    let work: Work
     let focusTitleOnAppear: Bool
     let onClose: () -> Void
     let onReplacementStart: () -> Void
     let onUpdate: (String?) -> Void
 
-    @State private var kind: ProjectItem.Kind
+    @State private var kind: WorkItem.Kind
     @State private var content = ""
     @State private var details = ""
     @State private var tagsText = ""
@@ -50,14 +50,14 @@ struct ItemDetailPane: View {
     private let scheduleBoxHorizontalPadding: CGFloat = 8
     private let durationPresets = [30, 60, 120, 180, 240]
 
-    init(item: ProjectItem,
-         project: Project,
+    init(item: WorkItem,
+         work: Work,
          focusTitleOnAppear: Bool = false,
          onClose: @escaping () -> Void,
          onReplacementStart: @escaping () -> Void = {},
          onUpdate: @escaping (String?) -> Void) {
         self.item = item
-        self.project = project
+        self.work = work
         self.focusTitleOnAppear = focusTitleOnAppear
         self.onClose = onClose
         self.onReplacementStart = onReplacementStart
@@ -73,7 +73,7 @@ struct ItemDetailPane: View {
         editSignature != savedEditSignature
     }
 
-    private var kindSelection: Binding<ProjectItem.Kind> {
+    private var kindSelection: Binding<WorkItem.Kind> {
         Binding(
             get: { kind },
             set: { newKind in
@@ -146,7 +146,7 @@ struct ItemDetailPane: View {
                     )
                     .frame(height: 24)
 
-                    Text(project.name)
+                    Text(work.name)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -170,8 +170,8 @@ struct ItemDetailPane: View {
     @ViewBuilder private var titleActions: some View {
         if item.linkedPaperIDs.isEmpty {
             Picker("", selection: kindSelection) {
-                Text(L10n.pick("Task", "任务")).tag(ProjectItem.Kind.reminder)
-                Text(L10n.pick("Event", "事件")).tag(ProjectItem.Kind.event)
+                Text(L10n.pick("Task", "任务")).tag(WorkItem.Kind.reminder)
+                Text(L10n.pick("Event", "事件")).tag(WorkItem.Kind.event)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -248,7 +248,7 @@ struct ItemDetailPane: View {
     // MARK: - Documents section
 
     private var linkedDocumentsSection: some View {
-        let available = (try? RepositoryDocumentStore.list(repositoryPath: project.githubLocalPath)) ?? []
+        let available = (try? RepositoryDocumentStore.list(repositoryPath: work.githubLocalPath)) ?? []
         let linkedPaths: [String] = documentPaths
         return FacetResourceGroup(
             title: L10n.pick("Documents", "文档"),
@@ -258,7 +258,7 @@ struct ItemDetailPane: View {
             emptyText: L10n.pick("No linked documents.", "暂无关联文档。"),
             action: {
                 Menu {
-                    if project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                    if work.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
                         Text(L10n.pick("Bind a local repository first.", "请先绑定本地仓库。"))
                     } else if available.isEmpty {
                         Text(L10n.pick("No repository documents.", "仓库中暂无文档。"))
@@ -284,12 +284,12 @@ struct ItemDetailPane: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .disabled(project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+                .disabled(work.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
                 .help(L10n.pick("Attach Document", "关联文档"))
             },
             content: {
                 ForEach(linkedPaths, id: \.self) { (path: String) in
-                    let exists = RepositoryDocumentStore.exists(repositoryPath: project.githubLocalPath, relativePath: path)
+                    let exists = RepositoryDocumentStore.exists(repositoryPath: work.githubLocalPath, relativePath: path)
                     FacetDetailResourceRow(
                         title: URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent,
                         subtitle: exists ? path : L10n.pick("Missing · \(path)", "文件缺失 · \(path)"),
@@ -297,7 +297,7 @@ struct ItemDetailPane: View {
                         tint: exists ? .blue : .orange
                     ) {
                         if exists, let url = try? RepositoryDocumentStore.url(
-                            repositoryPath: project.githubLocalPath,
+                            repositoryPath: work.githubLocalPath,
                             relativePath: path
                         ) {
                             FacetDetailRowAction(
@@ -442,7 +442,7 @@ struct ItemDetailPane: View {
                 ) {
                     showingCommitPicker.toggle()
                 }
-                .disabled(project.githubLocalPath?.isEmpty != false)
+                .disabled(work.githubLocalPath?.isEmpty != false)
                 .popover(isPresented: $showingCommitPicker) { commitPicker }
             },
             content: {
@@ -463,7 +463,7 @@ struct ItemDetailPane: View {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(availableCommits.prefix(80)) { commit in
                         Button {
-                            let repo = project.githubRepo ?? "local"
+                            let repo = work.githubRepo ?? "local"
                             updateCommits(commits + ["\(repo)@\(commit.id)"])
                             showingCommitPicker = false
                         } label: {
@@ -490,7 +490,7 @@ struct ItemDetailPane: View {
     private var availableCommits: [LocalGitCommit] {
         let query = commitSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return commitCandidates.filter { commit in
-            let repo = project.githubRepo ?? "local"
+            let repo = work.githubRepo ?? "local"
             return !commits.contains("\(repo)@\(commit.id)")
                 && (query.isEmpty
                     || commit.summary.lowercased().contains(query)
@@ -768,7 +768,7 @@ struct ItemDetailPane: View {
         documentPaths = itemStore.documentPaths(for: stableID)
         paperIDs = itemStore.paperIDs(for: stableID)
         commits = itemStore.commits(for: stableID)
-        if let repo = LocalGitRepository.inspect(path: project.githubLocalPath ?? "") {
+        if let repo = LocalGitRepository.inspect(path: work.githubLocalPath ?? "") {
             Task { commitCandidates = await LocalGitRepository.gitLog(rootPath: repo.rootPath) }
         } else {
             commitCandidates = []
@@ -1002,7 +1002,7 @@ struct ItemDetailPane: View {
         Task {
             let ok = await ek.updateItem(
                 id: item.id,
-                project: project.prefix,
+                work: work.prefix,
                 content: text,
                 date: shouldUseDate ? date : nil,
                 useDate: shouldUseDate,
@@ -1081,7 +1081,7 @@ struct ItemDetailPane: View {
         }
     }
 
-    private func convertItem(to newKind: ProjectItem.Kind) {
+    private func convertItem(to newKind: WorkItem.Kind) {
         guard item.linkedPaperIDs.isEmpty else { return }
         guard newKind != item.kind else { return }
         saving = true
@@ -1090,10 +1090,10 @@ struct ItemDetailPane: View {
         Task {
             let newId: String?
             if item.kind == .reminder {
-                let calName = project.calendarName ?? ""
+                let calName = work.calendarName ?? ""
                 newId = await ek.convertReminderToEvent(
                     reminderId: item.id,
-                    project: project.prefix,
+                    work: work.prefix,
                     content: item.content,
                     tags: item.tags,
                     itemReference: itemReference,
@@ -1103,10 +1103,10 @@ struct ItemDetailPane: View {
                     enabledCalendars: settings.effectiveCalendarNames
                 )
             } else {
-                let listName = project.reminderListName ?? ""
+                let listName = work.reminderListName ?? ""
                 newId = await ek.convertEventToReminder(
                     eventId: item.id,
-                    project: project.prefix,
+                    work: work.prefix,
                     content: item.content,
                     tags: item.tags,
                     itemReference: itemReference,

@@ -26,7 +26,7 @@ enum RepositoryDocumentStore {
 
         var errorDescription: String? {
             switch self {
-            case .missingRepository: return "The project has no local Git repository."
+            case .missingRepository: return "The work has no local Git repository."
             case .invalidPath: return "Documents must be README.md or a top-level Markdown file in .facetx."
             case .protectedDocument: return "README.md cannot be renamed or deleted from FacetX."
             case .documentExists: return "A document with that name already exists."

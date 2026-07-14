@@ -117,7 +117,7 @@ final class DesktopWidgetController: NSObject, ObservableObject, NSWindowDelegat
     private var cancellable: AnyCancellable?
     private var configured = false
 
-    func configure(eventKit: EventKitService, store: ProjectStore,
+    func configure(eventKit: EventKitService, store: WorkStore,
                    settings: AppSettings, model: WidgetDataModel, focus: FocusService) {
         guard !configured else { return }
         configured = true
@@ -155,7 +155,7 @@ final class DesktopWidgetController: NSObject, ObservableObject, NSWindowDelegat
         isFrontMode = true
     }
 
-    private func install(eventKit: EventKitService, store: ProjectStore,
+    private func install(eventKit: EventKitService, store: WorkStore,
                          settings: AppSettings, model: WidgetDataModel, focus: FocusService) {
         if panel != nil { return }
 

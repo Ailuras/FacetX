@@ -12,10 +12,10 @@ struct PaperDetailPane: View {
     @State private var metadata = MetadataStore.shared
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var toast: ToastController
-    @EnvironmentObject private var projectStore: ProjectStore
+    @EnvironmentObject private var workStore: WorkStore
     @EnvironmentObject private var ek: EventKitService
     @State private var itemStore = ItemStore.shared
-    @State private var associatedItems: [ProjectItem] = []
+    @State private var associatedItems: [WorkItem] = []
     @State private var isTranslating = false
     @State private var isFetchingPdf = false
     @State private var showTranslation = false
@@ -428,10 +428,10 @@ struct PaperDetailPane: View {
     }
 
     private var associatedItemsSection: some View {
-        FacetDetailSection(title: L10n.pick("Linked Project Items", "关联项目条目"), systemImage: "link") {
+        FacetDetailSection(title: L10n.pick("Linked Work Items", "关联项目条目"), systemImage: "link") {
             VStack(alignment: .leading, spacing: 6) {
                 if associatedItems.isEmpty {
-                    Text(L10n.pick("No linked project items.", "暂无关联项目条目。"))
+                    Text(L10n.pick("No linked work items.", "暂无关联项目条目。"))
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                         .padding(.vertical, 2)
@@ -446,7 +446,7 @@ struct PaperDetailPane: View {
                                 Text(item.content)
                                     .font(.system(size: 11, weight: .medium))
                                     .lineLimit(2)
-                                Text("\(item.projectPrefix) · \(item.containerName)")
+                                Text("\(item.workPrefix) · \(item.containerName)")
                                     .font(.system(size: 10))
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
@@ -454,9 +454,9 @@ struct PaperDetailPane: View {
                             Spacer(minLength: 8)
                             Button {
                                 NotificationCenter.default.post(
-                                    name: .selectItemInProject,
+                                    name: .selectItemInWork,
                                     object: nil,
-                                    userInfo: ["projectPrefix": item.projectPrefix, "itemID": item.id]
+                                    userInfo: ["workPrefix": item.workPrefix, "itemID": item.id]
                                 )
                             } label: {
                                 Image(systemName: "arrow.up.right")
@@ -464,7 +464,7 @@ struct PaperDetailPane: View {
                                     .foregroundStyle(Color.accentColor)
                             }
                             .buttonStyle(.plain)
-                            .help(L10n.pick("View in Project", "在项目中查看"))
+                            .help(L10n.pick("View in Work", "在项目中查看"))
                             .hoverCursor(.pointingHand)
 
                             Button(role: .destructive) {
@@ -490,9 +490,9 @@ struct PaperDetailPane: View {
 
     private func loadAssociatedItems() {
         Task {
-            let prefixes = Set(projectStore.activeProjects.map(\.prefix))
+            let prefixes = Set(workStore.activeWorks.map(\.prefix))
             let allItems = await ek.itemsLinkedToPapers(
-                forProjects: prefixes,
+                forWorks: prefixes,
                 enabledReminderLists: appSettings.effectiveReminderListNames,
                 enabledCalendars: appSettings.effectiveCalendarNames
             )
@@ -500,7 +500,7 @@ struct PaperDetailPane: View {
         }
     }
 
-    private func removeLink(from item: ProjectItem) {
+    private func removeLink(from item: WorkItem) {
         guard let facetID = item.facetID else { return }
         let remainingPapers = item.linkedPaperIDs.filter { $0 != paper.id }
         Task {

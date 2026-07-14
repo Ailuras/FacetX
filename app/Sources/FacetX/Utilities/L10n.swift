@@ -31,20 +31,20 @@ enum L10n {
         case generalTitle, generalSubtitle
         case interface, showInMenuBar, language
         case storage, applicationSupport
-        case startup, onLaunch, startupNone, startupLast, startupSpecific, startupProject
+        case startup, onLaunch, startupNone, startupLast, startupSpecific, startupWork
         // Restart prompt
         case restartTitle, restartMessage, restartNow, restartLater
         // Common
         case cancel, delete, archive
         // Sidebar / ContentView
-        case sidebarProjects, sidebarTags, editProject
-        case projectArchived, projectDeleted
-        case newProject, selectProject, selectProjectHint, projectNotFound
+        case sidebarWorks, sidebarTags, editWork
+        case workArchived, workDeleted
+        case newWork, selectWork, selectWorkHint, workNotFound
         case accessRequired, openSettings
-        case deleteProjectTitle, deleteProjectMessage
+        case deleteWorkTitle, deleteWorkMessage
         case allTags, showAllTags, colorMenu
         case tagItemsUnit, tagClickInclude, tagClickExclude, tagClickClear
-        // ProjectDetailView
+        // WorkDetailView
         case modeAll, modePlan, modeGit, modeNotes
         case switchViewMode, refreshed, refresh
         case hideTodayPanel, showTodayTimeline
@@ -79,9 +79,9 @@ enum L10n {
             case .startup:            return ("Startup", "启动")
             case .onLaunch:           return ("On launch", "启动时")
             case .startupNone:        return ("Don't open anything", "不打开任何内容")
-            case .startupLast:        return ("Last opened project or library", "上次打开的项目或文献库")
-            case .startupSpecific:    return ("A specific project or library", "指定项目或文献库")
-            case .startupProject:     return ("Default", "默认")
+            case .startupLast:        return ("Last opened work or library", "上次打开的项目或文献库")
+            case .startupSpecific:    return ("A specific work or library", "指定项目或文献库")
+            case .startupWork:     return ("Default", "默认")
 
             case .restartTitle:       return ("Restart required", "需要重启")
             case .restartMessage:     return ("Changing the language takes effect after FacetX restarts.",
@@ -93,21 +93,21 @@ enum L10n {
             case .delete:             return ("Delete", "删除")
             case .archive:            return ("Archive", "归档")
 
-            case .sidebarProjects:    return ("Projects", "项目")
+            case .sidebarWorks:    return ("Works", "项目")
             case .sidebarTags:        return ("Tags", "标签")
-            case .editProject:        return ("Edit Project", "编辑项目")
-            case .projectArchived:    return ("Project archived", "项目已归档")
-            case .projectDeleted:     return ("Project deleted", "项目已删除")
-            case .newProject:         return ("New Project", "新建项目")
-            case .selectProject:      return ("Select a project", "选择一个项目")
-            case .selectProjectHint:  return ("Pick a project from the sidebar to get started.",
+            case .editWork:        return ("Edit Work", "编辑项目")
+            case .workArchived:    return ("Work archived", "项目已归档")
+            case .workDeleted:     return ("Work deleted", "项目已删除")
+            case .newWork:         return ("New Work", "新建项目")
+            case .selectWork:      return ("Select a work", "选择一个项目")
+            case .selectWorkHint:  return ("Pick a work from the sidebar to get started.",
                                               "从左侧边栏选择一个项目开始。")
-            case .projectNotFound:    return ("Project not found", "未找到项目")
+            case .workNotFound:    return ("Work not found", "未找到项目")
             case .accessRequired:     return ("Calendar and Reminders access is required to display items.",
                                               "需要日历与提醒事项权限才能显示项目内容。")
             case .openSettings:       return ("Open Settings", "打开系统设置")
-            case .deleteProjectTitle: return ("Delete project?", "删除项目？")
-            case .deleteProjectMessage: return ("will be removed. Its items remain in Calendar/Reminders.",
+            case .deleteWorkTitle: return ("Delete work?", "删除项目？")
+            case .deleteWorkMessage: return ("will be removed. Its items remain in Calendar/Reminders.",
                                                 "将被移除。其条目仍保留在日历 / 提醒事项中。")
             case .allTags:            return ("All", "全部")
             case .showAllTags:        return ("Show all tags", "显示全部标签")
@@ -151,9 +151,9 @@ enum L10n {
             case .editWeeklyGoal:     return ("Edit weekly goal", "编辑周目标")
             case .thisWeeksFocus:     return ("This Week's Focus", "本周重点")
             case .setWeekFocus:       return ("Set this week's focus", "设定本周重点")
-            case .setWeekFocusHint:   return ("Pick one outcome to keep this project's week anchored.",
+            case .setWeekFocusHint:   return ("Pick one outcome to keep this work's week anchored.",
                                               "选择一个目标,让本项目的这一周保持聚焦。")
-            case .setWeekGoalHelp:    return ("Set this week's project goal", "设定本周项目目标")
+            case .setWeekGoalHelp:    return ("Set this week's work goal", "设定本周项目目标")
             case .goalDeleteError:    return ("Could not delete the event. Check Calendar access.",
                                               "无法删除事件,请检查日历访问权限。")
             case .goalSaveError:      return ("Could not save the event. Check Calendar access and enabled calendars.",

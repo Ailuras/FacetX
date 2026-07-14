@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// Combined project-scoped settings: the calendar/reminder sources FacetX reads
-/// plus the defaults for new project items. Both are project-related, so they
+/// Combined work-scoped settings: the calendar/reminder sources FacetX reads
+/// plus the defaults for new work items. Both are work-related, so they
 /// share one tab.
-struct ProjectSettingsTab: View {
+struct WorkSettingsTab: View {
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var store: WorkStore
     @EnvironmentObject private var settings: AppSettings
 
     @State private var containers: [EventKitService.ContainerInfo] = []
@@ -20,8 +20,8 @@ struct ProjectSettingsTab: View {
     }
 
     var body: some View {
-        SettingsPage(title: L10n.pick("Project Settings", "项目设置"),
-                     subtitle: L10n.pick("Sources and defaults for project items", "项目条目的数据源与默认值"),
+        SettingsPage(title: L10n.pick("Work Settings", "项目设置"),
+                     subtitle: L10n.pick("Sources and defaults for work items", "项目条目的数据源与默认值"),
                      systemImage: "folder",
                      warning: persistenceWarning) {
             summaryStrip
@@ -393,7 +393,7 @@ struct ProjectSettingsTab: View {
         .padding(.vertical, 1)
     }
 
-    /// A fixed-width menu label matching the project editor's save-location
+    /// A fixed-width menu label matching the work editor's save-location
     /// pickers, so every dropdown in the defaults card shares one width/style.
     private func fixedMenuLabel(_ text: String, placeholder: Bool) -> some View {
         HStack(spacing: 8) {

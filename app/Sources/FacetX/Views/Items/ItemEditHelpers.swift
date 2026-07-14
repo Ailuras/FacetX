@@ -14,8 +14,8 @@ enum ItemEditHelpers {
     static func commitTitleEdit(
         editingID: String?,
         editingText: String,
-        for item: ProjectItem,
-        projectPrefix: String,
+        for item: WorkItem,
+        workPrefix: String,
         ek: EventKitService
     ) async -> Bool {
         guard editingID == item.id else { return false }
@@ -27,7 +27,7 @@ enum ItemEditHelpers {
         } else if newContent != item.content {
             _ = await ek.updateItem(
                 id: item.id,
-                project: projectPrefix,
+                work: workPrefix,
                 content: newContent,
                 date: item.date,
                 useDate: item.kind == .event || item.date != nil,
@@ -48,7 +48,7 @@ enum ItemEditHelpers {
 // MARK: - Selection Helpers
 
 enum ItemSelectionHelpers {
-    static func toggleSelection(_ item: ProjectItem, selectedItem: inout ProjectItem?) {
+    static func toggleSelection(_ item: WorkItem, selectedItem: inout WorkItem?) {
         withAnimation(.easeOut(duration: 0.15)) {
             selectedItem = (selectedItem?.id == item.id) ? nil : item
         }
@@ -56,13 +56,13 @@ enum ItemSelectionHelpers {
 }
 
 enum ItemDragHelpers {
-    static let acceptedTypes: [UTType] = [.facetXProjectItem, .plainText, .text]
+    static let acceptedTypes: [UTType] = [.facetXWorkItem, .plainText, .text]
 
     static func startDrag(
-        item: ProjectItem,
-        items: [ProjectItem],
-        draggedItem: inout ProjectItem?,
-        dragSnapshot: inout [ProjectItem]?,
+        item: WorkItem,
+        items: [WorkItem],
+        draggedItem: inout WorkItem?,
+        dragSnapshot: inout [WorkItem]?,
         cancelDrag: @escaping @MainActor () -> Void
     ) -> NSItemProvider {
         dragSnapshot = items
@@ -94,7 +94,7 @@ enum ItemDragHelpers {
         let mention = AssistantItemMention(item: item)
         if let data = try? JSONEncoder().encode(mention) {
             provider.registerDataRepresentation(
-                forTypeIdentifier: UTType.facetXProjectItem.identifier,
+                forTypeIdentifier: UTType.facetXWorkItem.identifier,
                 visibility: .all
             ) { completion in
                 completion(data, nil)
@@ -110,8 +110,8 @@ enum ItemDragHelpers {
 extension View {
     /// Attaches the standard immediate tap-to-toggle gesture used by item rows.
     func itemSelectionGestures(
-        item: ProjectItem,
-        selectedItem: Binding<ProjectItem?>
+        item: WorkItem,
+        selectedItem: Binding<WorkItem?>
     ) -> some View {
         self
             .onTapGesture {
@@ -171,7 +171,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
 
     /// `none` shows nothing; conversion is limited to plain reminders/events.
     /// Completion now applies to every kind (events/notes store it locally).
-    func isApplicable(to item: ProjectItem) -> Bool {
+    func isApplicable(to item: WorkItem) -> Bool {
         switch self {
         case .none: return false
         case .convert: return true
@@ -183,8 +183,8 @@ enum SwipeAction: String, CaseIterable, Identifiable {
 // MARK: - Action Helpers
 
 enum ItemActionHelpers {
-    static func toggleCompletion(_ item: ProjectItem, completed: Bool, ek: EventKitService) async {
-        // Reminders (tasks & project papers) sync completion through EventKit;
+    static func toggleCompletion(_ item: WorkItem, completed: Bool, ek: EventKitService) async {
+        // Reminders (tasks & work papers) sync completion through EventKit;
         // events & notes have no native completion, so it's kept in the local store.
         if item.kind == .reminder {
             await ek.setReminderCompleted(id: item.id, completed: completed)
@@ -194,12 +194,12 @@ enum ItemActionHelpers {
     }
 
     @MainActor
-    static func togglePin(_ item: ProjectItem, pinned: Bool) {
+    static func togglePin(_ item: WorkItem, pinned: Bool) {
         guard let facetID = item.facetID else { return }
         ItemStore.shared.setPinned(pinned, for: facetID)
     }
 
-    static func deleteItem(_ item: ProjectItem, ek: EventKitService) async {
+    static func deleteItem(_ item: WorkItem, ek: EventKitService) async {
         guard await ek.deleteItem(id: item.id) else { return }
         await MainActor.run { ItemStore.shared.deleteLocalState(for: item.facetID ?? item.id) }
     }
@@ -210,7 +210,7 @@ enum ItemActionHelpers {
     /// time-of-day for timed items and snapping to the day start otherwise.
     /// Mirrors PlanView's drag-move math so swipe / context-menu reschedules
     /// behave identically to dragging an item across days.
-    static func startDate(for item: ProjectItem, toDay day: Date,
+    static func startDate(for item: WorkItem, toDay day: Date,
                           calendar: Calendar = .current) -> Date {
         guard let oldDate = item.date else { return calendar.startOfDay(for: day) }
         if (item.kind == .event && !item.isAllDay) || item.hasTime {
@@ -223,7 +223,7 @@ enum ItemActionHelpers {
 
     /// End date for an event whose start moved to `newStart`, keeping the
     /// original duration (or one day for all-day events). `nil` for reminders.
-    static func endDate(for item: ProjectItem, newStart: Date,
+    static func endDate(for item: WorkItem, newStart: Date,
                         calendar: Calendar = .current) -> Date? {
         guard item.kind == .event else { return nil }
         if item.isAllDay {
@@ -235,11 +235,11 @@ enum ItemActionHelpers {
     }
 
     /// Move `item` to `day`, preserving time-of-day and (for events) duration.
-    static func reschedule(_ item: ProjectItem, toDay day: Date, ek: EventKitService) async {
+    static func reschedule(_ item: WorkItem, toDay day: Date, ek: EventKitService) async {
         let newStart = startDate(for: item, toDay: day)
         _ = await ek.updateItem(
             id: item.id,
-            project: item.projectPrefix,
+            work: item.workPrefix,
             content: item.content,
             date: newStart,
             useDate: true,
@@ -255,10 +255,10 @@ enum ItemActionHelpers {
     }
 
     /// Clear an item's date (reminders only; events always carry a date).
-    static func clearDate(_ item: ProjectItem, ek: EventKitService) async {
+    static func clearDate(_ item: WorkItem, ek: EventKitService) async {
         _ = await ek.updateItem(
             id: item.id,
-            project: item.projectPrefix,
+            work: item.workPrefix,
             content: item.content,
             date: nil,
             useDate: false,
@@ -274,10 +274,10 @@ enum ItemActionHelpers {
     }
 
     /// Update a reminder's priority, leaving everything else untouched.
-    static func setPriority(_ item: ProjectItem, priority: Int, ek: EventKitService) async {
+    static func setPriority(_ item: WorkItem, priority: Int, ek: EventKitService) async {
         _ = await ek.updateItem(
             id: item.id,
-            project: item.projectPrefix,
+            work: item.workPrefix,
             content: item.content,
             date: item.date,
             useDate: item.kind == .event || item.date != nil,

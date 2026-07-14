@@ -7,7 +7,7 @@ public enum ItemKindScope: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    public func matches(_ kind: ProjectItem.Kind) -> Bool {
+    public func matches(_ kind: WorkItem.Kind) -> Bool {
         switch self {
         case .all:
             return true
@@ -55,7 +55,7 @@ public struct ItemListFilter: Equatable, Sendable {
         kindScope != .all || dateScope != .all
     }
 
-    public func matches(_ item: ProjectItem, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+    public func matches(_ item: WorkItem, now: Date = Date(), calendar: Calendar = .current) -> Bool {
         kindScope.matches(item.kind) && dateScope.matches(item.date, now: now, calendar: calendar)
     }
 }

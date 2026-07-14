@@ -24,7 +24,7 @@ struct FacetXApp: App {
     @NSApplicationDelegateAdaptor var appDelegate: AppDelegate
 
     @StateObject private var eventKit = EventKitService()
-    @StateObject private var store = ProjectStore()
+    @StateObject private var store = WorkStore()
     @StateObject private var settings = AppSettings()
     @StateObject private var menuBarController = MenuBarController()
     @StateObject private var widgetModel = WidgetDataModel()
@@ -59,7 +59,7 @@ struct FacetXApp: App {
             AppCommands(router: keyboard)
         }
         // Standard macOS Settings window (⌘,). App-wide container configuration
-        // lives here; project management stays in the main window.
+        // lives here; work management stays in the main window.
         // Fully-qualified because our own `Settings` store would otherwise
         // shadow SwiftUI's Settings scene.
         SwiftUI.Settings {

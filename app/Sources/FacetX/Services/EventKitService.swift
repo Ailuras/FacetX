@@ -41,8 +41,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     private let fetchLock = NSLock()
-    private var fetchCache: [FetchKey: (token: Int, items: [ProjectItem])] = [:]
-    private var fetchInflight: [FetchKey: Task<[ProjectItem], Never>] = [:]
+    private var fetchCache: [FetchKey: (token: Int, items: [WorkItem])] = [:]
+    private var fetchInflight: [FetchKey: Task<[WorkItem], Never>] = [:]
 
     init() {
         observer = NotificationCenter.default.addObserver(
@@ -77,15 +77,15 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return calendars.filter { enabled.contains($0.title) }
     }
 
-    /// All items (reminders + events) whose title prefix matches `project`,
+    /// All items (reminders + events) whose title prefix matches `work`,
     /// limited to the enabled containers (empty/nil = all).
-    func items(forProject project: String,
+    func items(forWork work: String,
                enabledReminderLists: Set<String>? = nil,
                enabledCalendars: Set<String>? = nil,
                eventStartDate: Date? = nil,
                eventEndDate: Date? = nil,
-               eventWindowDays: Int = 120) async -> [ProjectItem] {
-        await items(forProjects: [project],
+               eventWindowDays: Int = 120) async -> [WorkItem] {
+        await items(forWorks: [work],
                     enabledReminderLists: enabledReminderLists,
                     enabledCalendars: enabledCalendars,
                     eventStartDate: eventStartDate,
@@ -93,14 +93,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                     eventWindowDays: eventWindowDays)
     }
 
-    /// All items across several projects in one pass, for cross-project views
-    /// like Today. `prefixes` are the claimed project prefixes to keep.
-    func items(forProjects prefixes: Set<String>,
+    /// All items across several works in one pass, for cross-work views
+    /// like Today. `prefixes` are the claimed work prefixes to keep.
+    func items(forWorks prefixes: Set<String>,
                enabledReminderLists: Set<String>? = nil,
                enabledCalendars: Set<String>? = nil,
                eventStartDate: Date? = nil,
                eventEndDate: Date? = nil,
-               eventWindowDays: Int = 120) async -> [ProjectItem] {
+               eventWindowDays: Int = 120) async -> [WorkItem] {
         guard !prefixes.isEmpty else { return [] }
         let key = FetchKey(reminderLists: enabledReminderLists,
                            calendars: enabledCalendars,
@@ -108,7 +108,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
                            eventEnd: eventEndDate,
                            windowDays: eventWindowDays)
         let rawItems = await cachedRawItems(key: key)
-            .filter { prefixes.contains($0.projectPrefix) }
+            .filter { prefixes.contains($0.workPrefix) }
         return await MainActor.run {
             let store = ItemStore.shared
             let states = store.localState(forIDs: rawItems.compactMap(\.facetID))
@@ -133,7 +133,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     /// change token: concurrent callers join the in-flight task, later callers
     /// hit the cache. Collapses the reload fan-out — main window views, the
     /// Today panel, and the desktop widget all share a single EventKit pass.
-    private func cachedRawItems(key: FetchKey) async -> [ProjectItem] {
+    private func cachedRawItems(key: FetchKey) async -> [WorkItem] {
         let token = await MainActor.run { changeToken }
         switch fetchSource(key: key, token: token) {
         case .cached(let items):
@@ -146,8 +146,8 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     private enum FetchSource {
-        case cached([ProjectItem])
-        case task(Task<[ProjectItem], Never>, owner: Bool)
+        case cached([WorkItem])
+        case task(Task<[WorkItem], Never>, owner: Bool)
     }
 
     /// Synchronous critical section (NSLock is not usable directly in async
@@ -169,7 +169,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return .task(task, owner: true)
     }
 
-    private func storeFetchResult(key: FetchKey, token: Int, items: [ProjectItem]) {
+    private func storeFetchResult(key: FetchKey, token: Int, items: [WorkItem]) {
         fetchLock.lock()
         defer { fetchLock.unlock() }
         fetchCache = fetchCache.filter { $0.value.token == token }
@@ -177,12 +177,12 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         fetchInflight[key] = nil
     }
 
-    private func fetchRawItems(key: FetchKey) async -> [ProjectItem] {
+    private func fetchRawItems(key: FetchKey) async -> [WorkItem] {
         let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
-        var result: [ProjectItem] = []
+        var result: [WorkItem] = []
         if rem { result += await reminders(enabled: key.reminderLists) }
         if cal {
-            result += projectEvents(enabled: key.calendars,
+            result += workEvents(enabled: key.calendars,
                                     startDate: key.eventStart, endDate: key.eventEnd,
                                     windowDays: key.windowDays)
         }
@@ -191,10 +191,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     /// Paper backlinks are resource relationships, not schedule queries. Use a
     /// wide event range so old literature events still count as linked.
-    func itemsLinkedToPapers(forProjects prefixes: Set<String>,
+    func itemsLinkedToPapers(forWorks prefixes: Set<String>,
                              enabledReminderLists: Set<String>? = nil,
-                             enabledCalendars: Set<String>? = nil) async -> [ProjectItem] {
-        let allItems = await items(forProjects: prefixes,
+                             enabledCalendars: Set<String>? = nil) async -> [WorkItem] {
+        let allItems = await items(forWorks: prefixes,
                                    enabledReminderLists: enabledReminderLists,
                                    enabledCalendars: enabledCalendars,
                                    eventStartDate: Self.paperLinkScanStartDate,
@@ -202,19 +202,19 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return allItems.filter { !$0.linkedPaperIDs.isEmpty }
     }
 
-    /// Distinct project names discovered across enabled reminders + recent events.
-    func discoverProjectNames(enabledReminderLists: Set<String>? = nil,
+    /// Distinct work names discovered across enabled reminders + recent events.
+    func discoverWorkNames(enabledReminderLists: Set<String>? = nil,
                               enabledCalendars: Set<String>? = nil,
                               eventWindowDays: Int = 120) async -> [String] {
         let (rem, cal) = await MainActor.run { (remindersAuthorized, calendarAuthorized) }
         var names = Set<String>()
         if rem {
-            let discovered = await fetchReminderProjectNames(enabled: enabledReminderLists)
+            let discovered = await fetchReminderWorkNames(enabled: enabledReminderLists)
             names.formUnion(discovered)
         }
         if cal {
             for e in recentEvents(enabled: enabledCalendars, windowDays: eventWindowDays) {
-                if let n = ProjectPrefix.projectName(of: e.title ?? "") { names.insert(n) }
+                if let n = WorkPrefix.workName(of: e.title ?? "") { names.insert(n) }
             }
         }
         return names.sorted()
@@ -222,26 +222,26 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     // ── Reminders ──────────────────────────────────────────────────────────
 
-    /// Fetch reminders and flatten matching ones to Sendable ProjectItems inside
+    /// Fetch reminders and flatten matching ones to Sendable WorkItems inside
     /// the EventKit callback, so no non-Sendable EKReminder crosses an actor hop.
-    /// Keeps every recognized project item; callers filter by prefix so the
-    /// result can be cached across views asking for different projects.
-    private func reminders(enabled: Set<String>?) async -> [ProjectItem] {
+    /// Keeps every recognized work item; callers filter by prefix so the
+    /// result can be cached across views asking for different works.
+    private func reminders(enabled: Set<String>?) async -> [WorkItem] {
         let lists = filtered(store.calendars(for: .reminder), by: enabled)
         guard !lists.isEmpty else { return [] }
         let pred = store.predicateForReminders(in: lists)
         return await withCheckedContinuation { cont in
             store.fetchReminders(matching: pred) { reminders in
-                let items = (reminders ?? []).compactMap { r -> ProjectItem? in
+                let items = (reminders ?? []).compactMap { r -> WorkItem? in
                     let title = r.title ?? ""
                     guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: r.notes)
                     else { return nil }
                     let itemReference = FacetItemReference.parse(notes: r.notes)
-                    return ProjectItem(
+                    return WorkItem(
                         id: r.calendarItemIdentifier,
                         kind: .reminder,
                         rawTitle: title,
-                        projectPrefix: prefix,
+                        workPrefix: prefix,
                         content: content,
                         containerName: r.calendar?.title ?? "?",
                         isCompleted: r.isCompleted,
@@ -263,7 +263,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func fetchReminderProjectNames(enabled: Set<String>?) async -> Set<String> {
+    private func fetchReminderWorkNames(enabled: Set<String>?) async -> Set<String> {
         let lists = filtered(store.calendars(for: .reminder), by: enabled)
         guard !lists.isEmpty else { return [] }
         let pred = store.predicateForReminders(in: lists)
@@ -271,7 +271,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
             store.fetchReminders(matching: pred) { reminders in
                 var names = Set<String>()
                 for r in reminders ?? [] {
-                    if let n = ProjectPrefix.projectName(of: r.title ?? "") { names.insert(n) }
+                    if let n = WorkPrefix.workName(of: r.title ?? "") { names.insert(n) }
                 }
                 cont.resume(returning: names)
             }
@@ -280,19 +280,19 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
     // ── Events ─────────────────────────────────────────────────────────────
 
-    private func projectEvents(enabled: Set<String>?,
+    private func workEvents(enabled: Set<String>?,
                                startDate: Date? = nil, endDate: Date? = nil,
-                               windowDays: Int) -> [ProjectItem] {
-        events(enabled: enabled, startDate: startDate, endDate: endDate, windowDays: windowDays).compactMap { e -> ProjectItem? in
+                               windowDays: Int) -> [WorkItem] {
+        events(enabled: enabled, startDate: startDate, endDate: endDate, windowDays: windowDays).compactMap { e -> WorkItem? in
             let title = e.title ?? ""
             guard case let .item(prefix, content) = FacetAssociation.classify(title: title, notes: e.notes)
             else { return nil }
             let itemReference = FacetItemReference.parse(notes: e.notes)
-            return ProjectItem(
+            return WorkItem(
                 id: e.calendarItemIdentifier,
                 kind: .event,
                 rawTitle: title,
-                projectPrefix: prefix,
+                workPrefix: prefix,
                 content: content,
                 containerName: e.calendar.title,
                 isCompleted: false,
@@ -368,10 +368,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         try? store.save(item, commit: true)
     }
 
-    /// Create a reminder titled `Project: content` in the named list.
+    /// Create a reminder titled `Work: content` in the named list.
     /// `dueDate` is optional. Returns the reminder's identifier on success, or nil.
     @discardableResult
-    func createReminder(project: String, content: String,
+    func createReminder(work: String, content: String,
                         listName: String, dueDate: Date?, dueIncludesTime: Bool,
                         tags: [String] = [],
                         itemReference: FacetItemReference? = nil,
@@ -381,7 +381,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         guard let list = lists.first(where: { $0.title == listName })
         else { return nil }
         let r = EKReminder(eventStore: store)
-        r.title = ProjectPrefix.makeTitle(project: project, content: content)
+        r.title = WorkPrefix.makeTitle(work: work, content: content)
         r.calendar = list
         let itemID = composeItemNotes(itemReference: itemReference)
         r.notes = itemID
@@ -399,10 +399,10 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Create a calendar event titled `Project: content` in the named calendar
+    /// Create a calendar event titled `Work: content` in the named calendar
     /// (= functional zone). Defaults to a 1-hour block at `startDate`.
     @discardableResult
-    func createEvent(project: String, content: String,
+    func createEvent(work: String, content: String,
                      calendarName: String, startDate: Date,
                      durationMinutes: Int = 60,
                      tags: [String] = [],
@@ -415,7 +415,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         guard let cal = calendars.first(where: { $0.title == calendarName })
         else { return nil }
         let e = EKEvent(eventStore: store)
-        e.title = ProjectPrefix.makeTitle(project: project, content: content)
+        e.title = WorkPrefix.makeTitle(work: work, content: content)
         e.calendar = cal
         let itemID = composeItemNotes(itemReference: itemReference)
         e.notes = itemID
@@ -462,7 +462,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     @discardableResult
     func convertReminderToEvent(
         reminderId: String,
-        project: String,
+        work: String,
         content: String,
         tags: [String],
         itemReference: FacetItemReference? = nil,
@@ -473,7 +473,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     ) async -> String? {
         let startDate = dueDate ?? Calendar.current.startOfDay(for: Date())
         let createdId = await createEvent(
-            project: project,
+            work: work,
             content: content,
             calendarName: calendarName,
             startDate: startDate,
@@ -491,7 +491,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     @discardableResult
     func convertEventToReminder(
         eventId: String,
-        project: String,
+        work: String,
         content: String,
         tags: [String],
         itemReference: FacetItemReference? = nil,
@@ -502,7 +502,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         enabledLists: Set<String>? = nil
     ) async -> String? {
         let newId = await createReminder(
-            project: project,
+            work: work,
             content: content,
             listName: listName,
             dueDate: startDate,
@@ -530,7 +530,7 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     // ── Week goal events ─────────────────────────────────────────────────────
 
     /// Create or update a week-spanning goal event. Returns the event identifier on success.
-    func createOrUpdateGoalEvent(project: String, title: String, body: String,
+    func createOrUpdateGoalEvent(work: String, title: String, body: String,
                                   week: ISOWeek, calendarName: String?,
                                   existingEventId: String?,
                                   enabledCalendars: Set<String>? = nil) async -> String? {
@@ -540,18 +540,18 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
         guard !calendars.isEmpty else { return nil }
 
-        // Prefer the project's saved calendar, then the default, then any enabled calendar.
+        // Prefer the work's saved calendar, then the default, then any enabled calendar.
         let calendar = calendarForGoalEvent(named: calendarName, from: calendars)
         guard let calendar else { return nil }
 
         let event = goalEvent(
-            project: project,
+            work: work,
             week: week,
             existingEventId: existingEventId,
             enabledCalendars: calendars
         ) ?? EKEvent(eventStore: store)
-        event.title = WeekGoalEvent.makeTitle(project: project, title: title)
-        event.notes = WeekGoalEvent.makeNotes(body: body, project: project, weekID: week.id)
+        event.title = WeekGoalEvent.makeTitle(work: work, title: title)
+        event.notes = WeekGoalEvent.makeNotes(body: body, work: work, weekID: week.id)
         event.isAllDay = true
         event.startDate = startDate
         event.endDate = endDate
@@ -559,24 +559,24 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
 
         do {
             try store.save(event, span: .thisEvent, commit: true)
-            removeDuplicateGoalEvents(project: project, week: week, keeping: event, enabledCalendars: calendars)
+            removeDuplicateGoalEvents(work: work, week: week, keeping: event, enabledCalendars: calendars)
             return event.calendarItemIdentifier
         } catch {
             return nil
         }
     }
 
-    func weekGoalEvent(project: String, week: ISOWeek, existingEventId: String?,
+    func weekGoalEvent(work: String, week: ISOWeek, existingEventId: String?,
                        enabledCalendars: Set<String>? = nil) async -> WeekGoalEventSnapshot? {
         let authorized = await MainActor.run { calendarAuthorized }
         guard authorized else { return nil }
         let calendars = filtered(store.calendars(for: .event), by: enabledCalendars)
-        guard let event = goalEvent(project: project, week: week,
+        guard let event = goalEvent(work: work, week: week,
                                     existingEventId: existingEventId,
                                     enabledCalendars: calendars) else { return nil }
         return WeekGoalEventSnapshot(
             eventId: event.calendarItemIdentifier,
-            title: ProjectPrefix.contentBody(of: event.title ?? ""),
+            title: WorkPrefix.contentBody(of: event.title ?? ""),
             body: WeekGoalEvent.body(fromNotes: event.notes)
         )
     }
@@ -593,35 +593,35 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
         return calendars.first
     }
 
-    private func goalEvent(project: String, week: ISOWeek, existingEventId: String?,
+    private func goalEvent(work: String, week: ISOWeek, existingEventId: String?,
                            enabledCalendars calendars: [EKCalendar]) -> EKEvent? {
         if let existingEventId,
            let event = store.calendarItem(withIdentifier: existingEventId) as? EKEvent,
            calendars.contains(where: { $0.calendarIdentifier == event.calendar.calendarIdentifier }),
-           isGoalEvent(event, project: project, week: week) {
+           isGoalEvent(event, work: work, week: week) {
             return event
         }
 
-        return goalEvents(project: project, week: week, enabledCalendars: calendars)
+        return goalEvents(work: work, week: week, enabledCalendars: calendars)
             .sorted { $0.startDate < $1.startDate }
             .first
     }
 
-    private func goalEvents(project: String, week: ISOWeek, enabledCalendars calendars: [EKCalendar]) -> [EKEvent] {
+    private func goalEvents(work: String, week: ISOWeek, enabledCalendars calendars: [EKCalendar]) -> [EKEvent] {
         guard !calendars.isEmpty else { return [] }
         let pred = store.predicateForEvents(withStart: week.startDate, end: week.endDate, calendars: calendars)
-        return store.events(matching: pred).filter { isGoalEvent($0, project: project, week: week) }
+        return store.events(matching: pred).filter { isGoalEvent($0, work: work, week: week) }
     }
 
-    private func isGoalEvent(_ event: EKEvent, project: String, week: ISOWeek) -> Bool {
+    private func isGoalEvent(_ event: EKEvent, work: String, week: ISOWeek) -> Bool {
         let title = event.title ?? ""
-        guard ProjectPrefix.projectName(of: title) == project else { return false }
-        return WeekGoalEvent.hasGoalMetadata(event.notes, project: project, weekID: week.id)
+        guard WorkPrefix.workName(of: title) == work else { return false }
+        return WeekGoalEvent.hasGoalMetadata(event.notes, work: work, weekID: week.id)
     }
 
-    private func removeDuplicateGoalEvents(project: String, week: ISOWeek, keeping keptEvent: EKEvent,
+    private func removeDuplicateGoalEvents(work: String, week: ISOWeek, keeping keptEvent: EKEvent,
                                            enabledCalendars calendars: [EKCalendar]) {
-        let duplicates = goalEvents(project: project, week: week, enabledCalendars: calendars).filter { event in
+        let duplicates = goalEvents(work: work, week: week, enabledCalendars: calendars).filter { event in
             event.calendarItemIdentifier != keptEvent.calendarItemIdentifier
         }
         for event in duplicates {
@@ -642,14 +642,14 @@ final class EventKitService: ObservableObject, @unchecked Sendable {
     }
 
     /// Update an existing item (reminder or event)'s content, date, container, metadata, and priority.
-    func updateItem(id: String, project: String, content: String,
+    func updateItem(id: String, work: String, content: String,
                     date: Date?, useDate: Bool, dateIncludesTime: Bool,
                     containerName: String, tags: [String]? = nil, priority: Int,
                     url: URL? = nil, updateURL: Bool = false,
                     isAllDay: Bool? = nil, endDate: Date? = nil) async -> Bool {
         guard let item = store.calendarItem(withIdentifier: id) else { return false }
 
-        let newTitle = ProjectPrefix.makeTitle(project: project, content: content)
+        let newTitle = WorkPrefix.makeTitle(work: work, content: content)
         item.title = newTitle
 
         let facetID = FacetItemReference.parse(notes: item.notes)?.itemID ?? UUID().uuidString

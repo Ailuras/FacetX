@@ -4,14 +4,14 @@ import UniformTypeIdentifiers
 
 struct TodayTimelinePanel: View {
     @EnvironmentObject var ek: EventKitService
-    @EnvironmentObject var store: ProjectStore
+    @EnvironmentObject var store: WorkStore
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var focus: FocusService
     @Binding var isPresented: Bool
     @Binding var isFullscreen: Bool
 
-    @State private var items: [ProjectItem] = []
-    @State private var selectedItem: ProjectItem?
+    @State private var items: [WorkItem] = []
+    @State private var selectedItem: WorkItem?
     @State private var draggingItemID: String? = nil
     @State private var dragOffsetY: CGFloat = 0
     /// Snapped position + time label of an item being dragged in from the All
@@ -20,11 +20,11 @@ struct TodayTimelinePanel: View {
 
     // MARK: – Derived
 
-    var projectsByPrefix: [String: Project] {
-        Dictionary(store.activeProjects.map { ($0.prefix, $0) }) { first, _ in first }
+    var worksByPrefix: [String: Work] {
+        Dictionary(store.activeWorks.map { ($0.prefix, $0) }) { first, _ in first }
     }
 
-    var todayTimelineItems: [ProjectItem] {
+    var todayTimelineItems: [WorkItem] {
         ItemQuery.todayItems(items).filter { item in
             switch item.kind {
             case .reminder:
@@ -119,10 +119,10 @@ struct TodayTimelinePanel: View {
     // MARK: – Reload
 
     private func reload() async {
-        let projects = store.activeProjects
-        let prefixes = Set(projects.map(\.prefix))
+        let works = store.activeWorks
+        let prefixes = Set(works.map(\.prefix))
         let fetched = await ek.items(
-            forProjects: prefixes,
+            forWorks: prefixes,
             enabledReminderLists: settings.effectiveReminderListNames,
             enabledCalendars: settings.effectiveCalendarNames
         )
@@ -236,7 +236,7 @@ struct TodayTimelinePanel: View {
     // MARK: – Layout engine
 
     struct PositionedTimelineItem {
-        let item: ProjectItem
+        let item: WorkItem
         let yOffset: CGFloat
         let height: CGFloat
         /// Lane index and total lanes in this item's overlap cluster, used to lay
@@ -251,7 +251,7 @@ struct TodayTimelinePanel: View {
         let cal = Calendar.current
         let startH = Double(startHour)
 
-        let sorted = todayTimelineItems.compactMap { item -> (item: ProjectItem, start: Double, duration: Double)? in
+        let sorted = todayTimelineItems.compactMap { item -> (item: WorkItem, start: Double, duration: Double)? in
             guard let date = item.date else { return nil }
             let h = Double(cal.component(.hour, from: date)) + Double(cal.component(.minute, from: date)) / 60.0
             return (item, h, max(WorkItemSessionDuration.hours(
@@ -317,7 +317,7 @@ struct TodayTimelinePanel: View {
     private func compactTimelineCard(_ pos: PositionedTimelineItem, containerWidth: CGFloat) -> some View {
         let item = pos.item
         let isSelected = item.id == selectedItem?.id
-        let project = projectsByPrefix[item.projectPrefix]
+        let work = worksByPrefix[item.workPrefix]
         let tint: Color = item.kind.color
         let cardBg = isSelected ? tint.opacity(0.16) : tint.opacity(0.12)
         let cardStroke = isSelected ? tint.opacity(0.68) : tint.opacity(0.34)
@@ -351,7 +351,7 @@ struct TodayTimelinePanel: View {
                                 .foregroundStyle(.primary)
                         }
 
-                        if let name = project?.name {
+                        if let name = work?.name {
                             Text(name)
                                 .font(.system(size: 8))
                                 .foregroundStyle(.secondary)
@@ -418,7 +418,7 @@ struct TodayTimelinePanel: View {
         hour == 24 ? "00:00" : String(format: "%02d:00", hour)
     }
 
-    private func timeString(for item: ProjectItem, start: Date) -> String {
+    private func timeString(for item: WorkItem, start: Date) -> String {
         guard let end = timelineEnd(for: item, start: start) else {
             let fmt = DateFormatter()
             fmt.dateFormat = "HH:mm"
@@ -435,7 +435,7 @@ struct TodayTimelinePanel: View {
         return fmt.string(from: date)
     }
 
-    private func timelineEnd(for item: ProjectItem, start: Date) -> Date? {
+    private func timelineEnd(for item: WorkItem, start: Date) -> Date? {
         WorkItemSessionDuration.endDate(
             for: item,
             start: start,
@@ -444,7 +444,7 @@ struct TodayTimelinePanel: View {
         )
     }
 
-    private func applyOptimisticReschedule(item: ProjectItem, newDate: Date) {
+    private func applyOptimisticReschedule(item: WorkItem, newDate: Date) {
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
         let newEndDate = timelineEnd(for: item, start: newDate)
         var updated = items
@@ -452,11 +452,11 @@ struct TodayTimelinePanel: View {
         items = updated
     }
 
-    private func rescheduleToTime(_ item: ProjectItem, newDate: Date) async {
+    private func rescheduleToTime(_ item: WorkItem, newDate: Date) async {
         let newEndDate = timelineEnd(for: item, start: newDate)
         _ = await ek.updateItem(
             id: item.id,
-            project: item.projectPrefix,
+            work: item.workPrefix,
             content: item.content,
             date: newDate,
             useDate: true,
@@ -475,8 +475,8 @@ struct TodayTimelinePanel: View {
     /// Resolve the dragged item id off the provider, then schedule it onto
     /// today at `date`. The All list registers each row as an `NSString` id.
     private func handleTimelineDrop(provider: NSItemProvider, date: Date) {
-        if provider.hasItemConformingToTypeIdentifier(UTType.facetXProjectItem.identifier) {
-            provider.loadDataRepresentation(forTypeIdentifier: UTType.facetXProjectItem.identifier) { data, _ in
+        if provider.hasItemConformingToTypeIdentifier(UTType.facetXWorkItem.identifier) {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.facetXWorkItem.identifier) { data, _ in
                 if let data,
                    let mention = try? JSONDecoder().decode(AssistantItemMention.self, from: data) {
                     Task { @MainActor in await scheduleDroppedItem(id: mention.eventKitID, at: date) }
@@ -504,7 +504,7 @@ struct TodayTimelinePanel: View {
         applyDroppedOptimistic(item: item, start: start, end: end)
         _ = await ek.updateItem(
             id: item.id,
-            project: item.projectPrefix,
+            work: item.workPrefix,
             content: item.content,
             date: start,
             useDate: true,
@@ -521,7 +521,7 @@ struct TodayTimelinePanel: View {
     /// Drop the item onto the timeline immediately as a timed item, before
     /// EventKit confirms — mirrors `applyOptimisticReschedule` but also clears
     /// the all-day / untimed flags so it surfaces in `todayTimelineItems`.
-    private func applyDroppedOptimistic(item: ProjectItem, start: Date, end: Date?) {
+    private func applyDroppedOptimistic(item: WorkItem, start: Date, end: Date?) {
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
         var updated = items
         updated[idx] = item.replacingSchedule(start, endDate: end, hasTime: true, isAllDay: false)

@@ -3,14 +3,14 @@ import SwiftUI
 
 struct PlanView: View {
     @EnvironmentObject var ek: EventKitService
-    @EnvironmentObject var store: ProjectStore
+    @EnvironmentObject var store: WorkStore
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var keyboard: KeyboardActionRouter
 
-    let project: Project
+    let work: Work
     let searchText: String
     @Binding var showCompleted: Bool
-    @Binding var selectedItem: ProjectItem?
+    @Binding var selectedItem: WorkItem?
     @Binding var tagFilter: TagFilter
     @Binding var itemFilter: ItemListFilter
     let showAssistantPanel: Binding<Bool>
@@ -19,7 +19,7 @@ struct PlanView: View {
     let onCreateItem: (Date?) -> Void
 
     @State var week = ISOWeek.containing(Date())
-    @State var allItems: [ProjectItem] = []
+    @State var allItems: [WorkItem] = []
     @State var loading = false
     @State var editingGoal = false
     @State var goalTitle = ""
@@ -27,9 +27,9 @@ struct PlanView: View {
     @State var savingGoal = false
     @State var goalError: String?
     @State var inlineEdit = ItemInlineEditState()
-    @State var itemToDelete: ProjectItem?
-    @State var draggedItem: ProjectItem?
-    @State var dragSnapshot: [ProjectItem]?
+    @State var itemToDelete: WorkItem?
+    @State var draggedItem: WorkItem?
+    @State var dragSnapshot: [WorkItem]?
     @State var dropTargetDate: Date?
     @State var sortOption: PlanSortOption = .manual
     @State var unscheduledCollapsed = false
@@ -51,7 +51,7 @@ struct PlanView: View {
 
     /// Week items after tag + search filtering but *before* the completed-items
     /// visibility filter — lets us both render the list and count what's hidden.
-    var weekScopedItems: [ProjectItem] {
+    var weekScopedItems: [WorkItem] {
         var result = allItems.filter { item in
             guard let date = item.date else { return false }
             return week.contains(date)
@@ -61,11 +61,11 @@ struct PlanView: View {
         return ItemQuery.searched(result, query: searchText)
     }
 
-    var weekItems: [ProjectItem] {
+    var weekItems: [WorkItem] {
         ItemQuery.completedVisibility(weekScopedItems, showCompleted: showCompleted)
     }
 
-    var weekBaseItems: [ProjectItem] {
+    var weekBaseItems: [WorkItem] {
         let raw = allItems.filter { item in
             guard let date = item.date else { return false }
             return week.contains(date)
@@ -80,16 +80,16 @@ struct PlanView: View {
         return weekScopedItems.filter { $0.kind == .reminder && $0.isCompleted }.count
     }
 
-    var nonGoalItems: [ProjectItem] { weekItems }
+    var nonGoalItems: [WorkItem] { weekItems }
 
-    var weekReviewItems: [ProjectItem] {
+    var weekReviewItems: [WorkItem] {
         allItems.filter { item in
             guard let date = item.date else { return false }
             return week.contains(date)
         }
     }
 
-    var planMonthItems: [ProjectItem] {
+    var planMonthItems: [WorkItem] {
         var result = allItems.filter { item in
             guard let date = item.date else { return false }
             return planMonth.contains(date)
@@ -100,7 +100,7 @@ struct PlanView: View {
         return ItemQuery.completedVisibility(result, showCompleted: showCompleted)
     }
 
-    var planItemsByMonthDay: [Int: [ProjectItem]] {
+    var planItemsByMonthDay: [Int: [WorkItem]] {
         Dictionary(grouping: planMonthItems) { item in
             guard let date = item.date else { return 0 }
             return MonthYear.calendar.component(.day, from: date)
@@ -112,20 +112,20 @@ struct PlanView: View {
     }
 
     var goal: WeekGoal? {
-        store.weekGoal(projectID: project.id, weekId: week.id)
+        store.weekGoal(workID: work.id, weekId: week.id)
     }
 
     var reloadKey: String {
-        "\(project.id.uuidString)-\(week.id)"
+        "\(work.id.uuidString)-\(week.id)"
     }
 
     var currentManualOrder: [String] {
-        store.activeProjects.first(where: { $0.id == project.id })?.itemOrder ?? project.itemOrder
+        store.activeWorks.first(where: { $0.id == work.id })?.itemOrder ?? work.itemOrder
     }
 
-    func sortedItems(_ items: [ProjectItem],
+    func sortedItems(_ items: [WorkItem],
                      option: PlanSortOption? = nil,
-                     savedOrder: [String]? = nil) -> [ProjectItem] {
+                     savedOrder: [String]? = nil) -> [WorkItem] {
         let selectedOption = option ?? sortOption
         let order = savedOrder ?? (selectedOption == .manual ? currentManualOrder : allItems.map(\.id))
         return ItemArrangement.sorted(items, by: selectedOption, savedOrder: order)
@@ -135,7 +135,7 @@ struct PlanView: View {
         guard sortOption != option else { return }
         let currentOrder = allItems.map(\.id)
         sortOption = option
-        store.setItemOrder(projectID: project.id, orderedIDs: option == .manual ? currentOrder : [])
+        store.setItemOrder(workID: work.id, orderedIDs: option == .manual ? currentOrder : [])
         withAnimation(listAnimation) {
             allItems = sortedItems(allItems, option: option, savedOrder: currentOrder)
         }
@@ -144,7 +144,7 @@ struct PlanView: View {
     func switchToManualSortFromCurrentOrder() {
         guard sortOption != .manual else { return }
         sortOption = .manual
-        store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
+        store.setItemOrder(workID: work.id, orderedIDs: allItems.map(\.id))
     }
 
     var dayGroups: [DayGroup] {
@@ -219,7 +219,7 @@ struct PlanView: View {
         }
         .sheet(isPresented: $showingReview) {
             PlanReviewSheet(
-                project: project,
+                work: work,
                 week: week,
                 goal: goal,
                 items: weekReviewItems,

@@ -34,7 +34,7 @@ struct AssistantView: View {
         }
         .background(FacetTheme.canvas)
         .onDrop(
-            of: [.facetXProjectItem],
+            of: [.facetXWorkItem],
             delegate: AssistantMentionDropDelegate(
                 isTargeted: $isMentionDropTarget,
                 onMention: addMention
@@ -266,7 +266,7 @@ struct AssistantView: View {
                 suggestionButton(L10n.pick("What's on my plate this week?", "我这周都有什么安排？"))
                 suggestionButton(L10n.pick("Here's my plan — turn it into tasks and events: …",
                                            "这是我的计划，帮我整理成具体的任务和日程：…"))
-                suggestionButton(L10n.pick("Summarize the paper 《…》 into a project document and attach it to a work item.",
+                suggestionButton(L10n.pick("Summarize the paper 《…》 into a work document and attach it to a work item.",
                                            "将文献《…》总结为项目文档，并关联到一个工作项。"))
             }
             Spacer()
@@ -495,7 +495,7 @@ struct AssistantView: View {
                 HStack(spacing: 5) {
                     Image(systemName: mention.systemImage)
                         .font(.system(size: 9, weight: .semibold))
-                    Text("\(mention.projectPrefix): \(mention.title)")
+                    Text("\(mention.workPrefix): \(mention.title)")
                         .font(.system(size: 10.5, weight: .medium))
                         .lineLimit(1)
                     if removable {
@@ -752,7 +752,7 @@ private struct AssistantMentionDropDelegate: DropDelegate {
     let onMention: (AssistantItemMention) -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
-        info.hasItemsConforming(to: [.facetXProjectItem])
+        info.hasItemsConforming(to: [.facetXWorkItem])
     }
 
     func dropEntered(info: DropInfo) {
@@ -769,10 +769,10 @@ private struct AssistantMentionDropDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         isTargeted = false
-        let providers = info.itemProviders(for: [.facetXProjectItem])
+        let providers = info.itemProviders(for: [.facetXWorkItem])
         guard !providers.isEmpty else { return false }
         for provider in providers {
-            provider.loadDataRepresentation(forTypeIdentifier: UTType.facetXProjectItem.identifier) { data, _ in
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.facetXWorkItem.identifier) { data, _ in
                 guard let data,
                       let mention = try? JSONDecoder().decode(AssistantItemMention.self, from: data) else {
                     return

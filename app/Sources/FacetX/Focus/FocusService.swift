@@ -14,11 +14,11 @@ struct FocusTarget: Equatable {
     let id: String
     let title: String
     let kind: FocusTargetKind
-    /// Shown next to the countdown in the menu bar and widget — the project
+    /// Shown next to the countdown in the menu bar and widget — the work
     /// name for the work item.
-    let projectLabel: String
-    /// Recorded with the session for future per-project statistics.
-    let projectPrefix: String
+    let workLabel: String
+    /// Recorded with the session for future per-work statistics.
+    let workPrefix: String
 }
 
 /// One running pomodoro-style countdown. Wall-clock based with a pause bank,
@@ -130,7 +130,7 @@ final class FocusService: ObservableObject {
     private func record(session s: FocusSession, seconds: Int) {
         ItemStore.shared.recordFocusSession(
             targetID: s.target.id,
-            projectPrefix: s.target.projectPrefix,
+            workPrefix: s.target.workPrefix,
             title: s.target.title,
             kind: s.target.kind.rawValue,
             startedAt: s.startedAt,
@@ -207,16 +207,16 @@ final class FocusService: ObservableObject {
     }
 }
 
-extension ProjectItem {
+extension WorkItem {
     /// The stable key focus time accrues to for this item.
     var focusTargetID: String { facetID ?? id }
 
-    func focusTarget(projectName: String) -> FocusTarget {
+    func focusTarget(workName: String) -> FocusTarget {
         let kind: FocusTargetKind = self.kind == .reminder ? .task : .event
         return FocusTarget(id: focusTargetID,
                            title: content,
                            kind: kind,
-                           projectLabel: projectName,
-                           projectPrefix: projectPrefix)
+                           workLabel: workName,
+                           workPrefix: workPrefix)
     }
 }

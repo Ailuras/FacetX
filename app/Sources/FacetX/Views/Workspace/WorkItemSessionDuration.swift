@@ -3,7 +3,7 @@ import Foundation
 
 enum WorkItemSessionDuration {
     static func defaultMinutes(
-        for item: ProjectItem,
+        for item: WorkItem,
         eventDefaultMinutes: Int,
         treatsAllDayEventsAsTimed: Bool = false
     ) -> Int? {
@@ -17,7 +17,7 @@ enum WorkItemSessionDuration {
     }
 
     static func hours(
-        for item: ProjectItem,
+        for item: WorkItem,
         eventDefaultMinutes: Int,
         treatsAllDayEventsAsTimed: Bool = false
     ) -> Double {
@@ -32,7 +32,7 @@ enum WorkItemSessionDuration {
     }
 
     static func endDate(
-        for item: ProjectItem,
+        for item: WorkItem,
         start: Date,
         eventDefaultMinutes: Int,
         treatsAllDayEventsAsTimed: Bool = false,
@@ -48,7 +48,7 @@ enum WorkItemSessionDuration {
         return calendar.date(byAdding: .minute, value: minutes, to: start)
     }
 
-    private static func explicitMinutes(for item: ProjectItem) -> Int? {
+    private static func explicitMinutes(for item: WorkItem) -> Int? {
         guard !item.isAllDay, let start = item.date, let end = item.endDate, end > start else {
             return nil
         }

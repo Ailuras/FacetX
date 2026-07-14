@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct ProjectEditorGitHubRepoPicker: View {
+struct WorkEditorGitHubRepoPicker: View {
     @EnvironmentObject private var settings: AppSettings
 
     @Binding var selection: String
@@ -99,9 +99,9 @@ struct ProjectEditorGitHubRepoPicker: View {
                 )
 
             if let status {
-                ProjectEditorHelp(status)
+                WorkEditorHelp(status)
             } else {
-                ProjectEditorHelp(L10n.pick("Choose a local repository to auto-detect owner/repo, or enter it manually.",
+                WorkEditorHelp(L10n.pick("Choose a local repository to auto-detect owner/repo, or enter it manually.",
                                             "选择本地仓库可自动识别 owner/repo，也可以手动输入。"))
             }
         }

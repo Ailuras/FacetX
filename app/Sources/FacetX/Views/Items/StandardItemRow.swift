@@ -6,7 +6,7 @@ struct ItemInlineEditState {
     var titleID: String?
     var titleText = ""
 
-    mutating func startTitleEdit(for item: ProjectItem) {
+    mutating func startTitleEdit(for item: WorkItem) {
         titleText = item.content
         titleID = item.id
     }
@@ -20,24 +20,24 @@ struct ItemInlineEditState {
 struct StandardItemRow: View {
     @EnvironmentObject private var ek: EventKitService
     @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var store: WorkStore
     @EnvironmentObject private var focus: FocusService
 
-    let item: ProjectItem
-    let projectPrefix: String
-    @Binding var selectedItem: ProjectItem?
+    let item: WorkItem
+    let workPrefix: String
+    @Binding var selectedItem: WorkItem?
     @Binding var inlineEdit: ItemInlineEditState
-    var projectBadge: String?
+    var workBadge: String?
     var showDragGrip = true
     var onDragStart: (() -> NSItemProvider)?
     var onReload: () async -> Void
-    var onDeleteRequest: (ProjectItem) -> Void
+    var onDeleteRequest: (WorkItem) -> Void
 
     var body: some View {
         ItemRow(
             item: item,
             isSelected: item.id == selectedItem?.id,
-            projectBadge: projectBadge,
+            workBadge: workBadge,
             showDragGrip: showDragGrip,
             onDragStart: onDragStart,
             onToggle: { completed in
@@ -82,9 +82,9 @@ struct StandardItemRow: View {
             } else {
                 Button(L10n.pick("Start Focus (\(settings.focusDurationMinutes) min)",
                                  "开始专注（\(settings.focusDurationMinutes) 分钟）")) {
-                    let projectName = store.activeProjects
-                        .first { $0.prefix == item.projectPrefix }?.name ?? item.projectPrefix
-                    focus.start(target: item.focusTarget(projectName: projectName),
+                    let workName = store.activeWorks
+                        .first { $0.prefix == item.workPrefix }?.name ?? item.workPrefix
+                    focus.start(target: item.focusTarget(workName: workName),
                                 minutes: settings.focusDurationMinutes)
                 }
             }
@@ -215,7 +215,7 @@ struct StandardItemRow: View {
     }
 
     private func convertItemType() {
-        let proj = store.activeProjects.first { $0.prefix == projectPrefix }
+        let proj = store.activeWorks.first { $0.prefix == workPrefix }
         let metadata = item.facetItemReference()
         Task {
             let newId: String?
@@ -223,7 +223,7 @@ struct StandardItemRow: View {
                 let calName = proj?.calendarName ?? ""
                 newId = await ek.convertReminderToEvent(
                     reminderId: item.id,
-                    project: item.projectPrefix,
+                    work: item.workPrefix,
                     content: item.content,
                     tags: item.tags,
                     itemReference: metadata,
@@ -235,7 +235,7 @@ struct StandardItemRow: View {
                 let listName = proj?.reminderListName ?? ""
                 newId = await ek.convertEventToReminder(
                     eventId: item.id,
-                    project: item.projectPrefix,
+                    work: item.workPrefix,
                     content: item.content,
                     tags: item.tags,
                     itemReference: metadata,
@@ -271,7 +271,7 @@ struct StandardItemRow: View {
                 editingID: inlineEdit.titleID,
                 editingText: inlineEdit.titleText,
                 for: item,
-                projectPrefix: projectPrefix,
+                workPrefix: workPrefix,
                 ek: ek
             )
             await MainActor.run {

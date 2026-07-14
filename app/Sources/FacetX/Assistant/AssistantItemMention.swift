@@ -3,7 +3,7 @@ import Foundation
 import UniformTypeIdentifiers
 
 extension UTType {
-    static let facetXProjectItem = UTType(exportedAs: "com.facetx.project-item")
+    static let facetXWorkItem = UTType(exportedAs: "com.facetx.work-item")
 }
 
 /// A self-contained drag snapshot. The visible chip uses human-readable fields;
@@ -12,7 +12,7 @@ struct AssistantItemMention: Codable, Hashable, Identifiable, Sendable {
     let eventKitID: String
     let stableID: String?
     let kind: String
-    let projectPrefix: String
+    let workPrefix: String
     let title: String
     let containerName: String
     let date: Date?
@@ -30,11 +30,11 @@ struct AssistantItemMention: Codable, Hashable, Identifiable, Sendable {
         return kind == "task" ? "checkmark.circle" : "calendar"
     }
 
-    init(item: ProjectItem) {
+    init(item: WorkItem) {
         eventKitID = item.id
         stableID = item.facetID
         kind = item.kind == .reminder ? "task" : "event"
-        projectPrefix = item.projectPrefix
+        workPrefix = item.workPrefix
         title = item.content
         containerName = item.containerName
         date = item.date
@@ -51,7 +51,7 @@ struct AssistantItemMention: Codable, Hashable, Identifiable, Sendable {
         var object: [String: Any] = [
             "reference_id": referenceID,
             "type": kind,
-            "project": projectPrefix,
+            "work": workPrefix,
             "title": title,
             "container": containerName,
             "completed": isCompleted,

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct IntegrationsSettingsTab: View {
-    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var store: WorkStore
     @EnvironmentObject private var settings: AppSettings
     @State private var litSettings = LibrarySettings.shared
 

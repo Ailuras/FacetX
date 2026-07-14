@@ -165,10 +165,10 @@ extension PlanView {
         )
     }
 
-    func planItemRow(_ item: ProjectItem) -> some View {
+    func planItemRow(_ item: WorkItem) -> some View {
         StandardItemRow(
             item: item,
-            projectPrefix: project.prefix,
+            workPrefix: work.prefix,
             selectedItem: $selectedItem,
             inlineEdit: $inlineEdit,
             onDragStart: {
@@ -203,7 +203,7 @@ extension PlanView {
         ))
     }
 
-    private func previewMove(item source: ProjectItem, toDay destinationDay: Date, before target: ProjectItem?) {
+    private func previewMove(item source: WorkItem, toDay destinationDay: Date, before target: WorkItem?) {
         guard let fromIndex = allItems.firstIndex(where: { $0.id == source.id }) else {
             return
         }
@@ -234,7 +234,7 @@ extension PlanView {
 
     private func commitItemOrder() {
         sortOption = .manual
-        store.setItemOrder(projectID: project.id, orderedIDs: allItems.map(\.id))
+        store.setItemOrder(workID: work.id, orderedIDs: allItems.map(\.id))
     }
 
     private func finishDrag() {
@@ -262,7 +262,7 @@ extension PlanView {
         }
     }
 
-    private func persistMovedItem(original: ProjectItem, current: ProjectItem, snapshot: [ProjectItem]?) {
+    private func persistMovedItem(original: WorkItem, current: WorkItem, snapshot: [WorkItem]?) {
         guard let newDate = current.date else {
             cancelDrag()
             return
@@ -271,7 +271,7 @@ extension PlanView {
         Task {
             let success = await ek.updateItem(
                 id: current.id,
-                project: current.projectPrefix,
+                work: current.workPrefix,
                 content: current.content,
                 date: newDate,
                 useDate: true,
@@ -299,16 +299,16 @@ extension PlanView {
         }
     }
 
-    private func previewItem(_ item: ProjectItem, movedToDay day: Date) -> ProjectItem {
+    private func previewItem(_ item: WorkItem, movedToDay day: Date) -> WorkItem {
         let newDate = movedStartDate(for: item, toDay: day)
         return item.replacingDate(newDate, endDate: movedEndDate(original: item, currentStart: newDate))
     }
 
-    private func movedStartDate(for item: ProjectItem, toDay day: Date) -> Date {
+    private func movedStartDate(for item: WorkItem, toDay day: Date) -> Date {
         ItemActionHelpers.startDate(for: item, toDay: day)
     }
 
-    private func movedEndDate(original item: ProjectItem, currentStart: Date) -> Date? {
+    private func movedEndDate(original item: WorkItem, currentStart: Date) -> Date? {
         ItemActionHelpers.endDate(for: item, newStart: currentStart)
     }
 
@@ -342,9 +342,9 @@ extension PlanView {
 // MARK: – Drop delegate for dragging items onto a day block
 
 struct PlanItemDropDelegate: DropDelegate {
-    let item: ProjectItem
-    @Binding var draggedItem: ProjectItem?
-    var onEntered: (ProjectItem, ProjectItem) -> Void
+    let item: WorkItem
+    @Binding var draggedItem: WorkItem?
+    var onEntered: (WorkItem, WorkItem) -> Void
     var onDrop: () -> Void
 
     func dropEntered(info: DropInfo) {
@@ -365,7 +365,7 @@ struct PlanItemDropDelegate: DropDelegate {
 
 struct PlanDayDropDelegate: DropDelegate {
     let date: Date
-    @Binding var draggedItem: ProjectItem?
+    @Binding var draggedItem: WorkItem?
     var onEntered: (Date) -> Void
     var onExited: (Date) -> Void
     var onDrop: () -> Void

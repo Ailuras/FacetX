@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct GeneralSettingsTab: View {
-    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var store: WorkStore
     @EnvironmentObject private var settings: AppSettings
     @State private var metadata = MetadataStore.shared
 
@@ -9,22 +9,22 @@ struct GeneralSettingsTab: View {
         metadata.topics.filter { !$0.archived }
     }
 
-    /// Encodes the specific-startup target as "project:<uuid>" / "topic:<uuid>"
-    /// so projects and literature libraries share one picker.
+    /// Encodes the specific-startup target as "work:<uuid>" / "topic:<uuid>"
+    /// so works and literature libraries share one picker.
     private var specificSelection: Binding<String> {
         Binding(
             get: {
                 settings.startupSelectionKind == "topic"
                     ? "topic:\(settings.startupTopicID)"
-                    : "project:\(settings.startupProjectID)"
+                    : "work:\(settings.startupWorkID)"
             },
             set: { newValue in
                 if newValue.hasPrefix("topic:") {
                     settings.startupSelectionKind = "topic"
                     settings.startupTopicID = String(newValue.dropFirst("topic:".count))
-                } else if newValue.hasPrefix("project:") {
-                    settings.startupSelectionKind = "project"
-                    settings.startupProjectID = String(newValue.dropFirst("project:".count))
+                } else if newValue.hasPrefix("work:") {
+                    settings.startupSelectionKind = "work"
+                    settings.startupWorkID = String(newValue.dropFirst("work:".count))
                 }
             }
         )
@@ -75,11 +75,11 @@ struct GeneralSettingsTab: View {
             }
 
             SettingsCard(title: L10n.t(.startup), systemImage: "play.circle",
-                         subtitle: L10n.pick("Which project or library opens when the app launches.",
+                         subtitle: L10n.pick("Which work or library opens when the app launches.",
                                              "应用启动时打开哪个项目或文献库。")) {
                 VStack(alignment: .leading, spacing: 8) {
                     SettingsRow(title: L10n.t(.onLaunch), systemImage: "macwindow.on.rectangle") {
-                        Picker("", selection: $settings.startupProjectMode) {
+                        Picker("", selection: $settings.startupWorkMode) {
                             Text(L10n.t(.startupNone)).tag("none")
                             Text(L10n.t(.startupLast)).tag("last")
                             Text(L10n.t(.startupSpecific)).tag("specific")
@@ -87,13 +87,13 @@ struct GeneralSettingsTab: View {
                         .labelsHidden()
                         .fixedSize()
                     }
-                    if settings.startupProjectMode == "specific" {
+                    if settings.startupWorkMode == "specific" {
                         SettingsDivider()
-                        SettingsRow(title: L10n.t(.startupProject), systemImage: "folder") {
+                        SettingsRow(title: L10n.t(.startupWork), systemImage: "folder") {
                             Picker("", selection: specificSelection) {
-                                Section(L10n.pick("Projects", "项目")) {
-                                    ForEach(store.activeProjects) { project in
-                                        Text(project.name).tag("project:\(project.id.uuidString)")
+                                Section(L10n.pick("Works", "项目")) {
+                                    ForEach(store.activeWorks) { work in
+                                        Text(work.name).tag("work:\(work.id.uuidString)")
                                     }
                                 }
                                 Section(L10n.pick("Libraries", "文献库")) {
@@ -108,13 +108,13 @@ struct GeneralSettingsTab: View {
                     }
                 }
             }
-            .onChange(of: settings.startupProjectMode) {
-                guard settings.startupProjectMode == "specific" else { return }
-                let hasProject = !settings.startupProjectID.isEmpty
+            .onChange(of: settings.startupWorkMode) {
+                guard settings.startupWorkMode == "specific" else { return }
+                let hasWork = !settings.startupWorkID.isEmpty
                 let hasTopic = !settings.startupTopicID.isEmpty
-                if !hasProject && !hasTopic, let first = store.activeProjects.first {
-                    settings.startupSelectionKind = "project"
-                    settings.startupProjectID = first.id.uuidString
+                if !hasWork && !hasTopic, let first = store.activeWorks.first {
+                    settings.startupSelectionKind = "work"
+                    settings.startupWorkID = first.id.uuidString
                 }
             }
 

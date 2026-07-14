@@ -35,7 +35,7 @@ struct TopicEditorSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ProjectEditorHeader(
+            WorkEditorHeader(
                 title: existingID == nil ? L10n.pick("New Library", "新建文献库") : L10n.pick("Edit Library", "编辑文献库"),
                 subtitle: L10n.pick("Literature library settings", "文献库设置"),
                 initial: topicInitial,
@@ -71,29 +71,29 @@ struct TopicEditorSheet: View {
     }
 
     private var identityCard: some View {
-        ProjectEditorCard(title: L10n.pick("Identity", "基本信息"), systemImage: "books.vertical") {
-            ProjectEditorTextField(title: L10n.pick("Name", "名称"), text: $name,
+        WorkEditorCard(title: L10n.pick("Identity", "基本信息"), systemImage: "books.vertical") {
+            WorkEditorTextField(title: L10n.pick("Name", "名称"), text: $name,
                                    placeholder: L10n.pick("Library name", "文献库名称"))
-            ProjectEditorHelp(L10n.pick("Papers in this library are grouped under this name.",
+            WorkEditorHelp(L10n.pick("Papers in this library are grouped under this name.",
                                         "该文献库下的文献以此名称归类。"))
         }
     }
 
     private var fetchCard: some View {
-        ProjectEditorCard(title: L10n.pick("Fetching", "拉取"), systemImage: "magnifyingglass") {
-            ProjectEditorTextField(title: L10n.pick("Search Query", "检索式"), text: $query,
+        WorkEditorCard(title: L10n.pick("Fetching", "拉取"), systemImage: "magnifyingglass") {
+            WorkEditorTextField(title: L10n.pick("Search Query", "检索式"), text: $query,
                                    placeholder: L10n.pick("OpenAlex search terms", "OpenAlex 检索词"))
-            ProjectEditorHelp(L10n.pick("Used by Fetch to pull recent papers from OpenAlex.",
+            WorkEditorHelp(L10n.pick("Used by Fetch to pull recent papers from OpenAlex.",
                                         "“拉取”按钮据此从 OpenAlex 获取近期文献。"))
-            ProjectEditorTextField(title: L10n.pick("Keywords", "关键词"), text: $keywordsText,
+            WorkEditorTextField(title: L10n.pick("Keywords", "关键词"), text: $keywordsText,
                                    placeholder: L10n.pick("comma, separated, keywords", "逗号, 分隔, 关键词"))
-            ProjectEditorHelp(L10n.pick("Fetched papers must match at least one keyword.",
+            WorkEditorHelp(L10n.pick("Fetched papers must match at least one keyword.",
                                         "拉取的文献需至少匹配一个关键词。"))
         }
     }
 
     private var appearanceCard: some View {
-        ProjectEditorCard(title: L10n.pick("Appearance", "外观"), systemImage: "paintpalette") {
+        WorkEditorCard(title: L10n.pick("Appearance", "外观"), systemImage: "paintpalette") {
             VStack(alignment: .leading, spacing: 12) {
                 colorRow
                 iconGrid

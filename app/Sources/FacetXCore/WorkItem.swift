@@ -1,18 +1,18 @@
 import Foundation
 
 /// A reminder or calendar event, flattened for the UI and tagged with the
-/// project it belongs to (via the title prefix).
+/// work it belongs to (via the title prefix).
 ///
 /// Lives in FacetXCore — free of EventKit/SwiftUI — so the pure ordering and
 /// grouping logic in `ItemArrangement` can be unit-checked. `EventKitService`
 /// builds these value types from EKReminder/EKEvent inside its fetch callbacks.
-public struct ProjectItem: Identifiable, Hashable, Sendable {
+public struct WorkItem: Identifiable, Hashable, Sendable {
     public enum Kind: Sendable { case reminder, event }
     public let id: String          // EventKit calendarItemIdentifier
     public let kind: Kind
     public let rawTitle: String
-    public let projectPrefix: String   // the project prefix extracted from the title
-    public let content: String     // title with the project prefix stripped
+    public let workPrefix: String   // the work prefix extracted from the title
+    public let content: String     // title with the work prefix stripped
     public let containerName: String   // reminder list / calendar = functional zone
     public let isCompleted: Bool
     public let date: Date?         // due date (reminder) or start date (event)
@@ -29,7 +29,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     public let linkedDocumentPaths: [String]
     public let isPinned: Bool      // user-set pin; floats the item to the top of its section
 
-    public init(id: String, kind: Kind, rawTitle: String, projectPrefix: String,
+    public init(id: String, kind: Kind, rawTitle: String, workPrefix: String,
                  content: String, containerName: String, isCompleted: Bool, date: Date?,
                  notes: String?, tags: [String] = [], priority: Int, url: URL?,
                  hasTime: Bool = false,
@@ -41,7 +41,7 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         self.id = id
         self.kind = kind
         self.rawTitle = rawTitle
-        self.projectPrefix = projectPrefix
+        self.workPrefix = workPrefix
         self.content = content
         self.containerName = containerName
         self.isCompleted = isCompleted
@@ -77,12 +77,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
     /// Build a copy with a different kind. Used as a drag-preview placeholder
     /// when cross-section dragging in the All view — the real EventKit
     /// conversion happens on drop and replaces this stand-in with a fresh id.
-    public func replacingKind(_ kind: Kind) -> ProjectItem {
-        ProjectItem(
+    public func replacingKind(_ kind: Kind) -> WorkItem {
+        WorkItem(
             id: id,
             kind: kind,
             rawTitle: rawTitle,
-            projectPrefix: projectPrefix,
+            workPrefix: workPrefix,
             content: content,
             containerName: containerName,
             isCompleted: isCompleted,
@@ -102,12 +102,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         )
     }
 
-    public func replacingDate(_ date: Date, endDate: Date? = nil, hasTime: Bool? = nil) -> ProjectItem {
-        ProjectItem(
+    public func replacingDate(_ date: Date, endDate: Date? = nil, hasTime: Bool? = nil) -> WorkItem {
+        WorkItem(
             id: id,
             kind: kind,
             rawTitle: rawTitle,
-            projectPrefix: projectPrefix,
+            workPrefix: workPrefix,
             content: content,
             containerName: containerName,
             isCompleted: isCompleted,
@@ -127,12 +127,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         )
     }
 
-    public func replacingSchedule(_ date: Date, endDate: Date?, hasTime: Bool, isAllDay: Bool) -> ProjectItem {
-        ProjectItem(
+    public func replacingSchedule(_ date: Date, endDate: Date?, hasTime: Bool, isAllDay: Bool) -> WorkItem {
+        WorkItem(
             id: id,
             kind: kind,
             rawTitle: rawTitle,
-            projectPrefix: projectPrefix,
+            workPrefix: workPrefix,
             content: content,
             containerName: containerName,
             isCompleted: isCompleted,
@@ -154,12 +154,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
 
     /// Apply locally-stored state (pin flag + resolved completion) onto an item
     /// freshly built from EventKit. Used by the hydration pass in `EventKitService`.
-    public func applyingLocalState(isPinned: Bool, isCompleted: Bool) -> ProjectItem {
-        ProjectItem(
+    public func applyingLocalState(isPinned: Bool, isCompleted: Bool) -> WorkItem {
+        WorkItem(
             id: id,
             kind: kind,
             rawTitle: rawTitle,
-            projectPrefix: projectPrefix,
+            workPrefix: workPrefix,
             content: content,
             containerName: containerName,
             isCompleted: isCompleted,
@@ -183,12 +183,12 @@ public struct ProjectItem: Identifiable, Hashable, Sendable {
         FacetItemReference(itemID: facetID ?? UUID().uuidString)
     }
 
-    public func withMergedMetadata(notes: String?, tags: [String], paperIDs: [String], commits: [String], documentPaths: [String] = []) -> ProjectItem {
-        ProjectItem(
+    public func withMergedMetadata(notes: String?, tags: [String], paperIDs: [String], commits: [String], documentPaths: [String] = []) -> WorkItem {
+        WorkItem(
             id: id,
             kind: kind,
             rawTitle: rawTitle,
-            projectPrefix: projectPrefix,
+            workPrefix: workPrefix,
             content: content,
             containerName: containerName,
             isCompleted: isCompleted,

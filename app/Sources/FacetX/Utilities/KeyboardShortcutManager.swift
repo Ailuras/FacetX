@@ -6,15 +6,15 @@ extension Notification.Name {
     static let focusSearchField = Notification.Name("com.facetx.focusSearchField")
     static let navigateToPaper = Notification.Name("com.facetx.navigateToPaper")
     static let selectPaperInTopic = Notification.Name("com.facetx.selectPaperInTopic")
-    static let navigateToProjectPrefix = Notification.Name("com.facetx.navigateToProjectPrefix")
-    static let selectItemInProject = Notification.Name("com.facetx.selectItemInProject")
-    static let selectItemInProjectDetail = Notification.Name("com.facetx.selectItemInProjectDetail")
+    static let navigateToWorkPrefix = Notification.Name("com.facetx.navigateToWorkPrefix")
+    static let selectItemInWork = Notification.Name("com.facetx.selectItemInWork")
+    static let selectItemInWorkDetail = Notification.Name("com.facetx.selectItemInWorkDetail")
 }
 
 /// Commands emitted by the keyboard shortcut system.
 enum KeyboardCommand {
     // Navigation
-    case today, prevProject, nextProject
+    case today, prevWork, nextWork
     // View mode
     case modeAll, modePlan, modeGit, modeNotes
     // Window actions

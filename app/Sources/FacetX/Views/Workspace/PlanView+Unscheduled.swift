@@ -2,7 +2,7 @@ import FacetXCore
 import SwiftUI
 
 extension PlanView {
-    var unscheduledScopedItems: [ProjectItem] {
+    var unscheduledScopedItems: [WorkItem] {
         var result = allItems.filter { item in
             item.kind == .reminder
                 && item.kind == .reminder
@@ -33,7 +33,7 @@ extension PlanView {
             .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
-                    .stroke(ProjectItem.Kind.reminder.color.opacity(0.18), lineWidth: 1)
+                    .stroke(WorkItem.Kind.reminder.color.opacity(0.18), lineWidth: 1)
             )
         }
     }
@@ -61,10 +61,10 @@ extension PlanView {
 
             Text("\(unscheduledScopedItems.count)")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(ProjectItem.Kind.reminder.color)
+                .foregroundStyle(WorkItem.Kind.reminder.color)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(ProjectItem.Kind.reminder.color.opacity(0.12))
+                .background(WorkItem.Kind.reminder.color.opacity(0.12))
                 .clipShape(Capsule())
 
             Spacer(minLength: 0)
@@ -72,11 +72,11 @@ extension PlanView {
         .frame(minHeight: 24)
     }
 
-    private func unscheduledRow(_ item: ProjectItem) -> some View {
+    private func unscheduledRow(_ item: WorkItem) -> some View {
         HStack(spacing: 8) {
             StandardItemRow(
                 item: item,
-                projectPrefix: project.prefix,
+                workPrefix: work.prefix,
                 selectedItem: $selectedItem,
                 inlineEdit: $inlineEdit,
                 onDragStart: {
@@ -131,7 +131,7 @@ extension PlanView {
         .opacity(draggedItem?.id == item.id ? 0.32 : 1.0)
     }
 
-    private func unscheduledQuickScheduleButton(item: ProjectItem, title: String, systemImage: String, date: Date) -> some View {
+    private func unscheduledQuickScheduleButton(item: WorkItem, title: String, systemImage: String, date: Date) -> some View {
         Button {
             scheduleUnscheduledItem(item, to: date)
         } label: {
@@ -141,14 +141,14 @@ extension PlanView {
                 .contentShape(Rectangle())
                 .facetHoverSurface(tint: .secondary,
                                    fill: Color.primary.opacity(0.04),
-                                   hoverFill: ProjectItem.Kind.reminder.color.opacity(0.12),
-                                   hoverStroke: ProjectItem.Kind.reminder.color.opacity(0.30))
+                                   hoverFill: WorkItem.Kind.reminder.color.opacity(0.12),
+                                   hoverStroke: WorkItem.Kind.reminder.color.opacity(0.30))
         }
         .buttonStyle(.plain)
         .help(L10n.pick("Schedule to \(title)", "安排到\(title)"))
     }
 
-    private func scheduleUnscheduledItem(_ item: ProjectItem, to date: Date) {
+    private func scheduleUnscheduledItem(_ item: WorkItem, to date: Date) {
         withAnimation(listAnimation) {
             if let index = allItems.firstIndex(where: { $0.id == item.id }) {
                 allItems[index] = item.replacingDate(date)
@@ -169,7 +169,7 @@ extension PlanView {
         dropTargetDate = nil
     }
 
-    private func pinnedFirst(_ items: [ProjectItem]) -> [ProjectItem] {
+    private func pinnedFirst(_ items: [WorkItem]) -> [WorkItem] {
         items.filter(\.isPinned) + items.filter { !$0.isPinned }
     }
 

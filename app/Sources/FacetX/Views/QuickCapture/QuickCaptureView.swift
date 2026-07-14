@@ -1,12 +1,12 @@
 import FacetXCore
 import SwiftUI
 
-/// Menu-bar quick-capture: jot one item into a project in seconds without
+/// Menu-bar quick-capture: jot one item into a work in seconds without
 /// opening the main window. Supports reminders or schedule events, a quick due
-/// date, and inline tags. The project decides the target list/calendar.
+/// date, and inline tags. The work decides the target list/calendar.
 struct QuickCaptureView: View {
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var store: WorkStore
     @EnvironmentObject private var settings: AppSettings
 
     private enum CaptureKind: CaseIterable {
@@ -36,15 +36,15 @@ struct QuickCaptureView: View {
 
     @State private var text = ""
     @State private var tagsText = ""
-    @State private var projectID: Project.ID?
+    @State private var workID: Work.ID?
     @State private var captureKind: CaptureKind = .reminder
     @State private var quickDate: QuickDate = .none
     @State private var justAdded = false
     @State private var error: String?
     @FocusState private var fieldFocused: Bool
 
-    private var project: Project? {
-        store.activeProjects.first { $0.id == projectID } ?? store.activeProjects.first
+    private var work: Work? {
+        store.activeWorks.first { $0.id == workID } ?? store.activeWorks.first
     }
 
     /// Events must land on a day, so the "no date" option is reminder-only.
@@ -56,7 +56,7 @@ struct QuickCaptureView: View {
         VStack(alignment: .leading, spacing: 11) {
             header
 
-            if store.activeProjects.isEmpty {
+            if store.activeWorks.isEmpty {
                 emptyState
             } else {
                 kindPicker
@@ -89,7 +89,7 @@ struct QuickCaptureView: View {
     }
 
     private var emptyState: some View {
-        Text(L10n.pick("No projects yet. Open FacetX and create one.", "暂无项目。打开 FacetX 创建一个。"))
+        Text(L10n.pick("No works yet. Open FacetX and create one.", "暂无项目。打开 FacetX 创建一个。"))
             .font(.caption)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -120,13 +120,13 @@ struct QuickCaptureView: View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
                 Picker("", selection: Binding(
-                    get: { project?.id ?? store.activeProjects.first?.id },
-                    set: { projectID = $0 }
+                    get: { work?.id ?? store.activeWorks.first?.id },
+                    set: { workID = $0 }
                 )) {
-                    ForEach(store.activeProjects) { Text($0.name).tag(Optional($0.id)) }
+                    ForEach(store.activeWorks) { Text($0.name).tag(Optional($0.id)) }
                 }
                 .labelsHidden()
-                .help(L10n.pick("Select project", "选择项目"))
+                .help(L10n.pick("Select work", "选择项目"))
                 .frame(width: 106, alignment: .leading)
 
                 Rectangle()
@@ -180,7 +180,7 @@ struct QuickCaptureView: View {
             HStack(spacing: 6) {
                 Image(systemName: "return")
                     .font(.system(size: 11, weight: .semibold))
-                Text(L10n.pick("Add to \(project?.name ?? "project")", "添加到 \(project?.name ?? "项目")"))
+                Text(L10n.pick("Add to \(work?.name ?? "work")", "添加到 \(work?.name ?? "项目")"))
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
             }
@@ -262,11 +262,11 @@ struct QuickCaptureView: View {
     // MARK: - Actions
 
     private var canAdd: Bool {
-        project != nil && !text.trimmingCharacters(in: .whitespaces).isEmpty
+        work != nil && !text.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private func add() {
-        guard let project else { return }
+        guard let work else { return }
         let content = text.trimmingCharacters(in: .whitespaces)
         guard !content.isEmpty else { return }
 
@@ -278,26 +278,26 @@ struct QuickCaptureView: View {
             let created: String?
             switch captureKind {
             case .reminder:
-                let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
+                let listName = settings.reminderSaveTarget(workListName: work.reminderListName)
                 guard !listName.isEmpty else {
-                    error = L10n.pick("Choose a reminder list for this project.", "请为该项目选择一个提醒事项列表。")
+                    error = L10n.pick("Choose a reminder list for this work.", "请为该项目选择一个提醒事项列表。")
                     return
                 }
                 created = await ek.createReminder(
-                    project: project.prefix, content: content,
+                    work: work.prefix, content: content,
                     listName: listName, dueDate: day, dueIncludesTime: false,
                     tags: tags,
                     enabledLists: settings.effectiveReminderListNames
                 )
             case .event:
-                let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
+                let calName = settings.calendarSaveTarget(workCalendarName: work.calendarName)
                 guard !calName.isEmpty else {
-                    error = L10n.pick("Choose a calendar for this project.", "请为该项目选择一个日历。")
+                    error = L10n.pick("Choose a calendar for this work.", "请为该项目选择一个日历。")
                     return
                 }
                 let start = day ?? Calendar.current.startOfDay(for: Date())
                 created = await ek.createEvent(
-                    project: project.prefix, content: content,
+                    work: work.prefix, content: content,
                     calendarName: calName, startDate: start,
                     durationMinutes: settings.defaultEventDurationMinutes,
                     tags: tags,

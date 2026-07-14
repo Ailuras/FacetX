@@ -67,11 +67,11 @@ struct InlineEditTextField: NSViewRepresentable {
 struct ItemRow: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var focus: FocusService
-    let item: ProjectItem
+    let item: WorkItem
     let isSelected: Bool
-    /// When set (cross-project views like Today), shows the owning project as a
-    /// small chip next to the content. Nil inside a single project's list.
-    let projectBadge: String?
+    /// When set (cross-work views like Today), shows the owning work as a
+    /// small chip next to the content. Nil inside a single work's list.
+    let workBadge: String?
     let showDragGrip: Bool
     let onDragStart: (() -> NSItemProvider)?
     let onToggle: (Bool) -> Void
@@ -86,9 +86,9 @@ struct ItemRow: View {
 
     @State private var hovered = false
 
-    init(item: ProjectItem,
+    init(item: WorkItem,
          isSelected: Bool = false,
-         projectBadge: String? = nil,
+         workBadge: String? = nil,
          showDragGrip: Bool = false,
          onDragStart: (() -> NSItemProvider)? = nil,
          onToggle: @escaping (Bool) -> Void,
@@ -100,7 +100,7 @@ struct ItemRow: View {
          onInlineCancel: (() -> Void)? = nil) {
         self.item = item
         self.isSelected = isSelected
-        self.projectBadge = projectBadge
+        self.workBadge = workBadge
         self.showDragGrip = showDragGrip
         self.onDragStart = onDragStart
         self.onToggle = onToggle
@@ -226,8 +226,8 @@ struct ItemRow: View {
                                 .foregroundStyle(item.isCompleted ? .secondary : .primary)
                                 .lineLimit(1)
 
-                            if let projectBadge {
-                                Text(projectBadge)
+                            if let workBadge {
+                                Text(workBadge)
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(Color.accentColor)
                                     .lineLimit(1)
@@ -421,9 +421,9 @@ struct ItemRow: View {
 /// on enter to update an optimistic preview (same-kind reorder OR cross-kind
 /// kind-swap), and onDrop to commit whatever the preview ended up as.
 struct ItemDropDelegate: DropDelegate {
-    let item: ProjectItem
-    @Binding var draggedItem: ProjectItem?
-    var onEntered: (ProjectItem, ProjectItem) -> Void
+    let item: WorkItem
+    @Binding var draggedItem: WorkItem?
+    var onEntered: (WorkItem, WorkItem) -> Void
     var onDrop: () -> Void
 
     func performDrop(info: DropInfo) -> Bool {

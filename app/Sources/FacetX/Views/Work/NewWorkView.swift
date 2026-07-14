@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct NewProjectView: View {
-    let draft: ProjectDraft
+struct NewWorkView: View {
+    let draft: WorkDraft
     let onCreate: (String, String?, String, String?, String?, String?, String, String, String?, String?) -> Void
     let onCancel: () -> Void
 
@@ -16,7 +16,7 @@ struct NewProjectView: View {
     @State private var colorName: String
     @State private var iconName: String
 
-    init(draft: ProjectDraft,
+    init(draft: WorkDraft,
          onCreate: @escaping (String, String?, String, String?, String?, String?, String, String, String?, String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.draft = draft
@@ -36,12 +36,12 @@ struct NewProjectView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ProjectEditorHeader(title: L10n.pick("New Project", "新建项目"),
+            WorkEditorHeader(title: L10n.pick("New Work", "新建项目"),
                                 subtitle: L10n.pick("Create a facet over Calendar and Reminders",
                                                     "为日历与提醒事项创建一个分面"),
-                                initial: projectInitial,
-                                tint: ProjectAppearance.color(for: colorName),
-                                systemImage: ProjectAppearance.iconName(for: iconName))
+                                initial: workInitial,
+                                tint: WorkAppearance.color(for: colorName),
+                                systemImage: WorkAppearance.iconName(for: iconName))
             Divider().opacity(0.7)
 
             ScrollView {
@@ -73,32 +73,32 @@ struct NewProjectView: View {
     }
 
     private var identityCard: some View {
-        ProjectEditorCard(title: L10n.pick("Identity", "标识"), systemImage: "folder") {
-            ProjectEditorTextField(title: L10n.pick("Name", "名称"), text: $name, placeholder: L10n.pick("Project name", "项目名称"))
-            ProjectEditorTextField(title: L10n.pick("Prefix", "前缀"), text: $prefix, placeholder: L10n.pick("Prefix", "前缀"))
-            ProjectEditorHelp(L10n.pick("Items whose title starts with “\(effectivePrefix):” belong to this project.",
+        WorkEditorCard(title: L10n.pick("Identity", "标识"), systemImage: "folder") {
+            WorkEditorTextField(title: L10n.pick("Name", "名称"), text: $name, placeholder: L10n.pick("Work name", "项目名称"))
+            WorkEditorTextField(title: L10n.pick("Prefix", "前缀"), text: $prefix, placeholder: L10n.pick("Prefix", "前缀"))
+            WorkEditorHelp(L10n.pick("Items whose title starts with “\(effectivePrefix):” belong to this work.",
                                         "标题以“\(effectivePrefix):”开头的条目属于该项目。"))
-            ProjectEditorTextField(title: L10n.pick("Tagline", "标语"), text: $tagline, placeholder: L10n.pick("Short description", "简短描述"))
+            WorkEditorTextField(title: L10n.pick("Tagline", "标语"), text: $tagline, placeholder: L10n.pick("Short description", "简短描述"))
         }
     }
 
     private var appearanceCard: some View {
-        ProjectEditorCard(title: L10n.pick("Appearance", "外观"), systemImage: "paintpalette") {
-            ProjectEditorAppearancePicker(colorName: $colorName, iconName: $iconName, initial: projectInitial)
+        WorkEditorCard(title: L10n.pick("Appearance", "外观"), systemImage: "paintpalette") {
+            WorkEditorAppearancePicker(colorName: $colorName, iconName: $iconName, initial: workInitial)
         }
     }
 
     private var saveLocationsCard: some View {
-        ProjectEditorCard(title: L10n.pick("Save Locations", "保存位置"), systemImage: "tray.and.arrow.down") {
-            ProjectEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: draft.reminderLists)
-            ProjectEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: draft.calendars)
-            ProjectEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: draft.calendars)
+        WorkEditorCard(title: L10n.pick("Save Locations", "保存位置"), systemImage: "tray.and.arrow.down") {
+            WorkEditorPicker(title: L10n.pick("Reminders", "提醒事项"), selection: $reminderListName, options: draft.reminderLists)
+            WorkEditorPicker(title: L10n.pick("Calendar", "日历"), selection: $calendarName, options: draft.calendars)
+            WorkEditorPicker(title: L10n.pick("Goal Calendar", "目标日历"), selection: $weekGoalCalendarName, options: draft.calendars)
         }
     }
 
     private var integrationsCard: some View {
-        ProjectEditorCard(title: L10n.pick("Integrations", "集成"), systemImage: "curlybraces") {
-            ProjectEditorGitHubRepoPicker(selection: $githubRepo, localPath: $githubLocalPath)
+        WorkEditorCard(title: L10n.pick("Integrations", "集成"), systemImage: "curlybraces") {
+            WorkEditorGitHubRepoPicker(selection: $githubRepo, localPath: $githubLocalPath)
         }
     }
 
@@ -114,7 +114,7 @@ struct NewProjectView: View {
         trimmedPrefix.isEmpty ? (trimmedName.isEmpty ? "..." : trimmedName) : trimmedPrefix
     }
 
-    private var projectInitial: String {
+    private var workInitial: String {
         trimmedName.first.map { String($0).uppercased() } ?? "F"
     }
 

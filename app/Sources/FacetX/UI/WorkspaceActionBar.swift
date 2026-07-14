@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The shared shell for the context/action row at the top of every project
+/// The shared shell for the context/action row at the top of every work
 /// workspace.
 struct WorkspaceActionBar<Content: View>: View {
     private let content: Content

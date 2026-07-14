@@ -104,8 +104,8 @@ extension PlanView {
                 }
 
                 HStack(spacing: 3) {
-                    monthKindDot(count: items.filter { $0.kind == .event }.count, color: ProjectItem.Kind.event.color)
-                    monthKindDot(count: items.filter { $0.kind == .reminder }.count, color: ProjectItem.Kind.reminder.color)
+                    monthKindDot(count: items.filter { $0.kind == .event }.count, color: WorkItem.Kind.event.color)
+                    monthKindDot(count: items.filter { $0.kind == .reminder }.count, color: WorkItem.Kind.reminder.color)
                     Spacer(minLength: 0)
                 }
                 .frame(height: 6)

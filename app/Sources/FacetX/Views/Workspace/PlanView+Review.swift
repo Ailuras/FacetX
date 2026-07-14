@@ -9,7 +9,7 @@ enum WeeklyReviewDocumentResult {
 }
 
 extension PlanView {
-    func carryOpenTasksToNextWeek(_ tasks: [ProjectItem]) async -> Int {
+    func carryOpenTasksToNextWeek(_ tasks: [WorkItem]) async -> Int {
         let calendar = Calendar.current
         var moved = 0
         for item in tasks where item.kind == .reminder && !item.isCompleted {
@@ -18,7 +18,7 @@ extension PlanView {
             let newStart = ItemActionHelpers.startDate(for: item, toDay: nextDate, calendar: calendar)
             let success = await ek.updateItem(
                 id: item.id,
-                project: item.projectPrefix,
+                work: item.workPrefix,
                 content: item.content,
                 date: newStart,
                 useDate: true,
@@ -41,18 +41,18 @@ extension PlanView {
         let relativePath = ".facetx/review-\(week.id).md"
         do {
             let existed = RepositoryDocumentStore.exists(
-                repositoryPath: project.githubLocalPath,
+                repositoryPath: work.githubLocalPath,
                 relativePath: relativePath
             )
             if !existed {
                 try RepositoryDocumentStore.save(
-                    repositoryPath: project.githubLocalPath,
+                    repositoryPath: work.githubLocalPath,
                     relativePath: relativePath,
                     body: body
                 )
             }
             let url = try RepositoryDocumentStore.url(
-                repositoryPath: project.githubLocalPath,
+                repositoryPath: work.githubLocalPath,
                 relativePath: relativePath
             )
             NSWorkspace.shared.open(url)
@@ -67,11 +67,11 @@ struct PlanReviewSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
 
-    let project: Project
+    let work: Work
     let week: ISOWeek
     let goal: WeekGoal?
-    let items: [ProjectItem]
-    let onCarryOpenTasks: ([ProjectItem]) async -> Int
+    let items: [WorkItem]
+    let onCarryOpenTasks: ([WorkItem]) async -> Int
     let onCreateWeeklyDocument: (String) async -> WeeklyReviewDocumentResult
 
     @State private var commits: [GitHubCommit] = []
@@ -81,15 +81,15 @@ struct PlanReviewSheet: View {
     @State private var creatingDocument = false
     @State private var statusMessage: String?
 
-    private var completedTasks: [ProjectItem] {
+    private var completedTasks: [WorkItem] {
         items.filter { $0.kind == .reminder && $0.isCompleted }
     }
 
-    private var openTasks: [ProjectItem] {
+    private var openTasks: [WorkItem] {
         items.filter { $0.kind == .reminder && !$0.isCompleted }
     }
 
-    private var overdueTasks: [ProjectItem] {
+    private var overdueTasks: [WorkItem] {
         openTasks.filter(\.isOverdue)
     }
 
@@ -137,7 +137,7 @@ struct PlanReviewSheet: View {
         .frame(width: 560)
         .frame(minHeight: 560)
         .background(FacetTheme.canvas)
-        .task(id: "\(project.githubRepo ?? "")-\(week.id)") {
+        .task(id: "\(work.githubRepo ?? "")-\(week.id)") {
             await loadCommits()
         }
     }
@@ -225,7 +225,7 @@ struct PlanReviewSheet: View {
     }
 
     private var taskSection: some View {
-        reviewSection(title: L10n.pick("Tasks", "任务"), systemImage: ProjectItem.Kind.reminder.systemImage) {
+        reviewSection(title: L10n.pick("Tasks", "任务"), systemImage: WorkItem.Kind.reminder.systemImage) {
             reviewList(title: L10n.pick("Completed", "已完成"), items: completedTasks, empty: L10n.pick("No completed tasks.", "暂无已完成任务。"))
             Divider().opacity(0.45)
             reviewList(title: L10n.pick("Still Open", "仍未完成"), items: openTasks, empty: L10n.pick("No open tasks.", "暂无未完成任务。"))
@@ -249,7 +249,7 @@ struct PlanReviewSheet: View {
             } else if let commitError {
                 emptyLine(commitError)
             } else if commits.isEmpty {
-                emptyLine(project.githubRepo == nil
+                emptyLine(work.githubRepo == nil
                           ? L10n.pick("No repository configured.", "尚未配置仓库。")
                           : L10n.pick("No commits this week.", "本周暂无提交。"))
             } else {
@@ -292,7 +292,7 @@ struct PlanReviewSheet: View {
         )
     }
 
-    private func reviewList(title: String, items: [ProjectItem], empty: String) -> some View {
+    private func reviewList(title: String, items: [WorkItem], empty: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("\(title) · \(items.count)")
                 .font(.system(size: 11, weight: .semibold))
@@ -371,7 +371,7 @@ struct PlanReviewSheet: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .disabled(creatingDocument || carrying || project.githubLocalPath == nil)
+            .disabled(creatingDocument || carrying || work.githubLocalPath == nil)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -398,7 +398,7 @@ struct PlanReviewSheet: View {
     }
 
     private func loadCommits() async {
-        guard let repo = project.githubRepo?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let repo = work.githubRepo?.trimmingCharacters(in: .whitespacesAndNewlines),
               !repo.isEmpty else {
             commits = []
             commitError = nil
@@ -433,7 +433,7 @@ struct PlanReviewSheet: View {
         """
         # \(L10n.pick("Weekly Review", "周回顾")) \(week.id)
 
-        **\(L10n.pick("Project", "项目")):** \(project.name)
+        **\(L10n.pick("Work", "项目")):** \(work.name)
         **\(L10n.pick("Range", "范围")):** \(weekRangeLabel)
 
         ## \(L10n.pick("Goal", "目标"))
@@ -468,7 +468,7 @@ struct PlanReviewSheet: View {
         return "\n\(body)"
     }
 
-    private func markdownItems(_ items: [ProjectItem], empty: String) -> String {
+    private func markdownItems(_ items: [WorkItem], empty: String) -> String {
         guard !items.isEmpty else { return empty }
         return items.map { "- \($0.content)" }.joined(separator: "\n")
     }

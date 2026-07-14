@@ -4,22 +4,22 @@ import Foundation
 
 /// Shared data source for the desktop widget and the menu bar badge.
 ///
-/// Fetches every active project's items once and derives today/overdue/goal
+/// Fetches every active work's items once and derives today/overdue/goal
 /// slices from that single snapshot, refreshing on EventKit changes, settings
-/// changes, project edits, and a minute tick (so "today" and overdue states
+/// changes, work edits, and a minute tick (so "today" and overdue states
 /// roll over without user interaction).
 @MainActor
 final class WidgetDataModel: ObservableObject {
-    @Published private(set) var items: [ProjectItem] = []
+    @Published private(set) var items: [WorkItem] = []
     @Published private(set) var lastRefreshed: Date?
 
     private weak var eventKit: EventKitService?
-    private weak var store: ProjectStore?
+    private weak var store: WorkStore?
     private weak var settings: AppSettings?
     private var cancellables: Set<AnyCancellable> = []
     private var configured = false
 
-    func configure(eventKit: EventKitService, store: ProjectStore, settings: AppSettings) {
+    func configure(eventKit: EventKitService, store: WorkStore, settings: AppSettings) {
         guard !configured else { return }
         configured = true
         self.eventKit = eventKit
@@ -38,7 +38,7 @@ final class WidgetDataModel: ObservableObject {
             .sink { [weak self] _ in self?.scheduleReload() }
             .store(in: &cancellables)
 
-        store.$projects
+        store.$works
             .dropFirst()
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in self?.scheduleReload() }
@@ -58,9 +58,9 @@ final class WidgetDataModel: ObservableObject {
 
     func reload() async {
         guard let eventKit, let store, let settings else { return }
-        let prefixes = Set(store.activeProjects.map(\.prefix))
+        let prefixes = Set(store.activeWorks.map(\.prefix))
         let fetched = await eventKit.items(
-            forProjects: prefixes,
+            forWorks: prefixes,
             enabledReminderLists: settings.effectiveReminderListNames,
             enabledCalendars: settings.effectiveCalendarNames
         )
@@ -71,7 +71,7 @@ final class WidgetDataModel: ObservableObject {
     /// Toggle a reminder's completion, optimistically flipping the local
     /// snapshot so the widget responds instantly; EventKit's change token then
     /// reconciles through the normal reload path.
-    func setCompleted(_ completed: Bool, item: ProjectItem) {
+    func setCompleted(_ completed: Bool, item: WorkItem) {
         guard item.kind == .reminder, let eventKit else { return }
         if let idx = items.firstIndex(where: { $0.id == item.id }) {
             items[idx] = item.applyingLocalState(isPinned: item.isPinned, isCompleted: completed)
@@ -83,7 +83,7 @@ final class WidgetDataModel: ObservableObject {
 
     /// Everything happening today (open reminders due today + today's events),
     /// timed items sorted by time, untimed/all-day first.
-    var todayItems: [ProjectItem] {
+    var todayItems: [WorkItem] {
         ItemQuery.todayItems(items, includeCompletedReminders: true)
             .sorted { a, b in
                 let aTimed = a.hasTime && !a.isAllDay
@@ -96,7 +96,7 @@ final class WidgetDataModel: ObservableObject {
     }
 
     /// Open reminders whose due date is in the past (before today).
-    var overdueItems: [ProjectItem] {
+    var overdueItems: [WorkItem] {
         items.filter { $0.isOverdue && !Calendar.current.isDateInToday($0.date ?? .distantPast) }
             .sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
     }
@@ -127,12 +127,12 @@ final class WidgetDataModel: ObservableObject {
         todayOpenCount + overdueItems.count
     }
 
-    /// Current-week goals across active projects, in sidebar order.
-    var currentWeekGoals: [(project: Project, goal: WeekGoal)] {
+    /// Current-week goals across active works, in sidebar order.
+    var currentWeekGoals: [(work: Work, goal: WeekGoal)] {
         guard let store else { return [] }
         let weekId = ISOWeek.containing(Date()).id
-        return store.activeProjects.compactMap { project in
-            project.weekGoals.first { $0.weekId == weekId }.map { (project, $0) }
+        return store.activeWorks.compactMap { work in
+            work.weekGoals.first { $0.weekId == weekId }.map { (work, $0) }
         }
     }
 }

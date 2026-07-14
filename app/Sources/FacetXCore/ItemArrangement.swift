@@ -29,7 +29,7 @@ public enum PlanSortOption: String, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
 }
 
-/// Pure ordering, grouping and date filtering for a project's items. Kept free
+/// Pure ordering, grouping and date filtering for a work's items. Kept free
 /// of SwiftUI and EventKit so it can be unit-checked in FacetXCoreChecks — these
 /// are the rules most prone to silent regressions.
 public enum ItemArrangement {
@@ -37,16 +37,16 @@ public enum ItemArrangement {
     /// A zone (container) and the items it holds, for the grouped list view.
     public struct ZoneGroup: Identifiable, Equatable {
         public let zone: String
-        public let items: [ProjectItem]
+        public let items: [WorkItem]
         public var id: String { zone }
-        public init(zone: String, items: [ProjectItem]) {
+        public init(zone: String, items: [WorkItem]) {
             self.zone = zone
             self.items = items
         }
     }
 
     /// Sort by the given option, falling back to arranged() defaults for ties.
-    public static func sorted(_ items: [ProjectItem], by option: SortOption, savedOrder: [String] = []) -> [ProjectItem] {
+    public static func sorted(_ items: [WorkItem], by option: SortOption, savedOrder: [String] = []) -> [WorkItem] {
         switch option {
         case .manual:
             return arranged(items, savedOrder: savedOrder)
@@ -76,7 +76,7 @@ public enum ItemArrangement {
         }
     }
 
-    public static func sorted(_ items: [ProjectItem], by option: PlanSortOption, savedOrder: [String] = []) -> [ProjectItem] {
+    public static func sorted(_ items: [WorkItem], by option: PlanSortOption, savedOrder: [String] = []) -> [WorkItem] {
         switch option {
         case .manual:
             return arranged(items, savedOrder: savedOrder)
@@ -89,9 +89,9 @@ public enum ItemArrangement {
         }
     }
 
-    /// The all-items order: incomplete before completed, then the project's saved
+    /// The all-items order: incomplete before completed, then the work's saved
     /// manual order, then earliest date as a tiebreaker. Undated items sort last.
-    public static func arranged(_ items: [ProjectItem], savedOrder: [String]) -> [ProjectItem] {
+    public static func arranged(_ items: [WorkItem], savedOrder: [String]) -> [WorkItem] {
         // Precompute id → rank so each comparison is O(1) instead of scanning
         // savedOrder, keeping the overall sort at O(n log n).
         var rank = [String: Int](minimumCapacity: savedOrder.count)
@@ -106,7 +106,7 @@ public enum ItemArrangement {
     }
 
     /// Incomplete before completed, then earliest date. Used by date-scoped views.
-    public static func byDate(_ items: [ProjectItem]) -> [ProjectItem] {
+    public static func byDate(_ items: [WorkItem]) -> [WorkItem] {
         items.sorted { a, b in
             if a.isCompleted != b.isCompleted { return !a.isCompleted }
             return (a.date ?? .distantFuture) < (b.date ?? .distantFuture)
@@ -116,14 +116,14 @@ public enum ItemArrangement {
     /// Group items by container, preserving each item's incoming order within a
     /// group and sorting the groups by zone name. Pass already-arranged items so
     /// the per-group order is meaningful.
-    public static func groupedByZone(_ items: [ProjectItem]) -> [ZoneGroup] {
+    public static func groupedByZone(_ items: [WorkItem]) -> [ZoneGroup] {
         Dictionary(grouping: items, by: \.containerName)
             .map { ZoneGroup(zone: $0.key, items: $0.value) }
             .sorted { $0.zone < $1.zone }
     }
 
     /// The subset of items whose date falls within `week`, ordered by date.
-    public static func inWeek(_ items: [ProjectItem], _ week: ISOWeek) -> [ProjectItem] {
+    public static func inWeek(_ items: [WorkItem], _ week: ISOWeek) -> [WorkItem] {
         byDate(items.filter { item in
             guard let d = item.date else { return false }
             return week.contains(d)
@@ -131,14 +131,14 @@ public enum ItemArrangement {
     }
 
     /// The subset of items whose date falls within `month`, ordered by date.
-    public static func inMonth(_ items: [ProjectItem], _ month: MonthYear) -> [ProjectItem] {
+    public static func inMonth(_ items: [WorkItem], _ month: MonthYear) -> [WorkItem] {
         byDate(items.filter { item in
             guard let d = item.date else { return false }
             return month.contains(d)
         })
     }
 
-    private static func completionRank(_ item: ProjectItem) -> Int {
+    private static func completionRank(_ item: WorkItem) -> Int {
         item.isCompleted ? 1 : 0
     }
 
@@ -148,22 +148,22 @@ public enum ItemArrangement {
         return rank
     }
 
-    private static func manualRank(_ item: ProjectItem, ranks: [String: Int]) -> Int {
+    private static func manualRank(_ item: WorkItem, ranks: [String: Int]) -> Int {
         ranks[item.id] ?? Int.max
     }
 
-    private static func priorityRank(_ item: ProjectItem) -> Int {
+    private static func priorityRank(_ item: WorkItem) -> Int {
         item.priority == 0 ? Int.max : item.priority
     }
 
-    private static func kindRank(_ item: ProjectItem) -> Int {
+    private static func kindRank(_ item: WorkItem) -> Int {
         switch item.kind {
         case .event: return 0
         case .reminder: return 1
         }
     }
 
-    private static func compareFallback(_ a: ProjectItem, _ b: ProjectItem, ranks: [String: Int]) -> Bool {
+    private static func compareFallback(_ a: WorkItem, _ b: WorkItem, ranks: [String: Int]) -> Bool {
         let ra = manualRank(a, ranks: ranks)
         let rb = manualRank(b, ranks: ranks)
         if ra != rb { return ra < rb }
@@ -172,7 +172,7 @@ public enum ItemArrangement {
         return a.id < b.id
     }
 
-    private static func planScheduleComparator(savedOrder: [String]) -> (ProjectItem, ProjectItem) -> Bool {
+    private static func planScheduleComparator(savedOrder: [String]) -> (WorkItem, WorkItem) -> Bool {
         let ranks = manualRanks(savedOrder)
         return { a, b in
             let ca = completionRank(a)
@@ -187,7 +187,7 @@ public enum ItemArrangement {
         }
     }
 
-    private static func priorityComparator(savedOrder: [String]) -> (ProjectItem, ProjectItem) -> Bool {
+    private static func priorityComparator(savedOrder: [String]) -> (WorkItem, WorkItem) -> Bool {
         let ranks = manualRanks(savedOrder)
         return { a, b in
             let ca = completionRank(a)
@@ -203,7 +203,7 @@ public enum ItemArrangement {
         }
     }
 
-    private static func kindComparator(savedOrder: [String]) -> (ProjectItem, ProjectItem) -> Bool {
+    private static func kindComparator(savedOrder: [String]) -> (WorkItem, WorkItem) -> Bool {
         let ranks = manualRanks(savedOrder)
         return { a, b in
             let ca = completionRank(a)

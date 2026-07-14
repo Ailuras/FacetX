@@ -2,13 +2,13 @@ import AppKit
 import FacetXCore
 import SwiftUI
 
-struct ProjectDetailView: View {
+struct WorkDetailView: View {
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var store: WorkStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     @EnvironmentObject private var focus: FocusService
-    let project: Project
+    let work: Work
     let showTodayPanel: Binding<Bool>
     let showAssistantPanel: Binding<Bool>
     let todayFullscreen: Binding<Bool>
@@ -22,44 +22,44 @@ struct ProjectDetailView: View {
     }
 
     @State private var mode: Mode = .all
-    @State private var items: [ProjectItem] = []
+    @State private var items: [WorkItem] = []
     @State private var loading = false
     @State private var inlineEdit = ItemInlineEditState()
-    @State private var draggedItem: ProjectItem? = nil
-    @State private var dragSnapshot: [ProjectItem]? = nil
-    @State private var selectedDetailItem: ProjectItem? = nil
+    @State private var draggedItem: WorkItem? = nil
+    @State private var dragSnapshot: [WorkItem]? = nil
+    @State private var selectedDetailItem: WorkItem? = nil
     @State private var focusTitleItemID: String? = nil
     @State private var preserveSelectionDuringReplacement = false
     @State private var showCompleted = true
     @State private var showOverdue = true
     @State private var searchText = ""
-    @State private var itemToDelete: ProjectItem? = nil
+    @State private var itemToDelete: WorkItem? = nil
     @State private var refreshTrigger = 0
     @State private var sortOption: SortOption = .manual
     @State private var itemFilter = ItemListFilter()
     @State private var itemStore = ItemStore.shared
     @State private var showingFocusQueuePopover = false
     /// Element-type sections collapsed in the All view (header click or badge isolate).
-    @State private var collapsedKinds: Set<ProjectItem.Kind> = []
+    @State private var collapsedKinds: Set<WorkItem.Kind> = []
     /// When true the detail pane hides the middle list and fills the area.
     @State private var detailFullscreen = false
 
     private var listAnimation: Animation { FacetTheme.listSpring }
     private var detailPaneAnimation: Animation { FacetTheme.detailSpring }
 
-    private var allScopedItems: [ProjectItem] {
+    private var allScopedItems: [WorkItem] {
         var result = ItemQuery.filtered(items, by: tagFilter)
         result = ItemQuery.filtered(result, by: itemFilter)
         return ItemQuery.searched(result, query: searchText)
     }
 
-    private var visibleItems: [ProjectItem] {
+    private var visibleItems: [WorkItem] {
         var result = ItemQuery.completedVisibility(allScopedItems, showCompleted: showCompleted)
         result = ItemQuery.overdueVisibility(result, showOverdue: showOverdue)
         // Manual order is already applied in items by reload()/moveItem(); re-sorting
         // here via arranged() would snap drag-reordered rows back to the saved rank.
         guard sortOption != .manual else { return result }
-        return ItemArrangement.sorted(result, by: sortOption, savedOrder: project.itemOrder)
+        return ItemArrangement.sorted(result, by: sortOption, savedOrder: work.itemOrder)
     }
 
     private var hasActiveSearch: Bool {
@@ -68,15 +68,15 @@ struct ProjectDetailView: View {
 
     /// Pinned items lead their section while keeping the existing relative order
     /// of each group (a stable partition, so drag order is preserved otherwise).
-    private func pinnedFirst(_ items: [ProjectItem]) -> [ProjectItem] {
+    private func pinnedFirst(_ items: [WorkItem]) -> [WorkItem] {
         items.filter(\.isPinned) + items.filter { !$0.isPinned }
     }
 
-    private var taskItems: [ProjectItem] {
+    private var taskItems: [WorkItem] {
         pinnedFirst(visibleItems.filter { $0.kind == .reminder })
     }
 
-    private var scheduleItems: [ProjectItem] {
+    private var scheduleItems: [WorkItem] {
         pinnedFirst(visibleItems.filter { $0.kind == .event })
     }
 
@@ -121,7 +121,7 @@ struct ProjectDetailView: View {
     }
 
     private struct FocusQueueEntry: Identifiable {
-        let item: ProjectItem
+        let item: WorkItem
         let score: Int
         let reasons: [String]
         let bucket: FocusQueueBucket
@@ -136,10 +136,10 @@ struct ProjectDetailView: View {
                     Group {
                         switch mode {
                         case .all: allItemsView
-                        case .plan: PlanView(project: project, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, showAssistantPanel: showAssistantPanel, assistant: assistant, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .reminder, initialDate: date) })
+                        case .plan: PlanView(work: work, searchText: searchText, showCompleted: $showCompleted, selectedItem: $selectedDetailItem, tagFilter: $tagFilter, itemFilter: $itemFilter, showAssistantPanel: showAssistantPanel, assistant: assistant, refreshTrigger: refreshTrigger, onCreateItem: { date in beginCreate(kind: .reminder, initialDate: date) })
                         case .git:
                             GitView(
-                                project: project,
+                                work: work,
                                 items: items,
                                 searchText: searchText,
                                 refreshTrigger: refreshTrigger,
@@ -147,7 +147,7 @@ struct ProjectDetailView: View {
                             )
                         case .notes:
                             NotesView(
-                                project: project,
+                                work: work,
                                 items: items,
                                 searchText: searchText,
                                 refreshTrigger: refreshTrigger,
@@ -191,7 +191,7 @@ struct ProjectDetailView: View {
     private var decoratedContent: some View {
         let base = mainStack
             .background(FacetTheme.canvas)
-            .navigationTitle(project.name)
+            .navigationTitle(work.name)
             .toolbar {
                 ToolbarItem(placement: .status) {
                     modePicker
@@ -204,8 +204,8 @@ struct ProjectDetailView: View {
                     toolbarActions
                 }
             }
-            .task(id: project.id) { await reload() }
-            .onReceive(NotificationCenter.default.publisher(for: .selectItemInProjectDetail)) { notification in
+            .task(id: work.id) { await reload() }
+            .onReceive(NotificationCenter.default.publisher(for: .selectItemInWorkDetail)) { notification in
                 guard let itemID = notification.userInfo?["itemID"] as? String else { return }
                 if let target = items.first(where: { $0.id == itemID }) {
                     selectedDetailItem = target
@@ -345,7 +345,7 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func detailPane(for selectedItem: ProjectItem) -> some View {
+    private func detailPane(for selectedItem: WorkItem) -> some View {
         FacetSidebarPane(
             title: selectedItem.kind.singularTitle,
             systemImage: selectedItem.kind.systemImage,
@@ -359,7 +359,7 @@ struct ProjectDetailView: View {
             accessory: { fullscreenToggle }
         ) {
             ItemDetailPane(item: selectedItem,
-                           project: project,
+                           work: work,
                            focusTitleOnAppear: selectedItem.id == focusTitleItemID,
                            onClose: {
                 withAnimation(detailPaneAnimation) {
@@ -640,7 +640,7 @@ struct ProjectDetailView: View {
     }
 
     private var focusGoalTokens: Set<String> {
-        let currentGoal = store.weekGoal(projectID: project.id, weekId: ISOWeek.containing(Date()).id)
+        let currentGoal = store.weekGoal(workID: work.id, weekId: ISOWeek.containing(Date()).id)
         let text = [currentGoal?.title, currentGoal?.body]
             .compactMap { $0 }
             .joined(separator: " ")
@@ -649,7 +649,7 @@ struct ProjectDetailView: View {
         return Set(raw.filter { $0.count >= 3 })
     }
 
-    private func focusEntry(for item: ProjectItem, goalTokens: Set<String>) -> FocusQueueEntry? {
+    private func focusEntry(for item: WorkItem, goalTokens: Set<String>) -> FocusQueueEntry? {
         guard !item.isCompleted else { return nil }
 
         var score = 0
@@ -713,7 +713,7 @@ struct ProjectDetailView: View {
         )
     }
 
-    private func focusBucket(for item: ProjectItem, isToday: Bool, isSoon: Bool, isGoalMatched: Bool) -> FocusQueueBucket {
+    private func focusBucket(for item: WorkItem, isToday: Bool, isSoon: Bool, isGoalMatched: Bool) -> FocusQueueBucket {
         if item.isOverdue { return .overdue }
         if item.date == nil { return .unscheduled }
         if isToday { return .today }
@@ -723,7 +723,7 @@ struct ProjectDetailView: View {
         return .other
     }
 
-    private func itemMatchesGoal(_ item: ProjectItem, tokens: Set<String>) -> Bool {
+    private func itemMatchesGoal(_ item: WorkItem, tokens: Set<String>) -> Bool {
         let haystack = ([item.content, item.notes ?? ""] + item.tags)
             .joined(separator: " ")
             .lowercased()
@@ -974,17 +974,17 @@ struct ProjectDetailView: View {
         )
     }
 
-    private func isToday(_ item: ProjectItem) -> Bool {
+    private func isToday(_ item: WorkItem) -> Bool {
         guard let date = item.date else { return false }
         return Calendar.current.isDateInToday(date)
     }
 
-    private func completeFocusItem(_ item: ProjectItem) async {
+    private func completeFocusItem(_ item: WorkItem) async {
         await ItemActionHelpers.toggleCompletion(item, completed: true, ek: ek)
         await reload()
     }
 
-    private func scheduleFocusItemToday(_ item: ProjectItem) async {
+    private func scheduleFocusItemToday(_ item: WorkItem) async {
         let today = Calendar.current.startOfDay(for: Date())
         await ItemActionHelpers.reschedule(item, toDay: today, ek: ek)
         await reload()
@@ -1005,7 +1005,7 @@ struct ProjectDetailView: View {
                              : L10n.pick("Completed items hidden", "已隐藏完成的条目")
     }
 
-    @ViewBuilder private func itemKindSection(kind: ProjectItem.Kind, items: [ProjectItem]) -> some View {
+    @ViewBuilder private func itemKindSection(kind: WorkItem.Kind, items: [WorkItem]) -> some View {
         if !items.isEmpty {
             let collapsed = collapsedKinds.contains(kind)
             itemKindHeader(kind: kind, count: items.count, collapsed: collapsed)
@@ -1020,7 +1020,7 @@ struct ProjectDetailView: View {
 
             if !collapsed {
                 ForEach(items) { item in
-                    projectItemRow(item)
+                    workItemRow(item)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14))
@@ -1029,7 +1029,7 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func itemKindHeader(kind: ProjectItem.Kind, count: Int, collapsed: Bool) -> some View {
+    private func itemKindHeader(kind: WorkItem.Kind, count: Int, collapsed: Bool) -> some View {
         HStack(spacing: 7) {
             Image(systemName: "chevron.right")
                 .font(.system(size: 9, weight: .bold))
@@ -1052,22 +1052,22 @@ struct ProjectDetailView: View {
         .foregroundStyle(.primary.opacity(0.86))
     }
 
-    private func toggleCollapse(_ kind: ProjectItem.Kind) {
+    private func toggleCollapse(_ kind: WorkItem.Kind) {
         if collapsedKinds.contains(kind) { collapsedKinds.remove(kind) }
         else { collapsedKinds.insert(kind) }
     }
 
-    private var orderedKinds: [ProjectItem.Kind] { [.reminder, .event] }
+    private var orderedKinds: [WorkItem.Kind] { [.reminder, .event] }
 
     /// True when `kind` is the only present (non-empty) section left expanded.
-    private func isIsolated(_ kind: ProjectItem.Kind) -> Bool {
+    private func isIsolated(_ kind: WorkItem.Kind) -> Bool {
         let present = orderedKinds.filter { sectionCount($0) > 0 }
         let expanded = present.filter { !collapsedKinds.contains($0) }
         return expanded == [kind]
     }
 
     /// Collapse every other section so only `kind` shows; clicking again restores all.
-    private func toggleIsolate(_ kind: ProjectItem.Kind) {
+    private func toggleIsolate(_ kind: WorkItem.Kind) {
         if isIsolated(kind) {
             collapsedKinds = []
         } else {
@@ -1075,7 +1075,7 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func sectionCount(_ kind: ProjectItem.Kind) -> Int {
+    private func sectionCount(_ kind: WorkItem.Kind) -> Int {
         switch kind {
         case .reminder: return itemCounts.taskOpenCount + itemCounts.taskCompletedCount
         case .event: return itemCounts.eventCount
@@ -1101,8 +1101,8 @@ struct ProjectDetailView: View {
             kindChip(.reminder, value: itemCounts.taskOpenCount)
             kindChip(.event, value: itemCounts.eventCount)
 
-            // Focus summary: total seconds focused on items in this project.
-            let focusSec = projectFocusTotalSeconds
+            // Focus summary: total seconds focused on items in this work.
+            let focusSec = workFocusTotalSeconds
             if focusSec >= 60 {
                 let focusLabel = FocusService.format(seconds: focusSec)
                 FacetInfoBadge(
@@ -1112,23 +1112,23 @@ struct ProjectDetailView: View {
                     fill: Color.pink.opacity(0.10)
                 )
                 .help(L10n.pick(
-                    "Total focus time on this project: \(focusLabel)",
+                    "Total focus time on this work: \(focusLabel)",
                     "该项目累计专注时间：\(focusLabel)"))
             }
         }
     }
 
-    /// Sum of all tracked focus seconds for items that belong to this project
-    /// (matched by projectPrefix stored in FocusService.totalsByTarget).
-    private var projectFocusTotalSeconds: Int {
-        let projectTargetIDs = Set(items.map(\.focusTargetID))
+    /// Sum of all tracked focus seconds for items that belong to this work
+    /// (matched by workPrefix stored in FocusService.totalsByTarget).
+    private var workFocusTotalSeconds: Int {
+        let workTargetIDs = Set(items.map(\.focusTargetID))
         return focus.totalsByTarget
-            .filter { projectTargetIDs.contains($0.key) }
+            .filter { workTargetIDs.contains($0.key) }
             .values
             .reduce(0) { $0 + $1.seconds }
     }
 
-    private func kindChip(_ kind: ProjectItem.Kind, value: Int) -> some View {
+    private func kindChip(_ kind: WorkItem.Kind, value: Int) -> some View {
         SummaryChip(value: value,
                     label: kind.title,
                     systemImage: kind.systemImage,
@@ -1144,10 +1144,10 @@ struct ProjectDetailView: View {
         allScopedItems.count - visibleItems.count
     }
 
-    private func projectItemRow(_ item: ProjectItem) -> some View {
+    private func workItemRow(_ item: WorkItem) -> some View {
         StandardItemRow(
             item: item,
-            projectPrefix: project.prefix,
+            workPrefix: work.prefix,
             selectedItem: $selectedDetailItem,
             inlineEdit: $inlineEdit,
             onDragStart: {
@@ -1183,7 +1183,7 @@ struct ProjectDetailView: View {
     /// Same kind → live reorder (existing behaviour).
     /// Different kind → optimistic kind swap so the row slides into the other
     /// section during the drag, matching how Plan previews cross-day moves.
-    private func previewDropEntered(dragged: ProjectItem, target: ProjectItem) {
+    private func previewDropEntered(dragged: WorkItem, target: WorkItem) {
         if dragged.kind == target.kind {
             moveItem(from: dragged, to: target)
         } else {
@@ -1191,7 +1191,7 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func previewKindChange(dragged: ProjectItem, target: ProjectItem) {
+    private func previewKindChange(dragged: WorkItem, target: WorkItem) {
         guard let fromIndex = items.firstIndex(where: { $0.id == dragged.id }) else { return }
         let updated = dragged.replacingKind(target.kind)
         let targetIndex = items.firstIndex(where: { $0.id == target.id })
@@ -1226,15 +1226,15 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func persistKindChange(original: ProjectItem, current: ProjectItem, snapshot: [ProjectItem]?) {
+    private func persistKindChange(original: WorkItem, current: WorkItem, snapshot: [WorkItem]?) {
         let metadata = original.facetItemReference()
         Task {
             let newId: String?
             if original.kind == .reminder {
-                let calName = project.calendarName ?? ""
+                let calName = work.calendarName ?? ""
                 newId = await ek.convertReminderToEvent(
                     reminderId: original.id,
-                    project: project.prefix,
+                    work: work.prefix,
                     content: original.content,
                     tags: original.tags,
                     itemReference: metadata,
@@ -1244,10 +1244,10 @@ struct ProjectDetailView: View {
                     enabledCalendars: settings.effectiveCalendarNames
                 )
             } else {
-                let listName = project.reminderListName ?? ""
+                let listName = work.reminderListName ?? ""
                 newId = await ek.convertEventToReminder(
                     eventId: original.id,
-                    project: project.prefix,
+                    work: work.prefix,
                     content: original.content,
                     tags: original.tags,
                     itemReference: metadata,
@@ -1279,17 +1279,17 @@ struct ProjectDetailView: View {
         endingReplacement: Bool = false
     ) async {
         loading = items.isEmpty
-        let fetched = await ek.items(forProject: project.prefix,
+        let fetched = await ek.items(forWork: work.prefix,
                                      enabledReminderLists: settings.effectiveReminderListNames,
                                      enabledCalendars: settings.effectiveCalendarNames)
-        store.pruneItemOrder(projectID: project.id, keeping: Set(fetched.map(\.id)))
-        let sortedItems = ItemArrangement.arranged(fetched, savedOrder: project.itemOrder)
+        store.pruneItemOrder(workID: work.id, keeping: Set(fetched.map(\.id)))
+        let sortedItems = ItemArrangement.arranged(fetched, savedOrder: work.itemOrder)
         let selectedId = selectionID ?? selectedDetailItem?.id
         let firstPopulation = items.isEmpty
 
         let apply = {
             items = sortedItems
-            store.reportTags(projectID: project.id, items: sortedItems)
+            store.reportTags(workID: work.id, items: sortedItems)
             if let selectedId {
                 if let refreshedSelection = sortedItems.first(where: { $0.id == selectedId }) {
                     selectedDetailItem = refreshedSelection
@@ -1315,7 +1315,7 @@ struct ProjectDetailView: View {
         loading = false
     }
 
-    private func beginCreate(kind: ProjectItem.Kind, initialDate: Date? = nil) {
+    private func beginCreate(kind: WorkItem.Kind, initialDate: Date? = nil) {
         switch kind {
         case .reminder: createTask(initialDate: initialDate)
         case .event: createEventItem(initialDate: initialDate)
@@ -1323,7 +1323,7 @@ struct ProjectDetailView: View {
     }
 
     private func createTask(initialDate: Date?) {
-        let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
+        let listName = settings.reminderSaveTarget(workListName: work.reminderListName)
         guard !listName.isEmpty else {
             toast.show(L10n.pick("Choose a reminder list first", "请先选择一个提醒事项列表"), type: .error)
             return
@@ -1331,7 +1331,7 @@ struct ProjectDetailView: View {
         Task {
             let dueDate = initialDate.map { FacetDateDefaults.dayDefault(reference: $0) }
             guard let id = await ek.createReminder(
-                project: project.prefix,
+                work: work.prefix,
                 content: L10n.pick("New Task", "新任务"),
                 listName: listName,
                 dueDate: dueDate,
@@ -1347,7 +1347,7 @@ struct ProjectDetailView: View {
     }
 
     private func createEventItem(initialDate: Date?) {
-        let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
+        let calName = settings.calendarSaveTarget(workCalendarName: work.calendarName)
         guard !calName.isEmpty else {
             toast.show(L10n.pick("Choose a calendar first", "请先选择一个日历"), type: .error)
             return
@@ -1355,7 +1355,7 @@ struct ProjectDetailView: View {
         Task {
             let start = FacetDateDefaults.dayDefault(reference: initialDate ?? Date())
             guard let id = await ek.createEvent(
-                project: project.prefix,
+                work: work.prefix,
                 content: L10n.pick("New Event", "新事件"),
                 calendarName: calName,
                 startDate: start,
@@ -1370,7 +1370,7 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func moveItem(from source: ProjectItem, to destination: ProjectItem) {
+    private func moveItem(from source: WorkItem, to destination: WorkItem) {
         guard let fromIndex = items.firstIndex(where: { $0.id == source.id }),
               let toIndex = items.firstIndex(where: { $0.id == destination.id }) else {
             return
@@ -1385,7 +1385,7 @@ struct ProjectDetailView: View {
     }
 
     private func commitItemOrder() {
-        store.setItemOrder(projectID: project.id, orderedIDs: items.map(\.id))
+        store.setItemOrder(workID: work.id, orderedIDs: items.map(\.id))
     }
 
     private func cancelDrag() {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Where FacetX keeps its JSON stores (projects, settings).
+/// Where FacetX keeps its JSON stores (works, settings).
 enum AppSupport {
     /// The FacetX support directory, created if needed. Development variant
     /// builds set `FacetXApplicationSupportName` in Info.plist so multiple

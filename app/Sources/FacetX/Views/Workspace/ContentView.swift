@@ -3,12 +3,12 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var ek: EventKitService
-    @EnvironmentObject private var store: ProjectStore
+    @EnvironmentObject private var store: WorkStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var keyboard: KeyboardActionRouter
     @EnvironmentObject private var toast: ToastController
 
-    enum SidebarItem: Hashable { case project(Project.ID); case topic(UUID) }
+    enum SidebarItem: Hashable { case work(Work.ID); case topic(UUID) }
 
     @State private var selection: SidebarItem? = nil
     @StateObject private var assistant = AssistantSession()
@@ -19,9 +19,9 @@ struct ContentView: View {
     @State private var todayFullscreen = false
 
     @State private var discovered: [String] = []
-    @State private var draftProject: ProjectDraft?
-    @State private var editingProject: Project?
-    @State private var projectToDelete: Project?
+    @State private var draftWork: WorkDraft?
+    @State private var editingWork: Work?
+    @State private var workToDelete: Work?
     @State private var litStore = PaperStore.shared
     @State private var litMeta = MetadataStore.shared
     @State private var showTopicEditor = false
@@ -37,27 +37,27 @@ struct ContentView: View {
                         persistenceWarningView(persistenceWarning)
                     }
                     List(selection: $selection) {
-                        Section(L10n.t(.sidebarProjects)) {
-                            ForEach(store.activeProjects) { project in
-                                ProjectSidebarRow(project: project)
-                                    .tag(SidebarItem.project(project.id))
+                        Section(L10n.t(.sidebarWorks)) {
+                            ForEach(store.activeWorks) { work in
+                                WorkSidebarRow(work: work)
+                                    .tag(SidebarItem.work(work.id))
                                     .contextMenu {
-                                        Button(L10n.t(.editProject)) {
-                                            selection = .project(project.id)
-                                            editingProject = project
+                                        Button(L10n.t(.editWork)) {
+                                            selection = .work(work.id)
+                                            editingWork = work
                                         }
                                         Divider()
                                         Button(L10n.t(.archive)) {
-                                            store.archive(project)
-                                            toast.show(L10n.t(.projectArchived), type: .info)
+                                            store.archive(work)
+                                            toast.show(L10n.t(.workArchived), type: .info)
                                         }
                                         Button(L10n.t(.delete), role: .destructive) {
-                                            projectToDelete = project
+                                            workToDelete = work
                                         }
                                     }
                             }
                             .onMove { indices, newOffset in
-                                store.reorderProjects(from: indices, to: newOffset)
+                                store.reorderWorks(from: indices, to: newOffset)
                             }
                         }
                         if !litMeta.topics.filter({ !$0.archived }).isEmpty {
@@ -104,10 +104,10 @@ struct ContentView: View {
                     Divider()
                     HStack(spacing: 8) {
                         sidebarCreateButton(
-                            title: L10n.t(.newProject),
+                            title: L10n.t(.newWork),
                             systemImage: "plus.circle",
                             alignment: .leading
-                        ) { startNewProject() }
+                        ) { startNewWork() }
 
                         Spacer(minLength: 8)
 
@@ -128,14 +128,14 @@ struct ContentView: View {
                             switch selection {
                             case nil:
                                 ContentUnavailableView(
-                                    L10n.t(.selectProject),
+                                    L10n.t(.selectWork),
                                     systemImage: "folder",
-                                    description: Text(L10n.t(.selectProjectHint))
+                                    description: Text(L10n.t(.selectWorkHint))
                                 )
-                            case .project(let id):
-                                if let project = store.activeProjects.first(where: { $0.id == id }) {
-                                    ProjectDetailView(
-                                        project: project,
+                            case .work(let id):
+                                if let work = store.activeWorks.first(where: { $0.id == id }) {
+                                    WorkDetailView(
+                                        work: work,
                                         showTodayPanel: $showTodayPanel,
                                         showAssistantPanel: $showAssistantPanel,
                                         todayFullscreen: $todayFullscreen,
@@ -144,7 +144,7 @@ struct ContentView: View {
                                         assistant: assistant
                                     )
                                 } else {
-                                    ContentUnavailableView(L10n.t(.projectNotFound), systemImage: "folder")
+                                    ContentUnavailableView(L10n.t(.workNotFound), systemImage: "folder")
                                 }
                             case .topic(let id):
                                 if let topic = litMeta.topics.first(where: { $0.id == id }) {
@@ -191,8 +191,8 @@ struct ContentView: View {
                         showTodayPanel.toggle()
                         if showTodayPanel { showAssistantPanel = false }
                     }
-                case .prevProject:    navigateProject(by: -1)
-                case .nextProject:    navigateProject(by: 1)
+                case .prevWork:    navigateWork(by: -1)
+                case .nextWork:    navigateWork(by: 1)
                 default:              break
                 }
             }
@@ -208,19 +208,19 @@ struct ContentView: View {
                     NotificationCenter.default.post(name: .selectPaperInTopic, object: nil, userInfo: ["paperID": paperID])
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .navigateToProjectPrefix)) { notification in
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToWorkPrefix)) { notification in
                 guard let prefix = notification.userInfo?["prefix"] as? String else { return }
-                if let project = store.activeProjects.first(where: { $0.prefix == prefix }) {
-                    selection = .project(project.id)
+                if let work = store.activeWorks.first(where: { $0.prefix == prefix }) {
+                    selection = .work(work.id)
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .selectItemInProject)) { notification in
-                guard let prefix = notification.userInfo?["projectPrefix"] as? String,
+            .onReceive(NotificationCenter.default.publisher(for: .selectItemInWork)) { notification in
+                guard let prefix = notification.userInfo?["workPrefix"] as? String,
                       let itemID = notification.userInfo?["itemID"] as? String else { return }
-                if let project = store.activeProjects.first(where: { $0.prefix == prefix }) {
-                    selection = .project(project.id)
+                if let work = store.activeWorks.first(where: { $0.prefix == prefix }) {
+                    selection = .work(work.id)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        NotificationCenter.default.post(name: .selectItemInProjectDetail, object: nil, userInfo: ["itemID": itemID])
+                        NotificationCenter.default.post(name: .selectItemInWorkDetail, object: nil, userInfo: ["itemID": itemID])
                     }
                 }
             }
@@ -241,14 +241,14 @@ struct ContentView: View {
                         )
                     }
                 }
-                await reloadDiscoveredProjects()
+                await reloadDiscoveredWorks()
             }
-            .onChange(of: settings.changeToken) { Task { await reloadDiscoveredProjects() } }
+            .onChange(of: settings.changeToken) { Task { await reloadDiscoveredWorks() } }
             .onChange(of: selection) {
                 switch selection {
-                case .project(let id):
-                    settings.lastOpenedKind = "project"
-                    settings.lastOpenedProjectID = id.uuidString
+                case .work(let id):
+                    settings.lastOpenedKind = "work"
+                    settings.lastOpenedWorkID = id.uuidString
                 case .topic(let id):
                     settings.lastOpenedKind = "topic"
                     settings.lastOpenedTopicID = id.uuidString
@@ -282,38 +282,38 @@ struct ContentView: View {
                     todayFullscreen = false
                 }
             }
-            .alert(L10n.t(.deleteProjectTitle), isPresented: .init(
-                get: { projectToDelete != nil },
-                set: { if !$0 { projectToDelete = nil } }
+            .alert(L10n.t(.deleteWorkTitle), isPresented: .init(
+                get: { workToDelete != nil },
+                set: { if !$0 { workToDelete = nil } }
             )) {
-                Button(L10n.t(.cancel), role: .cancel) { projectToDelete = nil }
+                Button(L10n.t(.cancel), role: .cancel) { workToDelete = nil }
                 Button(L10n.t(.delete), role: .destructive) {
-                    if let project = projectToDelete {
-                        store.delete(project)
-                        toast.show(L10n.t(.projectDeleted), type: .success)
+                    if let work = workToDelete {
+                        store.delete(work)
+                        toast.show(L10n.t(.workDeleted), type: .success)
                     }
-                    projectToDelete = nil
+                    workToDelete = nil
                 }
             } message: {
-                Text("“\(projectToDelete?.name ?? "")” \(L10n.t(.deleteProjectMessage))")
+                Text("“\(workToDelete?.name ?? "")” \(L10n.t(.deleteWorkMessage))")
             }
-            .sheet(item: $draftProject) { draft in
-                NewProjectView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, colorName, iconName, githubRepo, githubLocalPath in
-                    let id = store.createProject(name: name, prefix: prefix, tagline: tagline,
+            .sheet(item: $draftWork) { draft in
+                NewWorkView(draft: draft) { name, prefix, tagline, reminderList, calendar, goalCalendar, colorName, iconName, githubRepo, githubLocalPath in
+                    let id = store.createWork(name: name, prefix: prefix, tagline: tagline,
                                                   reminderListName: reminderList, calendarName: calendar,
                                                   weekGoalCalendarName: goalCalendar,
                                                   colorName: colorName,
                                                   iconName: iconName,
                                                   githubRepo: githubRepo,
                                                   githubLocalPath: githubLocalPath)
-                    selection = .project(id)
-                    draftProject = nil
+                    selection = .work(id)
+                    draftWork = nil
                 } onCancel: {
-                    draftProject = nil
+                    draftWork = nil
                 }
             }
-            .sheet(item: $editingProject) { project in
-                EditProjectView(project: project) { editingProject = nil }
+            .sheet(item: $editingWork) { work in
+                EditWorkView(work: work) { editingWork = nil }
             }
             .sheet(isPresented: $showTopicEditor) {
                 TopicEditorSheet(
@@ -368,19 +368,19 @@ struct ContentView: View {
         }
     }
 
-    /// On launch, open the last opened or a specific project / literature library
+    /// On launch, open the last opened or a specific work / literature library
     /// per the user's startup preference, or nothing.
     private func applyStartupSelection() {
         guard selection == nil else { return }
         let kind: String
         let rawID: String
-        switch settings.startupProjectMode {
+        switch settings.startupWorkMode {
         case "last":
             kind = settings.lastOpenedKind
-            rawID = kind == "topic" ? settings.lastOpenedTopicID : settings.lastOpenedProjectID
+            rawID = kind == "topic" ? settings.lastOpenedTopicID : settings.lastOpenedWorkID
         case "specific":
             kind = settings.startupSelectionKind
-            rawID = kind == "topic" ? settings.startupTopicID : settings.startupProjectID
+            rawID = kind == "topic" ? settings.startupTopicID : settings.startupWorkID
         default:
             return
         }
@@ -389,33 +389,33 @@ struct ContentView: View {
             if litMeta.topics.contains(where: { $0.id == id && !$0.archived }) {
                 selection = .topic(id)
             }
-        } else if store.activeProjects.contains(where: { $0.id == id }) {
-            selection = .project(id)
+        } else if store.activeWorks.contains(where: { $0.id == id }) {
+            selection = .work(id)
         }
     }
 
-    private func navigateProject(by delta: Int) {
-        let projects = store.activeProjects
-        guard !projects.isEmpty else { return }
+    private func navigateWork(by delta: Int) {
+        let works = store.activeWorks
+        guard !works.isEmpty else { return }
         let currentIndex: Int
-        if case .project(let id) = selection,
-           let idx = projects.firstIndex(where: { $0.id == id }) {
+        if case .work(let id) = selection,
+           let idx = works.firstIndex(where: { $0.id == id }) {
             currentIndex = idx
         } else {
             currentIndex = -1
         }
         var newIndex = currentIndex + delta
-        newIndex = max(0, min(newIndex, projects.count - 1))
+        newIndex = max(0, min(newIndex, works.count - 1))
         guard newIndex != currentIndex else { return }
-        selection = .project(projects[newIndex].id)
+        selection = .work(works[newIndex].id)
     }
 
-    private func startNewProject() {
-        let existing = Set(store.projects.map(\.name))
-        let suggestion = discovered.first { !existing.contains($0) } ?? uniqueProjectName(in: existing)
+    private func startNewWork() {
+        let existing = Set(store.works.map(\.name))
+        let suggestion = discovered.first { !existing.contains($0) } ?? uniqueWorkName(in: existing)
         let reminderLists = ek.reminderListNames(enabled: settings.effectiveReminderListNames)
         let calendars = ek.calendarNames(enabled: settings.effectiveCalendarNames)
-        draftProject = ProjectDraft(
+        draftWork = WorkDraft(
             name: suggestion,
             prefix: suggestion,
             reminderListName: defaultName(settings.defaultReminderListName, in: reminderLists),
@@ -439,8 +439,8 @@ struct ContentView: View {
         }
     }
 
-    private func uniqueProjectName(in existing: Set<String>) -> String {
-        let base = "New Project"
+    private func uniqueWorkName(in existing: Set<String>) -> String {
+        let base = "New Work"
         guard existing.contains(base) else { return base }
         var index = 2
         while existing.contains("\(base) \(index)") { index += 1 }
@@ -451,33 +451,33 @@ struct ContentView: View {
         options.contains(name) ? name : (options.first ?? "")
     }
 
-    private func reloadDiscoveredProjects() async {
-        discovered = await ek.discoverProjectNames(
+    private func reloadDiscoveredWorks() async {
+        discovered = await ek.discoverWorkNames(
             enabledReminderLists: settings.effectiveReminderListNames,
             enabledCalendars: settings.effectiveCalendarNames
         )
     }
 
-    /// Archived projects and libraries live in a single collapsed section at the
+    /// Archived works and libraries live in a single collapsed section at the
     /// bottom of the sidebar. This is what makes archiving meaningfully different
     /// from deletion — items are tucked away but reversible via right-click.
     @ViewBuilder
     private var archivedSection: some View {
-        let archivedProjects = store.archivedProjects
+        let archivedWorks = store.archivedWorks
         let archivedTopics = litMeta.topics.filter { $0.archived }
-        if !archivedProjects.isEmpty || !archivedTopics.isEmpty {
+        if !archivedWorks.isEmpty || !archivedTopics.isEmpty {
             Section {
                 if showArchived {
-                    ForEach(archivedProjects) { project in
-                        ProjectSidebarRow(project: project)
+                    ForEach(archivedWorks) { work in
+                        WorkSidebarRow(work: work)
                             .contextMenu {
                                 Button(L10n.pick("Unarchive", "取消归档")) {
-                                    store.unarchive(project)
-                                    toast.show(L10n.pick("Project unarchived", "项目已取消归档"), type: .success)
+                                    store.unarchive(work)
+                                    toast.show(L10n.pick("Work unarchived", "项目已取消归档"), type: .success)
                                 }
                                 Divider()
                                 Button(L10n.t(.delete), role: .destructive) {
-                                    projectToDelete = project
+                                    workToDelete = work
                                 }
                             }
                     }
@@ -509,14 +509,14 @@ struct ContentView: View {
                             .font(.system(size: 10, weight: .semibold))
                         Text(L10n.pick("Archived", "已归档"))
                         Spacer()
-                        Text("\(archivedProjects.count + archivedTopics.count)")
+                        Text("\(archivedWorks.count + archivedTopics.count)")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.secondary)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(L10n.pick("Show archived projects and libraries", "显示已归档的项目与文献库"))
+                .help(L10n.pick("Show archived works and libraries", "显示已归档的项目与文献库"))
             }
         }
     }
@@ -622,13 +622,13 @@ struct ContentView: View {
         }
     }
 
-    /// Tags for the current selection only — the project's item tags, or the
+    /// Tags for the current selection only — the work's item tags, or the
     /// selected library's paper tags — so the cloud stays manageable instead of
     /// listing every tag in the app. Empty (and hidden) when nothing is selected.
     private var combinedTags: [String: Int] {
         switch selection {
-        case .project(let id):
-            return store.tagsByProject[id] ?? [:]
+        case .work(let id):
+            return store.tagsByWork[id] ?? [:]
         case .topic(let id):
             guard let topic = litMeta.topics.first(where: { $0.id == id }) else { return [:] }
             // `Paper` is a class, so adding a tag mutates `papers[i].tags` in place
@@ -673,7 +673,7 @@ struct ContentView: View {
     @ViewBuilder
     private func tagColorMenu(for tag: String) -> some View {
         Menu(L10n.t(.colorMenu)) {
-            ForEach(ProjectAppearance.colors) { option in
+            ForEach(WorkAppearance.colors) { option in
                 Button {
                     settings.setTagColor(tag, colorName: option.id)
                 } label: {

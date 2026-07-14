@@ -105,12 +105,12 @@ private enum DocumentNamingAction: Identifiable {
 
 // MARK: - Main view
 
-/// Project Documents Workspace: reads repo-root README.md and all markdown documents
+/// Work Documents Workspace: reads repo-root README.md and all markdown documents
 /// in the `.facetx` folder. Renders markdown with rich web preview (read-only) and
 /// provides a native markdown editor with formatting shortcuts.
 struct NotesView: View {
-    let project: Project
-    let items: [ProjectItem]
+    let work: Work
+    let items: [WorkItem]
     let searchText: String
     let refreshTrigger: Int
     let onItemsChanged: () async -> Void
@@ -151,7 +151,7 @@ struct NotesView: View {
     }
 
     private var repoPath: String? {
-        guard let path = project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let path = work.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines),
               !path.isEmpty else { return nil }
         return path
     }
@@ -209,7 +209,7 @@ struct NotesView: View {
         max(editorText.components(separatedBy: .newlines).count, 1)
     }
 
-    private var linkedWorkItems: [ProjectItem] {
+    private var linkedWorkItems: [WorkItem] {
         guard let path = selectedDocument?.relativePath else { return [] }
         return items.filter { item in
             item.facetID.map { ItemStore.shared.documentPaths(for: $0).contains(path) } ?? false
@@ -269,8 +269,8 @@ struct NotesView: View {
             autosaveTask?.cancel()
             if hasUnsavedChanges { saveSelectedDocument() }
         }
-        .onChange(of: project.id) { reload() }
-        .onChange(of: project.githubLocalPath) { reload() }
+        .onChange(of: work.id) { reload() }
+        .onChange(of: work.githubLocalPath) { reload() }
         .onChange(of: refreshTrigger) { reload() }
         .onChange(of: selectedDocumentID) {
             clearRevision()
@@ -522,7 +522,7 @@ struct NotesView: View {
                         ForEach(linkedWorkItems) { item in
                             Button {
                                 NotificationCenter.default.post(
-                                    name: .selectItemInProjectDetail,
+                                    name: .selectItemInWorkDetail,
                                     object: nil,
                                     userInfo: ["itemID": item.id]
                                 )
@@ -658,7 +658,7 @@ struct NotesView: View {
             Text(L10n.pick("No Repository Bound", "未绑定仓库"))
                 .font(.system(size: 13, weight: .semibold))
             Text(L10n.pick(
-                "Please configure a local Git repository path in project settings.",
+                "Please configure a local Git repository path in work settings.",
                 "请在项目编辑中选择一个本地 Git 仓库路径。"))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
@@ -1054,7 +1054,7 @@ struct NotesView: View {
                 .padding(.vertical, 10)
             Divider()
             if workItems.isEmpty {
-                Text(L10n.pick("No tasks or events in this project.", "该项目暂无任务或事件。"))
+                Text(L10n.pick("No tasks or events in this work.", "该项目暂无任务或事件。"))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .padding(14)

@@ -53,18 +53,18 @@ final class AppSettings: ObservableObject {
     @Published var language: String {
         didSet { settingsDidChange() }
     }
-    /// Startup behavior: "none" (open nothing), "last" (reopen the last project),
-    /// or "specific" (always open `startupProjectID`).
-    @Published var startupProjectMode: String {
+    /// Startup behavior: "none" (open nothing), "last" (reopen the last work),
+    /// or "specific" (always open `startupWorkID`).
+    @Published var startupWorkMode: String {
         didSet { settingsDidChange() }
     }
-    /// Project id opened on launch when `startupProjectMode == "specific"` and
-    /// `startupSelectionKind == "project"`.
-    @Published var startupProjectID: String {
+    /// Work id opened on launch when `startupWorkMode == "specific"` and
+    /// `startupSelectionKind == "work"`.
+    @Published var startupWorkID: String {
         didSet { settingsDidChange() }
     }
-    /// Whether the "specific" startup target is a project or a literature library.
-    /// "project" or "topic".
+    /// Whether the "specific" startup target is a work or a literature library.
+    /// "work" or "topic".
     @Published var startupSelectionKind: String {
         didSet { settingsDidChange() }
     }
@@ -73,19 +73,19 @@ final class AppSettings: ObservableObject {
     @Published var startupTopicID: String {
         didSet { settingsDidChange() }
     }
-    /// Last project the user had selected, reopened on launch when
-    /// `startupProjectMode == "last"`. Saved without bumping `changeToken` since
-    /// it updates on every project switch.
-    @Published var lastOpenedProjectID: String {
+    /// Last work the user had selected, reopened on launch when
+    /// `startupWorkMode == "last"`. Saved without bumping `changeToken` since
+    /// it updates on every work switch.
+    @Published var lastOpenedWorkID: String {
         didSet { save() }
     }
-    /// Whether the last opened sidebar item was a project or a literature library.
-    /// "project" or "topic".
+    /// Whether the last opened sidebar item was a work or a literature library.
+    /// "work" or "topic".
     @Published var lastOpenedKind: String {
         didSet { save() }
     }
     /// Last literature library the user had selected, reopened on launch when
-    /// `startupProjectMode == "last"` and `lastOpenedKind == "topic"`.
+    /// `startupWorkMode == "last"` and `lastOpenedKind == "topic"`.
     @Published var lastOpenedTopicID: String {
         didSet { save() }
     }
@@ -115,7 +115,7 @@ final class AppSettings: ObservableObject {
     @Published var trailingSwipeAction: String {
         didSet { settingsDidChange() }
     }
-    /// Tag name → color name mapping. Uses the same color names as ProjectAppearance.
+    /// Tag name → color name mapping. Uses the same color names as WorkAppearance.
     @Published var tagColors: [String: String] {
         didSet { settingsDidChange() }
     }
@@ -150,12 +150,12 @@ final class AppSettings: ObservableObject {
         self.desktopWidgetEnabled = stored.desktopWidgetEnabled ?? true
         self.focusDurationMinutes = stored.focusDurationMinutes ?? 25
         self.language = stored.language ?? "en"
-        self.startupProjectMode = stored.startupProjectMode ?? "none"
-        self.startupProjectID = stored.startupProjectID ?? ""
-        self.startupSelectionKind = stored.startupSelectionKind ?? "project"
+        self.startupWorkMode = stored.startupWorkMode ?? "none"
+        self.startupWorkID = stored.startupWorkID ?? ""
+        self.startupSelectionKind = stored.startupSelectionKind ?? "work"
         self.startupTopicID = stored.startupTopicID ?? ""
-        self.lastOpenedProjectID = stored.lastOpenedProjectID ?? ""
-        self.lastOpenedKind = stored.lastOpenedKind ?? "project"
+        self.lastOpenedWorkID = stored.lastOpenedWorkID ?? ""
+        self.lastOpenedKind = stored.lastOpenedKind ?? "work"
         self.lastOpenedTopicID = stored.lastOpenedTopicID ?? ""
         let durationPresets = [15, 30, 45, 60, 90, 120, 180, 240]
         self.defaultEventDurationMinutes = Self.nearestDuration(stored.defaultEventDurationMinutes,
@@ -200,15 +200,15 @@ final class AppSettings: ObservableObject {
         calendarsDisabled ? [] : (enabledCalendarNames.isEmpty ? nil : enabledCalendarNames)
     }
 
-    func reminderSaveTarget(projectListName: String?) -> String {
-        saveTarget(preferred: projectListName,
+    func reminderSaveTarget(workListName: String?) -> String {
+        saveTarget(preferred: workListName,
                    fallback: defaultReminderListName,
                    disabled: reminderListsDisabled,
                    enabledNames: enabledReminderListNames)
     }
 
-    func calendarSaveTarget(projectCalendarName: String?) -> String {
-        saveTarget(preferred: projectCalendarName,
+    func calendarSaveTarget(workCalendarName: String?) -> String {
+        saveTarget(preferred: workCalendarName,
                    fallback: defaultCalendarName,
                    disabled: calendarsDisabled,
                    enabledNames: enabledCalendarNames)
@@ -233,12 +233,12 @@ final class AppSettings: ObservableObject {
     /// deterministic color from the palette based on the tag name's hash so the
     /// same tag always renders the same color across launches.
     func tagColor(for tag: String) -> Color {
-        ProjectAppearance.color(for: tagColorName(for: tag))
+        WorkAppearance.color(for: tagColorName(for: tag))
     }
 
     func tagColorName(for tag: String) -> String {
         if let name = tagColors[tag] { return name }
-        let palette = ProjectAppearance.colors
+        let palette = WorkAppearance.colors
         var hash = 5381
         for byte in tag.utf8 { hash = ((hash << 5) &+ hash) &+ Int(byte) }
         let index = abs(hash) % palette.count
@@ -318,11 +318,11 @@ final class AppSettings: ObservableObject {
         var desktopWidgetEnabled: Bool?
         var focusDurationMinutes: Int?
         var language: String?
-        var startupProjectMode: String?
-        var startupProjectID: String?
+        var startupWorkMode: String?
+        var startupWorkID: String?
         var startupSelectionKind: String?
         var startupTopicID: String?
-        var lastOpenedProjectID: String?
+        var lastOpenedWorkID: String?
         var lastOpenedKind: String?
         var lastOpenedTopicID: String?
         var defaultEventDurationMinutes: Int
@@ -346,11 +346,11 @@ final class AppSettings: ObservableObject {
                                      desktopWidgetEnabled: nil,
                                      focusDurationMinutes: nil,
                                      language: nil,
-                                     startupProjectMode: nil,
-                                     startupProjectID: nil,
+                                     startupWorkMode: nil,
+                                     startupWorkID: nil,
                                      startupSelectionKind: nil,
                                      startupTopicID: nil,
-                                     lastOpenedProjectID: nil,
+                                     lastOpenedWorkID: nil,
                                      lastOpenedKind: nil,
                                      lastOpenedTopicID: nil,
                                      defaultEventDurationMinutes: 120,
@@ -376,11 +376,11 @@ final class AppSettings: ObservableObject {
                             desktopWidgetEnabled: desktopWidgetEnabled,
                             focusDurationMinutes: focusDurationMinutes,
                             language: language,
-                            startupProjectMode: startupProjectMode,
-                            startupProjectID: startupProjectID.isEmpty ? nil : startupProjectID,
+                            startupWorkMode: startupWorkMode,
+                            startupWorkID: startupWorkID.isEmpty ? nil : startupWorkID,
                             startupSelectionKind: startupSelectionKind,
                             startupTopicID: startupTopicID.isEmpty ? nil : startupTopicID,
-                            lastOpenedProjectID: lastOpenedProjectID.isEmpty ? nil : lastOpenedProjectID,
+                            lastOpenedWorkID: lastOpenedWorkID.isEmpty ? nil : lastOpenedWorkID,
                             lastOpenedKind: lastOpenedKind,
                             lastOpenedTopicID: lastOpenedTopicID.isEmpty ? nil : lastOpenedTopicID,
                             defaultEventDurationMinutes: defaultEventDurationMinutes,

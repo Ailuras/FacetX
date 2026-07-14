@@ -1,13 +1,13 @@
 import Foundation
 
-/// The project-association contract: an item belongs to a project when its
-/// title starts with `ProjectName` followed by a colon.
+/// The work-association contract: an item belongs to a work when its
+/// title starts with `WorkName` followed by a colon.
 ///
 /// Tolerance rules:
 /// - Accept both the ASCII colon `:` and the fullwidth `：` on read.
 /// - Titles can contain newlines; only the first line is considered for the
 ///   prefix.
-public enum ProjectPrefix {
+public enum WorkPrefix {
     public static let asciiColon: Character = ":"
     public static let fullwidthColon: Character = "："
 
@@ -16,8 +16,8 @@ public enum ProjectPrefix {
         return rawTitle[..<end]
     }
 
-    /// Extract the project name from an item title, or nil if it has no prefix.
-    public static func projectName(of rawTitle: String) -> String? {
+    /// Extract the work name from an item title, or nil if it has no prefix.
+    public static func workName(of rawTitle: String) -> String? {
         let firstLine = firstLine(in: rawTitle)
         guard let idx = firstLine.firstIndex(where: { $0 == asciiColon || $0 == fullwidthColon })
         else { return nil }
@@ -25,7 +25,7 @@ public enum ProjectPrefix {
         return name.isEmpty ? nil : name
     }
 
-    /// Strip the `Project:` prefix to get the human-facing item text.
+    /// Strip the `Work:` prefix to get the human-facing item text.
     public static func contentBody(of rawTitle: String) -> String {
         guard let idx = firstLine(in: rawTitle).firstIndex(where: { $0 == asciiColon || $0 == fullwidthColon })
         else { return rawTitle }
@@ -33,8 +33,8 @@ public enum ProjectPrefix {
         return after.trimmingCharacters(in: .whitespaces)
     }
 
-    /// Compose a title that carries the project prefix (always ASCII colon).
-    public static func makeTitle(project: String, content: String) -> String {
-        "\(project)\(asciiColon) \(content)"
+    /// Compose a title that carries the work prefix (always ASCII colon).
+    public static func makeTitle(work: String, content: String) -> String {
+        "\(work)\(asciiColon) \(content)"
     }
 }

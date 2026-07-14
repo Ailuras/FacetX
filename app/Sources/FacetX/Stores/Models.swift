@@ -1,17 +1,17 @@
 import Foundation
 import FacetXCore
 
-/// A saved project. Owns calendar/reminder items by title prefix; the items
-/// themselves live in EventKit, not here. This store holds only project-side
+/// A saved work. Owns calendar/reminder items by title prefix; the items
+/// themselves live in EventKit, not here. This store holds only work-side
 /// metadata EventKit cannot represent.
-struct Project: Identifiable, Codable, Hashable {
+struct Work: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var name: String
-    /// The title prefix this project claims. Defaults to `name` but is editable
+    /// The title prefix this work claims. Defaults to `name` but is editable
     /// so it need not collide with historical action-type prefixes.
     var prefix: String
     var tagline: String = ""
-    /// Where new project reminders/events are saved by default.
+    /// Where new work reminders/events are saved by default.
     var reminderListName: String?
     var calendarName: String?
     var weekGoalCalendarName: String?
@@ -45,7 +45,7 @@ struct Project: Identifiable, Codable, Hashable {
     }
 }
 
-/// A per-week goal attached to a project. ISO week id like "2026-W22".
+/// A per-week goal attached to a work. ISO week id like "2026-W22".
 struct WeekGoal: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var weekId: String
@@ -55,18 +55,18 @@ struct WeekGoal: Identifiable, Codable, Hashable {
     var eventId: String? = nil
 }
 
-/// Persists saved projects to a JSON file under Application Support.
+/// Persists saved works to a JSON file under Application Support.
 /// Small dataset → a plain Codable store beats SwiftData here and keeps the
 /// pure-SwiftPM (Command Line Tools) build working.
 @MainActor
-final class ProjectStore: ObservableObject {
-    @Published private(set) var projects: [Project] = []
-    @Published private(set) var tagsByProject: [Project.ID: [String: Int]] = [:]
+final class WorkStore: ObservableObject {
+    @Published private(set) var works: [Work] = []
+    @Published private(set) var tagsByWork: [Work.ID: [String: Int]] = [:]
     @Published private(set) var persistenceError: String?
 
     var discoveredTags: [String: Int] {
         var aggregate: [String: Int] = [:]
-        for (_, counts) in tagsByProject {
+        for (_, counts) in tagsByWork {
             for (tag, count) in counts {
                 aggregate[tag, default: 0] += count
             }
@@ -76,13 +76,13 @@ final class ProjectStore: ObservableObject {
 
     private let url: URL
 
-    init(filename: String = "projects.json") {
+    init(filename: String = "works.json") {
         self.url = AppSupport.directory().appendingPathComponent(filename)
         load()
     }
 
-    var activeProjects: [Project] {
-        projects.enumerated()
+    var activeWorks: [Work] {
+        works.enumerated()
             .filter { !$0.element.archived }
             .sorted {
                 if $0.element.sortOrder != $1.element.sortOrder {
@@ -94,60 +94,60 @@ final class ProjectStore: ObservableObject {
     }
 
     @discardableResult
-    func createProject(name: String, prefix: String? = nil, tagline: String = "",
+    func createWork(name: String, prefix: String? = nil, tagline: String = "",
                        reminderListName: String? = nil, calendarName: String? = nil,
                        weekGoalCalendarName: String? = nil,
                        colorName: String? = nil, iconName: String? = nil,
                        githubRepo: String? = nil,
-                       githubLocalPath: String? = nil) -> Project.ID {
-        let maxOrder = projects.map(\.sortOrder).max() ?? -1
-        var project = Project(name: name, prefix: prefix, tagline: tagline,
+                       githubLocalPath: String? = nil) -> Work.ID {
+        let maxOrder = works.map(\.sortOrder).max() ?? -1
+        var work = Work(name: name, prefix: prefix, tagline: tagline,
                               reminderListName: reminderListName, calendarName: calendarName,
                               weekGoalCalendarName: weekGoalCalendarName,
                               colorName: colorName, iconName: iconName,
                               githubRepo: githubRepo,
                               githubLocalPath: githubLocalPath)
-        project.sortOrder = maxOrder + 1
-        projects.append(project)
+        work.sortOrder = maxOrder + 1
+        works.append(work)
         save()
-        return project.id
+        return work.id
     }
 
-    func update(_ project: Project) {
-        guard let i = projects.firstIndex(where: { $0.id == project.id }) else { return }
-        projects[i] = project
-        save()
-    }
-
-    func archive(_ project: Project) {
-        guard let i = projects.firstIndex(where: { $0.id == project.id }) else { return }
-        projects[i].archived = true
+    func update(_ work: Work) {
+        guard let i = works.firstIndex(where: { $0.id == work.id }) else { return }
+        works[i] = work
         save()
     }
 
-    func unarchive(_ project: Project) {
-        guard let i = projects.firstIndex(where: { $0.id == project.id }) else { return }
-        projects[i].archived = false
+    func archive(_ work: Work) {
+        guard let i = works.firstIndex(where: { $0.id == work.id }) else { return }
+        works[i].archived = true
         save()
     }
 
-    var archivedProjects: [Project] {
-        projects.filter { $0.archived }.sorted { $0.sortOrder < $1.sortOrder }
-    }
-
-    func delete(_ project: Project) {
-        projects.removeAll { $0.id == project.id }
+    func unarchive(_ work: Work) {
+        guard let i = works.firstIndex(where: { $0.id == work.id }) else { return }
+        works[i].archived = false
         save()
     }
 
-    // ── Project ordering ─────────────────────────────────────────────────────
+    var archivedWorks: [Work] {
+        works.filter { $0.archived }.sorted { $0.sortOrder < $1.sortOrder }
+    }
 
-    func reorderProjects(from source: IndexSet, to destination: Int) {
-        var active = projects.filter { !$0.archived }.sorted { $0.sortOrder < $1.sortOrder }
+    func delete(_ work: Work) {
+        works.removeAll { $0.id == work.id }
+        save()
+    }
+
+    // ── Work ordering ─────────────────────────────────────────────────────
+
+    func reorderWorks(from source: IndexSet, to destination: Int) {
+        var active = works.filter { !$0.archived }.sorted { $0.sortOrder < $1.sortOrder }
         active.move(fromOffsets: source, toOffset: destination)
-        for (index, project) in active.enumerated() {
-            if let i = projects.firstIndex(where: { $0.id == project.id }) {
-                projects[i].sortOrder = index
+        for (index, work) in active.enumerated() {
+            if let i = works.firstIndex(where: { $0.id == work.id }) {
+                works[i].sortOrder = index
             }
         }
         save()
@@ -155,64 +155,64 @@ final class ProjectStore: ObservableObject {
 
     // ── Week goals ────────────────────────────────────────────────────────────
 
-    func weekGoal(projectID: Project.ID, weekId: String) -> WeekGoal? {
-        projects.first { $0.id == projectID }?
+    func weekGoal(workID: Work.ID, weekId: String) -> WeekGoal? {
+        works.first { $0.id == workID }?
             .weekGoals.first { $0.weekId == weekId }
     }
 
-    /// Create or update the goal for a project's week. Empty title removes it.
+    /// Create or update the goal for a work's week. Empty title removes it.
     /// `eventId` ties the goal to a week-spanning EventKit event.
-    func setWeekGoal(projectID: Project.ID, weekId: String, title: String, body: String, eventId: String? = nil) {
-        guard let p = projects.firstIndex(where: { $0.id == projectID }) else { return }
+    func setWeekGoal(workID: Work.ID, weekId: String, title: String, body: String, eventId: String? = nil) {
+        guard let p = works.firstIndex(where: { $0.id == workID }) else { return }
         let trimmed = title.trimmingCharacters(in: .whitespaces)
-        if let g = projects[p].weekGoals.firstIndex(where: { $0.weekId == weekId }) {
+        if let g = works[p].weekGoals.firstIndex(where: { $0.weekId == weekId }) {
             if trimmed.isEmpty {
-                projects[p].weekGoals.remove(at: g)
+                works[p].weekGoals.remove(at: g)
             } else {
-                projects[p].weekGoals[g].title = trimmed
-                projects[p].weekGoals[g].body = body
+                works[p].weekGoals[g].title = trimmed
+                works[p].weekGoals[g].body = body
                 if let eventId {
-                    projects[p].weekGoals[g].eventId = eventId
+                    works[p].weekGoals[g].eventId = eventId
                 }
             }
         } else if !trimmed.isEmpty {
             var goal = WeekGoal(weekId: weekId, title: trimmed, body: body)
             goal.eventId = eventId
-            projects[p].weekGoals.append(goal)
+            works[p].weekGoals.append(goal)
         }
         save()
     }
 
     // ── Tag discovery ─────────────────────────────────────────────────────────
 
-    /// Replace this project's tag counts with the tags found in the given items.
-    /// Called from each project's reload — aggregated counts are recomputed lazily.
-    func reportTags(projectID: Project.ID, items: [ProjectItem]) {
+    /// Replace this work's tag counts with the tags found in the given items.
+    /// Called from each work's reload — aggregated counts are recomputed lazily.
+    func reportTags(workID: Work.ID, items: [WorkItem]) {
         var counts: [String: Int] = [:]
         for item in items {
             for tag in item.tags {
                 counts[tag, default: 0] += 1
             }
         }
-        if tagsByProject[projectID] != counts {
-            tagsByProject[projectID] = counts
+        if tagsByWork[workID] != counts {
+            tagsByWork[workID] = counts
         }
     }
 
     // ── Item ordering ────────────────────────────────────────────────────────
 
-    func setItemOrder(projectID: Project.ID, orderedIDs: [String]) {
-        guard let p = projects.firstIndex(where: { $0.id == projectID }) else { return }
-        projects[p].itemOrder = orderedIDs
+    func setItemOrder(workID: Work.ID, orderedIDs: [String]) {
+        guard let p = works.firstIndex(where: { $0.id == workID }) else { return }
+        works[p].itemOrder = orderedIDs
         save()
     }
 
-    func pruneItemOrder(projectID: Project.ID, keeping validIDs: Set<String>) {
-        guard let p = projects.firstIndex(where: { $0.id == projectID }) else { return }
-        let order = projects[p].itemOrder
+    func pruneItemOrder(workID: Work.ID, keeping validIDs: Set<String>) {
+        guard let p = works.firstIndex(where: { $0.id == workID }) else { return }
+        let order = works[p].itemOrder
         let pruned = order.filter { validIDs.contains($0) }
         guard pruned != order else { return }
-        projects[p].itemOrder = pruned
+        works[p].itemOrder = pruned
         save()
     }
 
@@ -222,10 +222,10 @@ final class ProjectStore: ObservableObject {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         do {
             let data = try Data(contentsOf: url)
-            projects = try JSONDecoder().decode([Project].self, from: data)
+            works = try JSONDecoder().decode([Work].self, from: data)
             persistenceError = nil
         } catch {
-            persistenceError = "Could not read projects.json: \(error.localizedDescription)"
+            persistenceError = "Could not read works.json: \(error.localizedDescription)"
         }
     }
 
@@ -233,10 +233,10 @@ final class ProjectStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
-            try encoder.encode(projects).write(to: url, options: .atomic)
+            try encoder.encode(works).write(to: url, options: .atomic)
             persistenceError = nil
         } catch {
-            persistenceError = "Could not write projects.json: \(error.localizedDescription)"
+            persistenceError = "Could not write works.json: \(error.localizedDescription)"
         }
     }
 }

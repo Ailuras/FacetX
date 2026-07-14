@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct ProjectEditorHeader: View {
+struct WorkEditorHeader: View {
     let title: String
     let subtitle: String
     let initial: String
@@ -49,19 +49,19 @@ struct ProjectEditorHeader: View {
     }
 }
 
-struct ProjectEditorAppearancePicker: View {
+struct WorkEditorAppearancePicker: View {
     @Binding var colorName: String
     @Binding var iconName: String
     let initial: String
 
     private var selectedColor: Color {
-        ProjectAppearance.color(for: colorName)
+        WorkAppearance.color(for: colorName)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                projectPreview
+                workPreview
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.pick("Badge", "徽标"))
@@ -80,7 +80,7 @@ struct ProjectEditorAppearancePicker: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 8) {
-                    ForEach(ProjectAppearance.colors) { option in
+                    ForEach(WorkAppearance.colors) { option in
                         Button {
                             colorName = option.id
                         } label: {
@@ -112,7 +112,7 @@ struct ProjectEditorAppearancePicker: View {
                     .foregroundStyle(.secondary)
 
                 LazyVGrid(columns: iconColumns, alignment: .leading, spacing: 7) {
-                    ForEach(ProjectAppearance.icons) { option in
+                    ForEach(WorkAppearance.icons) { option in
                         Button {
                             iconName = option.id
                         } label: {
@@ -138,11 +138,11 @@ struct ProjectEditorAppearancePicker: View {
         }
     }
 
-    private var projectPreview: some View {
+    private var workPreview: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(selectedColor.opacity(0.14))
-            Image(systemName: ProjectAppearance.iconName(for: iconName))
+            Image(systemName: WorkAppearance.iconName(for: iconName))
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(selectedColor)
         }
@@ -159,7 +159,7 @@ struct ProjectEditorAppearancePicker: View {
     }
 }
 
-struct ProjectEditorCard<Content: View>: View {
+struct WorkEditorCard<Content: View>: View {
     let title: String
     let systemImage: String
     @ViewBuilder var content: Content
@@ -181,7 +181,7 @@ struct ProjectEditorCard<Content: View>: View {
     }
 }
 
-struct ProjectEditorTextField: View {
+struct WorkEditorTextField: View {
     let title: String
     @Binding var text: String
     let placeholder: String
@@ -206,7 +206,7 @@ struct ProjectEditorTextField: View {
     }
 }
 
-struct ProjectEditorPicker: View {
+struct WorkEditorPicker: View {
     let title: String
     @Binding var selection: String
     let options: [String]
@@ -251,7 +251,7 @@ struct ProjectEditorPicker: View {
     }
 }
 
-struct ProjectEditorHelp: View {
+struct WorkEditorHelp: View {
     let text: String
 
     init(_ text: String) {
@@ -265,7 +265,7 @@ struct ProjectEditorHelp: View {
     }
 }
 
-struct ProjectEditorWarning: View {
+struct WorkEditorWarning: View {
     let text: String
 
     init(_ text: String) {

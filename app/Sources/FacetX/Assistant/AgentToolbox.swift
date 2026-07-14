@@ -9,13 +9,13 @@ import PDFKit
 @MainActor
 final class AgentToolbox {
     private weak var eventKit: EventKitService?
-    private weak var projectStore: ProjectStore?
+    private weak var workStore: WorkStore?
     private weak var settings: AppSettings?
     private var referencedItems: [String: AssistantItemMention] = [:]
 
-    init(eventKit: EventKitService, projectStore: ProjectStore, settings: AppSettings) {
+    init(eventKit: EventKitService, workStore: WorkStore, settings: AppSettings) {
         self.eventKit = eventKit
-        self.projectStore = projectStore
+        self.workStore = workStore
         self.settings = settings
     }
 
@@ -25,13 +25,13 @@ final class AgentToolbox {
     /// their wire format. Descriptions state when to call each tool.
     var definitions: [[String: Any]] {
         [
-            tool("list_projects",
-                 "List active projects and canonical prefixes. Use when the project is not explicit.",
+            tool("list_works",
+                 "List active works and canonical prefixes. Use when the work is not explicit.",
                  properties: [:], required: []),
             tool("list_items",
                  "List FacetX items as JSON. Use reference_id for mutations; never match a title because titles can repeat. For date-range queries (e.g. completed work in a period) supply date_from and date_to and set scope to 'all'.",
                  properties: [
-                    "project": nullableProp("string", "Project name/prefix, or null for all."),
+                    "work": nullableProp("string", "Work name/prefix, or null for all."),
                     "scope": nullableEnum(["today", "overdue", "this_week", "upcoming", "all"], "Time scope, or null for this_week. Use 'all' with date_from/date_to for explicit ranges."),
                     "date_from": nullableProp("string", "Inclusive start date YYYY-MM-DD, or null. Requires scope 'all'."),
                     "date_to": nullableProp("string", "Inclusive end date YYYY-MM-DD, or null. Requires scope 'all'."),
@@ -45,50 +45,50 @@ final class AgentToolbox {
             tool("create_task",
                  "Create one reminder task. due_at is YYYY-MM-DD, local YYYY-MM-DDTHH:mm, or null. Priority applies only to tasks.",
                  properties: [
-                    "project": prop("string", "Existing project name or prefix."),
-                    "title": prop("string", "Task title without project prefix."),
+                    "work": prop("string", "Existing work name or prefix."),
+                    "title": prop("string", "Task title without work prefix."),
                     "due_at": nullableProp("string", "Due date/time, or null."),
                     "priority": nullableEnum(["none", "low", "medium", "high"], "Priority, or null for none."),
                     "tags": nullableArray("string", "Tags without #, or null."),
-                 ], required: ["project", "title"]),
+                 ], required: ["work", "title"]),
             tool("create_event",
                  "Create one event. Timed values use local YYYY-MM-DDTHH:mm. All-day values use YYYY-MM-DD; end is exclusive and null means one day/default duration.",
                  properties: [
-                    "project": prop("string", "Existing project name or prefix."),
-                    "title": prop("string", "Event title without project prefix."),
+                    "work": prop("string", "Existing work name or prefix."),
+                    "title": prop("string", "Event title without work prefix."),
                     "start": prop("string", "Inclusive start date or timestamp."),
                     "end": nullableProp("string", "Exclusive end date/timestamp, or null."),
                     "all_day": prop("boolean", "Whether this is an all-day event."),
                     "tags": nullableArray("string", "Tags without #, or null."),
-                 ], required: ["project", "title", "start", "all_day"]),
-            tool("list_project_documents",
-                 "List README.md and .facetx Markdown documents in one project's local Git repository.",
+                 ], required: ["work", "title", "start", "all_day"]),
+            tool("list_work_documents",
+                 "List README.md and .facetx Markdown documents in one work's local Git repository.",
                  properties: [
-                    "project": prop("string", "Existing project name or prefix."),
-                 ], required: ["project"]),
-            tool("read_project_document",
-                 "Read one repository document. path must be README.md or a top-level .facetx Markdown path returned by list_project_documents.",
+                    "work": prop("string", "Existing work name or prefix."),
+                 ], required: ["work"]),
+            tool("read_work_document",
+                 "Read one repository document. path must be README.md or a top-level .facetx Markdown path returned by list_work_documents.",
                  properties: [
-                    "project": prop("string", "Existing project name or prefix."),
+                    "work": prop("string", "Existing work name or prefix."),
                     "path": prop("string", "Repository-relative document path."),
-                 ], required: ["project", "path"]),
-            tool("create_project_document",
-                 "Create a new Markdown document in a project's .facetx directory.",
+                 ], required: ["work", "path"]),
+            tool("create_work_document",
+                 "Create a new Markdown document in a work's .facetx directory.",
                  properties: [
-                    "project": prop("string", "Existing project name or prefix."),
+                    "work": prop("string", "Existing work name or prefix."),
                     "title": prop("string", "Document title used to create its filename."),
                     "body": prop("string", "Complete Markdown body."),
-                 ], required: ["project", "title", "body"]),
-            tool("update_project_document",
+                 ], required: ["work", "title", "body"]),
+            tool("update_work_document",
                  "Replace or append Markdown in an existing repository document.",
                  properties: [
-                    "project": prop("string", "Existing project name or prefix."),
+                    "work": prop("string", "Existing work name or prefix."),
                     "path": prop("string", "Repository-relative document path."),
                     "body": prop("string", "Markdown content."),
                     "mode": propEnum(["replace", "append"], "Write mode."),
-                 ], required: ["project", "path", "body", "mode"]),
+                 ], required: ["work", "path", "body", "mode"]),
             tool("attach_document_to_item",
-                 "Attach an existing project repository document to one exact task or event.",
+                 "Attach an existing work repository document to one exact task or event.",
                  properties: [
                     "reference_id": prop("string", "Exact id from a drag reference or list_items."),
                     "path": prop("string", "Repository-relative document path."),
@@ -122,25 +122,25 @@ final class AgentToolbox {
                     "reference_id": prop("string", "Exact id from a drag reference or list_items."),
                  ], required: ["reference_id"]),
             tool("move_item",
-                 "Move an exact task or event to a different project by rewriting its title prefix. The item's container (reminder list / calendar) is updated when possible.",
+                 "Move an exact task or event to a different work by rewriting its title prefix. The item's container (reminder list / calendar) is updated when possible.",
                  properties: [
                     "reference_id": prop("string", "Exact id from a drag reference or list_items."),
-                    "target_project": prop("string", "Destination project name or prefix."),
-                 ], required: ["reference_id", "target_project"]),
+                    "target_work": prop("string", "Destination work name or prefix."),
+                 ], required: ["reference_id", "target_work"]),
             tool("list_week_goals",
-                 "Read week goals across all (or one) project. week is an ISO-8601 Monday-start week string like '2026-W22', or null for the current week.",
+                 "Read week goals across all (or one) work. week is an ISO-8601 Monday-start week string like '2026-W22', or null for the current week.",
                  properties: [
-                    "project": nullableProp("string", "Project name/prefix, or null for all projects."),
+                    "work": nullableProp("string", "Work name/prefix, or null for all works."),
                     "week": nullableProp("string", "Week ID like '2026-W22', or null for the current week."),
                  ], required: []),
             tool("set_week_goal",
-                 "Create or update a week goal for one project. week is ISO-8601 like '2026-W22', or null for the current week. Empty title clears the goal.",
+                 "Create or update a week goal for one work. week is ISO-8601 like '2026-W22', or null for the current week. Empty title clears the goal.",
                  properties: [
-                    "project": prop("string", "Existing project name or prefix."),
+                    "work": prop("string", "Existing work name or prefix."),
                     "week": nullableProp("string", "Week ID like '2026-W22', or null for the current week."),
                     "title": prop("string", "Goal title. Empty string clears the goal."),
                     "body": nullableProp("string", "Optional markdown body / sub-goals, or null."),
-                 ], required: ["project", "title"]),
+                 ], required: ["work", "title"]),
             tool("list_papers",
                  "Search the literature library and return paper ids.",
                  properties: [
@@ -169,15 +169,15 @@ final class AgentToolbox {
     func execute(name: String, input: [String: Any]) async -> (result: String, isError: Bool) {
         do {
             switch name {
-            case "list_projects": return (try listProjects(), false)
+            case "list_works": return (try listWorks(), false)
             case "list_items": return (try await listItems(input), false)
             case "get_item": return (try await getItem(input), false)
             case "create_task": return (try await createTask(input), false)
             case "create_event": return (try await createEvent(input), false)
-            case "list_project_documents": return (try listProjectDocuments(input), false)
-            case "read_project_document": return (try readProjectDocument(input), false)
-            case "create_project_document": return (try createProjectDocument(input), false)
-            case "update_project_document": return (try updateProjectDocument(input), false)
+            case "list_work_documents": return (try listWorkDocuments(input), false)
+            case "read_work_document": return (try readWorkDocument(input), false)
+            case "create_work_document": return (try createWorkDocument(input), false)
+            case "update_work_document": return (try updateWorkDocument(input), false)
             case "attach_document_to_item": return (try await attachDocumentToItem(input), false)
             case "attach_paper_to_item": return (try await attachPaperToItem(input), false)
             case "update_item": return (try await updateItem(input), false)
@@ -204,18 +204,18 @@ final class AgentToolbox {
         }
     }
 
-    // ── Projects & items ─────────────────────────────────────────────────────
+    // ── Works & items ─────────────────────────────────────────────────────
 
-    private func listProjects() throws -> String {
-        guard let projectStore else { throw ToolError.message("Service unavailable") }
+    private func listWorks() throws -> String {
+        guard let workStore else { throw ToolError.message("Service unavailable") }
         let weekId = ISOWeek.containing(Date()).id
-        guard !projectStore.activeProjects.isEmpty else {
-            return "No projects yet. The user must create one in FacetX first."
+        guard !workStore.activeWorks.isEmpty else {
+            return "No works yet. The user must create one in FacetX first."
         }
-        let lines = projectStore.activeProjects.map { project -> String in
-            var line = "- \(project.name) (prefix: \(project.prefix))"
-            if !project.tagline.isEmpty { line += " — \(project.tagline)" }
-            if let goal = project.weekGoals.first(where: { $0.weekId == weekId }) {
+        let lines = workStore.activeWorks.map { work -> String in
+            var line = "- \(work.name) (prefix: \(work.prefix))"
+            if !work.tagline.isEmpty { line += " — \(work.tagline)" }
+            if let goal = work.weekGoals.first(where: { $0.weekId == weekId }) {
                 line += "\n  week goal (\(weekId)): \(goal.title)"
             }
             return line
@@ -223,34 +223,34 @@ final class AgentToolbox {
         return lines.joined(separator: "\n")
     }
 
-    private func resolveProject(_ raw: String?) throws -> Project? {
-        guard let projectStore else { throw ToolError.message("Service unavailable") }
+    private func resolveWork(_ raw: String?) throws -> Work? {
+        guard let workStore else { throw ToolError.message("Service unavailable") }
         guard let raw = raw?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
         let lowered = raw.lowercased()
-        if let match = projectStore.activeProjects.first(where: {
+        if let match = workStore.activeWorks.first(where: {
             $0.name.lowercased() == lowered || $0.prefix.lowercased() == lowered
         }) {
             return match
         }
-        let names = projectStore.activeProjects.map(\.name).joined(separator: ", ")
-        throw ToolError.message("Project '\(raw)' not found. Active projects: \(names)")
+        let names = workStore.activeWorks.map(\.name).joined(separator: ", ")
+        throw ToolError.message("Work '\(raw)' not found. Active works: \(names)")
     }
 
-    private func fetchItems(prefixes: Set<String>) async throws -> [ProjectItem] {
+    private func fetchItems(prefixes: Set<String>) async throws -> [WorkItem] {
         guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
         return await eventKit.items(
-            forProjects: prefixes,
+            forWorks: prefixes,
             enabledReminderLists: settings.effectiveReminderListNames,
             enabledCalendars: settings.effectiveCalendarNames
         )
     }
 
     private func listItems(_ input: [String: Any]) async throws -> String {
-        guard let projectStore else { throw ToolError.message("Service unavailable") }
-        let project = try resolveProject(input["project"] as? String)
-        let prefixes = project.map { Set([$0.prefix]) }
-            ?? Set(projectStore.activeProjects.map(\.prefix))
-        guard !prefixes.isEmpty else { return "No projects configured." }
+        guard let workStore else { throw ToolError.message("Service unavailable") }
+        let work = try resolveWork(input["work"] as? String)
+        let prefixes = work.map { Set([$0.prefix]) }
+            ?? Set(workStore.activeWorks.map(\.prefix))
+        guard !prefixes.isEmpty else { return "No works configured." }
 
         let scope = input["scope"] as? String ?? "this_week"
         let includeCompleted = input["include_completed"] as? Bool ?? false
@@ -341,22 +341,22 @@ final class AgentToolbox {
 
     private func createTask(_ input: [String: Any]) async throws -> String {
         guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
-        guard let project = try resolveProject(input["project"] as? String) else {
-            throw ToolError.message("Missing 'project'.")
+        guard let work = try resolveWork(input["work"] as? String) else {
+            throw ToolError.message("Missing 'work'.")
         }
         guard let title = input["title"] as? String, !title.isEmpty else {
             throw ToolError.message("Missing 'title'.")
         }
-        let listName = settings.reminderSaveTarget(projectListName: project.reminderListName)
+        let listName = settings.reminderSaveTarget(workListName: work.reminderListName)
         guard !listName.isEmpty else {
-            throw ToolError.message("No reminder list configured for project \(project.name).")
+            throw ToolError.message("No reminder list configured for work \(work.name).")
         }
         let due = parseDateValue(input["due_at"] as? String)
         let tags = (input["tags"] as? [Any])?.compactMap { $0 as? String } ?? []
         let priority = priorityValue(input["priority"] as? String) ?? 0
         let stableID = UUID().uuidString
         let created = await eventKit.createReminder(
-            project: project.prefix, content: title,
+            work: work.prefix, content: title,
             listName: listName, dueDate: due?.date, dueIncludesTime: due?.hasTime ?? false,
             tags: tags,
             itemReference: FacetItemReference(itemID: stableID),
@@ -369,8 +369,8 @@ final class AgentToolbox {
 
     private func createEvent(_ input: [String: Any]) async throws -> String {
         guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
-        guard let project = try resolveProject(input["project"] as? String) else {
-            throw ToolError.message("Missing 'project'.")
+        guard let work = try resolveWork(input["work"] as? String) else {
+            throw ToolError.message("Missing 'work'.")
         }
         guard let title = input["title"] as? String, !title.isEmpty else {
             throw ToolError.message("Missing 'title'.")
@@ -379,9 +379,9 @@ final class AgentToolbox {
         guard let start = parseDateValue(input["start"] as? String) else {
             throw ToolError.message("Missing or invalid 'start'.")
         }
-        let calName = settings.calendarSaveTarget(projectCalendarName: project.calendarName)
+        let calName = settings.calendarSaveTarget(workCalendarName: work.calendarName)
         guard !calName.isEmpty else {
-            throw ToolError.message("No calendar configured for project \(project.name).")
+            throw ToolError.message("No calendar configured for work \(work.name).")
         }
         let end = parseDateValue(input["end"] as? String)?.date
         if let end, end <= start.date {
@@ -392,7 +392,7 @@ final class AgentToolbox {
             ?? settings.defaultEventDurationMinutes
         let stableID = UUID().uuidString
         let created = await eventKit.createEvent(
-            project: project.prefix, content: title,
+            work: work.prefix, content: title,
             calendarName: calName, startDate: start.date,
             durationMinutes: duration,
             tags: tags,
@@ -409,7 +409,7 @@ final class AgentToolbox {
         guard let raw, !raw.isEmpty else { throw ToolError.message("Missing 'reference_id'.") }
         if let mention = referencedItems[raw] {
             if let stableID = mention.stableID {
-                let current = try await fetchItems(prefixes: [mention.projectPrefix])
+                let current = try await fetchItems(prefixes: [mention.workPrefix])
                     .first { $0.facetID == stableID }
                 if let current {
                     let refreshed = AssistantItemMention(item: current)
@@ -419,8 +419,8 @@ final class AgentToolbox {
             }
             return mention
         }
-        guard let projectStore else { throw ToolError.message("Service unavailable") }
-        let prefixes = Set(projectStore.activeProjects.map(\.prefix))
+        guard let workStore else { throw ToolError.message("Service unavailable") }
+        let prefixes = Set(workStore.activeWorks.map(\.prefix))
         let items = try await fetchItems(prefixes: prefixes)
         if let item = items.first(where: {
             $0.facetID == raw || $0.id == raw || "eventkit:\($0.id)" == raw
@@ -462,7 +462,7 @@ final class AgentToolbox {
         }
         let success = await eventKit.updateItem(
             id: mention.eventKitID,
-            project: mention.projectPrefix,
+            work: mention.workPrefix,
             content: title ?? mention.title,
             date: start,
             useDate: mention.kind == "event" || start != nil,
@@ -509,28 +509,28 @@ final class AgentToolbox {
     private func moveItem(_ input: [String: Any]) async throws -> String {
         guard let eventKit, let settings else { throw ToolError.message("Service unavailable") }
         let mention = try await resolveReference(input["reference_id"] as? String)
-        guard let target = try resolveProject(input["target_project"] as? String) else {
-            throw ToolError.message("Missing 'target_project'.")
+        guard let target = try resolveWork(input["target_work"] as? String) else {
+            throw ToolError.message("Missing 'target_work'.")
         }
-        guard mention.projectPrefix != target.prefix else {
-            return jsonString(["moved": false, "reason": "Item is already in that project."])
+        guard mention.workPrefix != target.prefix else {
+            return jsonString(["moved": false, "reason": "Item is already in that work."])
         }
-        // Determine the right container for the target project
+        // Determine the right container for the target work
         let newContainer: String
         if mention.kind == "task" {
-            newContainer = settings.reminderSaveTarget(projectListName: target.reminderListName)
+            newContainer = settings.reminderSaveTarget(workListName: target.reminderListName)
             guard !newContainer.isEmpty else {
-                throw ToolError.message("No reminder list configured for project \(target.name).")
+                throw ToolError.message("No reminder list configured for work \(target.name).")
             }
         } else {
-            newContainer = settings.calendarSaveTarget(projectCalendarName: target.calendarName)
+            newContainer = settings.calendarSaveTarget(workCalendarName: target.calendarName)
             guard !newContainer.isEmpty else {
-                throw ToolError.message("No calendar configured for project \(target.name).")
+                throw ToolError.message("No calendar configured for work \(target.name).")
             }
         }
         let success = await eventKit.updateItem(
             id: mention.eventKitID,
-            project: target.prefix,
+            work: target.prefix,
             content: mention.title,
             date: mention.date,
             useDate: mention.kind == "event" || mention.date != nil,
@@ -545,28 +545,28 @@ final class AgentToolbox {
         return jsonString([
             "moved": true,
             "reference_id": mention.referenceID,
-            "from_project": mention.projectPrefix,
-            "to_project": target.prefix,
+            "from_work": mention.workPrefix,
+            "to_work": target.prefix,
         ])
     }
 
     // ── Week goals ───────────────────────────────────────────────────────────
 
     private func listWeekGoals(_ input: [String: Any]) throws -> String {
-        guard let projectStore else { throw ToolError.message("Service unavailable") }
+        guard let workStore else { throw ToolError.message("Service unavailable") }
         let weekRaw = input["week"] as? String
         let week = parseISOWeek(weekRaw) ?? ISOWeek.containing(Date())
-        let projects: [Project]
-        if let project = try resolveProject(input["project"] as? String) {
-            projects = [project]
+        let works: [Work]
+        if let work = try resolveWork(input["work"] as? String) {
+            works = [work]
         } else {
-            projects = projectStore.activeProjects
+            works = workStore.activeWorks
         }
-        let lines = projects.compactMap { project -> String? in
-            guard let goal = project.weekGoals.first(where: { $0.weekId == week.id }) else {
+        let lines = works.compactMap { work -> String? in
+            guard let goal = work.weekGoals.first(where: { $0.weekId == week.id }) else {
                 return nil
             }
-            var line = "- \(project.name) (\(week.id)): \(goal.title)"
+            var line = "- \(work.name) (\(week.id)): \(goal.title)"
             if !goal.body.isEmpty { line += "\n  \(goal.body)" }
             return line
         }
@@ -577,11 +577,11 @@ final class AgentToolbox {
     }
 
     private func setWeekGoal(_ input: [String: Any]) async throws -> String {
-        guard let projectStore, let eventKit, let settings else {
+        guard let workStore, let eventKit, let settings else {
             throw ToolError.message("Service unavailable")
         }
-        guard let project = try resolveProject(input["project"] as? String) else {
-            throw ToolError.message("Missing 'project'.")
+        guard let work = try resolveWork(input["work"] as? String) else {
+            throw ToolError.message("Missing 'work'.")
         }
         guard let title = input["title"] as? String else {
             throw ToolError.message("Missing 'title'.")
@@ -592,12 +592,12 @@ final class AgentToolbox {
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
 
         // Sync to EventKit goal event if calendar is configured
-        var eventId: String? = project.weekGoals.first(where: { $0.weekId == week.id })?.eventId
+        var eventId: String? = work.weekGoals.first(where: { $0.weekId == week.id })?.eventId
         if !trimmedTitle.isEmpty {
-            let calName = project.weekGoalCalendarName ?? settings.weekGoalCalendarName
+            let calName = work.weekGoalCalendarName ?? settings.weekGoalCalendarName
             if !calName.isEmpty {
                 let newId = await eventKit.createOrUpdateGoalEvent(
-                    project: project.prefix,
+                    work: work.prefix,
                     title: trimmedTitle,
                     body: body,
                     week: week,
@@ -608,88 +608,88 @@ final class AgentToolbox {
                 if let newId { eventId = newId }
             }
         }
-        projectStore.setWeekGoal(projectID: project.id, weekId: week.id,
+        workStore.setWeekGoal(workID: work.id, weekId: week.id,
                                  title: trimmedTitle, body: body, eventId: eventId)
         if trimmedTitle.isEmpty {
-            return jsonString(["cleared": true, "project": project.name, "week": week.id])
+            return jsonString(["cleared": true, "work": work.name, "week": week.id])
         }
-        return jsonString(["set": true, "project": project.name, "week": week.id, "title": trimmedTitle])
+        return jsonString(["set": true, "work": work.name, "week": week.id, "title": trimmedTitle])
     }
 
     // ── Repository documents ────────────────────────────────────────────────
 
-    private func requireProject(_ input: [String: Any]) throws -> Project {
-        guard let project = try resolveProject(input["project"] as? String) else {
-            throw ToolError.message("Missing 'project'.")
+    private func requireWork(_ input: [String: Any]) throws -> Work {
+        guard let work = try resolveWork(input["work"] as? String) else {
+            throw ToolError.message("Missing 'work'.")
         }
-        return project
+        return work
     }
 
-    private func listProjectDocuments(_ input: [String: Any]) throws -> String {
-        let project = try requireProject(input)
-        let documents = try RepositoryDocumentStore.list(repositoryPath: project.githubLocalPath)
+    private func listWorkDocuments(_ input: [String: Any]) throws -> String {
+        let work = try requireWork(input)
+        let documents = try RepositoryDocumentStore.list(repositoryPath: work.githubLocalPath)
         return jsonString([
-            "project": project.name,
+            "work": work.name,
             "documents": documents.map {
                 ["path": $0.relativePath, "title": $0.title, "is_readme": $0.isReadme] as [String: Any]
             },
         ])
     }
 
-    private func readProjectDocument(_ input: [String: Any]) throws -> String {
-        let project = try requireProject(input)
+    private func readWorkDocument(_ input: [String: Any]) throws -> String {
+        let work = try requireWork(input)
         guard let path = input["path"] as? String else {
             throw ToolError.message("Missing 'path'.")
         }
         var body = try RepositoryDocumentStore.read(
-            repositoryPath: project.githubLocalPath,
+            repositoryPath: work.githubLocalPath,
             relativePath: path
         )
         if body.count > 28_000 {
             body = String(body.prefix(28_000)) + "\n…(truncated)"
         }
-        return jsonString(["project": project.name, "path": path, "body": body])
+        return jsonString(["work": work.name, "path": path, "body": body])
     }
 
-    private func createProjectDocument(_ input: [String: Any]) throws -> String {
-        let project = try requireProject(input)
+    private func createWorkDocument(_ input: [String: Any]) throws -> String {
+        let work = try requireWork(input)
         guard let title = input["title"] as? String,
               !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let body = input["body"] as? String else {
             throw ToolError.message("Missing 'title' or 'body'.")
         }
         let document = try RepositoryDocumentStore.create(
-            repositoryPath: project.githubLocalPath,
+            repositoryPath: work.githubLocalPath,
             title: title,
             body: body
         )
         return jsonString([
             "created": true,
-            "project": project.name,
+            "work": work.name,
             "path": document.relativePath,
         ])
     }
 
-    private func updateProjectDocument(_ input: [String: Any]) throws -> String {
-        let project = try requireProject(input)
+    private func updateWorkDocument(_ input: [String: Any]) throws -> String {
+        let work = try requireWork(input)
         guard let path = input["path"] as? String,
               let body = input["body"] as? String,
               let mode = input["mode"] as? String else {
             throw ToolError.message("Missing 'path', 'body', or 'mode'.")
         }
         let existing = try RepositoryDocumentStore.read(
-            repositoryPath: project.githubLocalPath,
+            repositoryPath: work.githubLocalPath,
             relativePath: path
         )
         let merged = mode == "append" && !existing.isEmpty
             ? existing + "\n\n" + body
             : body
         try RepositoryDocumentStore.save(
-            repositoryPath: project.githubLocalPath,
+            repositoryPath: work.githubLocalPath,
             relativePath: path,
             body: merged
         )
-        return jsonString(["updated": true, "project": project.name, "path": path, "characters": merged.count])
+        return jsonString(["updated": true, "work": work.name, "path": path, "characters": merged.count])
     }
 
     private func attachDocumentToItem(_ input: [String: Any]) async throws -> String {
@@ -700,11 +700,11 @@ final class AgentToolbox {
         guard let path = input["path"] as? String else {
             throw ToolError.message("Missing 'path'.")
         }
-        guard let project = try resolveProject(mention.projectPrefix) else {
-            throw ToolError.message("The item's project no longer exists.")
+        guard let work = try resolveWork(mention.workPrefix) else {
+            throw ToolError.message("The item's work no longer exists.")
         }
-        guard RepositoryDocumentStore.exists(repositoryPath: project.githubLocalPath, relativePath: path) else {
-            throw ToolError.message("Document '\(path)' does not exist in project \(project.name).")
+        guard RepositoryDocumentStore.exists(repositoryPath: work.githubLocalPath, relativePath: path) else {
+            throw ToolError.message("Document '\(path)' does not exist in work \(work.name).")
         }
         var paths = ItemStore.shared.documentPaths(for: stableID)
         if !paths.contains(path) {

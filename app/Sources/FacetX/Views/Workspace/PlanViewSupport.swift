@@ -5,7 +5,7 @@ struct DayGroup: Identifiable {
     let date: Date
     let label: String
     let weekdayLabel: String
-    let items: [ProjectItem]
+    let items: [WorkItem]
     let isToday: Bool
 
     var id: Date { date }
@@ -88,7 +88,7 @@ struct PlanDayLoad {
     }
 
     static func measure(
-        _ items: [ProjectItem],
+        _ items: [WorkItem],
         calendar: Calendar = .current,
         eventDefaultMinutes: Int = 60
     ) -> PlanDayLoad {

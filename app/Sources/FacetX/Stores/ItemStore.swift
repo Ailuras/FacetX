@@ -489,10 +489,10 @@ final class ItemStore {
     /// Record one finished focus session. `targetID` is the item's stable focus
     /// key (facetID when present, otherwise the EventKit/paper identifier);
     /// title and prefix are denormalized so history survives item deletion.
-    func recordFocusSession(targetID: String, projectPrefix: String, title: String,
+    func recordFocusSession(targetID: String, workPrefix: String, title: String,
                             kind: String, startedAt: Date, seconds: Int) {
         let sql = """
-        INSERT INTO focus_sessions (target_id, project_prefix, title, kind, started_at, seconds)
+        INSERT INTO focus_sessions (target_id, work_prefix, title, kind, started_at, seconds)
         VALUES (?, ?, ?, ?, ?, ?)
         """
         var stmt: OpaquePointer?
@@ -501,7 +501,7 @@ final class ItemStore {
             return
         }
         sqlite3_bind_text(stmt, 1, targetID, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, projectPrefix, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, workPrefix, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, title, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, kind, -1, SQLITE_TRANSIENT)
         sqlite3_bind_double(stmt, 5, startedAt.timeIntervalSince1970)
@@ -604,7 +604,7 @@ final class ItemStore {
         CREATE TABLE IF NOT EXISTS focus_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target_id TEXT NOT NULL,
-            project_prefix TEXT NOT NULL DEFAULT '',
+            work_prefix TEXT NOT NULL DEFAULT '',
             title TEXT NOT NULL DEFAULT '',
             kind TEXT NOT NULL DEFAULT 'task',
             started_at REAL NOT NULL,

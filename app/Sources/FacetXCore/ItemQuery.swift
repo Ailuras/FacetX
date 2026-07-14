@@ -18,42 +18,42 @@ public struct ItemCounts: Equatable, Sendable {
 }
 
 public enum ItemQuery {
-    public static func searched(_ items: [ProjectItem], query: String) -> [ProjectItem] {
+    public static func searched(_ items: [WorkItem], query: String) -> [WorkItem] {
         items.filter { $0.matches(searchQuery: query) }
     }
 
-    public static func completedVisibility(_ items: [ProjectItem], showCompleted: Bool) -> [ProjectItem] {
+    public static func completedVisibility(_ items: [WorkItem], showCompleted: Bool) -> [WorkItem] {
         guard !showCompleted else { return items }
         return items.filter { !$0.isCompleted }
     }
 
     /// Hides overdue (past-due, still-open) items when `showOverdue` is false, so
     /// the list can focus on what's upcoming. Mirrors `completedVisibility`.
-    public static func overdueVisibility(_ items: [ProjectItem], showOverdue: Bool) -> [ProjectItem] {
+    public static func overdueVisibility(_ items: [WorkItem], showOverdue: Bool) -> [WorkItem] {
         guard !showOverdue else { return items }
         return items.filter { !$0.isOverdue }
     }
 
-    public static func filtered(_ items: [ProjectItem], by tagFilter: TagFilter) -> [ProjectItem] {
+    public static func filtered(_ items: [WorkItem], by tagFilter: TagFilter) -> [WorkItem] {
         guard !tagFilter.isEmpty else { return items }
         return items.filter { tagFilter.matches($0) }
     }
 
     public static func filtered(
-        _ items: [ProjectItem],
+        _ items: [WorkItem],
         by itemFilter: ItemListFilter,
         now: Date = Date(),
         calendar: Calendar = .current
-    ) -> [ProjectItem] {
+    ) -> [WorkItem] {
         guard itemFilter.isActive else { return items }
         return items.filter { itemFilter.matches($0, now: now, calendar: calendar) }
     }
 
     public static func todayItems(
-        _ items: [ProjectItem],
+        _ items: [WorkItem],
         calendar: Calendar = .current,
         includeCompletedReminders: Bool = false
-    ) -> [ProjectItem] {
+    ) -> [WorkItem] {
         items.filter { item in
             guard let date = item.date else { return false }
             if !includeCompletedReminders, item.kind == .reminder, item.isCompleted {
@@ -63,7 +63,7 @@ public enum ItemQuery {
         }
     }
 
-    public static func counts(for items: [ProjectItem]) -> ItemCounts {
+    public static func counts(for items: [WorkItem]) -> ItemCounts {
         ItemCounts(
             taskOpenCount: items.filter { $0.kind == .reminder && !$0.isCompleted }.count,
             taskCompletedCount: items.filter { $0.kind == .reminder && $0.isCompleted }.count,
@@ -71,7 +71,7 @@ public enum ItemQuery {
         )
     }
 
-    public static func projectPrefixCount(for items: [ProjectItem]) -> Int {
-        Set(items.map(\.projectPrefix)).count
+    public static func workPrefixCount(for items: [WorkItem]) -> Int {
+        Set(items.map(\.workPrefix)).count
     }
 }

@@ -162,7 +162,7 @@ struct FacetXDataChecks {
         check(store.documentPaths(for: itemID) == [created.relativePath], "document relations should be de-duplicated")
         store.recordFocusSession(
             targetID: itemID,
-            projectPrefix: "Test",
+            workPrefix: "Test",
             title: "Read",
             kind: "task",
             startedAt: Date(),

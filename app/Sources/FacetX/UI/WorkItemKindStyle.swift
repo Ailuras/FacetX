@@ -2,7 +2,7 @@ import FacetXCore
 import SwiftUI
 
 /// Presentation for the two EventKit-backed work-item kinds.
-extension ProjectItem.Kind {
+extension WorkItem.Kind {
     var color: Color {
         switch self {
         case .reminder:  return .green
@@ -36,7 +36,7 @@ extension ProjectItem.Kind {
 
 /// One template for an item's row/calendar visuals so every surface (All, Plan,
 /// Today) stays consistent and new code doesn't re-derive icon/color.
-extension ProjectItem {
+extension WorkItem {
     /// Tint by element type; tasks keep priority emphasis when prioritized.
     var rowTint: Color {
         if kind == .reminder, priority > 0 { return FacetTheme.priorityColor(priority) }

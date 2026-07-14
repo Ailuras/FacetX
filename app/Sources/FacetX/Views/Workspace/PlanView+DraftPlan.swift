@@ -15,7 +15,7 @@ extension PlanView {
 
     private func aiDraftPlanPrompt() -> String {
         """
-        Draft a weekly plan for this FacetX project using the context below.
+        Draft a weekly plan for this FacetX work using the context below.
 
         Important rules:
         - Do not create, update, delete, complete, or move any item in this turn.
@@ -33,9 +33,9 @@ extension PlanView {
 
     private func aiDraftPlanContextJSON() -> String {
         let object: [String: Any] = [
-            "project": [
-                "name": project.name,
-                "prefix": project.prefix,
+            "work": [
+                "name": work.name,
+                "prefix": work.prefix,
             ],
             "week": [
                 "id": week.id,
@@ -59,7 +59,7 @@ extension PlanView {
         return String(data: data, encoding: .utf8) ?? "{}"
     }
 
-    private var aiUnscheduledTasks: [ProjectItem] {
+    private var aiUnscheduledTasks: [WorkItem] {
         allItems.filter { item in
             item.kind == .reminder
                 && item.date == nil
@@ -96,7 +96,7 @@ extension PlanView {
         }
     }
 
-    private func aiItemObject(_ item: ProjectItem) -> [String: Any] {
+    private func aiItemObject(_ item: WorkItem) -> [String: Any] {
         let mention = AssistantItemMention(item: item)
         var object = mention.promptObject
         object["work_item_kind"] = mention.kind

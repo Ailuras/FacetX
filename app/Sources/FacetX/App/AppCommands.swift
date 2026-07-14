@@ -16,10 +16,10 @@ struct AppCommands: Commands {
 
             Divider()
 
-            Button("Previous Project") { router.commandPublisher.send(.prevProject) }
+            Button("Previous Work") { router.commandPublisher.send(.prevWork) }
                 .keyboardShortcut(.upArrow, modifiers: .command)
 
-            Button("Next Project") { router.commandPublisher.send(.nextProject) }
+            Button("Next Work") { router.commandPublisher.send(.nextWork) }
                 .keyboardShortcut(.downArrow, modifiers: .command)
         }
 
