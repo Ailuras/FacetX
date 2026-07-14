@@ -455,15 +455,28 @@ struct NotesView: View {
             }
         ) {
             if inspectorTab == .outline {
-                ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                inspectorSection(L10n.pick("Outline", "文档大纲"), systemImage: "list.bullet.indent") {
+                noteOutlineDetails
+            } else {
+                noteHistoryDetails
+            }
+        }
+    }
+
+    private var noteOutlineDetails: some View {
+        FacetSidebarContent {
+            FacetDetailSection(
+                title: L10n.pick("Outline", "文档大纲"),
+                systemImage: "list.bullet.indent"
+            ) {
+                VStack(spacing: 0) {
                     if headings.isEmpty {
-                        Text(L10n.pick("Add headings to build an outline.", "添加标题以生成大纲。"))
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.tertiary)
+                        FacetDetailEmptyRow(
+                            text: L10n.pick("Add headings to build an outline.", "添加标题以生成大纲。"),
+                            systemImage: "textformat.size"
+                        )
+                        .padding(10)
                     } else {
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: 2) {
                             ForEach(headings) { heading in
                                 Button {
                                     clearRevision()
@@ -472,7 +485,7 @@ struct NotesView: View {
                                         editorController.reveal(heading: heading.text)
                                     }
                                 } label: {
-                                    HStack(spacing: 6) {
+                                    HStack(spacing: 7) {
                                         Circle()
                                             .fill(heading.level == 1 ? Color.accentColor : Color.secondary.opacity(0.45))
                                             .frame(width: heading.level == 1 ? 5 : 3, height: heading.level == 1 ? 5 : 3)
@@ -483,136 +496,136 @@ struct NotesView: View {
                                         Spacer(minLength: 0)
                                     }
                                     .padding(.leading, CGFloat(max(heading.level - 1, 0)) * 10)
-                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 10)
+                                    .frame(minHeight: 30)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
+                        .padding(.vertical, 6)
                     }
                 }
+            }
 
-                inspectorSection(L10n.pick("Linked Work Items", "关联工作项"), systemImage: "link") {
+            FacetDetailSection(
+                title: L10n.pick("Linked Work Items", "关联工作项"),
+                systemImage: "link"
+            ) {
+                VStack(spacing: 6) {
                     if linkedWorkItems.isEmpty {
-                        Text(L10n.pick("This note is not attached yet.", "这篇笔记尚未关联工作项。"))
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.tertiary)
+                        FacetDetailEmptyRow(
+                            text: L10n.pick("This note is not attached yet.", "这篇笔记尚未关联工作项。"),
+                            systemImage: "link"
+                        )
                     } else {
-                        VStack(alignment: .leading, spacing: 5) {
-                            ForEach(linkedWorkItems) { item in
-                                Button {
-                                    NotificationCenter.default.post(
-                                        name: .selectItemInProjectDetail,
-                                        object: nil,
-                                        userInfo: ["itemID": item.id]
-                                    )
-                                } label: {
-                                    HStack(spacing: 7) {
-                                        Image(systemName: item.kind.systemImage)
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundStyle(item.kind.color)
-                                        Text(item.content)
-                                            .font(.system(size: 10.5, weight: .medium))
-                                            .lineLimit(2)
-                                        Spacer(minLength: 0)
-                                    }
-                                    .padding(8)
-                                    .background(Color.primary.opacity(0.035))
-                                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        ForEach(linkedWorkItems) { item in
+                            Button {
+                                NotificationCenter.default.post(
+                                    name: .selectItemInProjectDetail,
+                                    object: nil,
+                                    userInfo: ["itemID": item.id]
+                                )
+                            } label: {
+                                FacetDetailResourceRow(
+                                    title: item.content,
+                                    subtitle: item.kind.singularTitle,
+                                    systemImage: item.kind.systemImage,
+                                    tint: item.kind.color
+                                ) {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundStyle(.tertiary)
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
+                .padding(10)
+            }
 
-                inspectorSection(L10n.pick("Document", "文档"), systemImage: "info.circle") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        inspectorMetadata(L10n.pick("Words", "字数"), value: "\(wordCount)")
-                        inspectorMetadata(L10n.pick("Lines", "行数"), value: "\(lineCount)")
-                        inspectorMetadata(L10n.pick("Size", "大小"), value: fileSizeString)
-                        if let modified = selectedDocument?.modifiedAt {
-                            inspectorMetadata(L10n.pick("Modified", "修改"), value: relativeDate(modified))
-                        }
+            FacetDetailSection(
+                title: L10n.pick("Document", "文档"),
+                systemImage: "info.circle"
+            ) {
+                VStack(spacing: 0) {
+                    FacetDetailMetadataRow(label: L10n.pick("Words", "字数"), value: "\(wordCount)")
+                    Divider().padding(.leading, 10)
+                    FacetDetailMetadataRow(label: L10n.pick("Lines", "行数"), value: "\(lineCount)")
+                    Divider().padding(.leading, 10)
+                    FacetDetailMetadataRow(label: L10n.pick("Size", "大小"), value: fileSizeString)
+                    if let modified = selectedDocument?.modifiedAt {
+                        Divider().padding(.leading, 10)
+                        FacetDetailMetadataRow(label: L10n.pick("Modified", "修改"), value: relativeDate(modified))
                     }
                 }
-                }
-                .padding(16)
-                }
-                .thinScrollIndicators()
-                .id(attachmentVersion)
-            } else {
-                revisionHistoryInspector
             }
         }
+        .id(attachmentVersion)
     }
 
-    private var revisionHistoryInspector: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
+    private var noteHistoryDetails: some View {
+        FacetSidebarContent {
+            FacetDetailSection(
+                title: L10n.pick("Working Copy", "工作版本"),
+                systemImage: "doc.text.fill"
+            ) {
                 Button {
                     clearRevision()
                 } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: "doc.text.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 24, height: 24)
-                            .background(Color.accentColor.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L10n.pick("Current working copy", "当前工作版本"))
-                                .font(.system(size: 11, weight: .semibold))
-                            Text(hasUnsavedChanges ? L10n.pick("Unsaved changes", "包含未保存修改")
-                                                   : L10n.pick("Latest on disk", "磁盘中的最新内容"))
-                                .font(.system(size: 9.5))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
+                    FacetDetailResourceRow(
+                        title: L10n.pick("Current working copy", "当前工作版本"),
+                        subtitle: hasUnsavedChanges ? L10n.pick("Unsaved changes", "包含未保存修改")
+                                                    : L10n.pick("Latest on disk", "磁盘中的最新内容"),
+                        systemImage: "doc.text.fill",
+                        tint: .accentColor
+                    ) {
                         if selectedRevisionID == nil {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(Color.accentColor)
                         }
                     }
                     .padding(10)
-                    .background(selectedRevisionID == nil ? FacetTheme.softAccent : Color.primary.opacity(0.025))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+            }
 
-                HStack(spacing: 6) {
-                    Text(L10n.pick("Committed revisions", "已提交版本"))
-                        .font(.system(size: 9.5, weight: .bold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if isLoadingFileCommits { ProgressView().controlSize(.mini) }
-                    Text("\(fileCommits.count)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 3)
-                .padding(.top, 8)
+            FacetDetailSection(
+                title: L10n.pick("Committed Revisions", "已提交版本"),
+                systemImage: "clock.arrow.circlepath"
+            ) {
+                VStack(spacing: 0) {
+                    HStack {
+                        if isLoadingFileCommits { ProgressView().controlSize(.mini) }
+                        Spacer()
+                        Text("\(fileCommits.count)")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
 
-                if !isLoadingFileCommits && fileCommits.isEmpty {
-                    ContentUnavailableView(
-                        L10n.pick("No Revisions", "暂无历史版本"),
-                        systemImage: "clock.arrow.circlepath",
-                        description: Text(L10n.pick("Commit this document to begin its history.",
-                                                    "提交这篇文档后即可形成版本历史。"))
-                    )
-                    .frame(minHeight: 180)
-                } else {
-                    LazyVStack(spacing: 4) {
-                        ForEach(fileCommits) { commit in
-                            revisionRow(commit)
+                    Divider().padding(.leading, 10)
+
+                    if !isLoadingFileCommits && fileCommits.isEmpty {
+                        FacetDetailEmptyRow(
+                            text: L10n.pick("Commit this document to begin its history.",
+                                            "提交这篇文档后即可形成版本历史。"),
+                            systemImage: "clock.arrow.circlepath"
+                        )
+                        .padding(10)
+                    } else {
+                        LazyVStack(spacing: 6) {
+                            ForEach(fileCommits) { commit in
+                                revisionRow(commit)
+                            }
                         }
+                        .padding(10)
                     }
                 }
             }
-            .padding(12)
         }
-        .thinScrollIndicators()
     }
 
     private func revisionRow(_ commit: LocalGitCommit) -> some View {
@@ -620,69 +633,20 @@ struct NotesView: View {
         return Button {
             loadRevision(commit)
         } label: {
-            HStack(alignment: .top, spacing: 9) {
-                VStack(spacing: 2) {
-                    Circle()
-                        .fill(selected ? Color.accentColor : Color.purple.opacity(0.55))
-                        .frame(width: 7, height: 7)
-                    Rectangle()
-                        .fill(Color.primary.opacity(0.08))
-                        .frame(width: 1, height: 32)
-                }
-                .padding(.top, 4)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(commit.summary)
-                        .font(.system(size: 10.5, weight: selected ? .semibold : .medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                    HStack(spacing: 5) {
-                        Text(commit.shortSHA)
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.purple)
-                        Text("·")
-                        Text(relativeDate(commit.date))
-                    }
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    Text(commit.authorName)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer(minLength: 0)
+            FacetDetailResourceRow(
+                title: commit.summary,
+                subtitle: "\(commit.shortSHA) · \(commit.authorName) · \(relativeDate(commit.date))",
+                systemImage: "clock.arrow.circlepath",
+                tint: selected ? .accentColor : .purple
+            ) {
                 if selected {
                     Image(systemName: "eye.fill")
                         .font(.system(size: 9))
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(9)
-            .background(selected ? FacetTheme.softAccent : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func inspectorSection<Content: View>(_ title: String,
-                                                 systemImage: String,
-                                                 @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 10.5, weight: .bold))
-                .foregroundStyle(.secondary)
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func inspectorMetadata(_ label: String, value: String) -> some View {
-        HStack {
-            Text(label).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).foregroundStyle(.primary)
-        }
-        .font(.system(size: 10.5))
     }
 
     private var noRepoState: some View {

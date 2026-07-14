@@ -574,11 +574,15 @@ struct GitView: View {
     }
 
     private var changeInspector: some View {
-        ScrollView {
+        Group {
             if let entry = selectedChange {
-                VStack(alignment: .leading, spacing: 18) {
-                    inspectorHeader(L10n.pick("Change", "变更"), systemImage: "doc.text.magnifyingglass")
-                    VStack(alignment: .leading, spacing: 8) {
+                FacetSidebarContent {
+                    FacetDetailSection(
+                        title: L10n.pick("Change", "变更"),
+                        systemImage: "doc.text.magnifyingglass"
+                    ) {
+                        VStack(spacing: 0) {
+                            VStack(alignment: .leading, spacing: 5) {
                         Text(entry.path)
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .textSelection(.enabled)
@@ -587,37 +591,65 @@ struct GitView: View {
                                 .font(.system(size: 9.5, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
-                        metadataRow(L10n.pick("State", "状态"), value: stateName(entry.state))
-                        metadataRow(L10n.pick("Area", "区域"), value: entry.area == .staged
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+
+                            Divider().padding(.leading, 10)
+                            FacetDetailMetadataRow(
+                                label: L10n.pick("State", "状态"),
+                                value: stateName(entry.state)
+                            )
+                            Divider().padding(.leading, 10)
+                            FacetDetailMetadataRow(
+                                label: L10n.pick("Area", "区域"),
+                                value: entry.area == .staged
                                     ? L10n.pick("Staged", "已暂存")
-                                    : L10n.pick("Working tree", "工作区"))
+                                    : L10n.pick("Working tree", "工作区")
+                            )
+                        }
                     }
 
-                    inspectorHeader(L10n.pick("Diff Summary", "差异摘要"), systemImage: "plus.forwardslash.minus")
-                    HStack(spacing: 12) {
-                        diffMetric("+\(additionCount)", tint: .green)
-                        diffMetric("−\(deletionCount)", tint: .red)
+                    FacetDetailSection(
+                        title: L10n.pick("Diff Summary", "差异摘要"),
+                        systemImage: "plus.forwardslash.minus"
+                    ) {
+                        HStack(spacing: 10) {
+                            diffMetric("+\(additionCount)", tint: .green)
+                            diffMetric("−\(deletionCount)", tint: .red)
+                        }
+                        .padding(10)
                     }
 
-                    Button {
-                        reveal(entry.path)
-                    } label: {
-                        Label(L10n.pick("Reveal in Finder", "在 Finder 中显示"), systemImage: "arrow.up.forward.app")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    FacetDetailSection(
+                        title: L10n.pick("Actions", "操作"),
+                        systemImage: "ellipsis.circle"
+                    ) {
+                        HStack(spacing: 8) {
+                            Button {
+                                reveal(entry.path)
+                            } label: {
+                                Label(L10n.pick("Reveal", "显示"), systemImage: "arrow.up.forward.app")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
 
-                    Button {
-                        toggleStage(entry)
-                    } label: {
-                        Label(entry.area == .staged ? L10n.pick("Unstage", "取消暂存") : L10n.pick("Stage", "暂存"),
-                              systemImage: entry.area == .staged ? "minus.circle" : "plus.circle")
+                            Button {
+                                toggleStage(entry)
+                            } label: {
+                                Label(
+                                    entry.area == .staged ? L10n.pick("Unstage", "取消暂存")
+                                                          : L10n.pick("Stage", "暂存"),
+                                    systemImage: entry.area == .staged ? "minus.circle" : "plus.circle"
+                                )
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(entry.state == .conflicted || isPerformingOperation)
+                        }
+                        .padding(10)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(entry.state == .conflicted || isPerformingOperation)
                 }
-                .padding(14)
             } else {
                 ContentUnavailableView(
                     L10n.pick("Select a Change", "选择变更"),
@@ -626,7 +658,6 @@ struct GitView: View {
                 )
             }
         }
-        .thinScrollIndicators()
     }
 
     // MARK: - History
@@ -764,88 +795,120 @@ struct GitView: View {
     }
 
     private var commitInspector: some View {
-        ScrollView {
+        Group {
             if let commit = selectedCommit {
-                VStack(alignment: .leading, spacing: 18) {
-                    inspectorHeader(L10n.pick("Commit", "提交"), systemImage: "point.3.connected.trianglepath.dotted")
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(commit.summary)
-                            .font(.system(size: 12, weight: .semibold))
-                            .textSelection(.enabled)
-                        if let body = commit.body {
-                            Text(body)
-                                .font(.system(size: 10.5))
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
+                FacetSidebarContent {
+                    FacetDetailSection(
+                        title: L10n.pick("Commit", "提交"),
+                        systemImage: "point.3.connected.trianglepath.dotted"
+                    ) {
+                        VStack(spacing: 0) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(commit.summary)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .textSelection(.enabled)
+                                if let body = commit.body {
+                                    Text(body)
+                                        .font(.system(size: 10.5))
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+
+                            Divider().padding(.leading, 10)
+                            FacetDetailMetadataRow(label: "SHA", value: commit.shortSHA, monospaced: true)
+                            Divider().padding(.leading, 10)
+                            FacetDetailMetadataRow(label: L10n.pick("Author", "作者"), value: commit.authorName)
+                            Divider().padding(.leading, 10)
+                            FacetDetailMetadataRow(label: L10n.pick("Date", "日期"), value: relativeDate(commit.date))
                         }
-                        metadataRow("SHA", value: commit.shortSHA)
-                        metadataRow(L10n.pick("Author", "作者"), value: commit.authorName)
-                        metadataRow(L10n.pick("Date", "日期"), value: relativeDate(commit.date))
                     }
 
-                    inspectorHeader(L10n.pick("Linked Work Items", "关联工作项"), systemImage: "link")
-                    let linked = linkedItems(for: commit)
-                    if linked.isEmpty {
-                        Text(L10n.pick("No work items attached.", "尚未关联工作项。"))
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.tertiary)
-                    } else {
-                        VStack(spacing: 5) {
-                            ForEach(linked) { item in
-                                Button {
-                                    NotificationCenter.default.post(
-                                        name: .selectItemInProjectDetail,
-                                        object: nil,
-                                        userInfo: ["itemID": item.id]
+                    FacetDetailSection(
+                        title: L10n.pick("Linked Work Items", "关联工作项"),
+                        systemImage: "link"
+                    ) {
+                        VStack(spacing: 0) {
+                            let linked = linkedItems(for: commit)
+                            VStack(spacing: 6) {
+                                if linked.isEmpty {
+                                    FacetDetailEmptyRow(
+                                        text: L10n.pick("No work items attached.", "尚未关联工作项。"),
+                                        systemImage: "link"
                                     )
-                                } label: {
-                                    HStack(spacing: 7) {
-                                        Image(systemName: item.kind.systemImage)
-                                            .foregroundStyle(item.kind.color)
-                                        Text(item.content).lineLimit(2)
-                                        Spacer(minLength: 0)
+                                } else {
+                                    ForEach(linked) { item in
+                                        Button {
+                                            NotificationCenter.default.post(
+                                                name: .selectItemInProjectDetail,
+                                                object: nil,
+                                                userInfo: ["itemID": item.id]
+                                            )
+                                        } label: {
+                                            FacetDetailResourceRow(
+                                                title: item.content,
+                                                subtitle: item.kind.singularTitle,
+                                                systemImage: item.kind.systemImage,
+                                                tint: item.kind.color
+                                            ) {
+                                                Image(systemName: "chevron.right")
+                                                    .font(.system(size: 9, weight: .semibold))
+                                                    .foregroundStyle(.tertiary)
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .font(.system(size: 10.5, weight: .medium))
-                                    .padding(8)
-                                    .background(Color.primary.opacity(0.035))
-                                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                                 }
-                                .buttonStyle(.plain)
+                            }
+                            .padding(10)
+
+                            Divider().padding(.leading, 10)
+                            Button {
+                                showingCommitLinks = true
+                            } label: {
+                                Label(L10n.pick("Attach Work Items", "关联工作项"), systemImage: "paperclip")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .padding(10)
+                            .popover(isPresented: $showingCommitLinks, arrowEdge: .bottom) {
+                                commitLinksPopover(commit)
                             }
                         }
                     }
 
-                    Button {
-                        showingCommitLinks = true
-                    } label: {
-                        Label(L10n.pick("Attach Work Items", "关联工作项"), systemImage: "paperclip")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .popover(isPresented: $showingCommitLinks, arrowEdge: .bottom) {
-                        commitLinksPopover(commit)
-                    }
+                    FacetDetailSection(
+                        title: L10n.pick("Actions", "操作"),
+                        systemImage: "ellipsis.circle"
+                    ) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Button {
+                                createTodo(from: commit)
+                            } label: {
+                                Label(
+                                    L10n.pick("Create Todo and Attach", "创建 Todo 并关联"),
+                                    systemImage: "checkmark.circle.badge.plus"
+                                )
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
 
-                    Button {
-                        createTodo(from: commit)
-                    } label: {
-                        Label(L10n.pick("Create Todo and Attach", "创建 Todo 并关联"), systemImage: "checkmark.circle.badge.plus")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    if let url = commit.htmlURL(repoFullName: repoInfo?.fullName ?? project.githubRepo) {
-                        Button {
-                            NSWorkspace.shared.open(url)
-                        } label: {
-                            Label(L10n.pick("View on GitHub", "在 GitHub 查看"), systemImage: "arrow.up.right.square")
+                            if let url = commit.htmlURL(repoFullName: repoInfo?.fullName ?? project.githubRepo) {
+                                Button {
+                                    NSWorkspace.shared.open(url)
+                                } label: {
+                                    Label(L10n.pick("View on GitHub", "在 GitHub 查看"), systemImage: "arrow.up.right.square")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(Color.accentColor)
+                        .padding(10)
                     }
                 }
-                .padding(14)
                 .id(attachmentVersion)
             } else {
                 ContentUnavailableView(
@@ -855,7 +918,6 @@ struct GitView: View {
                 )
             }
         }
-        .thinScrollIndicators()
     }
 
     // MARK: - Shared panes and popovers
@@ -968,24 +1030,6 @@ struct GitView: View {
             }
         }
         .id(attachmentVersion)
-    }
-
-    private func inspectorHeader(_ title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.system(size: 10.5, weight: .bold))
-            .foregroundStyle(.secondary)
-    }
-
-    private func metadataRow(_ label: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label).foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        }
-        .font(.system(size: 10))
     }
 
     private func diffMetric(_ value: String, tint: Color) -> some View {

@@ -235,12 +235,13 @@ struct ItemDetailPane: View {
 
     private var resourcesCard: some View {
         FacetDetailSection(title: L10n.pick("Linked Resources", "关联资源"), systemImage: "link.badge.plus") {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(spacing: 0) {
                 linkedDocumentsSection
+                Divider().padding(.horizontal, 10)
                 linkedPapersSection
+                Divider().padding(.horizontal, 10)
                 linkedCommitsSection
             }
-            .padding(10)
         }
     }
 
@@ -249,12 +250,13 @@ struct ItemDetailPane: View {
     private var linkedDocumentsSection: some View {
         let available = (try? RepositoryDocumentStore.list(repositoryPath: project.githubLocalPath)) ?? []
         let linkedPaths: [String] = documentPaths
-        return VStack(alignment: .leading, spacing: 7) {
-            resourceHeader(
-                title: L10n.pick("Documents", "文档"),
-                count: documentPaths.count,
-                systemImage: "doc.text"
-            ) {
+        return FacetResourceGroup(
+            title: L10n.pick("Documents", "文档"),
+            count: documentPaths.count,
+            systemImage: "doc.text",
+            tint: .blue,
+            emptyText: L10n.pick("No linked documents.", "暂无关联文档。"),
+            action: {
                 Menu {
                     if project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
                         Text(L10n.pick("Bind a local repository first.", "请先绑定本地仓库。"))
@@ -277,92 +279,74 @@ struct ItemDetailPane: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .semibold))
+                    WorkspaceActionIcon(systemName: "plus")
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .disabled(project.githubLocalPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
                 .help(L10n.pick("Attach Document", "关联文档"))
-            }
-
-            if documentPaths.isEmpty {
-                emptyResourceText(L10n.pick("No linked documents.", "暂无关联文档。"))
-            } else {
+            },
+            content: {
                 ForEach(linkedPaths, id: \.self) { (path: String) in
                     let exists = RepositoryDocumentStore.exists(repositoryPath: project.githubLocalPath, relativePath: path)
-                    HStack(spacing: 8) {
-                        Image(systemName: exists ? "doc.text" : "exclamationmark.triangle")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(exists ? Color.accentColor : .orange)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent)
-                                .font(.system(size: 11, weight: .medium))
-                                .lineLimit(1)
-                            Text(exists ? path : L10n.pick("Missing · \(path)", "文件缺失 · \(path)"))
-                                .font(.system(size: 9))
-                                .foregroundStyle(exists ? Color.secondary : Color.orange)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 8)
+                    FacetDetailResourceRow(
+                        title: URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent,
+                        subtitle: exists ? path : L10n.pick("Missing · \(path)", "文件缺失 · \(path)"),
+                        systemImage: exists ? "doc.text" : "exclamationmark.triangle",
+                        tint: exists ? .blue : .orange
+                    ) {
                         if exists, let url = try? RepositoryDocumentStore.url(
                             repositoryPath: project.githubLocalPath,
                             relativePath: path
                         ) {
-                            Button { NSWorkspace.shared.open(url) } label: {
-                                Image(systemName: "arrow.up.right")
+                            FacetDetailRowAction(
+                                systemImage: "arrow.up.right",
+                                help: L10n.pick("Open Document", "打开文档"),
+                                tint: .blue
+                            ) {
+                                NSWorkspace.shared.open(url)
                             }
-                            .buttonStyle(.plain)
-                            .help(L10n.pick("Open Document", "打开文档"))
                         }
-                        Button(role: .destructive) {
+                        FacetDetailRowAction(
+                            systemImage: "xmark",
+                            help: L10n.pick("Unlink Document", "取消文档关联")
+                        ) {
                             updateDocumentPaths(documentPaths.filter { $0 != path })
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .bold))
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .help(L10n.pick("Unlink Document", "取消文档关联"))
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(FacetTheme.quietPanel)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
             }
-        }
+        )
     }
 
     // MARK: - Literature section
 
     private var linkedPapersSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            resourceHeader(
-                title: L10n.pick("Literature", "文献"),
-                count: paperIDs.count,
-                systemImage: "books.vertical"
-            ) {
-                Button {
+        FacetResourceGroup(
+            title: L10n.pick("Literature", "文献"),
+            count: paperIDs.count,
+            systemImage: "books.vertical",
+            tint: .yellow,
+            emptyText: L10n.pick("No linked literature.", "暂无关联文献。"),
+            action: {
+                FacetDetailRowAction(
+                    systemImage: "plus",
+                    help: L10n.pick("Attach Literature", "关联文献"),
+                    tint: .yellow
+                ) {
                     showingPaperPicker.toggle()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .semibold))
                 }
-                .buttonStyle(.plain)
                 .popover(isPresented: $showingPaperPicker) { paperPicker }
-                .help(L10n.pick("Attach Literature", "关联文献"))
-            }
-            if paperIDs.isEmpty {
-                emptyResourceText(L10n.pick("No linked literature.", "暂无关联文献。"))
-            }
-            ForEach(paperIDs, id: \.self) { paperID in
-                paperResourceRow(paperID: paperID) {
-                    updatePaperIDs(paperIDs.filter { $0 != paperID })
+            },
+            content: {
+                ForEach(paperIDs, id: \.self) { paperID in
+                    paperResourceRow(paperID: paperID) {
+                        updatePaperIDs(paperIDs.filter { $0 != paperID })
+                    }
                 }
             }
-        }
+        )
     }
 
     private var paperPicker: some View {
@@ -414,90 +398,61 @@ struct ItemDetailPane: View {
         }()
 
 
-        return HStack(spacing: 8) {
-            Image(systemName: "books.vertical.fill")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.yellow)
-                .frame(width: 16, height: 16)
-                .background(Color.yellow.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    Text(paper?.title ?? paperID)
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1)
-
-                    Button {
-                        NotificationCenter.default.post(name: .navigateToPaper, object: nil, userInfo: ["paperID": paperID])
-                    } label: {
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                    .help(L10n.pick("View in Library", "在文献库中查看"))
-                    .hoverCursor(.pointingHand)
-                }
-
-                if !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+        return FacetDetailResourceRow(
+            title: paper?.title ?? paperID,
+            subtitle: subtitle,
+            systemImage: "books.vertical.fill",
+            tint: .yellow
+        ) {
+            FacetDetailRowAction(
+                systemImage: "arrow.up.right",
+                help: L10n.pick("View in Library", "在文献库中查看"),
+                tint: .yellow
+            ) {
+                NotificationCenter.default.post(
+                    name: .navigateToPaper,
+                    object: nil,
+                    userInfo: ["paperID": paperID]
+                )
             }
-
-            Spacer(minLength: 8)
-
-            Button(role: .destructive) {
+            FacetDetailRowAction(
+                systemImage: "xmark",
+                help: L10n.pick("Unlink paper", "取消文献关联")
+            ) {
                 onRemove()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
             .disabled(saving)
-            .help(L10n.pick("Unlink paper", "取消文献关联"))
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     // MARK: - Commits section
 
     private var linkedCommitsSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            resourceHeader(
-                title: L10n.pick("Commits", "提交"),
-                count: commits.count,
-                systemImage: "curlybraces"
-            ) {
-                Button {
+        FacetResourceGroup(
+            title: L10n.pick("Commits", "提交"),
+            count: commits.count,
+            systemImage: "curlybraces",
+            tint: .purple,
+            emptyText: L10n.pick("No linked commits.", "暂无关联提交。"),
+            action: {
+                FacetDetailRowAction(
+                    systemImage: "plus",
+                    help: L10n.pick("Attach Commit", "关联提交"),
+                    tint: .purple
+                ) {
                     showingCommitPicker.toggle()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .semibold))
                 }
-                .buttonStyle(.plain)
                 .disabled(project.githubLocalPath?.isEmpty != false)
                 .popover(isPresented: $showingCommitPicker) { commitPicker }
-                .help(L10n.pick("Attach Commit", "关联提交"))
-            }
-
-            if commits.isEmpty {
-                emptyResourceText(L10n.pick("No linked commits.", "暂无关联提交。"))
-            } else {
+            },
+            content: {
                 ForEach(commits, id: \.self) { commit in
                     commitResourceRow(commitString: commit) {
                         updateCommits(commits.filter { $0 != commit })
                     }
                 }
             }
-        }
+        )
     }
 
     private var commitPicker: some View {
@@ -559,86 +514,30 @@ struct ItemDetailPane: View {
         let titleText = parsed?.shortSha ?? commitString
         let subtitleText = parsed?.repo
         
-        return HStack(spacing: 8) {
-            Image(systemName: "curlybraces")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.purple)
-                .frame(width: 16, height: 16)
-                .background(Color.purple.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-            
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    Text(titleText)
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .lineLimit(1)
-                    
-                    if let url = parsed?.url {
-                        Button {
-                            NSWorkspace.shared.open(url)
-                        } label: {
-                            Image(systemName: "arrow.up.right")
-                                .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        .buttonStyle(.plain)
-                        .help(L10n.pick("Open in browser", "在浏览器中打开"))
-                    }
-                }
-                
-                if let subtitleText {
-                    Text(subtitleText)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+        return FacetDetailResourceRow(
+            title: titleText,
+            subtitle: subtitleText,
+            systemImage: "curlybraces",
+            tint: .purple,
+            titleDesign: .monospaced
+        ) {
+            if let url = parsed?.url {
+                FacetDetailRowAction(
+                    systemImage: "arrow.up.right",
+                    help: L10n.pick("Open in browser", "在浏览器中打开"),
+                    tint: .purple
+                ) {
+                    NSWorkspace.shared.open(url)
                 }
             }
-            
-            Spacer(minLength: 8)
-            
-            Button(role: .destructive) {
+            FacetDetailRowAction(
+                systemImage: "xmark",
+                help: L10n.pick("Unlink", "取消关联")
+            ) {
                 onRemove()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
             .disabled(saving)
-            .help(L10n.pick("Unlink", "取消关联"))
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(FacetTheme.quietPanel)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-    }
-
-    private func resourceHeader<Action: View>(title: String, count: Int, systemImage: String,
-                                              @ViewBuilder action: () -> Action) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-            Text("\(count)")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(Color.secondary.opacity(0.10))
-                .clipShape(Capsule())
-            Spacer()
-            action()
-        }
-    }
-
-    private func emptyResourceText(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11))
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 2)
     }
 
     private var detailsCard: some View {
