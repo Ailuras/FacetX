@@ -36,8 +36,11 @@ struct GitView: View {
     @State private var selectedChangeID: String?
     @State private var selectedCommitID: String?
     @State private var diffText = ""
+    @State private var additionCount = 0
+    @State private var deletionCount = 0
     @State private var isLoadingRepository = false
     @State private var isLoadingDiff = false
+    @State private var diffLoadGeneration = 0
     @State private var isPerformingOperation = false
     @State private var operationMessage: String?
     @State private var operationFailed = false
@@ -118,8 +121,12 @@ struct GitView: View {
         .onChange(of: refreshTrigger) { Task { await refreshRepository() } }
         .onChange(of: section) {
             Task {
-                if section == .changes { await loadChangeDiff() }
-                else { await loadCommitDiff() }
+                if section == .changes {
+                    await loadChangeDiff()
+                } else if selectedActivityDate == nil {
+                    selectedCommitID = nil
+                    clearDiff()
+                }
             }
         }
         .sheet(isPresented: $showingBranchSheet) {
@@ -938,16 +945,6 @@ struct GitView: View {
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
-    private var additionCount: Int {
-        diffText.components(separatedBy: .newlines)
-            .filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }.count
-    }
-
-    private var deletionCount: Int {
-        diffText.components(separatedBy: .newlines)
-            .filter { $0.hasPrefix("-") && !$0.hasPrefix("---") }.count
-    }
-
     // MARK: - Loading and operations
 
     @MainActor
@@ -957,7 +954,7 @@ struct GitView: View {
             commits = []
             activityDays = []
             statusEntries = []
-            diffText = ""
+            clearDiff()
             return
         }
         isLoadingRepository = true
@@ -985,7 +982,10 @@ struct GitView: View {
         if selectedChangeID == nil || !newStatus.contains(where: { $0.id == selectedChangeID }) {
             selectedChangeID = newStatus.first?.id
         }
-        if selectedCommitID == nil || !newCommits.contains(where: { $0.id == selectedCommitID }) {
+        if let selectedCommitID, !newCommits.contains(where: { $0.id == selectedCommitID }) {
+            self.selectedCommitID = nil
+        }
+        if selectedActivityDate != nil, selectedCommitID == nil {
             selectedCommitID = newCommits.first?.id
         }
         if section == .changes { await loadChangeDiff() }
@@ -1032,29 +1032,51 @@ struct GitView: View {
     @MainActor
     private func loadChangeDiff() async {
         guard let rootPath, let entry = selectedChange else {
-            diffText = ""
+            clearDiff()
             return
         }
+        diffLoadGeneration += 1
+        let generation = diffLoadGeneration
         let requestID = entry.id
         isLoadingDiff = true
         let value = await LocalGitRepository.diff(rootPath: rootPath, entry: entry)
-        guard selectedChangeID == requestID else { return }
-        diffText = value
+        guard generation == diffLoadGeneration, selectedChangeID == requestID else { return }
+        setDiffText(value)
         isLoadingDiff = false
     }
 
     @MainActor
     private func loadCommitDiff() async {
         guard let rootPath, let commit = selectedCommit else {
-            diffText = ""
+            clearDiff()
             return
         }
+        diffLoadGeneration += 1
+        let generation = diffLoadGeneration
         let requestID = commit.id
         isLoadingDiff = true
         let value = await LocalGitRepository.commitDiff(rootPath: rootPath, commitID: commit.id)
-        guard selectedCommitID == requestID else { return }
-        diffText = value
+        guard generation == diffLoadGeneration, selectedCommitID == requestID else { return }
+        setDiffText(value)
         isLoadingDiff = false
+    }
+
+    private func clearDiff() {
+        diffLoadGeneration += 1
+        isLoadingDiff = false
+        setDiffText("")
+    }
+
+    private func setDiffText(_ value: String) {
+        diffText = value
+        var additions = 0
+        var deletions = 0
+        value.enumerateLines { line, _ in
+            if line.hasPrefix("+") && !line.hasPrefix("+++") { additions += 1 }
+            if line.hasPrefix("-") && !line.hasPrefix("---") { deletions += 1 }
+        }
+        additionCount = additions
+        deletionCount = deletions
     }
 
     private func toggleStage(_ entry: LocalGitStatusEntry) {
