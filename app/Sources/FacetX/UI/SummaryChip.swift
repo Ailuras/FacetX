@@ -13,6 +13,28 @@ struct SummaryChip: View {
     var isActive: Bool = false
     var help: String? = nil
     var onTap: (() -> Void)? = nil
+
+    var body: some View {
+        SelectionBadge(
+            text: "\(value) \(label)",
+            systemImage: systemImage,
+            tint: tint,
+            isActive: isActive,
+            help: help,
+            onTap: onTap
+        )
+    }
+}
+
+/// A selectable mode badge with the exact metrics and interaction treatment of
+/// `SummaryChip`, but without requiring a numeric value.
+struct SelectionBadge: View {
+    let text: String
+    let systemImage: String
+    var tint: Color? = nil
+    var isActive: Bool = false
+    var help: String? = nil
+    var onTap: (() -> Void)? = nil
     @State private var isHovered = false
 
     var body: some View {
@@ -35,7 +57,7 @@ struct SummaryChip: View {
         HStack(spacing: 4) {
             Image(systemName: systemImage)
                 .font(.system(size: 10))
-            Text("\(value) \(label)")
+            Text(text)
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
         }

@@ -928,6 +928,37 @@ struct NotesView: View {
                     .foregroundStyle(.secondary)
             }
 
+            HStack(spacing: 6) {
+                SelectionBadge(
+                    text: L10n.pick("Read", "阅读"),
+                    systemImage: "eye",
+                    isActive: editorMode == .read,
+                    help: L10n.pick("Read the rendered note", "阅读渲染后的笔记"),
+                    onTap: { editorMode = .read }
+                )
+                .disabled(isViewingRevision)
+
+                SelectionBadge(
+                    text: L10n.pick("Write", "写作"),
+                    systemImage: "square.and.pencil",
+                    tint: .orange,
+                    isActive: editorMode == .write,
+                    help: L10n.pick("Edit the Markdown source", "编辑 Markdown 源文"),
+                    onTap: { editorMode = .write }
+                )
+                .disabled(isViewingRevision)
+
+                SelectionBadge(
+                    text: L10n.pick("Split", "对照"),
+                    systemImage: "rectangle.split.2x1",
+                    tint: .purple,
+                    isActive: editorMode == .split,
+                    help: L10n.pick("Write with a live preview", "写作并实时预览"),
+                    onTap: { editorMode = .split }
+                )
+                .disabled(isViewingRevision)
+            }
+
             Spacer()
 
             HStack(spacing: FacetTheme.workspaceActionGroupSpacing) {
@@ -995,17 +1026,6 @@ struct NotesView: View {
                         }
                     }
                 }
-
-                Picker("", selection: $editorMode) {
-                    Text(L10n.pick("Read", "阅读")).tag(NoteEditorMode.read)
-                    Text(L10n.pick("Write", "写作")).tag(NoteEditorMode.write)
-                    Text(L10n.pick("Split", "对照")).tag(NoteEditorMode.split)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .controlSize(.small)
-                .fixedSize()
-                .disabled(isViewingRevision)
 
                 WorkspaceActionGroup {
                     WorkspaceActionButton(

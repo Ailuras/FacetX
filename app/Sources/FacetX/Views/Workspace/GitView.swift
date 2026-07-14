@@ -197,18 +197,28 @@ struct GitView: View {
                 .foregroundStyle(.secondary)
             }
 
-            branchMenu
-
-            Picker("", selection: $section) {
-                Text(L10n.pick("Changes \(statusEntries.count)", "变更 \(statusEntries.count)"))
-                    .tag(WorkspaceSection.changes)
-                Text(L10n.pick("History", "历史"))
-                    .tag(WorkspaceSection.history)
+            HStack(spacing: 6) {
+                SummaryChip(
+                    value: statusEntries.count,
+                    label: L10n.pick("Changes", "变更"),
+                    systemImage: "arrow.triangle.branch",
+                    tint: .orange,
+                    isActive: section == .changes,
+                    help: L10n.pick("Show working tree changes", "显示工作区变更"),
+                    onTap: { section = .changes }
+                )
+                SummaryChip(
+                    value: commits.count,
+                    label: L10n.pick("History", "历史"),
+                    systemImage: "clock.arrow.circlepath",
+                    tint: .purple,
+                    isActive: section == .history,
+                    help: L10n.pick("Show commit history", "显示提交历史"),
+                    onTap: { section = .history }
+                )
             }
-            .pickerStyle(.segmented)
-            .controlSize(.small)
-            .labelsHidden()
-            .fixedSize()
+
+            branchMenu
 
             HStack(spacing: 6) {
                 Label(L10n.pick("Repository Activity", "仓库活跃度"), systemImage: "square.grid.3x3.fill")
