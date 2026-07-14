@@ -52,6 +52,7 @@ struct GitView: View {
     @State private var showingCommitLinks = false
     @State private var attachmentVersion = 0
     @State private var showingBranchSheet = false
+    @AppStorage("gitInspectorVisible") private var inspectorVisible = true
 
     private var query: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -128,6 +129,10 @@ struct GitView: View {
                     clearDiff()
                 }
             }
+        }
+        .inspector(isPresented: $inspectorVisible) {
+            gitInspector
+                .inspectorColumnWidth(min: 240, ideal: 280, max: 340)
         }
         .sheet(isPresented: $showingBranchSheet) {
             BranchNameSheet(
@@ -251,6 +256,12 @@ struct GitView: View {
                          disabled: isLoadingRepository) {
                 Task { await refreshRepository() }
             }
+            headerButton(inspectorVisible ? "sidebar.right" : "sidebar.right",
+                         help: inspectorVisible
+                            ? L10n.pick("Hide Inspector", "隐藏检查器")
+                            : L10n.pick("Show Inspector", "显示检查器")) {
+                withAnimation(FacetTheme.detailSpring) { inspectorVisible.toggle() }
+            }
             headerButton("arrow.up.forward.app", help: L10n.pick("Open Repository", "打开仓库")) {
                 if let repoURL { NSWorkspace.shared.open(repoURL) }
             }
@@ -344,9 +355,6 @@ struct GitView: View {
             )
             .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
 
-            changeInspector
-                .frame(minWidth: 205, idealWidth: 225, maxWidth: 250, maxHeight: .infinity)
-                .background(FacetTheme.quietPanel)
         }
     }
 
@@ -603,10 +611,43 @@ struct GitView: View {
             )
             .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
 
-            commitInspector
-                .frame(minWidth: 215, idealWidth: 235, maxWidth: 270, maxHeight: .infinity)
-                .background(FacetTheme.quietPanel)
         }
+    }
+
+    private var gitInspector: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Label(section == .changes ? L10n.pick("Change Details", "变更详情")
+                                           : L10n.pick("Commit Details", "提交详情"),
+                      systemImage: section == .changes ? "doc.text.magnifyingglass"
+                                                        : "point.3.connected.trianglepath.dotted")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Button {
+                    withAnimation(FacetTheme.detailSpring) { inspectorVisible = false }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Hide Inspector", "隐藏检查器"))
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 42)
+            .background(FacetTheme.canvas)
+
+            Divider()
+
+            Group {
+                switch section {
+                case .changes: changeInspector
+                case .history: commitInspector
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(FacetTheme.canvas)
     }
 
     private var historyList: some View {

@@ -212,17 +212,12 @@ struct NotesView: View {
 
             mainDocumentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if inspectorVisible, selectedDocument != nil {
-                noteInspector
-                    .frame(width: 224)
-                    .background(FacetTheme.quietPanel)
-                    .overlay(alignment: .leading) {
-                        Rectangle().fill(FacetTheme.hairline).frame(width: 1)
-                    }
-            }
         }
         .background(FacetTheme.canvas)
+        .inspector(isPresented: $inspectorVisible) {
+            noteInspector
+                .inspectorColumnWidth(min: 250, ideal: 290, max: 360)
+        }
         .sheet(item: $namingAction) { action in
             DocumentNameSheet(
                 title: {
@@ -417,8 +412,29 @@ struct NotesView: View {
     }
 
     private var noteInspector: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Label(L10n.pick("Document Outline", "文档大纲"), systemImage: "list.bullet.indent")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Button {
+                    withAnimation(FacetTheme.detailSpring) { inspectorVisible = false }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
+                }
+                .buttonStyle(.plain)
+                .help(L10n.pick("Hide Inspector", "隐藏检查器"))
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 42)
+            .background(FacetTheme.canvas)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
                 inspectorSection(L10n.pick("Outline", "文档大纲"), systemImage: "list.bullet.indent") {
                     if headings.isEmpty {
                         Text(L10n.pick("Add headings to build an outline.", "添加标题以生成大纲。"))
@@ -497,11 +513,13 @@ struct NotesView: View {
                         }
                     }
                 }
+                }
+                .padding(16)
             }
-            .padding(14)
+            .thinScrollIndicators()
+            .id(attachmentVersion)
         }
-        .thinScrollIndicators()
-        .id(attachmentVersion)
+        .background(FacetTheme.canvas)
     }
 
     private func inspectorSection<Content: View>(_ title: String,
