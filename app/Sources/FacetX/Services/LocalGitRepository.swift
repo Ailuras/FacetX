@@ -151,6 +151,13 @@ enum LocalGitRepository {
         return parseCommits(result.stdout, separator: separator)
     }
 
+    static func fileContent(rootPath: String,
+                            commitID: String,
+                            filePath: String) async -> String? {
+        let result = await execute(["show", "\(commitID):\(filePath)"], rootPath: rootPath)
+        return result.succeeded ? result.stdout : nil
+    }
+
     static func activity(rootPath: String,
                          since: Date,
                          calendar: Calendar = .current) async -> [LocalGitActivityDay] {

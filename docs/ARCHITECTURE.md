@@ -19,7 +19,9 @@ Each project exposes four focused workspace modes:
   safe remote synchronization, manages branches, and attaches commits to Todo
   or Event items. A 53-week activity heatmap at the top filters History to an
   exact day when selected.
-- **Notes** reads and edits `README.md` plus top-level `.facetx/*.md` documents.
+- **Notes** reads and edits `README.md` plus top-level `.facetx/*.md` documents,
+  with a Git-backed revision timeline and read-only historical previews in the
+  document Inspector.
 
 Notes are repository documents, not work items. The Notes workspace provides
 read, write, and split Markdown modes while attachments continue to use

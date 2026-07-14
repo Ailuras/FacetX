@@ -84,6 +84,13 @@ private enum NoteEditorMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+private enum NoteInspectorTab: String, CaseIterable, Identifiable {
+    case outline
+    case history
+
+    var id: String { rawValue }
+}
+
 private enum DocumentNamingAction: Identifiable {
     case create
     case rename(RepositoryDocument)
@@ -120,7 +127,12 @@ struct NotesView: View {
     @State private var autosaveTask: Task<Void, Never>?
     @State private var fileCommits: [LocalGitCommit] = []
     @State private var isLoadingFileCommits = false
-    @State private var showingHistoryPopover = false
+    @State private var inspectorTab: NoteInspectorTab = .outline
+    @State private var selectedRevisionID: String?
+    @State private var revisionText: String?
+    @State private var revisionError: String?
+    @State private var isLoadingRevision = false
+    @State private var revisionLoadGeneration = 0
     @State private var showingAttachmentPopover = false
     @State private var attachmentVersion = 0
     @State private var namingAction: DocumentNamingAction?
@@ -158,6 +170,14 @@ struct NotesView: View {
 
     private var hasUnsavedChanges: Bool {
         selectedDocument != nil && editorText != savedText
+    }
+
+    private var selectedRevision: LocalGitCommit? {
+        fileCommits.first { $0.id == selectedRevisionID }
+    }
+
+    private var isViewingRevision: Bool {
+        selectedRevisionID != nil
     }
 
     private var filteredDocuments: [RepositoryDocument] {
@@ -251,7 +271,10 @@ struct NotesView: View {
         .onChange(of: project.id) { reload() }
         .onChange(of: project.githubLocalPath) { reload() }
         .onChange(of: refreshTrigger) { reload() }
-        .onChange(of: selectedDocumentID) { reloadFileCommits() }
+        .onChange(of: selectedDocumentID) {
+            clearRevision()
+            reloadFileCommits()
+        }
         .onChange(of: searchText) {
             if let selectedDocumentID,
                !filteredDocuments.contains(where: { $0.id == selectedDocumentID }) {
@@ -414,7 +437,7 @@ struct NotesView: View {
     private var noteInspector: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Label(L10n.pick("Document Outline", "文档大纲"), systemImage: "list.bullet.indent")
+                Label(L10n.pick("Document Inspector", "文档检查器"), systemImage: "sidebar.right")
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
                 Button {
@@ -431,9 +454,20 @@ struct NotesView: View {
             .frame(height: 42)
             .background(FacetTheme.canvas)
 
+            Picker("", selection: $inspectorTab) {
+                Text(L10n.pick("Outline", "大纲")).tag(NoteInspectorTab.outline)
+                Text(L10n.pick("History", "历史")).tag(NoteInspectorTab.history)
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .labelsHidden()
+            .padding(.horizontal, 14)
+            .padding(.bottom, 10)
+
             Divider()
 
-            ScrollView {
+            if inspectorTab == .outline {
+                ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                 inspectorSection(L10n.pick("Outline", "文档大纲"), systemImage: "list.bullet.indent") {
                     if headings.isEmpty {
@@ -444,6 +478,7 @@ struct NotesView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             ForEach(headings) { heading in
                                 Button {
+                                    clearRevision()
                                     if editorMode == .read { editorMode = .write }
                                     DispatchQueue.main.async {
                                         editorController.reveal(heading: heading.text)
@@ -515,11 +550,131 @@ struct NotesView: View {
                 }
                 }
                 .padding(16)
+                }
+                .thinScrollIndicators()
+                .id(attachmentVersion)
+            } else {
+                revisionHistoryInspector
             }
-            .thinScrollIndicators()
-            .id(attachmentVersion)
         }
         .background(FacetTheme.canvas)
+    }
+
+    private var revisionHistoryInspector: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    clearRevision()
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "doc.text.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 24, height: 24)
+                            .background(Color.accentColor.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.pick("Current working copy", "当前工作版本"))
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(hasUnsavedChanges ? L10n.pick("Unsaved changes", "包含未保存修改")
+                                                   : L10n.pick("Latest on disk", "磁盘中的最新内容"))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        if selectedRevisionID == nil {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    .padding(10)
+                    .background(selectedRevisionID == nil ? FacetTheme.softAccent : Color.primary.opacity(0.025))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                HStack(spacing: 6) {
+                    Text(L10n.pick("Committed revisions", "已提交版本"))
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if isLoadingFileCommits { ProgressView().controlSize(.mini) }
+                    Text("\(fileCommits.count)")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 3)
+                .padding(.top, 8)
+
+                if !isLoadingFileCommits && fileCommits.isEmpty {
+                    ContentUnavailableView(
+                        L10n.pick("No Revisions", "暂无历史版本"),
+                        systemImage: "clock.arrow.circlepath",
+                        description: Text(L10n.pick("Commit this document to begin its history.",
+                                                    "提交这篇文档后即可形成版本历史。"))
+                    )
+                    .frame(minHeight: 180)
+                } else {
+                    LazyVStack(spacing: 4) {
+                        ForEach(fileCommits) { commit in
+                            revisionRow(commit)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+        }
+        .thinScrollIndicators()
+    }
+
+    private func revisionRow(_ commit: LocalGitCommit) -> some View {
+        let selected = selectedRevisionID == commit.id
+        return Button {
+            loadRevision(commit)
+        } label: {
+            HStack(alignment: .top, spacing: 9) {
+                VStack(spacing: 2) {
+                    Circle()
+                        .fill(selected ? Color.accentColor : Color.purple.opacity(0.55))
+                        .frame(width: 7, height: 7)
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.08))
+                        .frame(width: 1, height: 32)
+                }
+                .padding(.top, 4)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(commit.summary)
+                        .font(.system(size: 10.5, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    HStack(spacing: 5) {
+                        Text(commit.shortSHA)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.purple)
+                        Text("·")
+                        Text(relativeDate(commit.date))
+                    }
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    Text(commit.authorName)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer(minLength: 0)
+                if selected {
+                    Image(systemName: "eye.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(9)
+            .background(selected ? FacetTheme.softAccent : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func inspectorSection<Content: View>(_ title: String,
@@ -597,32 +752,36 @@ struct NotesView: View {
             VStack(spacing: 0) {
                 docControlBar(doc)
 
-                if editorMode != .read {
-                    formattingToolbar
-                    Divider()
-                }
+                if isViewingRevision {
+                    revisionWorkspace(doc)
+                } else {
+                    if editorMode != .read {
+                        formattingToolbar
+                        Divider()
+                    }
 
-                Group {
-                    switch editorMode {
-                    case .read:
-                        centeredPreview(doc)
-                    case .write:
-                        centeredEditor
-                    case .split:
-                        HSplitView {
-                            labeledPane(L10n.pick("Markdown", "Markdown"), systemImage: "chevron.left.forwardslash.chevron.right") {
-                                editorPane
-                            }
-                            labeledPane(L10n.pick("Preview", "预览"), systemImage: "eye") {
-                                previewPane(doc)
+                    Group {
+                        switch editorMode {
+                        case .read:
+                            centeredPreview(doc)
+                        case .write:
+                            centeredEditor
+                        case .split:
+                            HSplitView {
+                                labeledPane(L10n.pick("Markdown", "Markdown"), systemImage: "chevron.left.forwardslash.chevron.right") {
+                                    editorPane
+                                }
+                                labeledPane(L10n.pick("Preview", "预览"), systemImage: "eye") {
+                                    previewPane(doc)
+                                }
                             }
                         }
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                Divider()
-                documentStatusBar(doc)
+                    Divider()
+                    documentStatusBar(doc)
+                }
             }
         } else {
             ContentUnavailableView(
@@ -632,6 +791,72 @@ struct NotesView: View {
                                             "选择根目录 README 或新建一个文档以开始。"))
             )
         }
+    }
+
+    private func revisionWorkspace(_ doc: RepositoryDocument) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(Color.purple)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(selectedRevision?.summary ?? L10n.pick("Historical revision", "历史版本"))
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                    if let revision = selectedRevision {
+                        Text("\(revision.shortSHA) · \(revision.authorName) · \(relativeDate(revision.date))")
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Label(L10n.pick("Read only", "只读"), systemImage: "lock.fill")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Button {
+                    clearRevision()
+                } label: {
+                    Label(L10n.pick("Back to Current", "返回当前版本"), systemImage: "arrow.uturn.backward")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 46)
+            .background(Color.purple.opacity(0.055))
+
+            Divider()
+
+            if isLoadingRevision {
+                ProgressView(L10n.pick("Loading revision…", "正在加载历史版本…"))
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let revisionText {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 18)
+                    MarkdownPreviewWeb(text: revisionText, fullWidth: true)
+                        .background(FacetTheme.panel)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(FacetTheme.hairline, lineWidth: 1))
+                        .shadow(color: Color.black.opacity(0.025), radius: 10, x: 0, y: 4)
+                        .frame(maxWidth: fullWidth ? .infinity : 900)
+                        .padding(.vertical, 18)
+                    Spacer(minLength: 18)
+                }
+                .background(FacetTheme.canvas)
+                .id("revision-\(selectedRevisionID ?? "")-\(revisionText.hashValue)")
+            } else {
+                ContentUnavailableView(
+                    L10n.pick("Revision Unavailable", "无法读取历史版本"),
+                    systemImage: "doc.badge.ellipsis",
+                    description: Text(revisionError ?? L10n.pick("This file did not exist in that revision.",
+                                                                 "该历史版本中不存在此文件。"))
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func centeredPreview(_ doc: RepositoryDocument) -> some View {
@@ -751,24 +976,24 @@ struct NotesView: View {
                     documentAttachmentPopover(doc)
                 }
 
-                // Revision History Button (Popover)
                 Button {
-                    showingHistoryPopover = true
+                    inspectorTab = .history
+                    inspectorVisible = true
+                    reloadFileCommits()
                 } label: {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 11, weight: .semibold))
                         .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
                         .contentShape(Rectangle())
-                        .facetHoverSurface(tint: .secondary,
-                                           fill: Color.primary.opacity(0.04),
+                        .facetHoverSurface(tint: inspectorTab == .history && inspectorVisible ? Color.accentColor : .secondary,
+                                           fill: inspectorTab == .history && inspectorVisible
+                                                ? Color.accentColor.opacity(0.10)
+                                                : Color.primary.opacity(0.04),
                                            hoverFill: Color.primary.opacity(0.07),
                                            hoverStroke: FacetTheme.hairline)
                 }
                 .buttonStyle(.plain)
                 .help(L10n.pick("Revision History", "版本历史"))
-                .popover(isPresented: $showingHistoryPopover, arrowEdge: .bottom) {
-                    fileHistoryPopoverContent
-                }
 
                 // Export menu button
                 Menu {
@@ -788,6 +1013,7 @@ struct NotesView: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .help(L10n.pick("Export Document", "导出文档"))
+                .disabled(isViewingRevision)
 
                 // Reveal in Finder button
                 Button {
@@ -831,6 +1057,7 @@ struct NotesView: View {
                 .labelsHidden()
                 .controlSize(.small)
                 .fixedSize()
+                .disabled(isViewingRevision)
 
                 Button { inspectorVisible.toggle() } label: {
                     Image(systemName: "sidebar.right")
@@ -893,76 +1120,6 @@ struct NotesView: View {
         .padding(.horizontal, 14)
         .frame(height: 28)
         .background(FacetTheme.quietPanel)
-    }
-
-    private var fileHistoryPopoverContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(L10n.pick("Revision History", "版本历史"))
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-            
-            Divider()
-            
-            if isLoadingFileCommits {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
-            } else if fileCommits.isEmpty {
-                Text(L10n.pick("No revisions detected.", "暂无版本修改记录。"))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
-                    .padding(16)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(fileCommits.indices, id: \.self) { index in
-                            let commit = fileCommits[index]
-                            HStack(alignment: .top, spacing: 8) {
-                                Circle()
-                                    .fill(Color.purple.opacity(0.6))
-                                    .frame(width: 5, height: 5)
-                                    .padding(.top, 4)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(commit.summary)
-                                        .font(.system(size: 11.5, weight: .medium))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(2)
-                                    
-                                    HStack(spacing: 6) {
-                                        Text(commit.shortSHA)
-                                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                                            .foregroundStyle(Color.purple.opacity(0.8))
-                                        Text("·")
-                                            .foregroundStyle(.tertiary)
-                                        Text(commit.authorName)
-                                            .font(.system(size: 9.5))
-                                            .foregroundStyle(.secondary)
-                                        Text("·")
-                                            .foregroundStyle(.tertiary)
-                                        Text(relativeDate(commit.date))
-                                            .font(.system(size: 9.5))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            
-                            if index != fileCommits.count - 1 {
-                                Divider().padding(.leading, 28)
-                            }
-                        }
-                    }
-                }
-                .thinScrollIndicators()
-                .frame(width: 320, height: 260)
-            }
-        }
     }
 
     private func documentAttachmentPopover(_ document: RepositoryDocument) -> some View {
@@ -1129,18 +1286,63 @@ struct NotesView: View {
         guard let rootPath = repoPath.flatMap({ ($0 as NSString).expandingTildeInPath }),
               let doc = selectedDocument else {
             fileCommits = []
+            isLoadingFileCommits = false
             return
         }
 
         let relativePath = doc.relativePath
+        let documentID = doc.id
         isLoadingFileCommits = true
         Task {
             let commits = await LocalGitRepository.gitLogForFile(rootPath: rootPath, filePath: relativePath)
             await MainActor.run {
+                guard selectedDocumentID == documentID else { return }
                 self.fileCommits = commits
                 self.isLoadingFileCommits = false
             }
         }
+    }
+
+    private func loadRevision(_ commit: LocalGitCommit) {
+        guard let rootPath = repoPath.map({ ($0 as NSString).expandingTildeInPath }),
+              let document = selectedDocument else { return }
+
+        autosaveTask?.cancel()
+        if hasUnsavedChanges { saveSelectedDocument() }
+        revisionLoadGeneration += 1
+        let generation = revisionLoadGeneration
+        let documentID = document.id
+        selectedRevisionID = commit.id
+        revisionText = nil
+        revisionError = nil
+        isLoadingRevision = true
+
+        Task {
+            let content = await LocalGitRepository.fileContent(
+                rootPath: rootPath,
+                commitID: commit.id,
+                filePath: document.relativePath
+            )
+            await MainActor.run {
+                guard generation == revisionLoadGeneration,
+                      selectedDocumentID == documentID,
+                      selectedRevisionID == commit.id else { return }
+                revisionText = content
+                revisionError = content == nil
+                    ? L10n.pick("This document did not exist at the selected commit.",
+                                "所选提交中不存在这篇文档。")
+                    : nil
+                isLoadingRevision = false
+            }
+        }
+    }
+
+    private func clearRevision() {
+        revisionLoadGeneration += 1
+        selectedRevisionID = nil
+        revisionText = nil
+        revisionError = nil
+        isLoadingRevision = false
     }
 
     private func initializeDocs() {

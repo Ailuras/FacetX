@@ -107,6 +107,21 @@ struct FacetXDataChecks {
         check(commitResult.succeeded, "commit should succeed: \(commitResult.message)")
         let history = await LocalGitRepository.gitLog(rootPath: gitRoot.path)
         check(history.first?.summary == "second", "history should return the newest commit first")
+        let fileHistory = await LocalGitRepository.gitLogForFile(
+            rootPath: gitRoot.path,
+            filePath: "tracked.md"
+        )
+        check(fileHistory.count == 2, "file history should include both tracked revisions")
+        if let firstRevision = fileHistory.last {
+            let historicalContent = await LocalGitRepository.fileContent(
+                rootPath: gitRoot.path,
+                commitID: firstRevision.id,
+                filePath: "tracked.md"
+            )
+            check(historicalContent == "initial\n", "historical file content should match the selected revision")
+        } else {
+            fatalError("initial file revision missing")
+        }
         let branch = await LocalGitRepository.branchState(rootPath: gitRoot.path)
         check(branch.current != nil && branch.localBranches.contains(branch.current!),
               "branch inspection should return the checked-out branch")
