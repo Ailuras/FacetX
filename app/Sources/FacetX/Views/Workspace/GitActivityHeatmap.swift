@@ -33,68 +33,43 @@ struct GitActivityHeatmap: View {
         max(activity.map(\.commitCount).max() ?? 0, 1)
     }
 
-    private var totalCount: Int {
-        activity.reduce(0) { $0 + $1.commitCount }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Label(L10n.pick("Repository Activity", "仓库活跃度"), systemImage: "square.grid.3x3.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(L10n.pick("\(totalCount) commits in the last year", "过去一年 \(totalCount) 次提交"))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+        GeometryReader { proxy in
+            let labelWidth: CGFloat = 26
+            let availableWidth = max(proxy.size.width - labelWidth - 8, 0)
+            let calculated = (availableWidth - CGFloat(columnCount - 1) * cellSpacing) / CGFloat(columnCount)
+            let cellSize = max(7, min(12, calculated))
+            let gridWidth = CGFloat(columnCount) * cellSize + CGFloat(columnCount - 1) * cellSpacing
+            let groupWidth = labelWidth + 8 + gridWidth
 
-                Spacer()
+            VStack(spacing: 5) {
+                HStack(spacing: 8) {
+                    Color.clear.frame(width: labelWidth, height: 14)
+                    monthAxis(cellSize: cellSize, gridWidth: gridWidth)
+                }
 
-                Text(L10n.pick("Less", "少"))
-                legendCell(opacity: 0.045)
-                legendCell(opacity: 0.22)
-                legendCell(opacity: 0.42)
-                legendCell(opacity: 0.64)
-                legendCell(opacity: 0.90)
-                Text(L10n.pick("More", "多"))
-            }
-            .font(.system(size: 9))
-            .foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: 8) {
+                    weekdayLabels(cellSize: cellSize)
+                        .frame(width: labelWidth)
 
-            GeometryReader { proxy in
-                let labelWidth: CGFloat = 26
-                let availableWidth = max(proxy.size.width - labelWidth - 8, 0)
-                let calculated = (availableWidth - CGFloat(columnCount - 1) * cellSpacing) / CGFloat(columnCount)
-                let cellSize = max(7, min(12, calculated))
-                let gridWidth = CGFloat(columnCount) * cellSize + CGFloat(columnCount - 1) * cellSpacing
-                let groupWidth = labelWidth + 8 + gridWidth
-
-                VStack(spacing: 5) {
-                    HStack(spacing: 8) {
-                        Color.clear.frame(width: labelWidth, height: 14)
-                        monthAxis(cellSize: cellSize, gridWidth: gridWidth)
-                    }
-
-                    HStack(alignment: .top, spacing: 8) {
-                        weekdayLabels(cellSize: cellSize)
-                            .frame(width: labelWidth)
-
-                        HStack(alignment: .top, spacing: cellSpacing) {
-                            ForEach(0..<columnCount, id: \.self) { weekOffset in
-                                weekColumn(offset: weekOffset, cellSize: cellSize)
-                            }
+                    HStack(alignment: .top, spacing: cellSpacing) {
+                        ForEach(0..<columnCount, id: \.self) { weekOffset in
+                            weekColumn(offset: weekOffset, cellSize: cellSize)
                         }
                     }
                 }
-                .frame(width: groupWidth)
-                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .frame(height: 121)
+            .frame(width: groupWidth)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 11)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
-        }
+        .frame(height: 121)
+        .padding(12)
+        .background(FacetTheme.quietPanel)
+        .clipShape(RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FacetTheme.radius, style: .continuous)
+                .stroke(FacetTheme.hairline, lineWidth: 1)
+        )
     }
 
     private func weekdayLabels(cellSize: CGFloat) -> some View {
@@ -174,12 +149,6 @@ struct GitActivityHeatmap: View {
         .help(dayHelp(date: normalized, count: count))
     }
 
-    private func legendCell(opacity: Double) -> some View {
-        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-            .fill(opacity < 0.1 ? Color.primary.opacity(opacity) : Color.accentColor.opacity(opacity))
-            .frame(width: 9, height: 9)
-    }
-
     private func heatColor(count: Int) -> Color {
         guard count > 0 else { return Color.primary.opacity(0.045) }
         let ratio = Double(count) / Double(maximumCount)
@@ -207,5 +176,26 @@ struct GitActivityHeatmap: View {
     private func dayHelp(date: Date, count: Int) -> String {
         let value = date.formatted(date: .long, time: .omitted)
         return L10n.pick("\(value) · \(count) commits", "\(value) · \(count) 次提交")
+    }
+}
+
+struct GitActivityLegend: View {
+    private let levels = [0.045, 0.22, 0.42, 0.64, 0.90]
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Text(L10n.pick("Less", "少"))
+            ForEach(Array(levels.enumerated()), id: \.offset) { index, opacity in
+                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                    .fill(index == 0 ? Color.primary.opacity(opacity)
+                                     : Color.accentColor.opacity(opacity))
+                    .frame(width: 8, height: 8)
+            }
+            Text(L10n.pick("More", "多"))
+        }
+        .font(.system(size: 8.5, weight: .medium))
+        .foregroundStyle(.tertiary)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.pick("Commit activity from less to more", "提交活跃度从少到多"))
     }
 }

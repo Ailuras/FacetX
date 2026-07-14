@@ -108,6 +108,10 @@ struct GitView: View {
         items.filter { $0.kind == .reminder || $0.kind == .event }
     }
 
+    private var totalActivityCommitCount: Int {
+        activityDays.reduce(0) { $0 + $1.commitCount }
+    }
+
     var body: some View {
         Group {
             if repoURL == nil {
@@ -150,6 +154,8 @@ struct GitView: View {
                 selectedDate: selectedActivityDate,
                 onSelect: selectActivityDate
             )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             Group {
                 switch section {
                 case .changes: changesWorkspace
@@ -198,6 +204,17 @@ struct GitView: View {
             .pickerStyle(.segmented)
             .controlSize(.small)
             .labelsHidden()
+            .fixedSize()
+
+            HStack(spacing: 6) {
+                Label(L10n.pick("Repository Activity", "仓库活跃度"), systemImage: "square.grid.3x3.fill")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text(L10n.pick("\(totalActivityCommitCount) commits", "\(totalActivityCommitCount) 次提交"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                GitActivityLegend()
+            }
             .fixedSize()
 
             if !query.isEmpty {
