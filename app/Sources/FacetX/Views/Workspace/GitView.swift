@@ -284,7 +284,9 @@ struct GitView: View {
         case .added:      return .green
         case .deleted:    return .red
         case .renamed:    return .blue
+        case .copied:     return .teal
         case .untracked:  return .secondary
+        case .conflicted: return .red
         case .other:      return .secondary
         }
     }

@@ -17,6 +17,7 @@ swiftc \
   -parse-as-library \
   Sources/FacetX/App/AppSupport.swift \
   Sources/FacetX/Stores/ItemStore.swift \
+  Sources/FacetX/Services/LocalGitRepository.swift \
   Sources/FacetX/Services/RepositoryDocumentStore.swift \
   Checks/FacetXDataChecks/main.swift \
   -lsqlite3 \
