@@ -352,19 +352,27 @@ struct GitView: View {
         HSplitView {
             VStack(spacing: 0) {
                 changesList
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 Divider()
                 commitComposer
             }
-            .frame(minWidth: 250, idealWidth: 290, maxWidth: 350, maxHeight: .infinity)
+            .frame(
+                minWidth: 250,
+                idealWidth: 290,
+                maxWidth: 350,
+                maxHeight: .infinity,
+                alignment: .top
+            )
             .background(FacetTheme.quietPanel)
 
             diffPane(
                 title: selectedChange?.path ?? L10n.pick("Working Changes", "工作区变更"),
                 subtitle: selectedChange.map(changeSubtitle)
             )
-            .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var changesList: some View {
@@ -400,6 +408,7 @@ struct GitView: View {
                                       ? L10n.pick("There is nothing to commit.", "当前没有需要提交的内容。")
                                       : L10n.pick("Try another search.", "请尝试其他搜索词。"))
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
@@ -611,16 +620,23 @@ struct GitView: View {
     private var historyWorkspace: some View {
         HSplitView {
             historyList
-                .frame(minWidth: 270, idealWidth: 310, maxWidth: 370, maxHeight: .infinity)
+                .frame(
+                    minWidth: 270,
+                    idealWidth: 310,
+                    maxWidth: 370,
+                    maxHeight: .infinity,
+                    alignment: .top
+                )
                 .background(FacetTheme.quietPanel)
 
             diffPane(
                 title: selectedCommit?.summary ?? L10n.pick("Commit Diff", "提交差异"),
                 subtitle: selectedCommit.map { "\($0.shortSHA) · \(relativeDate($0.date))" }
             )
-            .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var gitInspector: some View {
@@ -684,6 +700,7 @@ struct GitView: View {
                     systemImage: "clock.arrow.circlepath",
                     description: Text(historyEmptyDescription)
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -873,7 +890,9 @@ struct GitView: View {
             .background(FacetTheme.panel)
             Divider()
             GitDiffView(text: diffText, isLoading: isLoadingDiff)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var pendingItemsPopover: some View {
