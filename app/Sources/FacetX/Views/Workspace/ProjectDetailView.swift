@@ -521,15 +521,10 @@ struct ProjectDetailView: View {
                 }
             }
         } label: {
-            Image(systemName: sortOption.systemImage)
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 26, height: 24)
-                .contentShape(Rectangle())
-                .facetHoverSurface(tint: sortOption == .manual ? .secondary : Color.accentColor,
-                                   fill: sortOption == .manual ? Color.clear : Color.accentColor.opacity(0.14),
-                                   hoverFill: sortOption == .manual ? Color.primary.opacity(0.055) : Color.accentColor.opacity(0.20),
-                                   stroke: sortOption == .manual ? Color.clear : Color.accentColor.opacity(0.24),
-                                   hoverStroke: sortOption == .manual ? FacetTheme.hairline : Color.accentColor.opacity(0.38))
+            WorkspaceActionIcon(
+                systemName: sortOption.systemImage,
+                active: sortOption != .manual
+            )
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -557,7 +552,7 @@ struct ProjectDetailView: View {
     }
 
     private var allViewInfoBar: some View {
-        HStack(spacing: 12) {
+        WorkspaceActionBar {
             summaryCluster
 
             if !tagFilter.isEmpty {
@@ -594,13 +589,6 @@ struct ProjectDetailView: View {
             }
 
             actionCluster
-        }
-        .frame(minHeight: 30, alignment: .center)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
     }
 

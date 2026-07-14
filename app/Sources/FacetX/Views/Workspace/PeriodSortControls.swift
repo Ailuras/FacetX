@@ -25,13 +25,7 @@ struct PlanSortMenu: View {
 }
 
 private func sortLabel(systemImage: String, active: Bool) -> some View {
-    Image(systemName: systemImage)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(active ? Color.accentColor : .secondary)
-        .frame(width: 26, height: 24)
-        .background(active ? Color.accentColor.opacity(0.14) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .contentShape(Rectangle())
+    WorkspaceActionIcon(systemName: systemImage, active: active)
 }
 
 extension PlanSortOption {

@@ -163,13 +163,13 @@ struct GitView: View {
     // MARK: - Repository header
 
     private var repositoryHeader: some View {
-        HStack(spacing: 12) {
+        WorkspaceActionBar {
             Image(systemName: statusEntries.isEmpty ? "checkmark.seal.fill" : "arrow.triangle.branch")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(statusEntries.isEmpty ? Color.green : Color.orange)
-                .frame(width: 38, height: 38)
+                .frame(width: 34, height: 34)
                 .background((statusEntries.isEmpty ? Color.green : Color.orange).opacity(0.11))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(repoInfo?.fullName ?? repoURL?.lastPathComponent ?? project.name)
@@ -248,29 +248,31 @@ struct GitView: View {
                 ProgressView().controlSize(.small)
             }
 
-            headerButton("arrow.triangle.2.circlepath", help: L10n.pick("Fetch", "获取")) { fetch() }
-            headerButton("arrow.down.circle", help: L10n.pick("Pull (fast-forward only)", "拉取（仅快进）"),
-                         disabled: !statusEntries.isEmpty || branchState.upstream == nil) { pull() }
-            headerButton("arrow.up.circle", help: L10n.pick("Push", "推送")) { push() }
-            headerButton("arrow.clockwise", help: L10n.pick("Refresh", "刷新"),
-                         disabled: isLoadingRepository) {
-                Task { await refreshRepository() }
+            HStack(spacing: FacetTheme.workspaceActionGroupSpacing) {
+                WorkspaceActionGroup {
+                    headerButton("arrow.triangle.2.circlepath", help: L10n.pick("Fetch", "获取")) { fetch() }
+                    headerButton("arrow.down.circle", help: L10n.pick("Pull (fast-forward only)", "拉取（仅快进）"),
+                                 disabled: !statusEntries.isEmpty || branchState.upstream == nil) { pull() }
+                    headerButton("arrow.up.circle", help: L10n.pick("Push", "推送")) { push() }
+                }
+
+                WorkspaceActionGroup {
+                    headerButton("arrow.clockwise", help: L10n.pick("Refresh", "刷新"),
+                                 disabled: isLoadingRepository) {
+                        Task { await refreshRepository() }
+                    }
+                    headerButton("sidebar.right",
+                                 help: inspectorVisible
+                                    ? L10n.pick("Hide Inspector", "隐藏检查器")
+                                    : L10n.pick("Show Inspector", "显示检查器"),
+                                 active: inspectorVisible) {
+                        withAnimation(FacetTheme.detailSpring) { inspectorVisible.toggle() }
+                    }
+                    headerButton("arrow.up.forward.app", help: L10n.pick("Open Repository", "打开仓库")) {
+                        if let repoURL { NSWorkspace.shared.open(repoURL) }
+                    }
+                }
             }
-            headerButton(inspectorVisible ? "sidebar.right" : "sidebar.right",
-                         help: inspectorVisible
-                            ? L10n.pick("Hide Inspector", "隐藏检查器")
-                            : L10n.pick("Show Inspector", "显示检查器")) {
-                withAnimation(FacetTheme.detailSpring) { inspectorVisible.toggle() }
-            }
-            headerButton("arrow.up.forward.app", help: L10n.pick("Open Repository", "打开仓库")) {
-                if let repoURL { NSWorkspace.shared.open(repoURL) }
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 11)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
     }
 
@@ -321,20 +323,10 @@ struct GitView: View {
     private func headerButton(_ systemImage: String,
                               help: String,
                               disabled: Bool = false,
+                              active: Bool = false,
                               action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .semibold))
-                .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                .contentShape(Rectangle())
-                .facetHoverSurface(tint: .secondary,
-                                   fill: Color.primary.opacity(0.04),
-                                   hoverFill: Color.primary.opacity(0.07),
-                                   hoverStroke: FacetTheme.hairline)
-        }
-        .buttonStyle(.plain)
+        WorkspaceActionButton(systemName: systemImage, help: help, active: active, action: action)
         .disabled(disabled || isPerformingOperation)
-        .help(help)
     }
 
     // MARK: - Changes

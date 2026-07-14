@@ -931,7 +931,7 @@ struct NotesView: View {
     }
 
     private func docControlBar(_ doc: RepositoryDocument) -> some View {
-        HStack(spacing: 12) {
+        WorkspaceActionBar {
             VStack(alignment: .leading, spacing: 2) {
                 Text(doc.title)
                     .font(.system(size: 14, weight: .bold))
@@ -943,109 +943,70 @@ struct NotesView: View {
 
             Spacer()
 
-            HStack(spacing: 8) {
-                Button { navigatorVisible.toggle() } label: {
-                    Image(systemName: "sidebar.left")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                        .contentShape(Rectangle())
-                        .facetHoverSurface(tint: navigatorVisible ? Color.accentColor : .secondary,
-                                           fill: navigatorVisible ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.04),
-                                           hoverFill: Color.primary.opacity(0.07),
-                                           hoverStroke: FacetTheme.hairline)
-                }
-                .buttonStyle(.plain)
-                .help(navigatorVisible ? L10n.pick("Hide Navigator", "隐藏导航栏")
-                                       : L10n.pick("Show Navigator", "显示导航栏"))
-
-                Button {
-                    showingAttachmentPopover = true
-                } label: {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                        .contentShape(Rectangle())
-                        .facetHoverSurface(tint: .secondary,
-                                           fill: Color.primary.opacity(0.04),
-                                           hoverFill: Color.primary.opacity(0.07),
-                                           hoverStroke: FacetTheme.hairline)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.pick("Attach to Work Item", "关联到工作项"))
-                .popover(isPresented: $showingAttachmentPopover, arrowEdge: .bottom) {
-                    documentAttachmentPopover(doc)
-                }
-
-                Button {
-                    inspectorTab = .history
-                    inspectorVisible = true
-                    reloadFileCommits()
-                } label: {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                        .contentShape(Rectangle())
-                        .facetHoverSurface(tint: inspectorTab == .history && inspectorVisible ? Color.accentColor : .secondary,
-                                           fill: inspectorTab == .history && inspectorVisible
-                                                ? Color.accentColor.opacity(0.10)
-                                                : Color.primary.opacity(0.04),
-                                           hoverFill: Color.primary.opacity(0.07),
-                                           hoverStroke: FacetTheme.hairline)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.pick("Revision History", "版本历史"))
-
-                // Export menu button
-                Menu {
-                    Button(L10n.pick("Export to Markdown", "导出为 Markdown")) { exportToMarkdown() }
-                    Button(L10n.pick("Export to PDF", "导出为 PDF")) { exportToPDF() }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                        .contentShape(Rectangle())
-                        .facetHoverSurface(tint: .secondary,
-                                           fill: Color.primary.opacity(0.04),
-                                           hoverFill: Color.primary.opacity(0.07),
-                                           hoverStroke: FacetTheme.hairline)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help(L10n.pick("Export Document", "导出文档"))
-                .disabled(isViewingRevision)
-
-                // Reveal in Finder button
-                Button {
-                    revealSelectedDocument()
-                } label: {
-                    Image(systemName: "arrow.up.forward.app")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                        .contentShape(Rectangle())
-                        .facetHoverSurface(tint: .secondary,
-                                           fill: Color.primary.opacity(0.04),
-                                           hoverFill: Color.primary.opacity(0.07),
-                                           hoverStroke: FacetTheme.hairline)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.pick("Reveal in Finder", "在 Finder 中显示"))
-
-                if editorMode != .split {
-                    Button {
-                        fullWidth.toggle()
-                    } label: {
-                        Image(systemName: fullWidth ? "arrow.right.and.line.vertical.and.arrow.left" : "arrow.left.and.line.vertical.and.arrow.right")
-                            .font(.system(size: 11, weight: .semibold))
-                            .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                            .contentShape(Rectangle())
-                            .facetHoverSurface(tint: .secondary,
-                                               fill: Color.primary.opacity(0.04),
-                                               hoverFill: Color.primary.opacity(0.07),
-                                               hoverStroke: FacetTheme.hairline)
+            HStack(spacing: FacetTheme.workspaceActionGroupSpacing) {
+                WorkspaceActionGroup {
+                    WorkspaceActionButton(
+                        systemName: "sidebar.left",
+                        help: navigatorVisible ? L10n.pick("Hide Navigator", "隐藏导航栏")
+                                               : L10n.pick("Show Navigator", "显示导航栏"),
+                        active: navigatorVisible
+                    ) {
+                        navigatorVisible.toggle()
                     }
-                    .buttonStyle(.plain)
-                    .help(fullWidth ? L10n.pick("Constrain Width", "限制宽度") : L10n.pick("Full Width", "全宽显示"))
+
+                    WorkspaceActionButton(
+                        systemName: "paperclip",
+                        help: L10n.pick("Attach to Work Item", "关联到工作项")
+                    ) {
+                        showingAttachmentPopover = true
+                    }
+                    .popover(isPresented: $showingAttachmentPopover, arrowEdge: .bottom) {
+                        documentAttachmentPopover(doc)
+                    }
+
+                    WorkspaceActionButton(
+                        systemName: "clock.arrow.circlepath",
+                        help: L10n.pick("Revision History", "版本历史"),
+                        active: inspectorTab == .history && inspectorVisible
+                    ) {
+                        inspectorTab = .history
+                        inspectorVisible = true
+                        reloadFileCommits()
+                    }
+                }
+
+                WorkspaceActionGroup {
+                    Menu {
+                        Button(L10n.pick("Export to Markdown", "导出为 Markdown")) { exportToMarkdown() }
+                        Button(L10n.pick("Export to PDF", "导出为 PDF")) { exportToPDF() }
+                    } label: {
+                        WorkspaceActionIcon(systemName: "square.and.arrow.up")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help(L10n.pick("Export Document", "导出文档"))
+                    .disabled(isViewingRevision)
+
+                    WorkspaceActionButton(
+                        systemName: "arrow.up.forward.app",
+                        help: L10n.pick("Reveal in Finder", "在 Finder 中显示")
+                    ) {
+                        revealSelectedDocument()
+                    }
+
+                    if editorMode != .split {
+                        WorkspaceActionButton(
+                            systemName: fullWidth
+                                ? "arrow.right.and.line.vertical.and.arrow.left"
+                                : "arrow.left.and.line.vertical.and.arrow.right",
+                            help: fullWidth ? L10n.pick("Constrain Width", "限制宽度")
+                                            : L10n.pick("Full Width", "全宽显示"),
+                            active: fullWidth
+                        ) {
+                            fullWidth.toggle()
+                        }
+                    }
                 }
 
                 Picker("", selection: $editorMode) {
@@ -1059,26 +1020,17 @@ struct NotesView: View {
                 .fixedSize()
                 .disabled(isViewingRevision)
 
-                Button { inspectorVisible.toggle() } label: {
-                    Image(systemName: "sidebar.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                        .contentShape(Rectangle())
-                        .facetHoverSurface(tint: inspectorVisible ? Color.accentColor : .secondary,
-                                           fill: inspectorVisible ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.04),
-                                           hoverFill: Color.primary.opacity(0.07),
-                                           hoverStroke: FacetTheme.hairline)
+                WorkspaceActionGroup {
+                    WorkspaceActionButton(
+                        systemName: "sidebar.right",
+                        help: inspectorVisible ? L10n.pick("Hide Inspector", "隐藏检查器")
+                                               : L10n.pick("Show Inspector", "显示检查器"),
+                        active: inspectorVisible
+                    ) {
+                        inspectorVisible.toggle()
+                    }
                 }
-                .buttonStyle(.plain)
-                .help(inspectorVisible ? L10n.pick("Hide Inspector", "隐藏检查器")
-                                       : L10n.pick("Show Inspector", "显示检查器"))
             }
-        }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 54)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
     }
 

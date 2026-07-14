@@ -68,15 +68,7 @@ struct FilterPillButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 26, height: 24)
-                .contentShape(Rectangle())
-                .facetHoverSurface(tint: active ? Color.accentColor : .secondary,
-                                   fill: active ? Color.accentColor.opacity(0.14) : Color.clear,
-                                   hoverFill: active ? Color.accentColor.opacity(0.20) : Color.primary.opacity(0.055),
-                                   stroke: active ? Color.accentColor.opacity(0.24) : Color.clear,
-                                   hoverStroke: active ? Color.accentColor.opacity(0.38) : FacetTheme.hairline)
+            WorkspaceActionIcon(systemName: systemName, active: active)
         }
         .buttonStyle(.plain)
         .help(help)
@@ -107,15 +99,10 @@ struct ItemFilterMenuButton: View {
                 }
             }
         } label: {
-            Image(systemName: itemFilter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 26, height: 24)
-                .contentShape(Rectangle())
-                .facetHoverSurface(tint: itemFilter.isActive ? Color.accentColor : .secondary,
-                                   fill: itemFilter.isActive ? Color.accentColor.opacity(0.14) : Color.clear,
-                                   hoverFill: itemFilter.isActive ? Color.accentColor.opacity(0.20) : Color.primary.opacity(0.055),
-                                   stroke: itemFilter.isActive ? Color.accentColor.opacity(0.24) : Color.clear,
-                                   hoverStroke: itemFilter.isActive ? Color.accentColor.opacity(0.38) : FacetTheme.hairline)
+            WorkspaceActionIcon(
+                systemName: itemFilter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle",
+                active: itemFilter.isActive
+            )
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -200,7 +187,7 @@ struct ItemActionCluster<Accessory: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 2) {
+        WorkspaceActionGroup {
             accessory
             ItemFilterMenuButton(itemFilter: $itemFilter)
             if let showOverdue {
@@ -229,7 +216,6 @@ struct ItemActionCluster<Accessory: View>: View {
                                  action: onAdd)
             }
         }
-        .pillGroupContainer()
     }
 
     private func createMenu(_ onCreateKind: @escaping (ProjectItem.Kind) -> Void) -> some View {
@@ -237,14 +223,7 @@ struct ItemActionCluster<Accessory: View>: View {
             Button { onCreateKind(.reminder) } label: { Label(ProjectItem.Kind.reminder.singularTitle, systemImage: ProjectItem.Kind.reminder.systemImage) }
             Button { onCreateKind(.event) } label: { Label(ProjectItem.Kind.event.singularTitle, systemImage: ProjectItem.Kind.event.systemImage) }
         } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 26, height: FacetTheme.chipHeight)
-                .contentShape(Rectangle())
-                .facetHoverSurface(tint: .secondary,
-                                   fill: Color.clear,
-                                   hoverFill: Color.primary.opacity(0.055),
-                                   hoverStroke: FacetTheme.hairline)
+            WorkspaceActionIcon(systemName: "plus")
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -267,23 +246,5 @@ extension ItemActionCluster where Accessory == EmptyView {
             onAdd: onAdd,
             accessory: { EmptyView() }
         )
-    }
-}
-
-extension View {
-    /// The rounded, hairline-stroked container that wraps the All view's pill
-    /// action group. Shared so the Plan cluster matches exactly.
-    func pillGroupContainer() -> some View {
-        self
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color(NSColor.controlBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-            )
     }
 }

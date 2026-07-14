@@ -37,22 +37,15 @@ struct PeriodNavigationBar<Leading: View, Accessory: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        WorkspaceActionBar {
             leading
 
             Spacer()
 
-            HStack(spacing: 10) {
+            HStack(spacing: FacetTheme.workspaceActionGroupSpacing) {
                 navCluster
                 accessory
             }
-        }
-        .frame(minHeight: 30, alignment: .center)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(FacetTheme.canvas)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(FacetTheme.hairline).frame(height: 1)
         }
         .overlay(alignment: .center) {
             VStack(spacing: 2) {
@@ -66,34 +59,17 @@ struct PeriodNavigationBar<Leading: View, Accessory: View>: View {
     }
 
     private var navCluster: some View {
-        HStack(spacing: 2) {
+        WorkspaceActionGroup {
             pillIconButton(systemName: "chevron.left", help: previousHelp, action: onPrevious)
             pillIconButton(systemName: "chevron.right", help: nextHelp, action: onNext)
             pillTextButton(L10n.pick("Current", "当前"), help: currentHelp, action: onCurrent)
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
         .frame(width: 112, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-        )
     }
 
     private func pillIconButton(systemName: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 26, height: 24)
-                .contentShape(Rectangle())
-                .facetHoverSurface(tint: .secondary,
-                                   fill: Color.clear,
-                                   hoverFill: Color.primary.opacity(0.055),
-                                   hoverStroke: FacetTheme.hairline)
+            WorkspaceActionIcon(systemName: systemName)
         }
         .buttonStyle(.plain)
         .help(help)

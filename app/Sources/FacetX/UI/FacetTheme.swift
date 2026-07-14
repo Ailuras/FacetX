@@ -8,6 +8,15 @@ enum FacetTheme {
     /// metadata badge in a list row lines up at the same height.
     static let chipHeight: CGFloat = 24
 
+    /// Shared workspace header metrics. All, Plan, Git and Notes use the same
+    /// vertical rhythm and action grouping instead of tuning their toolbars
+    /// independently.
+    static let workspaceBarHeight: CGFloat = 54
+    static let workspaceBarHorizontalPadding: CGFloat = 16
+    static let workspaceSectionSpacing: CGFloat = 12
+    static let workspaceActionSpacing: CGFloat = 2
+    static let workspaceActionGroupSpacing: CGFloat = 8
+
     /// Shared spring used for soft item-list transitions (insert/complete/move).
     static let listSpring: Animation = .spring(response: 0.34, dampingFraction: 0.88)
     static let dragPreviewAnimation: Animation = .spring(response: 0.22, dampingFraction: 0.86)

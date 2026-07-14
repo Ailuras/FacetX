@@ -16,67 +16,61 @@ extension PlanView {
                 summaryCluster
             },
             accessory: {
-                HStack(spacing: 8) {
-                    if hasActiveSearch {
-                        FacetInfoBadge(
-                            text: "\(weekItems.count) \(L10n.t(.resultsUnit))",
-                            systemImage: "magnifyingglass",
-                            tint: .secondary,
-                            fill: Color.accentColor.opacity(0.08)
-                        )
+                HStack(spacing: FacetTheme.workspaceActionGroupSpacing) {
+                    HStack(spacing: 6) {
+                        if hasActiveSearch {
+                            FacetInfoBadge(
+                                text: "\(weekItems.count) \(L10n.t(.resultsUnit))",
+                                systemImage: "magnifyingglass",
+                                tint: .secondary,
+                                fill: Color.accentColor.opacity(0.08)
+                            )
+                        }
+                        if !showCompleted && hiddenReminderCount > 0 {
+                            FacetInfoBadge(
+                                text: "\(hiddenReminderCount) \(L10n.t(.hiddenUnit))",
+                                systemImage: "eye.slash",
+                                tint: .secondary,
+                                fill: Color.orange.opacity(0.08)
+                            )
+                        }
+                        if !tagFilter.isEmpty {
+                            ActiveTagFilterBar(tagFilter: $tagFilter)
+                        }
+                        if itemFilter.isActive {
+                            FacetInfoBadge(
+                                text: "\(weekItems.count) \(L10n.t(.shownUnit))",
+                                systemImage: "line.3.horizontal.decrease.circle",
+                                tint: .secondary,
+                                fill: Color.accentColor.opacity(0.08)
+                            )
+                        }
                     }
-                    if !showCompleted && hiddenReminderCount > 0 {
-                        FacetInfoBadge(
-                            text: "\(hiddenReminderCount) \(L10n.t(.hiddenUnit))",
-                            systemImage: "eye.slash",
-                            tint: .secondary,
-                            fill: Color.orange.opacity(0.08)
-                        )
+
+                    WorkspaceActionGroup {
+                        WorkspaceActionButton(
+                            systemName: "doc.text.magnifyingglass",
+                            help: L10n.pick("Review this week", "回顾本周")
+                        ) {
+                            showingReview = true
+                        }
+                        WorkspaceActionButton(
+                            systemName: "sparkles",
+                            help: L10n.pick("Draft this week's plan with AI", "用 AI 起草本周计划"),
+                            emphasized: true
+                        ) {
+                            draftPlanWithAI()
+                        }
+                        .disabled(assistant.isBusy)
                     }
-                    if !tagFilter.isEmpty {
-                        ActiveTagFilterBar(tagFilter: $tagFilter)
-                    }
-                    if itemFilter.isActive {
-                        FacetInfoBadge(
-                            text: "\(weekItems.count) \(L10n.t(.shownUnit))",
-                            systemImage: "line.3.horizontal.decrease.circle",
-                            tint: .secondary,
-                            fill: Color.accentColor.opacity(0.08)
-                        )
-                    }
-                    Button {
-                        showingReview = true
-                    } label: {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 11, weight: .semibold))
-                            .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                            .contentShape(Rectangle())
-                            .facetHoverSurface(tint: .secondary,
-                                               fill: Color.primary.opacity(0.04),
-                                               hoverFill: Color.primary.opacity(0.07),
-                                               hoverStroke: FacetTheme.hairline)
-                    }
-                    .buttonStyle(.plain)
-                    .help(L10n.pick("Review this week", "回顾本周"))
-                    Button {
-                        draftPlanWithAI()
-                    } label: {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 11, weight: .semibold))
-                            .frame(width: FacetTheme.chipHeight, height: FacetTheme.chipHeight)
-                            .contentShape(Rectangle())
-                            .facetHoverSurface(tint: Color.accentColor,
-                                               fill: Color.accentColor.opacity(assistant.isBusy ? 0.04 : 0.12),
-                                               hoverFill: Color.accentColor.opacity(0.18),
-                                               stroke: assistant.isBusy ? Color.clear : Color.accentColor.opacity(0.18),
-                                               hoverStroke: Color.accentColor.opacity(0.36))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(assistant.isBusy)
-                    .help(L10n.pick("Draft this week's plan with AI", "用 AI 起草本周计划"))
-                    PlanSortMenu(selection: $sortOption, onSelect: setSortOption)
-                    ItemActionCluster(itemFilter: $itemFilter, showCompleted: $showCompleted, animation: listAnimation) {
-                        onCreateItem(week.startDate)
+
+                    ItemActionCluster(
+                        itemFilter: $itemFilter,
+                        showCompleted: $showCompleted,
+                        animation: listAnimation,
+                        onAdd: { onCreateItem(week.startDate) }
+                    ) {
+                        PlanSortMenu(selection: $sortOption, onSelect: setSortOption)
                     }
                 }
             }
