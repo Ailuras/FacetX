@@ -142,7 +142,8 @@ struct ProjectDetailView: View {
                                 project: project,
                                 items: items,
                                 searchText: searchText,
-                                refreshTrigger: refreshTrigger
+                                refreshTrigger: refreshTrigger,
+                                onItemsChanged: { await reload() }
                             )
                         case .notes:
                             NotesView(
